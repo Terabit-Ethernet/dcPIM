@@ -11,6 +11,10 @@
 #include <vector>
 #include "assert.h"
 
+#include "../run/params.h"
+
+extern DCExpParams params;
+
 template<typename _Tp, typename _Sequence, typename _Compare>
 class CustomPriorityQueue
 {

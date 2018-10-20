@@ -91,19 +91,36 @@ CapabilityHost::CapabilityHost(uint32_t id, double rate, uint32_t queue_type) : 
     this->total_capa_schd_evt_count = 0;
     this->could_better_schd_count = 0;
     this->sender_notify_evt = NULL;
-    this->host_type = CAPABILITY_HOST;
+    if (params.host_type == CAPABILITY_HOST) {
+        this->host_type = CAPABILITY_HOST;
+    } else if (params.host_type == RANDOM_HOST) {
+        this->host_type = RANDOM_HOST;
+    }
 }
 
 void CapabilityHost::start_capability_flow(CapabilityFlow* f) {
-    if(debug_flow(f->id) || debug_host(this->id))
-        std::cout 
-            << get_current_time() 
-            << " flow " << f->id 
-            << " src " << this->id
-            << " curr q size " << this->queue->bytes_in_queue 
-            << " num flows " << this->active_receiving_flows.size() <<"\n";
-
-    this->active_sending_flows.push(f);
+    if(debug_flow(f->id) || debug_host(this->id)) {
+        if (this->host_type == RANDOM_HOST) {
+            std::cout 
+                << get_current_time() 
+                << " flow " << f->id 
+                << " src " << this->id
+                << " curr q size " << this->queue->bytes_in_queue 
+                << " num flows " << this->active_recv_flows_array.size() <<"\n";
+        } else if (this->host_type == CAPABILITY_HOST) {
+            std::cout 
+                << get_current_time() 
+                << " flow " << f->id 
+                << " src " << this->id
+                << " curr q size " << this->queue->bytes_in_queue 
+                << " num flows " << this->active_receiving_flows.size() <<"\n";
+        }
+    }
+    if (this->host_type == CAPABILITY_HOST) {
+        this->active_sending_flows.push(f);
+    } else if (this->host_type == RANDOM_HOST) {
+        this->active_send_flows_array.push_back(f);
+    }
     f->send_rts_pkt();
     if(f->has_capability() && ((CapabilityHost*)(f->src))->host_proc_event == NULL) {
         ((CapabilityHost*)(f->src))->schedule_host_proc_evt();
@@ -145,7 +162,24 @@ void CapabilityHost::schedule_sender_notify_evt()
     add_to_event_queue(this->sender_notify_evt);
 }
 
+CapabilityFlow* CapabilityHost::choose_send_flow() {
+    CapabilityFlow* f = NULL;
+    if(this->host_type == RANDOM_HOST) {
+        if (!this->active_send_flows_array.empty()) {
+            int index = rand() % this->active_send_flows_array.size();
+            f = this->active_send_flows_array[index];
+            this->active_send_flows_array.erase(this->active_send_flows_array.begin() + index);
+        }
+    } else if(this->host_type == CAPABILITY_HOST) {
+        if (!this->active_sending_flows.empty()) {
+            f = this->active_sending_flows.top();
 
+            this->active_sending_flows.pop();
+        }
+    }
+    return f;
+
+}
 //should only be called in HostProcessingEvent::process()
 void CapabilityHost::send(){
     assert(this->host_proc_event == NULL);
@@ -159,28 +193,23 @@ void CapabilityHost::send(){
     {
         bool pkt_sent = false;
         std::queue<CapabilityFlow*> flows_tried;
-        while(!this->active_sending_flows.empty()){
-            if(this->active_sending_flows.top()->finished){
-                this->active_sending_flows.pop();
-                continue;
+        while(1){
+            CapabilityFlow* top_flow = this->choose_send_flow();
+           
+            if (top_flow == NULL) {
+                break;
             }
 
-            CapabilityFlow* top_flow = this->active_sending_flows.top();
-
-
-            if(top_flow->has_capability())
-            {
+            if(top_flow->finished){
+                continue;
+            }
+            flows_tried.push(top_flow);
+            if(top_flow->has_capability()) {
                 top_flow->send_pending_data();
                 pkt_sent = true;
                 break;
             }
-            else{
-                this->active_sending_flows.pop();
-                flows_tried.push(top_flow);
-            }
-
         }
-
         //code for 4th priority level
         if(params.capability_fourth_level && !pkt_sent && flows_tried.size() > 0){
             std::vector<CapabilityFlow*> candidate;
@@ -200,11 +229,13 @@ void CapabilityHost::send(){
         {
             CapabilityFlow* f = flows_tried.front();
             flows_tried.pop();
-            this->active_sending_flows.push(f);
+            if (this->host_type == RANDOM_HOST) {
+                this->active_send_flows_array.push_back(f);
+            } else if (this->host_type == CAPABILITY_HOST) {
+                this->active_sending_flows.push(f);
+            }
         }
-
     }
-
 }
 
 void CapabilityHost::notify_flow_status()
@@ -215,6 +246,7 @@ void CapabilityHost::notify_flow_status()
     while(!this->active_sending_flows.empty())
     {
         CapabilityFlow* f = this->active_sending_flows.top();
+
         this->active_sending_flows.pop();
         if(!f->finished){
             flows_tried.push(f);
@@ -261,6 +293,23 @@ bool CapabilityHost::is_sender_idle(){
     return idle;
 }
 
+// choose sender flow without replacemnt
+CapabilityFlow* CapabilityHost::choose_recv_flow() {
+    CapabilityFlow* f = NULL;
+    if(this->host_type == RANDOM_HOST) {
+        if (!this->active_recv_flows_array.empty()) {
+            int index = rand() % this->active_recv_flows_array.size();
+            f = this->active_recv_flows_array[index];
+            this->active_recv_flows_array.erase(this->active_recv_flows_array.begin() + index);
+        }
+    } else if(this->host_type == CAPABILITY_HOST) {
+        if(!this->active_receiving_flows.empty()) {
+            f = this->active_receiving_flows.top();
+            this->active_receiving_flows.pop();
+        }
+    }
+    return f;
+}
 void CapabilityHost::send_capability(){
     //if(debug_host(this->id))
     //    std::cout << get_current_time() << " CapabilityHost::send_capability() at host " << this->id << "\n";
@@ -277,10 +326,12 @@ void CapabilityHost::send_capability(){
         capability_sent = true;
     }
 
-    while(!this->active_receiving_flows.empty() && !capability_sent)
+    while(!capability_sent)
     {
-        CapabilityFlow* f = this->active_receiving_flows.top();
-        this->active_receiving_flows.pop();
+        CapabilityFlow* f = this->choose_recv_flow();
+        if (f == NULL) {
+            break;
+        }
         //if(debug_flow(f->id))
         //    std::cout << get_current_time() << " pop out flow " << f->id << "\n";
 
@@ -293,7 +344,7 @@ void CapabilityHost::send_capability(){
 
         //not yet timed out, shouldn't send
         if(f->redundancy_ctrl_timeout > get_current_time()){
-            if(check_better_schedule(f))
+            if(this->host_type == CAPABILITY_HOST && check_better_schedule(f))
                 could_schd_better = true;
             if(f->redundancy_ctrl_timeout < closet_timeout)
             {
@@ -343,10 +394,12 @@ void CapabilityHost::send_capability(){
     while(!flows_tried.empty()){
         CapabilityFlow* tf = flows_tried.front();
         flows_tried.pop();
-        this->active_receiving_flows.push(tf);
+        if (this->host_type == RANDOM_HOST) {
+            this->active_recv_flows_array.push_back(tf);
+        } else if (this->host_type == CAPABILITY_HOST) {
+            this->active_receiving_flows.push(tf);
+        }
     }
-
-
 
     if(capability_sent)// pkt sent
     {
@@ -360,7 +413,6 @@ void CapabilityHost::send_capability(){
     else{
         //do nothing, no unfinished flow
     }
-
     if(could_schd_better)
         this->could_better_schd_count++;
 }

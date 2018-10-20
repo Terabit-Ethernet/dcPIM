@@ -3,7 +3,6 @@
 
 #include <set>
 #include <queue>
-
 #include "../coresim/node.h"
 #include "../coresim/packet.h"
 #include "../coresim/event.h"
@@ -47,6 +46,13 @@ class CapabilityHost : public SchedulingHost {
         int hold_on;
         int total_capa_schd_evt_count;
         int could_better_schd_count;
+
+        CapabilityFlow* choose_send_flow();
+        CapabilityFlow* choose_recv_flow();
+        // for random host
+        std::vector<CapabilityFlow*> active_send_flows_array;
+        std::vector<CapabilityFlow*> active_recv_flows_array;
+
 };
 
 #define CAPABILITY_PROCESSING 11

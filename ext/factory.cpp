@@ -115,6 +115,9 @@ Host* Factory::get_host(
         case CAPABILITY_HOST:
             return new CapabilityHost(id, rate, queue_type);
             break;
+        case RANDOM_HOST:
+            return new CapabilityHost(id, rate, queue_type);
+            break;
         case MAGIC_HOST:
             return new MagicHost(id, rate, queue_type);
             break;

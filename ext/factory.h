@@ -27,7 +27,10 @@
 #define CAPABILITY_HOST 12
 #define MAGIC_HOST 13
 #define FASTPASS_HOST 14
+#define RANKING_HOST 15
+#define RANDOM_HOST 16
 #define FASTPASS_ARBITER 10
+#define RANKING_ARBITER 11
 #define IDEAL_HOST 20
 
 class Factory {

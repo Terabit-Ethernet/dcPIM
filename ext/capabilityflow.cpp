@@ -6,9 +6,9 @@
 
 #include "capabilityhost.h"
 #include "capabilityflow.h"
+#include "factory.h"
 
 #include "../run/params.h"
-
 extern double get_current_time();
 extern void add_to_event_queue(Event*);
 extern DCExpParams params;
@@ -93,7 +93,11 @@ void CapabilityFlow::receive_rts(Packet* p) {
     this->rts_received = true;
     set_capability_count();
     ((CapabilityHost*)(this->dst))->hold_on = this->init_capa_size();
-    ((CapabilityHost*)(this->dst))->active_receiving_flows.push(this);
+    if (params.host_type == CAPABILITY_HOST) {
+        ((CapabilityHost*)(this->dst))->active_receiving_flows.push(this);
+    } else if (params.host_type == RANDOM_HOST) {
+        ((CapabilityHost*)(this->dst))->active_recv_flows_array.push_back(this);
+    }
 
     if( ((CapabilityHost*)(this->dst))->capa_proc_evt &&
             ((CapabilityHost*)(this->dst))->capa_proc_evt->is_timeout_evt
