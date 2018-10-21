@@ -168,7 +168,13 @@ CapabilityFlow* CapabilityHost::choose_send_flow() {
         if (!this->active_send_flows_array.empty()) {
             int index = rand() % this->active_send_flows_array.size();
             f = this->active_send_flows_array[index];
-            this->active_send_flows_array.erase(this->active_send_flows_array.begin() + index);
+            if(this->active_send_flows_array.size() == 1) {
+                this->active_send_flows_array.pop_back();
+            } else {
+                auto temp = this->active_send_flows_array[index];
+                this->active_send_flows_array[index] = this->active_send_flows_array[this->active_send_flows_array.size() - 1];
+                this->active_send_flows_array.pop_back();
+            }        
         }
     } else if(this->host_type == CAPABILITY_HOST) {
         if (!this->active_sending_flows.empty()) {
@@ -300,7 +306,13 @@ CapabilityFlow* CapabilityHost::choose_recv_flow() {
         if (!this->active_recv_flows_array.empty()) {
             int index = rand() % this->active_recv_flows_array.size();
             f = this->active_recv_flows_array[index];
-            this->active_recv_flows_array.erase(this->active_recv_flows_array.begin() + index);
+            if(this->active_recv_flows_array.size() == 1) {
+                this->active_recv_flows_array.pop_back();
+            } else {
+                auto temp = this->active_recv_flows_array[index];
+                this->active_recv_flows_array[index] = this->active_recv_flows_array[this->active_recv_flows_array.size() - 1];
+                this->active_recv_flows_array.pop_back();
+            }
         }
     } else if(this->host_type == CAPABILITY_HOST) {
         if(!this->active_receiving_flows.empty()) {
