@@ -14,6 +14,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     std::string key;
     params.interarrival_cdf = "none";
     params.permutation_tm = 0;
+    params.incast_tm = 0;
     params.hdr_size = 40;
     while (std::getline(input, line)) {
         std::istringstream lineStream(line);
@@ -162,6 +163,8 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         }
         else if (key == "permutation_tm") {
             lineStream >> params.permutation_tm;
+        } else if (key == "incast_tm") {
+            lineStream >> params.incast_tm;
         }
         else if (key == "dctcp_mark_thresh") {
             lineStream >> params.dctcp_mark_thresh;

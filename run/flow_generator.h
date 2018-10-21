@@ -92,5 +92,11 @@ public:
     virtual void make_flows();
 
 };
+class IncastTM : public FlowGenerator {
+public:
+    IncastTM(uint32_t num_flows, Topology *topo, std::string filename, uint32_t incast);
+    uint32_t incast;
+    virtual void make_flows();
 
+};
 #endif

@@ -442,7 +442,133 @@ void PermutationTM::make_flows() {
     }
     current_time = 0;
 }
+IncastTM::IncastTM(uint32_t num_flows, Topology *topo, std::string filename, uint32_t incast) : FlowGenerator(num_flows, topo, filename) {
+    this->incast = incast;
+}
 
+void IncastTM::make_flows() {
+    EmpiricalRandomVariable *nv_bytes;
+    if (params.smooth_cdf)
+        nv_bytes = new EmpiricalRandomVariable(filename);
+    else
+        nv_bytes = new CDFRandomVariable(filename);
+
+    params.mean_flow_size = nv_bytes->mean_flow_size;
+
+    double lambda = params.bandwidth * params.load / (params.mean_flow_size * 8.0 / 1460 * 1500);
+    //std::cout << "Lambda: " << lambda << std::endl;
+
+    auto *nv_intarr = new ExponentialRandomVariable(1.0 / lambda);
+
+    std::set<uint32_t> srcs;
+    for (uint32_t i = 0; i < topo->hosts.size(); i++) {
+        uint32_t j = i;
+        std::vector<uint32_t> target_srcs;
+        while (srcs.size() < topo->hosts.size()) { // orig. "j != i"
+            j = rand() % topo->hosts.size();
+            if (j == i) {
+                continue; 
+            }
+            if (srcs.find(j) != srcs.end()) {
+                if(srcs.find(i) == srcs.end() && srcs.size() == topo->hosts.size() - 1) {
+                    break;
+                } else {
+                    continue;
+                }
+            }
+            if (target_srcs.size() < this->incast) {
+                target_srcs.push_back(j);
+                srcs.insert(j);
+            } else {
+                break;
+            }
+        }
+        for (j = 0; j < target_srcs.size(); j++) {
+            double first_flow_time = 1.0 + nv_intarr->value();
+            assert(i != target_srcs[j]);
+            add_to_event_queue(
+                new FlowCreationForInitializationEvent(
+                    first_flow_time,
+                    topo->hosts[target_srcs[j]],
+                    topo->hosts[i], 
+                    nv_bytes, 
+                    nv_intarr
+                )
+            );
+        }
+    }
+
+    while (event_queue.size() > 0) {
+        Event *ev = event_queue.top();
+        event_queue.pop();
+        current_time = ev->time;
+        if (flows_to_schedule.size() < num_flows) {
+            ev->process_event();
+        }
+        delete ev;
+    }
+    current_time = 0;
+}
+// outcastTM::outcastTM(uint32_t num_flows, Topology *topo, std::string filename, uint32_t outcast) : FlowGenerator(num_flows, topo, filename) {
+//     this->outcast = outcast;
+// }
+
+// void OutcastTM::make_flows() {
+//     EmpiricalRandomVariable *nv_bytes;
+//     if (params.smooth_cdf)
+//         nv_bytes = new EmpiricalRandomVariable(filename);
+//     else
+//         nv_bytes = new CDFRandomVariable(filename);
+
+//     params.mean_flow_size = nv_bytes->mean_flow_size;
+
+//     double lambda = params.bandwidth * params.load / (params.mean_flow_size * 8.0 / 1460 * 1500);
+//     //std::cout << "Lambda: " << lambda << std::endl;
+
+//     auto *nv_intarr = new ExponentialRandomVariable(1.0 / lambda);
+
+//     std::set<uint32_t> dests;
+//     for (uint32_t i = 0; i < topo->hosts.size(); i++) {
+//         uint32_t j = i;
+//         std::vector<uint32_t> dst;
+//         while (dests.size() < topo->hosts.size()) { // orig. "j != i"
+//             j = rand() % topo->hosts.size();
+//             if (j == i || dests.find(j) != dests.end()) {
+//                 continue;
+//             }
+//             if (dst.size() < this->outcast) {
+//                 dst.push_back(j);
+//                 dests.insert(j);
+//             } else {
+//                 break;
+//             }
+//         }
+//         for (int j = 0; j < dst.size(); j++) {
+//             double first_flow_time = 1.0 + nv_intarr->value();
+//             assert(i != dst[j]);
+//             add_to_event_queue(
+//                 new FlowCreationForInitializationEvent(
+//                     first_flow_time,
+//                     topo->hosts[i], 
+//                     topo->hosts[dst[j]],
+//                     nv_bytes, 
+//                     nv_intarr
+//                 )
+//             );
+//         }
+//     }
+
+//     while (event_queue.size() > 0) {
+//         Event *ev = event_queue.top();
+//         event_queue.pop();
+//         current_time = ev->time;
+//         if (flows_to_schedule.size() < num_flows) {
+//             ev->process_event();
+//         }
+//         delete ev;
+//     }
+//     current_time = 0;
+// }
 //
 // uninimplemented flow generation schemes
 //
