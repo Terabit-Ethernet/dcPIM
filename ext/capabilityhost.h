@@ -53,6 +53,12 @@ class CapabilityHost : public SchedulingHost {
         std::vector<CapabilityFlow*> active_send_flows_array;
         std::vector<CapabilityFlow*> active_recv_flows_array;
 
+        CapabilityFlow* send_flow;
+        CapabilityFlow* recv_flow;
+
+        std::vector<uint32_t> send_hist;
+        std::vector<uint32_t> token_hist;
+
 };
 
 #define CAPABILITY_PROCESSING 11

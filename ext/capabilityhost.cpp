@@ -95,6 +95,8 @@ CapabilityHost::CapabilityHost(uint32_t id, double rate, uint32_t queue_type) : 
         this->host_type = CAPABILITY_HOST;
     } else if (params.host_type == RANDOM_HOST) {
         this->host_type = RANDOM_HOST;
+        this->send_flow = NULL;
+        this->recv_flow = NULL;
     }
 }
 
@@ -165,6 +167,18 @@ void CapabilityHost::schedule_sender_notify_evt()
 CapabilityFlow* CapabilityHost::choose_send_flow() {
     CapabilityFlow* f = NULL;
     if(this->host_type == RANDOM_HOST) {
+        if (this->send_flow != NULL ) {
+            f = this->send_flow;
+            this->send_flow = NULL;
+            for(auto i = this->active_send_flows_array.begin(); i != this->active_send_flows_array.end(); i++) {
+                if (f == *i) {
+                    this->active_send_flows_array.erase(i);
+                    break;
+                }
+            }
+            return f;
+        }
+
         if (!this->active_send_flows_array.empty()) {
             int index = rand() % this->active_send_flows_array.size();
             f = this->active_send_flows_array[index];
@@ -211,6 +225,8 @@ void CapabilityHost::send(){
             }
             flows_tried.push(top_flow);
             if(top_flow->has_capability()) {
+                this->send_flow = top_flow;
+                this->send_hist.push_back(top_flow->id);
                 top_flow->send_pending_data();
                 pkt_sent = true;
                 break;
@@ -303,6 +319,17 @@ bool CapabilityHost::is_sender_idle(){
 CapabilityFlow* CapabilityHost::choose_recv_flow() {
     CapabilityFlow* f = NULL;
     if(this->host_type == RANDOM_HOST) {
+        if(this->recv_flow != NULL) {
+            f = this->recv_flow;
+            this->recv_flow = NULL;
+            for(auto i = this->active_recv_flows_array.begin(); i != this->active_recv_flows_array.end(); i++) {
+                if (f == *i) {
+                    this->active_recv_flows_array.erase(i);
+                    break;
+                }
+            }
+            return f;
+        }
         if (!this->active_recv_flows_array.empty()) {
             int index = rand() % this->active_recv_flows_array.size();
             f = this->active_recv_flows_array[index];
@@ -390,16 +417,15 @@ void CapabilityHost::send_capability(){
             if(f->capability_gap() <= params.capability_window)
             {
                 f->send_capability_pkt();
+                this->recv_flow = f;
                 capability_sent = true;
-
+                this->token_hist.push_back(this->recv_flow->id);
                 if(f->capability_count == f->capability_goal){
                     f->redundancy_ctrl_timeout = get_current_time() + params.capability_resend_timeout * params.get_full_pkt_tran_delay();
                 }
 
                 break;
             }
-
-
         }
     }
 

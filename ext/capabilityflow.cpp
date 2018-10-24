@@ -159,6 +159,7 @@ void CapabilityFlow::receive(Packet *p)
     {
         if(debug_flow(this->id))
             std::cout << get_current_time() << " flow " << this->id << " received ack\n";
+        // ((CapabilityHost*)(this->src))->send_flow = NULL;
         add_to_event_queue(new FlowFinishedEvent(get_current_time(), this));
     }
     else if(p->type == CAPABILITY_PACKET)
