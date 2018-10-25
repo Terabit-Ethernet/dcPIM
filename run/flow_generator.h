@@ -45,6 +45,8 @@ extern void add_to_event_queue(Event *);
 extern double start_time;
 extern double get_current_time();
 
+void generate_flows_to_schedule_fd_with_skew(std::string filename, uint32_t num_flows,
+        Topology *topo) ;
 // subclass FlowGenerator to implement your favorite flow generation scheme
 
 class FlowGenerator {
@@ -96,6 +98,13 @@ class IncastTM : public FlowGenerator {
 public:
     IncastTM(uint32_t num_flows, Topology *topo, std::string filename, uint32_t incast);
     uint32_t incast;
+    virtual void make_flows();
+
+};
+class OutcastTM : public FlowGenerator {
+public:
+    OutcastTM(uint32_t num_flows, Topology *topo, std::string filename, uint32_t outcast);
+    uint32_t outcast;
     virtual void make_flows();
 
 };

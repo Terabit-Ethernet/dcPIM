@@ -185,9 +185,19 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
         fg->make_flows();
     }
     else if (params.incast_tm != 0) {
-        fg = new IncastTM(num_flows, topology, params.cdf_or_flow_trace, params.incast_tm);
+        if (params.incast_tm == 1)
+            fg = new PermutationTM(num_flows, topology, params.cdf_or_flow_trace);
+        else 
+            fg = new IncastTM(num_flows, topology, params.cdf_or_flow_trace, params.incast_tm);
         fg->make_flows();
     }  
+    else if (params.outcast_tm != 0) {
+        if (params.outcast_tm == 1)
+            fg = new PermutationTM(num_flows, topology, params.cdf_or_flow_trace);
+        else
+            fg = new OutcastTM(num_flows, topology, params.cdf_or_flow_trace, params.outcast_tm);
+        fg->make_flows();
+    } 
     else if (params.permutation_tm != 0) {
         fg = new PermutationTM(num_flows, topology, params.cdf_or_flow_trace);
         fg->make_flows();
