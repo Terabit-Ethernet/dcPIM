@@ -3,6 +3,8 @@
 
 #include "flow.h"
 #include "node.h"
+#include <vector>
+#include <list>
 #include <stdint.h>
 // TODO: Change to Enum
 #define NORMAL_PACKET 0
@@ -17,6 +19,12 @@
 #define FASTPASS_RTS 9
 #define FASTPASS_SCHEDULE 10
 
+// RANKING
+#define RANKING_RTS 11
+#define RANKING_LISTRTS 12
+#define RANKING_NRTS 13
+#define RANKING_GOSRC 14
+#define RANKING_TOKEN 15
 class FastpassEpochSchedule;
 
 class Packet {
@@ -118,6 +126,43 @@ class FastpassSchedulePkt : public Packet
     public:
         FastpassSchedulePkt(Flow *flow, Host *src, Host *dst, FastpassEpochSchedule* schd);
         FastpassEpochSchedule* schedule;
+};
+// Ranking Algorithm
+class RankingRTS : public Packet
+{
+    public:
+        RankingRTS(Flow *flow, Host *src, Host *dst, int size_in_pkt);
+        int size_in_pkt;
+};
+
+class RankingListRTS : public Packet
+{
+    public:
+        RankingListRTS(Flow *flow, Host *src, Host *dst, Host* rts_dst, std::list<Flow*> listFlows);
+        std::list<Flow*> listFlows;
+        Host* rts_dst;
+};
+
+class RankingNRTS : public Packet
+{
+    public:
+        RankingNRTS(Flow *flow, Host *src, Host *dst);
+};
+
+class RankingGoSrc : public Packet
+{
+    public:
+        RankingGoSrc(Flow *flow, Host *src, Host *dst);
+};
+
+class RankingToken : public Packet
+{
+    public:
+        RankingToken(Flow *flow, Host *src, Host *dst, double ttl, int remaining, int token_seq_num, int data_seq_num);
+        double ttl;
+        int remaining_sz;
+        int token_seq_num;
+        int data_seq_num;
 };
 
 #endif

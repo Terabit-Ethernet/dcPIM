@@ -19,6 +19,7 @@
 #define CAPABILITY_FLOW 112
 #define MAGIC_FLOW 113
 #define FASTPASS_FLOW 114
+#define RANKING_FLOW 115
 #define IDEAL_FLOW 120
 
 /* Host types */

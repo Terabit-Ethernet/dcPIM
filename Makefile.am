@@ -24,6 +24,9 @@ simulator_SOURCES = 				 		 	 \
 					ext/fastpassflow.cpp 	   	 \
 					ext/fastpasshost.cpp 	   	 \
 					ext/fastpassTopology.cpp	 \
+					ext/rankinghost.cpp	         \
+					ext/rankingflow.cpp	         \
+					ext/rankingTopology.cpp      \
 					ext/tcpflow.cpp				 \
 					ext/dctcpQueue.cpp			 \
 					ext/dctcpFlow.cpp			 \

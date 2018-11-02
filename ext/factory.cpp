@@ -19,6 +19,9 @@
 #include "dctcpQueue.h"
 #include "dctcpFlow.h"
 
+#include "rankingflow.h"
+#include "rankinghost.h"
+
 #include "ideal.h"
 
 IdealArbiter* ideal_arbiter = NULL;
@@ -82,6 +85,9 @@ Flow* Factory::get_flow(
         case MAGIC_FLOW:
             return new MagicFlow(id, start_time, size, src, dst);
             break;
+        case RANKING_FLOW:
+            return new RankingFlow(id, start_time, size, src, dst);
+            break;
         case FASTPASS_FLOW:
             return new FastpassFlow(id, start_time, size, src, dst);
             break;
@@ -120,6 +126,9 @@ Host* Factory::get_host(
             break;
         case MAGIC_HOST:
             return new MagicHost(id, rate, queue_type);
+            break;
+        case RANKING_HOST:
+            return new RankingHost(id, rate, queue_type);
             break;
         case FASTPASS_HOST:
             return new FastpassHost(id, rate, queue_type);

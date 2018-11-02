@@ -63,7 +63,7 @@ void CapabilityFlow::send_pending_data()
 	}
 
     if(debug_flow(this->id))
-        std::cout << get_current_time() << " flow " << this->id << " send pkt " << this->total_pkt_sent << " " << p->size << "\n";
+        std::cout << get_current_time() << " flow " << this->id << " send pkt " << this->total_pkt_sent << " " << "capacity data sequence: " << capa_data_seq  << " " << p->size << "\n";
 
     double td = src->queue->get_transmission_delay(p->size);
     assert(((SchedulingHost*) src)->host_proc_event == NULL);
@@ -92,7 +92,7 @@ void CapabilityFlow::receive_rts(Packet* p) {
 
     this->rts_received = true;
     set_capability_count();
-    ((CapabilityHost*)(this->dst))->hold_on = this->init_capa_size();
+    ((CapabilityHost*)(this->dst))->hold_on += this->init_capa_size();
     if (params.host_type == CAPABILITY_HOST) {
         ((CapabilityHost*)(this->dst))->active_receiving_flows.push(this);
     } else if (params.host_type == RANDOM_HOST) {
@@ -176,6 +176,9 @@ void CapabilityFlow::receive(Packet *p)
         c->seq_num = ((CapabilityPkt*)p)->cap_seq_num;
         c->data_seq_num = ((CapabilityPkt*)p)->data_seq_num;
         this->capabilities.push(c);
+        if(debug_flow(this->id)) {
+            std::cout << get_current_time() << " receive capa: " << c->seq_num << " data seq: " << c->data_seq_num << std::endl;
+        }
         this->remaining_pkts_at_sender = ((CapabilityPkt*)p)->remaining_sz;
 
         if(((CapabilityHost*)(this->src))->host_proc_event == NULL)
@@ -297,9 +300,9 @@ int CapabilityFlow::get_next_capa_seq_num()
 }
 
 void CapabilityFlow::send_capability_pkt(){
-    if(debug_flow(this->id))
-        std::cout << get_current_time() << " flow " << this->id << " send capa " << this->capability_count << "\n";
     int data_seq_num = this->get_next_capa_seq_num();
+        if(debug_flow(this->id))
+        std::cout << get_current_time() << " flow " << this->id << " send capa " << this->capability_count << " capacity data sequence " << data_seq_num << "\n";
     last_capa_data_seq_num_sent = data_seq_num;
     CapabilityPkt* cp = new CapabilityPkt(this, this->dst, this->src, params.capability_timeout * params.get_full_pkt_tran_delay(), this->remaining_pkts(), this->capability_count, data_seq_num);
     this->capability_count++;
@@ -328,7 +331,9 @@ bool CapabilityFlow::has_capability(){
             if(CAPABILITY_MEASURE_WASTE){
                 this->capability_waste_count += this->capabilities.top()->has_idle_sibling_sender?1:0;
             }
-
+            if(debug_flow(this->id)) {
+                std::cout << get_current_time() <<  "capacity timeout" << std::endl;
+            }
             delete this->capabilities.top();
             this->capabilities.pop();
         }

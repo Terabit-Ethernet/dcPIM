@@ -56,8 +56,8 @@ class CapabilityHost : public SchedulingHost {
         CapabilityFlow* send_flow;
         CapabilityFlow* recv_flow;
 
-        std::vector<uint32_t> send_hist;
-        std::vector<uint32_t> token_hist;
+        // std::vector<uint32_t> send_hist;
+        // std::vector<uint32_t> token_hist;
 
 };
 

@@ -226,7 +226,7 @@ void CapabilityHost::send(){
             flows_tried.push(top_flow);
             if(top_flow->has_capability()) {
                 this->send_flow = top_flow;
-                this->send_hist.push_back(top_flow->id);
+                // this->send_hist.push_back(top_flow->id);
                 top_flow->send_pending_data();
                 pkt_sent = true;
                 break;
@@ -371,8 +371,8 @@ void CapabilityHost::send_capability(){
         if (f == NULL) {
             break;
         }
-        //if(debug_flow(f->id))
-        //    std::cout << get_current_time() << " pop out flow " << f->id << "\n";
+        if(debug_flow(f->id))
+           std::cout << get_current_time() << " pop out flow " << f->id << "\n";
 
 
         if(f->finished_at_receiver)
@@ -398,10 +398,14 @@ void CapabilityHost::send_capability(){
             {
                 f->redundancy_ctrl_timeout = -1;
                 f->capability_goal += f->remaining_pkts();
+                if(debug_flow(f->id))
+                    std::cout << get_current_time() << " redundancy_ctrl_timeout " << f->id << "\n";
             }
 
             if(f->capability_gap() > params.capability_window)
             {
+                if(debug_flow(f->id))
+                    std::cout << get_current_time() << " capability_gap > capability_window " << f->id << "\n";
                 if(get_current_time() >= f->latest_cap_sent_time + params.capability_window_timeout * params.get_full_pkt_tran_delay())
                     f->relax_capability_gap();
                 else{
@@ -409,6 +413,8 @@ void CapabilityHost::send_capability(){
                     {
                         closet_timeout = f->latest_cap_sent_time + params.capability_window_timeout* params.get_full_pkt_tran_delay();
                     }
+                    if(debug_flow(f->id))
+                        std::cout << get_current_time() << " closed timeout " << f->id << "\n";
                 }
 
             }
@@ -419,7 +425,7 @@ void CapabilityHost::send_capability(){
                 f->send_capability_pkt();
                 this->recv_flow = f;
                 capability_sent = true;
-                this->token_hist.push_back(this->recv_flow->id);
+                // this->token_hist.push_back(this->recv_flow->id);
                 if(f->capability_count == f->capability_goal){
                     f->redundancy_ctrl_timeout = get_current_time() + params.capability_resend_timeout * params.get_full_pkt_tran_delay();
                 }

@@ -89,4 +89,31 @@ FastpassSchedulePkt::FastpassSchedulePkt(Flow *flow, Host *src, Host *dst, Fastp
     this->type = FASTPASS_SCHEDULE;
     this->schedule = schd;
 }
+// ----- for ranking algorithm
 
+RankingRTS::RankingRTS(Flow *flow, Host *src, Host *dst, int size_in_pkt) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+    this->type = RANKING_RTS;
+    this->size_in_pkt = size_in_pkt;
+}
+
+RankingListRTS::RankingListRTS(Flow *flow, Host *src, Host *dst, Host *rts_dst, std::list<Flow*> listFlows) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+    this->type = RANKING_LISTRTS;
+    this->rts_dst = rts_dst;
+    this->listFlows = listFlows;
+}
+
+RankingNRTS::RankingNRTS(Flow *flow, Host *src, Host *dst) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+    this->type = RANKING_NRTS;
+}
+
+RankingGoSrc::RankingGoSrc(Flow *flow, Host *src, Host *dst) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+    this->type = RANKING_GOSRC;
+}
+
+RankingToken::RankingToken(Flow *flow, Host *src, Host *dst, double ttl, int remaining, int token_seq_num, int data_seq_num) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+    this->type = RANKING_TOKEN;
+    this->ttl = ttl;
+    this->remaining_sz = remaining;
+    this->token_seq_num = token_seq_num;
+    this->data_seq_num = data_seq_num;
+}
