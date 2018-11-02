@@ -23,6 +23,7 @@
 #include "../ext/fountainflow.h"
 #include "../ext/capabilityflow.h"
 #include "../ext/fastpassTopology.h"
+#include "../ext/rankingTopology.h"
 
 #include "flow_generator.h"
 #include "stats.h"
@@ -165,6 +166,9 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
     
     if (params.flow_type == FASTPASS_FLOW) {
         topology = new FastpassTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
+    } 
+    else if (params.flow_type == RANKING_FLOW) {
+        topology = new RankingTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
     }
     else if (params.big_switch) {
         topology = new BigSwitchTopology(params.num_hosts, params.bandwidth, params.queue_type);
@@ -249,7 +253,9 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
     if (params.flow_type == FASTPASS_FLOW) {
         dynamic_cast<FastpassTopology*>(topology)->arbiter->start_arbiter();
     }
-
+    if (params.flow_type == RANKING_FLOW) {
+        dynamic_cast<RankingTopology*>(topology)->arbiter->start_arbiter();
+    }
     // 
     // everything before this is setup; everything after is analysis
     //

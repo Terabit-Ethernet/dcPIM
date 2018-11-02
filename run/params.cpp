@@ -95,6 +95,11 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         else if (key == "capability_timeout") {
             lineStream >> params.capability_timeout;
         }
+        // For Ranking Algorithm
+        else if (key == "token_timeout") {
+            lineStream >> params.token_timeout;
+        }
+        // -------------
         else if (key == "use_flow_trace") {
             lineStream >> params.use_flow_trace;
         }
@@ -125,6 +130,23 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         else if (key == "capability_window_timeout") {
             lineStream >> params.capability_window_timeout;
         }
+        // For Ranking Algorithm
+        else if (key == "token_resend_timeout") {
+            lineStream >> params.token_resend_timeout;
+        }
+        else if (key == "token_initial") {
+            lineStream >> params.token_initial;
+        }
+        else if (key == "token_window") {
+            lineStream >> params.token_window;
+        }
+        else if (key == "token_window_timeout") {
+            lineStream >> params.token_window_timeout;
+        }
+        else if (key == "rankinghost_idle_timeout") {
+            lineStream >> params.rankinghost_idle_timeout;
+        }
+        // --------------
         else if (key == "ddc") {
             lineStream >> params.ddc;
         }
@@ -189,7 +211,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         }
 
         params.fastpass_epoch_time = 1500 * 8 * (FASTPASS_EPOCH_PKTS + 0.5) / params.bandwidth;
-
+        params.ranking_epoch_time = 1500 * 8 * (RANKING_EPOCH_PKTS + 0.5) / params.bandwidth;
         params.param_str.append(line);
         params.param_str.append(", ");
     }

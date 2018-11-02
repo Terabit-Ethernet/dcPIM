@@ -79,6 +79,19 @@ class DCExpParams {
 
         uint32_t dctcp_mark_thresh;
         //uint32_t dctcp_delayed_ack_freq;
+        
+        // Ranking Algorithm
+        double token_timeout;
+        double token_resend_timeout;
+        uint32_t token_initial;
+        uint32_t token_window;
+        uint32_t token_prio_thresh;
+        double token_window_timeout;
+        uint32_t token_third_level;
+        uint32_t token_fourth_level;
+        
+        double ranking_epoch_time;
+        double rankinghost_idle_timeout;
 
         double get_full_pkt_tran_delay(uint32_t size_in_byte = 1500)
         {
@@ -94,6 +107,7 @@ class DCExpParams {
 
 //#define FASTPASS_EPOCH_TIME 0.000010
 #define FASTPASS_EPOCH_PKTS 8
+#define RANKING_EPOCH_PKTS 8
 
 void read_experiment_parameters(std::string conf_filename, uint32_t exp_type); 
 
