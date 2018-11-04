@@ -43,6 +43,9 @@ void RankingFlow::start_flow() {
 }
 
 void RankingFlow::sending_rts() {
+    if(debug_flow(this->id)) {
+        std::cout << get_current_time() << " flow " << this->id << " src " << this->src->id << std::endl;
+    }
     RankingRTS* rts = new RankingRTS(this, this->src, this->dst, this->size_in_pkt);
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), rts, src->queue));
 }
@@ -58,6 +61,9 @@ void RankingFlow::sending_nrts_to_arbiter() {
 }
 
 void RankingFlow::sending_gosrc() {
+    if(debug_flow(id)) {
+        std::cout << get_current_time () << " sending gosrc: " << id << std::endl;
+    }
     RankingGoSrc* gosrc = new RankingGoSrc(this, dynamic_cast<RankingTopology*>(topology)->arbiter, this->dst);
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), gosrc, dynamic_cast<RankingTopology*>(topology)->arbiter->queue));
 }
@@ -103,8 +109,9 @@ void RankingFlow::send_pending_data()
         next_seq_no = this->size;
     }
 
-    if(debug_flow(this->id))
-        std::cout << get_current_time() << " flow " << this->id << " send pkt " << this->total_pkt_sent << " " << p->size << "\n";
+    if(debug_flow(this->id)) {
+        std::cout << get_current_time() << " flow " << this->id << " send pkt " << this->total_pkt_sent << " " << p->size << " data seq num " << token_data_seq <<  "\n";
+    }
 
     double td = src->queue->get_transmission_delay(p->size);
     assert(((SchedulingHost*) src)->host_proc_event == NULL);
@@ -132,6 +139,17 @@ Packet* RankingFlow::send(uint32_t seq, int token_seq, int data_seq, int priorit
 }
 
 void RankingFlow::receive(Packet *p) {
+    if (p->type == RANKING_NRTS) {
+        if(p->dst->id == params.num_hosts) {
+            dynamic_cast<RankingTopology*>(topology)->arbiter->receive_nrts((RankingNRTS*) p);
+        } else {
+            ((RankingHost*) this->dst)->receive_nrts((RankingNRTS*) p);
+        }
+    } 
+    if(this->finished) {
+        delete p;
+        return;
+    }
     if (p->type == RANKING_RTS) {
         if(debug_flow(this->id))
             std::cout << get_current_time() << " flow " << this->id << " received rts\n";
@@ -145,12 +163,6 @@ void RankingFlow::receive(Packet *p) {
         ((RankingHost*) this->dst)->receive_gosrc((RankingGoSrc*) p);
     } else if (p->type == RANKING_TOKEN) {
         ((RankingHost*) this->src)->receive_token((RankingToken*) p);
-    } else if (p->type == RANKING_NRTS) {
-        if(p->dst->id == params.num_hosts) {
-            dynamic_cast<RankingTopology*>(topology)->arbiter->receive_nrts((RankingNRTS*) p);
-        } else {
-            ((RankingHost*) this->dst)->receive_nrts((RankingNRTS*) p);
-        }
     } else if (p->type == NORMAL_PACKET) {
         if (this->first_byte_receive_time == -1) {
             this->first_byte_receive_time = get_current_time();
@@ -161,6 +173,9 @@ void RankingFlow::receive(Packet *p) {
         }
 
         if(packets_received.count(p->capa_data_seq) == 0){
+            if(debug_flow(this->id)){
+                std::cout << get_current_time() << " flow " << this->id << " receive data seq " << p->capa_data_seq << std::endl;
+            }
             packets_received.insert(p->capa_data_seq);
             received_count++;
             while(received_until < size_in_pkt && packets_received.count(received_until) > 0)
@@ -245,9 +260,10 @@ int RankingFlow::get_next_token_seq_num()
 }
 
 void RankingFlow::send_token_pkt(){
-    if(debug_flow(this->id))
-        std::cout << get_current_time() << " flow " << this->id << " send token " << this->token_count << "\n";
     int data_seq_num = this->get_next_token_seq_num();
+    if(debug_flow(this->id)) {
+        std::cout << get_current_time() << " flow " << this->id << " send token " << this->token_count << "data seq number:" << data_seq_num << "\n";
+    } 
     last_token_data_seq_num_sent = data_seq_num;
     RankingToken* cp = new RankingToken(this, this->dst, this->src, params.token_timeout * params.get_full_pkt_tran_delay(), this->remaining_pkts(), this->token_count, data_seq_num);
     this->token_count++;

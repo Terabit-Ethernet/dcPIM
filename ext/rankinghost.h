@@ -66,9 +66,9 @@ class RankingArbiter : public Host {
         void schedule_epoch();
         void receive_listrts(RankingListRTS* pkt);
         void receive_nrts(RankingNRTS* pkt);
-        
-        std::map<int, RankingFlow*> schedule_timeslot();
+
         std::vector<bool> src_state;
+        std::vector<bool> dst_state;
         RankingArbiterProcessingEvent* arbiter_proc_evt;
         RankingFlow * fake_flow;
         std::priority_queue<ListRTS*, std::vector<ListRTS*>, ListRTSComparator> pending_q;
