@@ -23,9 +23,9 @@ struct ListRTS //for extendability
     std::list<Flow*> listFlows;
 };
 
-struct GoSRC {
-    Flow* f;
-};
+// struct GoSRC {
+//     Flow* f;
+// };
 class RankingFlow : public FountainFlow {
 public:
     RankingFlow(uint32_t id, double start_time, uint32_t size, Host *s, Host *d);
@@ -43,6 +43,7 @@ public:
     void sending_nrts_to_arbiter();
     void sending_gosrc();
     // sender side
+    void clear_token();
     Token* use_token();
     bool has_token();
     Packet* send(uint32_t seq, int token_seq, int data_seq, int priority);

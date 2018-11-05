@@ -102,6 +102,9 @@ RankingListRTS::RankingListRTS(Flow *flow, Host *src, Host *dst, Host *rts_dst, 
     this->listFlows = listFlows;
 }
 
+RankingListRTS::~RankingListRTS() {
+    this->listFlows.clear();
+}
 RankingNRTS::RankingNRTS(Flow *flow, Host *src, Host *dst) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = RANKING_NRTS;
 }

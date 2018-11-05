@@ -24,13 +24,13 @@ class ListRTSComparator {
         bool operator() (ListRTS* a, ListRTS* b);
 };
 
-class RankingEpochSchedule {
-    public:
-        RankingEpochSchedule(double s);
-        RankingFlow* get_sender();
-        double start_time;
-        std::map<int, RankingFlow*> schedule;
-};
+// class RankingEpochSchedule {
+//     public:
+//         RankingEpochSchedule(double s);
+//         RankingFlow* get_sender();
+//         double start_time;
+//         std::map<int, RankingFlow*> schedule;
+// };
 
 class RankingHost : public SchedulingHost {
     public:

@@ -32,7 +32,7 @@ class Packet {
     public:
         Packet(double sending_time, Flow *flow, uint32_t seq_no, uint32_t pf_priority,
                 uint32_t size, Host *src, Host *dst);
-
+        virtual ~Packet() = default;
         double sending_time;
         Flow *flow;
         uint32_t seq_no;
@@ -139,6 +139,7 @@ class RankingListRTS : public Packet
 {
     public:
         RankingListRTS(Flow *flow, Host *src, Host *dst, Host* rts_dst, std::list<Flow*> listFlows);
+        ~RankingListRTS();
         std::list<Flow*> listFlows;
         Host* rts_dst;
 };

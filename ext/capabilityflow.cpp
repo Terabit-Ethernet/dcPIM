@@ -149,6 +149,8 @@ void CapabilityFlow::receive(Packet *p)
 //        if(debug_flow(this->id))
 //            std::cout << get_current_time() << " flow " << this->id << " received pkt " << received_count << "\n";
         if (received_count >= goal) {
+            // if(this->finished_at_receiver) 
+            //     assert(false);
             this->finished_at_receiver = true;
             send_ack();
             if(debug_flow(this->id))
@@ -301,7 +303,7 @@ int CapabilityFlow::get_next_capa_seq_num()
 
 void CapabilityFlow::send_capability_pkt(){
     int data_seq_num = this->get_next_capa_seq_num();
-        if(debug_flow(this->id))
+    if(debug_flow(this->id))
         std::cout << get_current_time() << " flow " << this->id << " send capa " << this->capability_count << " capacity data sequence " << data_seq_num << "\n";
     last_capa_data_seq_num_sent = data_seq_num;
     CapabilityPkt* cp = new CapabilityPkt(this, this->dst, this->src, params.capability_timeout * params.get_full_pkt_tran_delay(), this->remaining_pkts(), this->capability_count, data_seq_num);

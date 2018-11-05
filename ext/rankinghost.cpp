@@ -252,6 +252,9 @@ void RankingHost::send_token() {
                 if(f->latest_token_sent_time + params.token_window_timeout * params.get_full_pkt_tran_delay() < closet_timeout)
                 {
                     closet_timeout = f->latest_token_sent_time + params.token_window_timeout * params.get_full_pkt_tran_delay();
+                    if(debug_host(this->id) != NULL) {
+                        std::cout << "token_window full wait for timeout" << std::endl;
+                    }
                 }
             }
 
@@ -329,6 +332,7 @@ void RankingArbiter::start_arbiter() {
 
 
 void RankingArbiter::schedule_proc_evt(double time) {
+    assert(this->arbiter_proc_evt == NULL);
     this->arbiter_proc_evt = new RankingArbiterProcessingEvent(time, this);
     add_to_event_queue(this->arbiter_proc_evt);
 }
@@ -341,6 +345,7 @@ void RankingArbiter::schedule_epoch() {
         auto listRTS = this->pending_q.top();
         this->pending_q.pop();
         if(this->dst_state[listRTS->dst->id] == false) {
+            listRTS->listFlows.clear();
             delete listRTS;
             continue;
         }
@@ -359,6 +364,7 @@ void RankingArbiter::schedule_epoch() {
                 break;
             }
         }
+        listRTS->listFlows.clear();
         delete listRTS;
     }
     //schedule next arbiter proc evt

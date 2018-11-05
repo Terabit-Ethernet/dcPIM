@@ -428,6 +428,8 @@ void CapabilityHost::send_capability(){
                 // this->token_hist.push_back(this->recv_flow->id);
                 if(f->capability_count == f->capability_goal){
                     f->redundancy_ctrl_timeout = get_current_time() + params.capability_resend_timeout * params.get_full_pkt_tran_delay();
+                    if(debug_flow(f->id))
+                        std::cout << get_current_time() << " redundancy_ctrl_timeout set up" << f->id << "\n";
                 }
 
                 break;

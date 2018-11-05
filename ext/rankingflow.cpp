@@ -85,7 +85,16 @@ bool RankingFlow::has_token(){
     }
     return false;
 }
-
+void RankingFlow::clear_token(){
+    if(this->tokens.size() > 0) {
+        std::cout << "flow " << id << " clear token:" << this->tokens.size() << std::endl;
+    }
+    for(auto i = this->tokens.begin(); i != this->tokens.end(); i++) {
+        delete (*i);
+        *i = NULL;
+    }
+    this->tokens.clear();
+}
 Token* RankingFlow::use_token(){
     assert(!this->tokens.empty() && this->tokens.front()->timeout >= get_current_time());
     auto token = this->tokens.front();
@@ -159,6 +168,7 @@ void RankingFlow::receive(Packet *p) {
         }
     } else if(p->type == RANKING_LISTRTS) {
         dynamic_cast<RankingTopology*>(topology)->arbiter->receive_listrts((RankingListRTS*) p);
+       //((RankingListRTS*) p)->listRTS->listFlows.clear();
     } else if (p->type == RANKING_GOSRC) {
         ((RankingHost*) this->dst)->receive_gosrc((RankingGoSrc*) p);
     } else if (p->type == RANKING_TOKEN) {
@@ -204,6 +214,8 @@ void RankingFlow::receive(Packet *p) {
     }  else if (p->type == ACK_PACKET) {
         if(debug_flow(this->id))
             std::cout << get_current_time() << " flow " << this->id << " received ack\n";
+        ((RankingHost*)(this->src))->active_sending_flow->packets_received.clear();
+        ((RankingHost*)(this->src))->active_sending_flow->clear_token();
         ((RankingHost*)(this->src))->active_sending_flow = NULL;
         sending_nrts();
         add_to_event_queue(new FlowFinishedEvent(get_current_time(), this));
