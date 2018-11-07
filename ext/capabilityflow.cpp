@@ -136,13 +136,13 @@ void CapabilityFlow::receive(Packet *p)
             {
                 received_until++;
             }
+            if(num_outstanding_packets >= ((p->size - hdr_size) / (mss)))
+                num_outstanding_packets -= ((p->size - hdr_size) / (mss));
+            else
+                num_outstanding_packets = 0;
         }
 
         received_bytes += (p->size - hdr_size);
-        if(num_outstanding_packets >= ((p->size - hdr_size) / (mss)))
-            num_outstanding_packets -= ((p->size - hdr_size) / (mss));
-        else
-            num_outstanding_packets = 0;
         total_queuing_time += p->total_queuing_delay;
         if(p->capability_seq_num_in_data > largest_cap_seq_received)
             largest_cap_seq_received = p->capability_seq_num_in_data;
@@ -162,6 +162,7 @@ void CapabilityFlow::receive(Packet *p)
         if(debug_flow(this->id))
             std::cout << get_current_time() << " flow " << this->id << " received ack\n";
         // ((CapabilityHost*)(this->src))->send_flow = NULL;
+        this->packets_received.clear();
         add_to_event_queue(new FlowFinishedEvent(get_current_time(), this));
     }
     else if(p->type == CAPABILITY_PACKET)

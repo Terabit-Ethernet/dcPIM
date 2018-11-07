@@ -86,9 +86,6 @@ bool RankingFlow::has_token(){
     return false;
 }
 void RankingFlow::clear_token(){
-    if(this->tokens.size() > 0) {
-        std::cout << "flow " << id << " clear token:" << this->tokens.size() << std::endl;
-    }
     for(auto i = this->tokens.begin(); i != this->tokens.end(); i++) {
         delete (*i);
         *i = NULL;

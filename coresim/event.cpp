@@ -133,6 +133,10 @@ void FlowArrivalEvent::process_event() {
     if (num_outstanding_packets > max_outstanding_packets) {
         max_outstanding_packets = num_outstanding_packets;
     }
+    if(debug_flow(this->flow->id)) {
+        std::cout << "flow " << this->flow->id << " src " << this->flow->src->id;
+        std::cout << "dst " << this->flow->dst->id << std::endl;
+    }
     this->flow->start_flow();
     flow_arrival_count++;
     if (flow_arrivals.size() > 0) {

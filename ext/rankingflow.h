@@ -9,18 +9,24 @@
 
 class RankingEpochSchedule;
 
-struct Token //for extendability
+class Token //for extendability
 {
+public:
     double timeout;
     int seq_num;
     int data_seq_num;
     int create_time;
 };
 
-struct ListRTS //for extendability
+class ListRTS //for extendability
 {
+public:
     Host* dst;
     std::list<Flow*> listFlows;
+    ListRTS() = default;
+    ~ListRTS() {
+        listFlows.clear();
+    };
 };
 
 // struct GoSRC {

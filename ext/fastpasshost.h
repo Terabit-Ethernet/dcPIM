@@ -24,6 +24,7 @@ class FastpassEpochSchedule {
         FastpassFlow* get_sender();
         double start_time;
         std::map<int, FastpassFlow*> schedule;
+        ~FastpassEpochSchedule() {schedule.clear();}
 };
 
 class FastpassHost : public Host {

@@ -123,6 +123,8 @@ void FastpassFlow::receive(Packet *p) {
         if(!this->sender_finished && sender_acked_count == this->size_in_pkt){
             this->sender_finished = true;
             this->update_remaining_size();
+            this->sender_acked.clear();
+            this->receiver_received.clear();
             add_to_event_queue(new FlowFinishedEvent(get_current_time(), this));
         }
     } else {

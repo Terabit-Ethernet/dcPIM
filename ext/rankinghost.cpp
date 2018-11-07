@@ -345,7 +345,6 @@ void RankingArbiter::schedule_epoch() {
         auto listRTS = this->pending_q.top();
         this->pending_q.pop();
         if(this->dst_state[listRTS->dst->id] == false) {
-            listRTS->listFlows.clear();
             delete listRTS;
             continue;
         }
@@ -364,7 +363,6 @@ void RankingArbiter::schedule_epoch() {
                 break;
             }
         }
-        listRTS->listFlows.clear();
         delete listRTS;
     }
     //schedule next arbiter proc evt
