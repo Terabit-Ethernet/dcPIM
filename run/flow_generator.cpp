@@ -454,7 +454,6 @@ void IncastTM::make_flows() {
         nv_bytes = new CDFRandomVariable(filename);
 
     params.mean_flow_size = nv_bytes->mean_flow_size;
-
     double lambda = params.bandwidth * params.load / (params.mean_flow_size * 8.0 / 1460 * 1500);
     //std::cout << "Lambda: " << lambda << std::endl;
     double lambda_per_host = lambda / this->incast;
