@@ -96,21 +96,22 @@ RankingRTS::RankingRTS(Flow *flow, Host *src, Host *dst, int size_in_pkt) : Pack
     this->size_in_pkt = size_in_pkt;
 }
 
-RankingListRTS::RankingListRTS(Flow *flow, Host *src, Host *dst, Host *rts_dst, std::list<Flow*> listFlows) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
-    this->type = RANKING_LISTRTS;
+RankingListSrcs::RankingListSrcs(Flow *flow, Host *src, Host *dst, Host *rts_dst, std::list<uint32_t> listSrcs) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+    this->type = RANKING_LISTSRCS;
     this->rts_dst = rts_dst;
-    this->listFlows = listFlows;
+    this->listSrcs = listSrcs;
 }
 
-RankingListRTS::~RankingListRTS() {
-    this->listFlows.clear();
+RankingListSrcs::~RankingListSrcs() {
+    this->listSrcs.clear();
 }
 RankingNRTS::RankingNRTS(Flow *flow, Host *src, Host *dst) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = RANKING_NRTS;
 }
 
-RankingGoSrc::RankingGoSrc(Flow *flow, Host *src, Host *dst) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+RankingGoSrc::RankingGoSrc(Flow *flow, Host *src, Host *dst, uint32_t src_id) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = RANKING_GOSRC;
+    this->src_id = src_id;
 }
 
 RankingToken::RankingToken(Flow *flow, Host *src, Host *dst, double ttl, int remaining, int token_seq_num, int data_seq_num) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {

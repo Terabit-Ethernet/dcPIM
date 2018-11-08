@@ -18,14 +18,14 @@ public:
     int create_time;
 };
 
-class ListRTS //for extendability
+class ListSrcs //for extendability
 {
 public:
     Host* dst;
-    std::list<Flow*> listFlows;
-    ListRTS() = default;
-    ~ListRTS() {
-        listFlows.clear();
+    std::list<uint32_t> listSrcs;
+    ListSrcs() = default;
+    ~ListSrcs() {
+        listSrcs.clear();
     };
 };
 
@@ -39,27 +39,25 @@ public:
     virtual void receive(Packet *p);
     virtual void send_pending_data();
 
-    void update_remaining_size();
-    void send_ack_pkt(uint32_t);
-    void schedule_send_pkt(double time);
-
+    int init_token_size();
     // send control signals
     void sending_rts();
     void sending_nrts();
     void sending_nrts_to_arbiter();
-    void sending_gosrc();
+    void sending_gosrc(uint32_t src_id);
     // sender side
     void clear_token();
     Token* use_token();
     bool has_token();
     Packet* send(uint32_t seq, int token_seq, int data_seq, int priority);
-
+    void assign_init_token();
     // receiver side
     int remaining_pkts();
     int token_gap();
     void relax_token_gap();
     int get_next_token_seq_num();
     void send_token_pkt();
+    void receive_short_flow();
     std::set<int> packets_received;
     std::list<Token*> tokens;
 

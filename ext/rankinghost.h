@@ -17,20 +17,12 @@ class TokenProcessingEvent;
 class RankingArbiterProcessingEvent;
 class RankingFlow;
 
-class ListRTSComparator {
+class ListSrcsComparator {
     public:
-        ListRTSComparator();
+        ListSrcsComparator();
         std::vector<int> ranking;
-        bool operator() (ListRTS* a, ListRTS* b);
+        bool operator() (ListSrcs* a, ListSrcs* b);
 };
-
-// class RankingEpochSchedule {
-//     public:
-//         RankingEpochSchedule(double s);
-//         RankingFlow* get_sender();
-//         double start_time;
-//         std::map<int, RankingFlow*> schedule;
-// };
 
 class RankingHost : public SchedulingHost {
     public:
@@ -40,7 +32,7 @@ class RankingHost : public SchedulingHost {
         void receive_rts(RankingRTS* pkt);
         void receive_nrts(RankingNRTS* pkt);
         void receive_gosrc(RankingGoSrc* pkt);
-        void send_listRTS();
+        void send_listSrcs();
         void send_token();
         void schedule_wakeup_event();
         void schedule_token_proc_evt(double time, bool is_timeout);
@@ -50,6 +42,9 @@ class RankingHost : public SchedulingHost {
         RankingHostWakeupProcessingEvent *wakeup_evt;
         TokenProcessingEvent *token_send_evt;
         int total_token_schd_evt_count;
+        int hold_on;
+        // fake flow used to communicate with the arbiter
+        RankingFlow * fake_flow;
         // sender side
         void send();
         void receive_token(RankingToken* pkt);
@@ -64,14 +59,13 @@ class RankingArbiter : public Host {
         void start_arbiter();
         void schedule_proc_evt(double time);
         void schedule_epoch();
-        void receive_listrts(RankingListRTS* pkt);
+        void receive_listsrcs(RankingListSrcs* pkt);
         void receive_nrts(RankingNRTS* pkt);
 
         std::vector<bool> src_state;
         std::vector<bool> dst_state;
         RankingArbiterProcessingEvent* arbiter_proc_evt;
-        RankingFlow * fake_flow;
-        std::priority_queue<ListRTS*, std::vector<ListRTS*>, ListRTSComparator> pending_q;
+        std::priority_queue<ListSrcs*, std::vector<ListSrcs*>, ListSrcsComparator> pending_q;
 };
 
 #define RANKING_ARBITER_PROCESSING 17

@@ -55,12 +55,12 @@ void RankingHostWakeupProcessingEvent::process_event() {
 
 
 
-ListRTSComparator::ListRTSComparator() {
+ListSrcsComparator::ListSrcsComparator() {
     for (uint i = 0; i < params.num_hosts; i++){
         this->ranking.push_back(rand());
     }
 }
-bool ListRTSComparator::operator() (ListRTS* a, ListRTS* b) {
+bool ListSrcsComparator::operator() (ListSrcs* a, ListSrcs* b) {
     return this->ranking[a->dst->id] > this->ranking[b->dst->id];
 }
 
@@ -73,10 +73,14 @@ RankingHost::RankingHost(uint32_t id, double rate, uint32_t queue_type) : Schedu
     this->wakeup_evt = NULL;
     this->host_type = RANKING_HOST;
     this->total_token_schd_evt_count = 0;
+    this->hold_on = 0;
+
+    this->fake_flow = NULL;
 }
 
 // ---- Sender -------
 void RankingHost::receive_token(RankingToken* pkt) {
+    // To Do: need a queue to maintain current active sending flows;
     assert(this->active_sending_flow == NULL || this->active_sending_flow == (RankingFlow*)pkt->flow);
     this->active_sending_flow = dynamic_cast<RankingFlow*>(pkt->flow);
     Token* t = new Token();
@@ -117,6 +121,8 @@ void RankingHost::schedule_host_proc_evt(){
 }
 
 void RankingHost::send(){
+    // To Do: need a queue to maintain current active sending flows;
+
     assert(this->host_proc_event == NULL);
     if(this->queue->busy)
     {
@@ -145,8 +151,8 @@ void RankingHost::schedule_token_proc_evt(double time, bool is_timeout)
 void RankingHost::receive_rts(RankingRTS* pkt) {
     this->pending_flows.push_back(pkt->flow);
     if(this->active_receiving_flow == NULL) {
-        // send list RTS
-        send_listRTS();
+        // send list Srcs
+        send_listSrcs();
         if(this->wakeup_evt != NULL) {
             this->wakeup_evt->cancelled = true;
         }
@@ -169,24 +175,27 @@ void RankingHost::receive_nrts(RankingNRTS* pkt) {
         this->token_send_evt = NULL;
     }
     if(!this->pending_flows.empty()) {
-        this->send_listRTS();
+        this->send_listSrcs();
         assert(this->wakeup_evt == NULL);
         if(this->wakeup_evt == NULL) {
             schedule_wakeup_event();
         }
     }
 }
-void RankingHost::send_listRTS() {
+void RankingHost::send_listSrcs() {
     if(debug_host(this->id)) {
-        std::cout << get_current_time() << " send listRTS of dst:" << this->id << "\n";
         for (auto i = this->pending_flows.begin(); i != this->pending_flows.end(); i++) {
             std::cout << get_current_time() << "pending RTS flow " << (*i)->id;
             std::cout << " src " <<  (*i)->src->id << "\n";
         }
     }
-    RankingListRTS* listRTS = new RankingListRTS(dynamic_cast<RankingTopology*>(topology)->arbiter->fake_flow,
-     this, dynamic_cast<RankingTopology*>(topology)->arbiter , this, this->pending_flows);
-    add_to_event_queue(new PacketQueuingEvent(get_current_time(), listRTS, this->queue));
+    std::list<uint32_t> srcs;
+    for (auto i = this->pending_flows.begin(); i != this->pending_flows.end(); i++) {
+        srcs.push_back((*i)->src->id);
+    }
+    RankingListSrcs* listSrcs = new RankingListSrcs(this->fake_flow,
+     this, dynamic_cast<RankingTopology*>(topology)->arbiter , this, srcs);
+    add_to_event_queue(new PacketQueuingEvent(get_current_time(), listSrcs, this->queue));
 } 
 
 void RankingHost::schedule_wakeup_event() {
@@ -201,7 +210,7 @@ void RankingHost::schedule_wakeup_event() {
 void RankingHost::wakeup() {
     assert(this->wakeup_evt == NULL);
     if(!this->pending_flows.empty()) {
-        this->send_listRTS();
+        this->send_listSrcs();
         this->schedule_wakeup_event();
     }
 }
@@ -212,10 +221,10 @@ void RankingHost::send_token() {
     this->total_token_schd_evt_count++;
     double closet_timeout = 999999;
 
-    // if(CAPABILITY_HOLD && this->hold_on > 0){
-    //     hold_on--;
-    //     capability_sent = true;
-    // }
+    if(TOKEN_HOLD && this->hold_on > 0){
+        hold_on--;
+        token_sent = true;
+    }
 
     RankingFlow* f = this->active_receiving_flow;
     // probably can do better here
@@ -293,16 +302,25 @@ void RankingHost::send_token() {
 
 void RankingHost::receive_gosrc(RankingGoSrc* pkt) {
     if(debug_host(this->id)) {
-        std::cout << get_current_time() << " receive GoSRC for flow " << pkt->flow->id << std::endl; 
+        std::cout << get_current_time() << " receive GoSRC for dst " << pkt->src_id << std::endl; 
     }
     assert(this->active_receiving_flow == NULL);
-    this->active_receiving_flow = dynamic_cast<RankingFlow*>(pkt->flow);
+    // find the minimum size of the flow for a source;
+    auto f = this->pending_flows.begin();
+    int mini_size = -1;
     for(auto i = this->pending_flows.begin(); i != this->pending_flows.end(); i++) {
-        if(pkt->flow == *i) {
-            this->pending_flows.erase(i);
-            break;
+        if((*i)->src->id == pkt->src_id) {
+            if(mini_size == -1) {
+                mini_size = (*i)->size_in_pkt;
+                f = i;
+            } else if(mini_size >= (*i)->size_in_pkt) {
+                mini_size = (*i)->size_in_pkt;
+                f = i;
+            }
         }
     }
+    this->active_receiving_flow = (RankingFlow*)(*f);
+    this->pending_flows.erase(f);
     //cancel wake up event
     if(this->wakeup_evt != NULL) {
         this->wakeup_evt->cancelled = true;
@@ -321,8 +339,6 @@ void RankingHost::receive_gosrc(RankingGoSrc* pkt) {
 RankingArbiter::RankingArbiter(uint32_t id, double rate, uint32_t queue_type) : Host(id, rate, queue_type, RANKING_ARBITER) {
     this->src_state = std::vector<bool>(params.num_hosts, true);
     this->dst_state = std::vector<bool>(params.num_hosts, true);
-    // fake flow for receiving listRTS;
-    this->fake_flow = new RankingFlow(-1, -1, -1, NULL, this);
     this->arbiter_proc_evt = NULL;
 }
 
@@ -342,39 +358,36 @@ void RankingArbiter::schedule_epoch() {
         return;
     // std::cout << get_current_time() <<  " empty the pending queue " << std::endl;
     while(!this->pending_q.empty()) {
-        auto listRTS = this->pending_q.top();
+        auto request = this->pending_q.top();
         this->pending_q.pop();
-        if(this->dst_state[listRTS->dst->id] == false) {
-            delete listRTS;
+        if(this->dst_state[request->dst->id] == false) {
+            delete request;
             continue;
         }
-        for(auto i = listRTS->listFlows.begin(); i != listRTS->listFlows.end(); i++) {
-            if(debug_host(listRTS->dst->id)) {
-                std::cout << "src " << (*i)->src->id << "state " << this->src_state[(*i)->src->id] << std::endl;
+        for(auto i = request->listSrcs.begin(); i != request->listSrcs.end(); i++) {
+            if(debug_host(request->dst->id)) {
+                std::cout << "src " << (*i) << "state " << this->src_state[(*i)] << std::endl;
             }
-            if(this->src_state[(*i)->src->id]) {
-                this->src_state[(*i)->src->id] = false;
-                this->dst_state[listRTS->dst->id] = false;
+            if(this->src_state[(*i)]) {
+                this->src_state[(*i)] = false;
+                this->dst_state[request->dst->id] = false;
                 // send GoSRC packet
-                dynamic_cast<RankingFlow*>(*i)->sending_gosrc();
-                if(debug_flow((*i)->id)) {
-                    std::cout << get_current_time() << " sending go src: flow " << (*i)->id << std::endl; 
-                }
+                ((RankingHost*)(request->dst))->fake_flow->sending_gosrc(*i);
                 break;
             }
         }
-        delete listRTS;
+        delete request;
     }
     //schedule next arbiter proc evt
     this->schedule_proc_evt(get_current_time() + params.ranking_epoch_time);
 }
-void RankingArbiter::receive_listrts(RankingListRTS* pkt) {
+void RankingArbiter::receive_listsrcs(RankingListSrcs* pkt) {
     if(debug_host(pkt->rts_dst->id))
-        std::cout << get_current_time() << " Arbiter: receive listrts " << pkt->rts_dst->id << std::endl;
-    auto listRTS = new ListRTS();
-    listRTS->dst = pkt->rts_dst;
-    listRTS->listFlows = pkt->listFlows;
-    this->pending_q.push(listRTS);
+        std::cout << get_current_time() << " Arbiter: receive listsrcs " << pkt->rts_dst->id << std::endl;
+    auto listSrcs = new ListSrcs();
+    listSrcs->dst = pkt->rts_dst;
+    listSrcs->listSrcs = pkt->listSrcs;
+    this->pending_q.push(listSrcs);
     // TODO: schedule event 
 }
 

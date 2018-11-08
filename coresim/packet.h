@@ -21,7 +21,7 @@
 
 // RANKING
 #define RANKING_RTS 11
-#define RANKING_LISTRTS 12
+#define RANKING_LISTSRCS 12
 #define RANKING_NRTS 13
 #define RANKING_GOSRC 14
 #define RANKING_TOKEN 15
@@ -135,12 +135,12 @@ class RankingRTS : public Packet
         int size_in_pkt;
 };
 
-class RankingListRTS : public Packet
+class RankingListSrcs : public Packet
 {
     public:
-        RankingListRTS(Flow *flow, Host *src, Host *dst, Host* rts_dst, std::list<Flow*> listFlows);
-        ~RankingListRTS();
-        std::list<Flow*> listFlows;
+        RankingListSrcs(Flow *flow, Host *src, Host *dst, Host* rts_dst, std::list<uint32_t> listSrcs);
+        ~RankingListSrcs();
+        std::list<uint32_t> listSrcs;
         Host* rts_dst;
 };
 
@@ -153,7 +153,8 @@ class RankingNRTS : public Packet
 class RankingGoSrc : public Packet
 {
     public:
-        RankingGoSrc(Flow *flow, Host *src, Host *dst);
+        RankingGoSrc(Flow *flow, Host *src, Host *dst, uint32_t src_id);
+        uint32_t src_id;
 };
 
 class RankingToken : public Packet

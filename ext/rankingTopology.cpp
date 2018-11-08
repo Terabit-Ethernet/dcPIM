@@ -56,6 +56,10 @@ RankingTopology::RankingTopology(
 
     arbiter = new RankingArbiter(num_hosts, c1, queue_type);
 
+    // create fake flow to communicate with the arbiter
+    for (uint32_t i = 0; i < num_hosts; i++) {
+        ((RankingHost*)hosts[i])->fake_flow = new RankingFlow(-1, -1, -1, hosts[i], arbiter);
+    }      
     // Create Switches
     for (uint32_t i = 0; i < num_agg_switches; i++) {
         AggSwitch* sw;

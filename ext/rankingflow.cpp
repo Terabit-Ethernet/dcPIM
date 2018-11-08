@@ -40,6 +40,7 @@ RankingFlow::RankingFlow(
 
 void RankingFlow::start_flow() {
     sending_rts();
+    // To Do: adding short flow logic: 1. assign free tokens. 2. schedule host processing event.
 }
 
 void RankingFlow::sending_rts() {
@@ -60,15 +61,28 @@ void RankingFlow::sending_nrts_to_arbiter() {
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), nrts, dst->queue));
 }
 
-void RankingFlow::sending_gosrc() {
-    if(debug_flow(id)) {
-        std::cout << get_current_time () << " sending gosrc: " << id << std::endl;
+void RankingFlow::sending_gosrc(uint32_t src_id) {
+    if(debug_host(this->src->id)) {
+        std::cout << get_current_time () << " sending gosrc to host " << this->src->id << std::endl;
     }
-    RankingGoSrc* gosrc = new RankingGoSrc(this, dynamic_cast<RankingTopology*>(topology)->arbiter, this->dst);
+    RankingGoSrc* gosrc = new RankingGoSrc(this, dynamic_cast<RankingTopology*>(topology)->arbiter, this->src, src_id);
+
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), gosrc, dynamic_cast<RankingTopology*>(topology)->arbiter->queue));
 }
 
 // sender side
+void RankingFlow::assign_init_token(){
+    //sender side
+    int init_token = this->init_token_size();
+    for(int i = 0; i < init_token; i++){
+        Token* c = new Token();
+        c->timeout = get_current_time() + init_token * params.get_full_pkt_tran_delay() + params.token_timeout * params.get_full_pkt_tran_delay();
+        c->seq_num = i;
+        c->data_seq_num = i;
+        this->tokens.push_back(c);
+    }
+}
+
 bool RankingFlow::has_token(){
     while(!this->tokens.empty()){
         //expired token
@@ -163,11 +177,11 @@ void RankingFlow::receive(Packet *p) {
             this->rts_received = true;
             ((RankingHost*) this->dst)->receive_rts((RankingRTS*) p);
         }
-    } else if(p->type == RANKING_LISTRTS) {
-        dynamic_cast<RankingTopology*>(topology)->arbiter->receive_listrts((RankingListRTS*) p);
+    } else if(p->type == RANKING_LISTSRCS) {
+        dynamic_cast<RankingTopology*>(topology)->arbiter->receive_listsrcs((RankingListSrcs*) p);
        //((RankingListRTS*) p)->listRTS->listFlows.clear();
     } else if (p->type == RANKING_GOSRC) {
-        ((RankingHost*) this->dst)->receive_gosrc((RankingGoSrc*) p);
+        ((RankingHost*) this->src)->receive_gosrc((RankingGoSrc*) p);
     } else if (p->type == RANKING_TOKEN) {
         ((RankingHost*) this->src)->receive_token((RankingToken*) p);
     } else if (p->type == NORMAL_PACKET) {
@@ -176,7 +190,9 @@ void RankingFlow::receive(Packet *p) {
         }
         
         if (!rts_received) {
+            // To Do: add hold on
             assert(false);
+            // receive_short_flow();
         }
 
         if(packets_received.count(p->capa_data_seq) == 0){
@@ -228,6 +244,20 @@ void RankingFlow::receive(Packet *p) {
 }
 
 // receiver side
+
+void RankingFlow::receive_short_flow() {
+    auto init_token = this->init_token_size();
+    if (init_token == 0) {
+        assert(false);
+    }
+    this->token_count = init_token;
+    this->last_token_data_seq_num_sent = init_token - 1;
+    if(this->token_count == this->token_goal){
+        this->redundancy_ctrl_timeout = get_current_time() + init_token * params.get_full_pkt_tran_delay() * 2;
+    }
+    ((RankingHost*)(this->dst))->hold_on += init_token;
+}
+
 int RankingFlow::remaining_pkts(){
     return std::max((int)0, (int)(this->size_in_pkt - this->received_count));
 }
@@ -280,7 +310,9 @@ void RankingFlow::send_token_pkt(){
     this->latest_token_sent_time = get_current_time();
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), cp, dst->queue));
 }
-
+int RankingFlow::init_token_size(){
+    return this->size_in_pkt <= params.token_initial?this->size_in_pkt:0;
+}
 
 RankingArbiterProcessingEvent::RankingArbiterProcessingEvent(double time, RankingArbiter* a) : Event(RANKING_ARBITER_PROCESSING, time) {
     this->arbiter = a;
