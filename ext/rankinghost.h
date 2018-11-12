@@ -24,6 +24,16 @@ class ListSrcsComparator {
         bool operator() (ListSrcs* a, ListSrcs* b);
 };
 
+class RankingFlowComparator {
+    public:
+        bool operator() (RankingFlow* a, RankingFlow* b);
+};
+
+class RankingFlowComparatorAtReceiver {
+    public:
+        bool operator() (RankingFlow* a, RankingFlow* b);
+};
+
 class RankingHost : public SchedulingHost {
     public:
         RankingHost(uint32_t id, double rate, uint32_t queue_type);
@@ -37,8 +47,9 @@ class RankingHost : public SchedulingHost {
         void schedule_wakeup_event();
         void schedule_token_proc_evt(double time, bool is_timeout);
         void wakeup();
-        RankingFlow* active_receiving_flow;
-        std::list <Flow*> pending_flows;
+        std::priority_queue<RankingFlow*, std::vector<RankingFlow*>, RankingFlowComparatorAtReceiver> active_receiving_flows;
+        RankingFlow* active_receiving_flow_from_arbiter;
+        std::list <RankingFlow*> pending_flows;
         RankingHostWakeupProcessingEvent *wakeup_evt;
         TokenProcessingEvent *token_send_evt;
         int total_token_schd_evt_count;
@@ -48,7 +59,8 @@ class RankingHost : public SchedulingHost {
         // sender side
         void send();
         void receive_token(RankingToken* pkt);
-        RankingFlow* active_sending_flow;
+        void start_ranking_flow(RankingFlow* f);
+        std::priority_queue<RankingFlow*, std::vector<RankingFlow*>, RankingFlowComparator> active_sending_flows;
         //std::priority_queue<Token*, std::vector<Token*>, TokenComparator> token_q;
 
 };

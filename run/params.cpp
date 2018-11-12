@@ -143,6 +143,12 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         else if (key == "token_window_timeout") {
             lineStream >> params.token_window_timeout;
         }
+        else if (key == "token_third_level") {
+            lineStream >> params.token_third_level;
+        }
+        else if (key == "token_fourth_level") {
+            lineStream >> params.token_fourth_level;
+        }
         else if (key == "rankinghost_idle_timeout") {
             lineStream >> params.rankinghost_idle_timeout;
         }

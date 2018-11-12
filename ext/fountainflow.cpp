@@ -39,6 +39,9 @@ Packet* FountainFlow::send(uint32_t seq) {
 void FountainFlow::send_ack() {
     Packet *ack = new PlainAck(this, 0, hdr_size, dst, src);
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), ack, dst->queue));
+    if(debug_flow(this->id)) {
+        std::cout << "try to send ack" << std::endl;
+    }
 }
 
 void FountainFlow::receive(Packet *p) {

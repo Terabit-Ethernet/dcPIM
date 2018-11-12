@@ -39,13 +39,13 @@ RankingFlow::RankingFlow(
 }
 
 void RankingFlow::start_flow() {
-    sending_rts();
+    ((RankingHost*) this->src)->start_ranking_flow(this);
     // To Do: adding short flow logic: 1. assign free tokens. 2. schedule host processing event.
 }
 
 void RankingFlow::sending_rts() {
     if(debug_flow(this->id)) {
-        std::cout << get_current_time() << " flow " << this->id << " src " << this->src->id << std::endl;
+        std::cout << get_current_time() << "sending rts flow " << this->id << " src " << this->src->id << "size : " << size_in_pkt <<std::endl;
     }
     RankingRTS* rts = new RankingRTS(this, this->src, this->dst, this->size_in_pkt);
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), rts, src->queue));
@@ -74,6 +74,9 @@ void RankingFlow::sending_gosrc(uint32_t src_id) {
 void RankingFlow::assign_init_token(){
     //sender side
     int init_token = this->init_token_size();
+    if(debug_flow(this->id)) {
+        std::cout << "initial token for flow " << this->id << " token size:" << init_token << std::endl;
+    }
     for(int i = 0; i < init_token; i++){
         Token* c = new Token();
         c->timeout = get_current_time() + init_token * params.get_full_pkt_tran_delay() + params.token_timeout * params.get_full_pkt_tran_delay();
@@ -88,6 +91,9 @@ bool RankingFlow::has_token(){
         //expired token
         if(this->tokens.front()->timeout < get_current_time())
         {
+            if(debug_flow(this->id)) {
+                std::cout << get_current_time() << "token timeout " << this->tokens.front()->timeout << std::endl;
+            }
             delete this->tokens.front();
             this->tokens.pop_front();
         }
@@ -122,10 +128,10 @@ void RankingFlow::send_pending_data()
 
     Packet *p;
     if (next_seq_no + mss <= this->size) {
-        p = this->send(next_seq_no, token_seq, token_data_seq, params.token_third_level && this->size_in_pkt > params.token_prio_thresh?2:1);
+        p = this->send(next_seq_no, token_seq, token_data_seq, params.token_third_level && this->size_in_pkt > params.token_initial?2:1);
         next_seq_no += mss;
     } else {
-        p = this->send(next_seq_no, token_seq, token_data_seq, params.token_third_level && this->size_in_pkt > params.token_prio_thresh?2:1);
+        p = this->send(next_seq_no, token_seq, token_data_seq, params.token_third_level && this->size_in_pkt > params.token_initial?2:1);
         next_seq_no = this->size;
     }
 
@@ -171,10 +177,7 @@ void RankingFlow::receive(Packet *p) {
         return;
     }
     if (p->type == RANKING_RTS) {
-        if(debug_flow(this->id))
-            std::cout << get_current_time() << " flow " << this->id << " received rts\n";
         if(this->rts_received == false) {
-            this->rts_received = true;
             ((RankingHost*) this->dst)->receive_rts((RankingRTS*) p);
         }
     } else if(p->type == RANKING_LISTSRCS) {
@@ -190,20 +193,18 @@ void RankingFlow::receive(Packet *p) {
         }
         
         if (!rts_received) {
-            // To Do: add hold on
-            assert(false);
-            // receive_short_flow();
+            this->receive_short_flow();
         }
-
         if(packets_received.count(p->capa_data_seq) == 0){
-            if(debug_flow(this->id)){
-                std::cout << get_current_time() << " flow " << this->id << " receive data seq " << p->capa_data_seq << std::endl;
-            }
+
             packets_received.insert(p->capa_data_seq);
             received_count++;
             while(received_until < size_in_pkt && packets_received.count(received_until) > 0)
             {
                 received_until++;
+            }
+            if(debug_flow(this->id)){
+                std::cout << get_current_time() << " flow " << this->id << " receive util " << received_until << std::endl;
             }
         }
 
@@ -221,15 +222,15 @@ void RankingFlow::receive(Packet *p) {
             this->finished_at_receiver = true;
             send_ack();
             if(debug_flow(this->id))
-                std::cout << get_current_time() << " flow " << this->id << " send ACK \n";
+                std::cout << get_current_time() << " flow " << this->id << " send ACK" << std::endl;
         }
 
     }  else if (p->type == ACK_PACKET) {
         if(debug_flow(this->id))
-            std::cout << get_current_time() << " flow " << this->id << " received ack\n";
-        ((RankingHost*)(this->src))->active_sending_flow->packets_received.clear();
-        ((RankingHost*)(this->src))->active_sending_flow->clear_token();
-        ((RankingHost*)(this->src))->active_sending_flow = NULL;
+            std::cout << get_current_time() << " flow " << this->id << " received ack" << std::endl;
+        this->packets_received.clear();
+        this->clear_token();
+        // ((RankingHost*)(this->src))->active_sending_flow = NULL;
         sending_nrts();
         add_to_event_queue(new FlowFinishedEvent(get_current_time(), this));
     } else {
@@ -246,7 +247,9 @@ void RankingFlow::receive(Packet *p) {
 // receiver side
 
 void RankingFlow::receive_short_flow() {
+    this->rts_received = true;
     auto init_token = this->init_token_size();
+    auto dstination = (RankingHost*)(this->dst);
     if (init_token == 0) {
         assert(false);
     }
@@ -255,7 +258,15 @@ void RankingFlow::receive_short_flow() {
     if(this->token_count == this->token_goal){
         this->redundancy_ctrl_timeout = get_current_time() + init_token * params.get_full_pkt_tran_delay() * 2;
     }
-    ((RankingHost*)(this->dst))->hold_on += init_token;
+    dstination->hold_on += init_token;
+    dstination->active_receiving_flows.push(this);
+    if (dstination->token_send_evt != NULL && dstination->token_send_evt->is_timeout_evt) {
+        dstination->token_send_evt->cancelled = true;
+        dstination->token_send_evt = NULL;
+    }
+    if(dstination->token_send_evt == NULL){
+        dstination->schedule_token_proc_evt(0, false);
+    }
 }
 
 int RankingFlow::remaining_pkts(){
@@ -263,6 +274,11 @@ int RankingFlow::remaining_pkts(){
 }
 
 int RankingFlow::token_gap(){
+    if (this->token_count - this->largest_token_seq_received < 0) {
+        std::cout << "flow " << this->id;
+        std::cout << " token count " << this->token_count;
+        std::cout << " largest_token_seq_received " << this->largest_token_seq_received << std::endl;
+    }
     assert(this->token_count - this->largest_token_seq_received >= 0);
     return this->token_count - this->largest_token_seq_received;
 }

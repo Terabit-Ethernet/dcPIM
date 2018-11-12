@@ -41,7 +41,7 @@ capability_fourth_level: 0
 magic_inflate: 1
 interarrival_cdf: none
 num_host_types: 13
-incast_tm: {0}
+outcast_tm: {0}
 '''
 
 conf_str_phost = '''init_cwnd: 2
@@ -87,7 +87,7 @@ capability_fourth_level: 0
 magic_inflate: 1
 interarrival_cdf: none
 num_host_types: 13
-incast_tm: {0}
+outcast_tm: {0}
 '''
 
 conf_str_fastpass = '''init_cwnd: 6
@@ -133,7 +133,7 @@ capability_fourth_level: 0
 magic_inflate: 1
 interarrival_cdf: none
 num_host_types: 13
-incast_tm: {0}
+outcast_tm: {0}
 '''
 
 conf_str_random = '''init_cwnd: 2
@@ -179,7 +179,7 @@ capability_fourth_level: 0
 magic_inflate: 1
 interarrival_cdf: none
 num_host_types: 13
-incast_tm: {0}
+outcast_tm: {0}
 '''
 
 conf_str_ranking = '''init_cwnd: 2
@@ -226,26 +226,27 @@ avg_deadline: 0.0001
 magic_inflate: 1
 interarrival_cdf: none
 num_host_types: 13
-incast_tm: {0}
+outcast_tm: {0}
 '''
+
 runs = ['pfabric', 'phost', 'fastpass', 'random', 'ranking']
 workloads = ['aditya', 'dctcp', 'datamining', 'constant']
-incasts = [1, 2, 4, 9, 18, 36, 72 ,143]
+outcasts = [1, 2, 4, 9, 18, 36, 72 ,143]
 for r in runs:
     for w in workloads:
         #  generate conf file
-        for incast in incasts:
+        for outcast in outcasts:
 	        if r == 'pfabric':
-	            conf_str = conf_str_pfabric.format(incast, w)
+	            conf_str = conf_str_pfabric.format(outcast, w)
 	        elif r == 'phost':
-	            conf_str = conf_str_phost.format(incast, w)
+	            conf_str = conf_str_phost.format(outcast, w)
 	        elif r == 'fastpass':
-	            conf_str = conf_str_fastpass.format(incast, w)
+	            conf_str = conf_str_fastpass.format(outcast, w)
 	        elif r == 'random':
-	            conf_str = conf_str_random.format(incast, w)
+	            conf_str = conf_str_random.format(outcast, w)
 	        elif r == 'ranking':
-	        	conf_str = conf_str_ranking.format(incast, w)
-	        confFile = "conf_{0}_{1}_{2}.txt".format(r, w, incast)
+	        	conf_str = conf_str_ranking.format(outcast, w)
+	        confFile = "conf_{0}_{1}_{2}.txt".format(r, w, outcast)
 	        with open(confFile, 'w') as f:
 	            print confFile
 	            f.write(conf_str)
