@@ -136,7 +136,7 @@ void RankingFlow::send_pending_data()
     }
 
     if(debug_flow(this->id)) {
-        std::cout << get_current_time() << " flow " << this->id << " send pkt " << this->total_pkt_sent << " " << p->size << " data seq num " << token_data_seq <<  "\n";
+        std::cout << get_current_time() << " flow " << this->id << " send pkt " << token_seq << " " << p->size << " data seq num " << token_data_seq <<  "\n";
     }
 
     double td = src->queue->get_transmission_delay(p->size);
@@ -195,6 +195,9 @@ void RankingFlow::receive(Packet *p) {
         if (!rts_received) {
             this->receive_short_flow();
         }
+        if(debug_flow(this->id)){
+            std::cout << get_current_time() << " flow " << this->id << "receive data seq " << p->capa_data_seq  << std::endl;
+        }
         if(packets_received.count(p->capa_data_seq) == 0){
 
             packets_received.insert(p->capa_data_seq);
@@ -223,6 +226,32 @@ void RankingFlow::receive(Packet *p) {
             send_ack();
             if(debug_flow(this->id))
                 std::cout << get_current_time() << " flow " << this->id << " send ACK" << std::endl;
+        } else {
+            // check token_gap is reduced
+            if (this->token_gap() <= params.token_window) {
+                RankingHost * dst = (RankingHost*)this->dst;
+                // sending token process should be restarted if the timeout event happens
+                if(dst->active_src_from_arbiter != NULL && 
+                dst->active_src_from_arbiter->id == p->flow->src->id && 
+                dst->src_to_flows[p->flow->src->id].top()->id == p->flow->id) { 
+                    if (dst->token_send_evt != NULL && dst->token_send_evt->is_timeout_evt) {
+                        if(debug_host(dst->id)) {
+                            std::cout << get_current_time() << " cancel timeout event " << this->id 
+                            << " for dst " << dst->id << std::endl;
+                        }
+                        dst->token_send_evt->cancelled = true;
+                        dst->token_send_evt = NULL;
+                    }
+
+                    if(dst->token_send_evt == NULL){
+                        if(debug_host(dst->id)) {
+                            std::cout << get_current_time() << " restart sending tokens for flow " << this->id 
+                            << " for dst " << dst->id << std::endl;
+                        }
+                        dst->schedule_token_proc_evt(0, false);
+                    }
+                }
+            }
         }
 
     }  else if (p->type == ACK_PACKET) {
@@ -280,7 +309,7 @@ int RankingFlow::token_gap(){
         std::cout << " largest_token_seq_received " << this->largest_token_seq_received << std::endl;
     }
     assert(this->token_count - this->largest_token_seq_received >= 0);
-    return this->token_count - this->largest_token_seq_received;
+    return this->token_count - this->largest_token_seq_received - 1;
 }
 
 void RankingFlow::relax_token_gap()

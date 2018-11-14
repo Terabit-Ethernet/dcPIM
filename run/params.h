@@ -92,7 +92,8 @@ class DCExpParams {
         
         double ranking_epoch_time;
         double rankinghost_idle_timeout;
-
+        double ranking_reset_epoch;
+        
         double get_full_pkt_tran_delay(uint32_t size_in_byte = 1500)
         {
             return size_in_byte * 8 / this->bandwidth;

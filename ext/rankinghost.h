@@ -2,13 +2,16 @@
 #define RANKING_HOST_H
 
 #include <map>
+#include <unordered_map>
 #include <set>
 
 #include "../coresim/node.h"
 #include "../coresim/packet.h"
 #include "../coresim/event.h"
 
+#include "custompriorityqueue.h"
 #include "schedulinghost.h"
+
 #include "../run/params.h"
 #include "rankingflow.h"
 
@@ -20,8 +23,9 @@ class RankingFlow;
 class ListSrcsComparator {
     public:
         ListSrcsComparator();
-        std::vector<int> ranking;
+        std::vector<double> ranking;
         bool operator() (ListSrcs* a, ListSrcs* b);
+        void reset_ranking();
 };
 
 class RankingFlowComparator {
@@ -47,9 +51,10 @@ class RankingHost : public SchedulingHost {
         void schedule_wakeup_event();
         void schedule_token_proc_evt(double time, bool is_timeout);
         void wakeup();
-        std::priority_queue<RankingFlow*, std::vector<RankingFlow*>, RankingFlowComparatorAtReceiver> active_receiving_flows;
-        RankingFlow* active_receiving_flow_from_arbiter;
-        std::list <RankingFlow*> pending_flows;
+        CustomPriorityQueue<RankingFlow*, std::vector<RankingFlow*>, RankingFlowComparatorAtReceiver> active_receiving_flows;
+        std::unordered_map<uint32_t, CustomPriorityQueue<RankingFlow*, std::vector<RankingFlow*>, RankingFlowComparatorAtReceiver>> src_to_flows;
+        RankingHost* active_src_from_arbiter;
+        // std::list <RankingFlow*> pending_flows;
         RankingHostWakeupProcessingEvent *wakeup_evt;
         TokenProcessingEvent *token_send_evt;
         int total_token_schd_evt_count;
@@ -60,7 +65,7 @@ class RankingHost : public SchedulingHost {
         void send();
         void receive_token(RankingToken* pkt);
         void start_ranking_flow(RankingFlow* f);
-        std::priority_queue<RankingFlow*, std::vector<RankingFlow*>, RankingFlowComparator> active_sending_flows;
+        CustomPriorityQueue<RankingFlow*, std::vector<RankingFlow*>, RankingFlowComparator> active_sending_flows;
         //std::priority_queue<Token*, std::vector<Token*>, TokenComparator> token_q;
 
 };
@@ -73,11 +78,12 @@ class RankingArbiter : public Host {
         void schedule_epoch();
         void receive_listsrcs(RankingListSrcs* pkt);
         void receive_nrts(RankingNRTS* pkt);
-
+        void reset_ranking();
         std::vector<bool> src_state;
         std::vector<bool> dst_state;
         RankingArbiterProcessingEvent* arbiter_proc_evt;
-        std::priority_queue<ListSrcs*, std::vector<ListSrcs*>, ListSrcsComparator> pending_q;
+        double last_reset_ranking_time;
+        CustomPriorityQueue<ListSrcs*, std::vector<ListSrcs*>, ListSrcsComparator> pending_q;
 };
 
 #define RANKING_ARBITER_PROCESSING 17

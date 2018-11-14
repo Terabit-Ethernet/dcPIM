@@ -413,7 +413,7 @@ void CapabilityHost::send_capability(){
                     {
                         closet_timeout = f->latest_cap_sent_time + params.capability_window_timeout* params.get_full_pkt_tran_delay();
                     }
-                    if(debug_flow(f->id))
+                    if(debug_host(id))
                         std::cout << get_current_time() << " closed timeout " << f->id << "\n";
                 }
 

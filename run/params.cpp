@@ -131,6 +131,12 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
             lineStream >> params.capability_window_timeout;
         }
         // For Ranking Algorithm
+        else if (key == "ranking_reset_epoch") {
+            lineStream >> params.ranking_reset_epoch;
+        }
+        else if (key == "token_resend_timeout") {
+            lineStream >> params.token_resend_timeout;
+        }
         else if (key == "token_resend_timeout") {
             lineStream >> params.token_resend_timeout;
         }
@@ -218,6 +224,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
 
         params.fastpass_epoch_time = 1500 * 8 * (FASTPASS_EPOCH_PKTS + 0.5) / params.bandwidth;
         params.ranking_epoch_time = 1500 * 8 * (RANKING_EPOCH_PKTS + 0.5) / params.bandwidth;
+        params.ranking_reset_epoch = 1500 * 8 * (RANKING_EPOCH_PKTS * 5 + 0.5) / params.bandwidth;
         params.param_str.append(line);
         params.param_str.append(", ");
     }
