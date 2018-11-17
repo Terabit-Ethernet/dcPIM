@@ -50,6 +50,8 @@ class Packet {
         double last_enque_time;
 
         int capa_data_seq;
+        // round of ranking
+        int ranking_round;
 };
 
 class PlainAck : public Packet {
@@ -147,14 +149,18 @@ class RankingListSrcs : public Packet
 class RankingNRTS : public Packet
 {
     public:
-        RankingNRTS(Flow *flow, Host *src, Host *dst);
+        RankingNRTS(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t dst_id);
+        uint32_t src_id;
+        uint32_t dst_id;
+
 };
 
 class RankingGoSrc : public Packet
 {
     public:
-        RankingGoSrc(Flow *flow, Host *src, Host *dst, uint32_t src_id);
+        RankingGoSrc(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t max_tokens);
         uint32_t src_id;
+        uint32_t max_tokens;
 };
 
 class RankingToken : public Packet

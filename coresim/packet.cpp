@@ -24,6 +24,7 @@ Packet::Packet(
     this->type = NORMAL_PACKET;
     this->unique_id = Packet::instance_count++;
     this->total_queuing_delay = 0;
+    this->ranking_round = -1;
 }
 
 PlainAck::PlainAck(Flow *flow, uint32_t seq_no_acked, uint32_t size, Host* src, Host *dst) : Packet(0, flow, seq_no_acked, 0, size, src, dst) {
@@ -105,13 +106,16 @@ RankingListSrcs::RankingListSrcs(Flow *flow, Host *src, Host *dst, Host *rts_dst
 RankingListSrcs::~RankingListSrcs() {
     this->listSrcs.clear();
 }
-RankingNRTS::RankingNRTS(Flow *flow, Host *src, Host *dst) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+RankingNRTS::RankingNRTS(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t dst_id) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = RANKING_NRTS;
+    this->src_id = src_id;
+    this->dst_id = dst_id;
 }
 
-RankingGoSrc::RankingGoSrc(Flow *flow, Host *src, Host *dst, uint32_t src_id) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+RankingGoSrc::RankingGoSrc(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t max_tokens) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = RANKING_GOSRC;
     this->src_id = src_id;
+    this->max_tokens = max_tokens;
 }
 
 RankingToken::RankingToken(Flow *flow, Host *src, Host *dst, double ttl, int remaining, int token_seq_num, int data_seq_num) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {

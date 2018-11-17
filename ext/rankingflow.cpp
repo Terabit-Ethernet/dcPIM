@@ -51,13 +51,14 @@ void RankingFlow::sending_rts() {
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), rts, src->queue));
 }
 
-void RankingFlow::sending_nrts() {
-    RankingNRTS* nrts = new RankingNRTS(this, this->src, this->dst);
+void RankingFlow::sending_nrts(int round) {
+    RankingNRTS* nrts = new RankingNRTS(this, this->src, this->dst, this->src->id, this->dst->id);
+    nrts->ranking_round = round;
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), nrts, src->queue));
 }
 
-void RankingFlow::sending_nrts_to_arbiter() {
-    RankingNRTS* nrts = new RankingNRTS(this, this->dst, dynamic_cast<RankingTopology*>(topology)->arbiter);
+void RankingFlow::sending_nrts_to_arbiter(uint32_t src_id, uint32_t dst_id) {
+    RankingNRTS* nrts = new RankingNRTS(this, this->dst, dynamic_cast<RankingTopology*>(topology)->arbiter, src_id, dst_id);
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), nrts, dst->queue));
 }
 
@@ -65,11 +66,15 @@ void RankingFlow::sending_gosrc(uint32_t src_id) {
     if(debug_host(this->src->id)) {
         std::cout << get_current_time () << " sending gosrc to host " << this->src->id << std::endl;
     }
-    RankingGoSrc* gosrc = new RankingGoSrc(this, dynamic_cast<RankingTopology*>(topology)->arbiter, this->src, src_id);
+    RankingGoSrc* gosrc = new RankingGoSrc(this, dynamic_cast<RankingTopology*>(topology)->arbiter, this->src, src_id, params.ranking_max_tokens);
 
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), gosrc, dynamic_cast<RankingTopology*>(topology)->arbiter->queue));
 }
-
+void RankingFlow::sending_ack(int round) {
+    Packet *ack = new PlainAck(this, 0, hdr_size, dst, src);
+    ack->ranking_round = round;
+    add_to_event_queue(new PacketQueuingEvent(get_current_time(), ack, dst->queue));
+}
 // sender side
 void RankingFlow::assign_init_token(){
     //sender side
@@ -82,6 +87,7 @@ void RankingFlow::assign_init_token(){
         c->timeout = get_current_time() + init_token * params.get_full_pkt_tran_delay() + params.token_timeout * params.get_full_pkt_tran_delay();
         c->seq_num = i;
         c->data_seq_num = i;
+        c->ranking_round = -1;
         this->tokens.push_back(c);
     }
 }
@@ -123,15 +129,15 @@ void RankingFlow::send_pending_data()
     auto token = this->use_token();
     int token_data_seq = token->data_seq_num;
     int token_seq = token->seq_num;
-
+    int ranking_round = token->ranking_round;
     delete token;
 
     Packet *p;
     if (next_seq_no + mss <= this->size) {
-        p = this->send(next_seq_no, token_seq, token_data_seq, params.token_third_level && this->size_in_pkt > params.token_initial?2:1);
+        p = this->send(next_seq_no, token_seq, token_data_seq, params.token_third_level && this->size_in_pkt > params.token_initial?2:1, ranking_round);
         next_seq_no += mss;
     } else {
-        p = this->send(next_seq_no, token_seq, token_data_seq, params.token_third_level && this->size_in_pkt > params.token_initial?2:1);
+        p = this->send(next_seq_no, token_seq, token_data_seq, params.token_third_level && this->size_in_pkt > params.token_initial?2:1, ranking_round);
         next_seq_no = this->size;
     }
 
@@ -145,7 +151,7 @@ void RankingFlow::send_pending_data()
     add_to_event_queue(((SchedulingHost*) src)->host_proc_event);
 }
 
-Packet* RankingFlow::send(uint32_t seq, int token_seq, int data_seq, int priority)
+Packet* RankingFlow::send(uint32_t seq, int token_seq, int data_seq, int priority, int ranking_round)
 {
     this->latest_data_pkt_sent_time = get_current_time();
     
@@ -159,20 +165,14 @@ Packet* RankingFlow::send(uint32_t seq, int token_seq, int data_seq, int priorit
     Packet *p = new Packet(get_current_time(), this, seq, priority, pkt_size, src, dst);
     p->capability_seq_num_in_data = token_seq;
     p->capa_data_seq = data_seq;
+    p->ranking_round = ranking_round;
     total_pkt_sent++;
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), p, src->queue));
     return p;
 }
 
 void RankingFlow::receive(Packet *p) {
-    if (p->type == RANKING_NRTS) {
-        if(p->dst->id == params.num_hosts) {
-            dynamic_cast<RankingTopology*>(topology)->arbiter->receive_nrts((RankingNRTS*) p);
-        } else {
-            ((RankingHost*) this->dst)->receive_nrts((RankingNRTS*) p);
-        }
-    } 
-    if(this->finished) {
+    if(this->finished && p->type != RANKING_NRTS) {
         delete p;
         return;
     }
@@ -223,7 +223,8 @@ void RankingFlow::receive(Packet *p) {
 //            std::cout << get_current_time() << " flow " << this->id << " received pkt " << received_count << "\n";
         if (received_count >= goal) {
             this->finished_at_receiver = true;
-            send_ack();
+            sending_ack(p->ranking_round);
+            ((RankingHost*)p->dst)->flow_finish_at_receiver(p);
             if(debug_flow(this->id))
                 std::cout << get_current_time() << " flow " << this->id << " send ACK" << std::endl;
         } else {
@@ -231,9 +232,11 @@ void RankingFlow::receive(Packet *p) {
             if (this->token_gap() <= params.token_window) {
                 RankingHost * dst = (RankingHost*)this->dst;
                 // sending token process should be restarted if the timeout event happens
-                if(dst->active_src_from_arbiter != NULL && 
-                dst->active_src_from_arbiter->id == p->flow->src->id && 
-                dst->src_to_flows[p->flow->src->id].top()->id == p->flow->id) { 
+                 // std::cout << "flow id" << p->flow->id << "source id:" << p->src->id << " " <<  p->dst->id << std::endl;
+                auto best_large_flow = dst->get_top_unfinish_flow(p->flow->src->id);
+                // std::cout << p->flow->id << " " << p->flow->dst->id << std::endl;
+                if(dst->gosrc_info.src == (RankingHost*)p->flow->src && dst->gosrc_info.remain_tokens > 0 &&
+                best_large_flow == (RankingFlow*)p->flow) { 
                     if (dst->token_send_evt != NULL && dst->token_send_evt->is_timeout_evt) {
                         if(debug_host(dst->id)) {
                             std::cout << get_current_time() << " cancel timeout event " << this->id 
@@ -254,15 +257,24 @@ void RankingFlow::receive(Packet *p) {
             }
         }
 
-    }  else if (p->type == ACK_PACKET) {
+    } else if (p->type == ACK_PACKET) {
         if(debug_flow(this->id))
             std::cout << get_current_time() << " flow " << this->id << " received ack" << std::endl;
         this->packets_received.clear();
         this->clear_token();
         // ((RankingHost*)(this->src))->active_sending_flow = NULL;
-        sending_nrts();
+        //sending_nrts(p->ranking_round);
         add_to_event_queue(new FlowFinishedEvent(get_current_time(), this));
-    } else {
+    } else if (p->type == RANKING_NRTS) {
+        if(p->dst->id == params.num_hosts) {
+            dynamic_cast<RankingTopology*>(topology)->arbiter->receive_nrts((RankingNRTS*) p);
+        // } else {
+        //     ((RankingHost*) this->dst)->receive_nrts((RankingNRTS*) p);
+        // }
+        }
+    }   else {
+        std::cout << this->id << std::endl;
+        std::cout << p->type << std::endl;
         assert(false);
     }
     //     else if (p->type == RANKING_SCHEDULE) {
@@ -288,7 +300,7 @@ void RankingFlow::receive_short_flow() {
         this->redundancy_ctrl_timeout = get_current_time() + init_token * params.get_full_pkt_tran_delay() * 2;
     }
     dstination->hold_on += init_token;
-    dstination->active_receiving_flows.push(this);
+    dstination->active_short_flows.push(this);
     if (dstination->token_send_evt != NULL && dstination->token_send_evt->is_timeout_evt) {
         dstination->token_send_evt->cancelled = true;
         dstination->token_send_evt = NULL;
@@ -350,6 +362,15 @@ void RankingFlow::send_token_pkt(){
     } 
     last_token_data_seq_num_sent = data_seq_num;
     RankingToken* cp = new RankingToken(this, this->dst, this->src, params.token_timeout * params.get_full_pkt_tran_delay(), this->remaining_pkts(), this->token_count, data_seq_num);
+    // set ranking round of the tokens
+    if(this->size_in_pkt > params.token_initial) {
+        assert(this->src == ((RankingHost*)this->dst)->gosrc_info.src);
+        assert(((RankingHost*)this->dst)->gosrc_info.remain_tokens > 0);
+        cp->ranking_round = ((RankingHost*)this->dst)->gosrc_info.round;
+    } else {
+        cp->ranking_round = -1;
+    }
+
     this->token_count++;
     this->token_packet_sent_count++;
     this->latest_token_sent_time = get_current_time();

@@ -16,6 +16,7 @@ public:
     int seq_num;
     int data_seq_num;
     int create_time;
+    int ranking_round;
 };
 
 class ListSrcs //for extendability
@@ -29,9 +30,6 @@ public:
     };
 };
 
-// struct GoSRC {
-//     Flow* f;
-// };
 class RankingFlow : public FountainFlow {
 public:
     RankingFlow(uint32_t id, double start_time, uint32_t size, Host *s, Host *d);
@@ -42,15 +40,18 @@ public:
     int init_token_size();
     // send control signals
     void sending_rts();
-    void sending_nrts();
-    void sending_nrts_to_arbiter();
+    void sending_nrts(int round);
+    void sending_nrts_to_arbiter(uint32_t src_id, uint32_t dst_id);
     void sending_gosrc(uint32_t src_id);
+    void sending_ack(int round);
     // sender side
     void clear_token();
     Token* use_token();
     bool has_token();
-    Packet* send(uint32_t seq, int token_seq, int data_seq, int priority);
+    Packet* send(uint32_t seq, int token_seq, int data_seq, int priority, int ranking_round);
     void assign_init_token();
+    std::list<Token*> tokens;
+   
     // receiver side
     int remaining_pkts();
     int token_gap();
@@ -59,7 +60,6 @@ public:
     void send_token_pkt();
     void receive_short_flow();
     std::set<int> packets_received;
-    std::list<Token*> tokens;
 
     int last_token_data_seq_num_sent;
     int received_until;

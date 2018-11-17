@@ -19,6 +19,28 @@ class RankingHostWakeupProcessingEvent;
 class TokenProcessingEvent;
 class RankingArbiterProcessingEvent;
 class RankingFlow;
+class RankingHost;
+
+class GoSRC {
+public:
+    uint32_t max_tokens;
+    uint32_t remain_tokens;
+    int round;
+    RankingHost* src;    
+    GoSRC() {
+        max_tokens = -1;
+        remain_tokens = -1;
+        round = 0;
+        src = NULL;
+    };
+    void reset() {
+        max_tokens = -1;
+        remain_tokens = -1;
+        src = NULL;
+        round += 1;
+    }
+    ~GoSRC() = default;
+};
 
 class ListSrcsComparator {
     public:
@@ -38,22 +60,30 @@ class RankingFlowComparatorAtReceiver {
         bool operator() (RankingFlow* a, RankingFlow* b);
 };
 
+// class RankingFlowComparatorAtReceiverForP1 {
+//     public:
+//         bool operator() (RankingFlow* a, RankingFlow* b);
+// };
+
 class RankingHost : public SchedulingHost {
     public:
         RankingHost(uint32_t id, double rate, uint32_t queue_type);
         void schedule_host_proc_evt();
         // receiver side
         void receive_rts(RankingRTS* pkt);
-        void receive_nrts(RankingNRTS* pkt);
+        void flow_finish_at_receiver(Packet* pkt);
+        //void receive_nrts(RankingNRTS* pkt);
         void receive_gosrc(RankingGoSrc* pkt);
         void send_listSrcs();
         void send_token();
         void schedule_wakeup_event();
         void schedule_token_proc_evt(double time, bool is_timeout);
         void wakeup();
-        CustomPriorityQueue<RankingFlow*, std::vector<RankingFlow*>, RankingFlowComparatorAtReceiver> active_receiving_flows;
+        RankingFlow* get_top_unfinish_flow(uint32_t src_id);
+        CustomPriorityQueue<RankingFlow*, std::vector<RankingFlow*>, RankingFlowComparatorAtReceiver> active_short_flows;
         std::unordered_map<uint32_t, CustomPriorityQueue<RankingFlow*, std::vector<RankingFlow*>, RankingFlowComparatorAtReceiver>> src_to_flows;
-        RankingHost* active_src_from_arbiter;
+
+        GoSRC gosrc_info;
         // std::list <RankingFlow*> pending_flows;
         RankingHostWakeupProcessingEvent *wakeup_evt;
         TokenProcessingEvent *token_send_evt;

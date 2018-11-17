@@ -12,6 +12,7 @@
 #include "../run/params.h"
 #include "custompriorityqueue.h"
 
+#include <algorithm>    // std::sort
 #include <set>
 extern uint32_t total_finished_flows;
 extern double get_current_time();
@@ -89,6 +90,19 @@ bool RankingFlowComparatorAtReceiver::operator() (RankingFlow* a, RankingFlow* b
         return false;
 }
 
+// bool RankingFlowComparatorAtReceiverForP1::operator() (RankingFlow* a, RankingFlow* b){
+//     if(a->token_count > 0)
+//         return false;
+//     if(b->token_count > 0)
+//         return true;
+//     if(a->remaining_pkts() - a->token_gap() > b->remaining_pkts() - b->token_gap())
+//         return true;
+//     else if (a->remaining_pkts() - a->token_gap() == b->remaining_pkts() - b->token_gap())
+//         return a->start_time > b->start_time; //TODO: this is cheating. but not a big problem
+//     else
+//         return false;
+// }
+
 RankingHost::RankingHost(uint32_t id, double rate, uint32_t queue_type) : SchedulingHost(id, rate, queue_type) {
 
     this->host_proc_event = NULL;
@@ -97,7 +111,6 @@ RankingHost::RankingHost(uint32_t id, double rate, uint32_t queue_type) : Schedu
     this->host_type = RANKING_HOST;
     this->total_token_schd_evt_count = 0;
     this->hold_on = 0;
-    this->active_src_from_arbiter = NULL;
     this->fake_flow = NULL;
 }
 
@@ -119,6 +132,7 @@ void RankingHost::receive_token(RankingToken* pkt) {
     t->timeout = get_current_time() + pkt->ttl;
     t->seq_num = pkt->token_seq_num;
     t->data_seq_num = pkt->data_seq_num;
+    t->ranking_round = pkt->ranking_round;
     f->tokens.push_back(t);
     f->remaining_pkts_at_sender = pkt->remaining_sz;
     if(this->host_proc_event == NULL) {
@@ -182,15 +196,33 @@ void RankingHost::schedule_token_proc_evt(double time, bool is_timeout)
     this->token_send_evt = new TokenProcessingEvent(get_current_time() + time + INFINITESIMAL_TIME, this, is_timeout);
     add_to_event_queue(this->token_send_evt);
 }
-
+RankingFlow* RankingHost::get_top_unfinish_flow(uint32_t src_id) {
+    RankingFlow* best_large_flow = NULL;
+    if(this->src_to_flows.find(src_id) == this->src_to_flows.end())
+        return best_large_flow;
+    while (!this->src_to_flows[src_id].empty()) {
+        best_large_flow =  this->src_to_flows[src_id].top();
+        if(best_large_flow->finished_at_receiver) {
+            best_large_flow = NULL;
+            this->src_to_flows[src_id].pop();
+        } else {
+            break;
+        }
+    }
+    if(best_large_flow == NULL){
+        assert(this->src_to_flows[src_id].empty());
+        this->src_to_flows.erase(src_id);
+    }
+    return best_large_flow;
+}
 void RankingHost::receive_rts(RankingRTS* pkt) {
     if(debug_flow(pkt->flow->id))
             std::cout << get_current_time() << " flow " << pkt->flow->id << " "<< pkt->size_in_pkt <<  " received rts\n";
     ((RankingFlow*)pkt->flow)->rts_received = true;
     if(pkt->size_in_pkt > params.token_initial) {
         this->src_to_flows[pkt->flow->src->id].push((RankingFlow*)pkt->flow);
-        if(this->active_src_from_arbiter != NULL && 
-            this->active_src_from_arbiter->id == pkt->flow->src->id && 
+        if(this->gosrc_info.src != NULL && 
+            this->gosrc_info.src->id == pkt->flow->src->id && 
             this->src_to_flows[pkt->flow->src->id].top()->id == pkt->flow->id) {
             if (this->token_send_evt != NULL && this->token_send_evt->is_timeout_evt) {
                 this->token_send_evt->cancelled = true;
@@ -200,9 +232,13 @@ void RankingHost::receive_rts(RankingRTS* pkt) {
                 this->schedule_token_proc_evt(0, false);
             }
         }
-        if(this->active_src_from_arbiter == NULL) {
+        if(this->gosrc_info.src == NULL) {
             // send list Srcs
+            if(debug_host(id)) {
+                std::cout << get_current_time() << "sending listSRC for new flow " <<pkt->flow->id << std::endl;
+            }
             send_listSrcs();
+
             if(this->wakeup_evt != NULL) {
                 this->wakeup_evt->cancelled = true;
             }
@@ -216,56 +252,71 @@ void RankingHost::receive_rts(RankingRTS* pkt) {
     }
 }
 
-void RankingHost::receive_nrts(RankingNRTS* pkt) {
+void RankingHost::flow_finish_at_receiver(Packet* pkt) {
     // std::cout << pkt->flow->id << std::endl;
     // std::cout << this->id << std::endl;
-    if((RankingHost*)(pkt->flow->src) != this->active_src_from_arbiter) {
-        return;
+
+    // clean the hash table for pending large flows
+    if(debug_flow(pkt->flow->id)) {
+        std::cout << get_current_time () << " flow finish at receiver " <<  pkt->flow->id << std::endl;
     }
     if(pkt->flow->size_in_pkt <= params.token_initial) {
         return;
     }
-    assert(pkt->flow->src->id == this->active_src_from_arbiter->id);
-    std::queue<RankingFlow*> flows_tried;
-    auto src_id = this->active_src_from_arbiter->id;
-    while(1) {
-        if(this->src_to_flows[src_id].top() == (RankingFlow*)pkt->flow) {
-            this->src_to_flows[src_id].pop();
-            break;
+
+    bool should_send_nrts = false;
+    if(this->gosrc_info.round == pkt->ranking_round) {
+        assert(this->gosrc_info.src == (RankingHost*)pkt->flow->src);
+        should_send_nrts = true;
+    } else if (this->gosrc_info.src == (RankingHost*)pkt->flow->src) {
+        auto best_large_flow = this->get_top_unfinish_flow(pkt->flow->src->id);
+        if(best_large_flow == NULL) {
+            should_send_nrts = true;
         }
-        flows_tried.push(this->src_to_flows[src_id].top());
-        this->src_to_flows[src_id].pop();
     }
-    while(!flows_tried.empty()) {
-        this->src_to_flows[src_id].push(flows_tried.front());
-        flows_tried.pop();
-    }
-    if(this->src_to_flows[src_id].empty()) {
-        this->src_to_flows.erase(src_id);
-    }
-    this->active_src_from_arbiter = NULL;
-    ((RankingFlow*)pkt->flow)->sending_nrts_to_arbiter();
-    if(!this->src_to_flows.empty()) {
-        this->send_listSrcs();
+    if(should_send_nrts) {
+        this->gosrc_info.reset();
+        (this->fake_flow)->sending_nrts_to_arbiter(pkt->flow->src->id, pkt->flow->dst->id);
+        if(debug_host(id)) {
+            if (this->gosrc_info.src == NULL)
+                std::cout << "current go src" << "NULL" << std::endl;
+            else
+                std::cout << "current go src " << this->gosrc_info.src->id << std::endl;
+        }
         assert(this->wakeup_evt == NULL);
-        if(this->wakeup_evt == NULL) {
-            schedule_wakeup_event();
-        }
+        this->wakeup();
     }
+    // if(!this->src_to_flows.empty()) {
+    //     this->send_listSrcs();
+    //     assert(this->wakeup_evt == NULL);
+    //     schedule_wakeup_event();
+    // }
 }
 void RankingHost::send_listSrcs() {
-    if(debug_host(this->id)) {
-        for (auto i = this->src_to_flows.begin(); i != this->src_to_flows.end(); i++) {
-            if (!i->second.empty()) {
-            std::cout << get_current_time() << " src " <<  i->first << "\n";
+    std::vector<std::pair<int, int>> vect;
+    std::list<uint32_t> srcs;
+    for (auto i = this->src_to_flows.begin(); i != this->src_to_flows.end();) {
+        while(!i->second.empty()) {
+            if(i->second.top()->finished_at_receiver) {
+                i->second.pop();
+            } else {
+                break;
             }
         }
-    }
-    std::list<uint32_t> srcs;
-    for (auto i = this->src_to_flows.begin(); i != this->src_to_flows.end(); i++) {
         if(!i->second.empty()) {
-            srcs.push_back(i->first);
+            vect.push_back(std::make_pair(i->second.top()->remaining_pkts() - i->second.top()->token_gap(),
+             i->first));
+            i++;
+        } else {
+            i = this->src_to_flows.erase(i);
         }
+    }
+    sort(vect.begin(), vect.end());
+    for(auto i = vect.begin(); i != vect.end(); i++) {
+        srcs.push_back(i->second);
+        // if(debug_host(this->id)) {
+        //     std::cout << get_current_time() << " " << i->first << " " << i->second << std::endl;
+        // }
     }
     if(srcs.empty())
         return;
@@ -285,10 +336,15 @@ void RankingHost::schedule_wakeup_event() {
 
 void RankingHost::wakeup() {
     assert(this->wakeup_evt == NULL);
-    if(!this->src_to_flows.empty()) {
+    // if(!this->src_to_flows.empty()) {
+        if(debug_host(id)) {
+            std::cout << "wake up for sending listSRC" << std::endl;
+        }
         this->send_listSrcs();
-        this->schedule_wakeup_event();
-    }
+        if(!this->src_to_flows.empty()) {
+            this->schedule_wakeup_event();
+        }
+    //}
 }
 void RankingHost::send_token() {
     assert(this->token_send_evt == NULL);
@@ -301,26 +357,32 @@ void RankingHost::send_token() {
         token_sent = true;
     }
     RankingFlow* best_large_flow = NULL;
-    if(this->active_src_from_arbiter != NULL) {
-        if (!this->src_to_flows[this->active_src_from_arbiter->id].empty()) {
-            best_large_flow =  this->src_to_flows[this->active_src_from_arbiter->id].top();
-        }
+    if(this->gosrc_info.src!= NULL) {
+        best_large_flow = this->get_top_unfinish_flow(this->gosrc_info.src->id);
+        // if(best_large_flow == NULL) {
+        //     std::cout << "i am here" << std::endl;
+        //     this->fake_flow->sending_nrts_to_arbiter(this->gosrc_info.src->id, id);
+        //     this->gosrc_info.reset();
+        //     assert(this->wakeup_evt == NULL);
+        //     this->wakeup();
+        // }
     }
     while(!token_sent) {
-        if (this->active_receiving_flows.empty() && best_large_flow == NULL) {
+        if (this->active_short_flows.empty() && best_large_flow == NULL) {
             break;
         }
         RankingFlow* f = NULL;
-        if(best_large_flow != NULL && !this->active_receiving_flows.empty() && 
-         this->active_receiving_flows.top()->remaining_pkts() > best_large_flow->remaining_pkts()) {
+        if(best_large_flow != NULL && !this->active_short_flows.empty() && 
+         this->active_short_flows.top()->remaining_pkts() -  this->active_short_flows.top()->token_gap() 
+         > best_large_flow->remaining_pkts() - best_large_flow->token_gap()) {
             f = best_large_flow;
             best_large_flow = NULL;
-        } else if (this->active_receiving_flows.empty()){
+        } else if (this->active_short_flows.empty()){
             f = best_large_flow;
             best_large_flow = NULL;
         } else {
-            f = this->active_receiving_flows.top();
-            this->active_receiving_flows.pop();
+            f = this->active_short_flows.top();
+            this->active_short_flows.pop();
         }
         // probably can do better here
         if(f->finished_at_receiver) {
@@ -354,6 +416,7 @@ void RankingHost::send_token() {
 
             if(f->token_gap() > params.token_window)
             {
+
                 if(get_current_time() >= f->latest_token_sent_time + params.token_window_timeout * params.get_full_pkt_tran_delay()) {
                     f->relax_token_gap();
                     if(debug_host(this->id)) {
@@ -374,6 +437,9 @@ void RankingHost::send_token() {
             if(f->token_gap() <= params.token_window)
             {
                 f->send_token_pkt();
+                if(debug_host(id)) {
+                        std::cout << get_current_time() << " sending tokens for flow" << f->id << std::endl;   
+                }
                 token_sent = true;
                 // this->token_hist.push_back(this->recv_flow->id);
                 if(f->token_count == f->token_goal){
@@ -382,11 +448,24 @@ void RankingHost::send_token() {
                         std::cout << get_current_time() << " redundancy_ctrl_timeout set up" << f->id << "timeout value: " << f->redundancy_ctrl_timeout << "\n";
                     }
                 }
+                // for P4 ranking algorithm
+                if(f->size_in_pkt > params.token_initial) {
+                    assert( this->gosrc_info.remain_tokens > 0);
+                    if(debug_host(id)) {
+                        std::cout << get_current_time() << " remain_tokens: " << this->gosrc_info.remain_tokens << std::endl;   
+                    }
+                    this->gosrc_info.remain_tokens--;
+                    if(this->gosrc_info.remain_tokens == 0) {
+                        this->gosrc_info.reset();
+                        this->fake_flow->sending_nrts_to_arbiter(f->src->id, f->dst->id);
+                        this->wakeup();
+                    }
+                }
             }
         }
     }
     while(!flows_tried.empty()) {
-        this->active_receiving_flows.push(flows_tried.front());
+        this->active_short_flows.push(flows_tried.front());
         flows_tried.pop();
     }
 
@@ -408,10 +487,18 @@ void RankingHost::send_token() {
 
 void RankingHost::receive_gosrc(RankingGoSrc* pkt) {
     if(debug_host(this->id)) {
-        std::cout << get_current_time() << " receive GoSRC for dst " << this->id << std::endl; 
+        std::cout << get_current_time() << " receive GoSRC for dst " << this->id << "src id is " << pkt->src_id << std::endl; 
     }
     // find the minimum size of the flow for a source;
-    this->active_src_from_arbiter = (RankingHost*)this->src_to_flows[pkt->src_id].top()->src;
+    RankingFlow* best_large_flow = this->get_top_unfinish_flow(pkt->src_id);
+    if(best_large_flow == NULL) {
+        this->gosrc_info.reset();
+        this->fake_flow->sending_nrts_to_arbiter(pkt->src_id, this->id);
+        return;
+    }
+    this->gosrc_info.src = (RankingHost*)this->src_to_flows[pkt->src_id].top()->src;
+    this->gosrc_info.max_tokens = pkt->max_tokens;
+    this->gosrc_info.remain_tokens = pkt->max_tokens;
     //cancel wake up event
     if(this->wakeup_evt != NULL) {
         this->wakeup_evt->cancelled = true;
@@ -495,13 +582,9 @@ void RankingArbiter::receive_listsrcs(RankingListSrcs* pkt) {
 }
 
 void RankingArbiter::receive_nrts(RankingNRTS* pkt) {
-    assert(this->src_state[pkt->flow->src->id] == false);
-    assert(this->dst_state[pkt->flow->dst->id] == false);
+    assert(this->src_state[pkt->src_id] == false);
+    assert(this->dst_state[pkt->dst_id] == false);
 
-    this->src_state[pkt->flow->src->id] = true;
-    this->dst_state[pkt->flow->dst->id] = true;
-    if(debug_flow(pkt->flow->id)) {
-        std::cout << get_current_time () << " arbiter receive nrts of flow " << pkt->flow->id;
-        std::cout << " src " << pkt->flow->src->id << " state " <<  this->src_state[pkt->flow->src->id] << std::endl;
-    }
+    this->src_state[pkt->src_id] = true;
+    this->dst_state[pkt->dst_id] = true;
 }
