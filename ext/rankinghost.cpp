@@ -537,7 +537,7 @@ void RankingArbiter::schedule_proc_evt(double time) {
 void RankingArbiter::schedule_epoch() {
     if (total_finished_flows >= params.num_flows_to_run)
         return;
-    // std::cout << get_current_time() <<  " empty the pending queue " << std::endl;
+    //std::cout << get_current_time() <<  "pending queue size of arbirter " << this->pending_q.size() << std::endl;
     while(!this->pending_q.empty()) {
         auto request = this->pending_q.top();
         this->pending_q.pop();

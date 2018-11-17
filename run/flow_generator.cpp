@@ -462,25 +462,25 @@ void IncastTM::make_flows() {
 
     for (uint32_t i = 0; i < topo->hosts.size(); i++) {
         uint32_t j = i;
-        std::vector<uint32_t> target_srcs;
+        std::set<uint32_t> target_srcs;
         while (1) { // orig. "j != i"
             j = rand() % topo->hosts.size();
             if (j == i) {
                 continue; 
             }
-            if (target_srcs.size() < this->incast) {
-                target_srcs.push_back(j);
-            } else {
+            if (target_srcs.find(j) == target_srcs.end() && target_srcs.size() < this->incast) {
+                target_srcs.insert(j);
+            } else if(target_srcs.size() == this->incast){
                 break;
             }
         }
-        for (j = 0; j < target_srcs.size(); j++) {
+        for (auto k = target_srcs.begin(); k != target_srcs.end(); k++) {
             double first_flow_time = 1.0 + nv_intarr->value();
-            assert(i != target_srcs[j]);
+            assert(i != *k);
             add_to_event_queue(
                 new FlowCreationForInitializationEvent(
                     first_flow_time,
-                    topo->hosts[target_srcs[j]],
+                    topo->hosts[*k],
                     topo->hosts[i], 
                     nv_bytes, 
                     nv_intarr
@@ -521,26 +521,26 @@ void OutcastTM::make_flows() {
 
     for (uint32_t i = 0; i < topo->hosts.size(); i++) {
         uint32_t j = i;
-        std::vector<uint32_t> dst;
+        std::set<uint32_t> dst;
         while (1) { // orig. "j != i"
             j = rand() % topo->hosts.size();
             if (j == i) {
                 continue; 
             }
-            if (dst.size() < this->outcast) {
-                dst.push_back(j);
-            } else {
+            if (dst.find(j) != dst.end() && dst.size() < this->outcast) {
+                dst.insert(j);
+            } else if(dst.size() == this->outcast){
                 break;
             }
         }
-        for (int j = 0; j < dst.size(); j++) {
+        for (auto k = dst.begin(); k != dst.end(); k++) {
             double first_flow_time = 1.0 + nv_intarr->value();
-            assert(i != dst[j]);
+            assert(i != *k);
             add_to_event_queue(
                 new FlowCreationForInitializationEvent(
                     first_flow_time,
                     topo->hosts[i], 
-                    topo->hosts[dst[j]],
+                    topo->hosts[*k],
                     nv_bytes, 
                     nv_intarr
                 )
