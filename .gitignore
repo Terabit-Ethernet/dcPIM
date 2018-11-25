@@ -15,5 +15,5 @@ install-sh
 simulator
 simdebug
 py/result/*
-.DS_STORE
+.DS_Store
 ._.DS_Store

@@ -6,8 +6,8 @@ propagation_delay: 0.0000002
 bandwidth: 40000000000.0
 queue_type: 2
 flow_type: 2
-num_flow: 100000
-flow_trace: ../CDF_{1}.txt
+num_flow: {2}
+flow_trace: ./CDF_{1}.txt
 cut_through: 1
 mean_flow_size: 0
 load_balancing: 0
@@ -15,7 +15,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 1
 traffic_imbalance: 0
-load: 0.9
+load: 0.8
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -52,8 +52,8 @@ propagation_delay: 0.0000002
 bandwidth: 40000000000.0
 queue_type: 2
 flow_type: 112
-num_flow: 100000
-flow_trace: ../CDF_{1}.txt
+num_flow: {2}
+flow_trace: ./CDF_{1}.txt
 cut_through: 1
 mean_flow_size: 0
 load_balancing: 0
@@ -61,7 +61,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 12
 traffic_imbalance: 0
-load: 0.9
+load: 0.8
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -98,8 +98,8 @@ propagation_delay: 0.0000002
 bandwidth: 40000000000.0
 queue_type: 2
 flow_type: 114
-num_flow: 100000
-flow_trace: ../CDF_{1}.txt
+num_flow: {2}
+flow_trace: ./CDF_{1}.txt
 cut_through: 1
 mean_flow_size: 0
 load_balancing: 0
@@ -107,7 +107,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 14
 traffic_imbalance: 0
-load: 0.9
+load: 0.8
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -144,8 +144,8 @@ propagation_delay: 0.0000002
 bandwidth: 40000000000.0
 queue_type: 2
 flow_type: 112
-num_flow: 100000
-flow_trace: ../CDF_{1}.txt
+num_flow: {2}
+flow_trace: ./CDF_{1}.txt
 cut_through: 1
 mean_flow_size: 0
 load_balancing: 0
@@ -153,7 +153,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 16
 traffic_imbalance: 0
-load: 0.9
+load: 0.8
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -190,8 +190,8 @@ propagation_delay: 0.0000002
 bandwidth: 40000000000.0
 queue_type: 2
 flow_type: 115
-num_flow: 100000
-flow_trace: ../CDF_{1}.txt
+num_flow: {2}
+flow_trace: ./CDF_{1}.txt
 cut_through: 1
 mean_flow_size: 0
 load_balancing: 0
@@ -199,21 +199,23 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 15
 traffic_imbalance: 0
-load: 0.9
+load: 0.8
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
 use_flow_trace: 0
 smooth_cdf: 1
 burst_at_beginning: 0
-token_initial: 8
+token_initial: 16
 token_timeout: 1.5
 token_resend_timeout: 9
 token_window: 8
-token_window_timeout: 2
+token_window_timeout: 25
 token_third_level: 1
-token_fourth_level: 0
-rankinghost_idle_timeout: 3
+rankinghost_idle_timeout: 12
+ranking_reset_epoch: 50
+ranking_max_tokens: 80
+ranking_controller_epoch: 1
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33
@@ -228,24 +230,41 @@ interarrival_cdf: none
 num_host_types: 13
 incast_tm: {0}
 '''
+
 runs = ['pfabric', 'phost', 'fastpass', 'random', 'ranking']
+direct = ['best_case/', 'worst_case/', 'average_case/']
 workloads = ['aditya', 'dctcp', 'datamining', 'constant']
-incasts = [1, 2, 4, 9, 18, 36, 72 ,143]
+incasts = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
+size = 100 #MB
+size_in_pkts = 100 * 1024 * 1024 / 1460 
+for i in incasts:
+	file_name = "best_case/" + "CDF_constant_" + str(i) + ".txt"
+	per_flow_size = size_in_pkts / i
+	with open(file_name, 'w') as f:
+		f.write("{0} 1 0\n".format(per_flow_size)) 
+		f.write("{0} 1 1\n".format(per_flow_size))
+
 for r in runs:
-    for w in workloads:
+    for w in direct:
         #  generate conf file
         for incast in incasts:
+	        if w == 'average_case/':
+	        	cdf = "aditya"
+	        elif w == "worst_case/":
+	        	cdf = 'constant'
+	        else:
+	        	cdf = 'constant_' + str(incast)
 	        if r == 'pfabric':
-	            conf_str = conf_str_pfabric.format(incast, w)
+	            conf_str = conf_str_pfabric.format(incast, cdf, incast)
 	        elif r == 'phost':
-	            conf_str = conf_str_phost.format(incast, w)
+	            conf_str = conf_str_phost.format(incast, cdf, incast)
 	        elif r == 'fastpass':
-	            conf_str = conf_str_fastpass.format(incast, w)
+	            conf_str = conf_str_fastpass.format(incast, cdf, incast)
 	        elif r == 'random':
-	            conf_str = conf_str_random.format(incast, w)
+	            conf_str = conf_str_random.format(incast, cdf, incast)
 	        elif r == 'ranking':
-	        	conf_str = conf_str_ranking.format(incast, w)
-	        confFile = "conf_{0}_{1}_{2}.txt".format(r, w, incast)
+	        	conf_str = conf_str_ranking.format(incast, cdf, incast)
+	        confFile = w + "conf_{0}_{1}.txt".format(r, incast)
 	        with open(confFile, 'w') as f:
-	            print confFile
+                    print confFile
 	            f.write(conf_str)

@@ -214,6 +214,7 @@ token_window_timeout: 2
 token_third_level: 1
 token_fourth_level: 0
 rankinghost_idle_timeout: 3
+ranking_reset_epoch: 50
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33
