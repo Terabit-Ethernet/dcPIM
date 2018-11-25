@@ -14,3 +14,6 @@ install-sh
 *.dirstamp*
 simulator
 simdebug
+py/result/*
+.DS_STORE
+._.DS_Store
