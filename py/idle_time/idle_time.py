@@ -28,7 +28,6 @@ token_resend_timeout: 9
 token_window: 8
 token_window_timeout: 25
 token_third_level: 1
-token_fourth_level: 0
 rankinghost_idle_timeout: {0}
 ranking_reset_epoch: 50
 ranking_max_tokens: 80
