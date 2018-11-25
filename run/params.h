@@ -90,11 +90,15 @@ class DCExpParams {
         uint32_t token_third_level;
         uint32_t token_fourth_level;
         
-        double ranking_epoch_time;
+        //double ranking_epoch_time;
         double rankinghost_idle_timeout;
+        double ranking_controller_epoch;
         double ranking_reset_epoch;
         
         uint32_t ranking_max_tokens;
+        
+        // debug for max-min fairness
+        bool print_max_min_fairness;
         double get_full_pkt_tran_delay(uint32_t size_in_byte = 1500)
         {
             return size_in_byte * 8 / this->bandwidth;
@@ -109,7 +113,7 @@ class DCExpParams {
 
 //#define FASTPASS_EPOCH_TIME 0.000010
 #define FASTPASS_EPOCH_PKTS 8
-#define RANKING_EPOCH_PKTS 8
+// #define RANKING_EPOCH_PKTS 3
 
 #define TOKEN_HOLD true
 

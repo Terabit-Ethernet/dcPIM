@@ -92,7 +92,7 @@ void CapabilityFlow::receive_rts(Packet* p) {
 
     this->rts_received = true;
     set_capability_count();
-    ((CapabilityHost*)(this->dst))->hold_on += this->init_capa_size();
+    ((CapabilityHost*)(this->dst))->hold_on = this->init_capa_size();
     if (params.host_type == CAPABILITY_HOST) {
         ((CapabilityHost*)(this->dst))->active_receiving_flows.push(this);
     } else if (params.host_type == RANDOM_HOST) {
@@ -128,7 +128,9 @@ void CapabilityFlow::receive(Packet *p)
         if (!rts_received) {
             receive_rts(p);
         }
-
+        if(debug_flow(this->id)){
+            std::cout << get_current_time() << " flow " << this->id << "receive data seq " << p->capa_data_seq << " seq number:" << p->capability_seq_num_in_data  << " total q delay: " << p->total_queuing_delay << std::endl;
+        }
         if(packets_received.count(p->capa_data_seq) == 0){
             packets_received.insert(p->capa_data_seq);
             received_count++;

@@ -60,6 +60,10 @@ class RankingFlowComparatorAtReceiver {
         bool operator() (RankingFlow* a, RankingFlow* b);
 };
 
+class RankingShortFlowComparatorAtReceiver {
+public:
+    bool operator() (RankingFlow* a, RankingFlow* b);
+};
 // class RankingFlowComparatorAtReceiverForP1 {
 //     public:
 //         bool operator() (RankingFlow* a, RankingFlow* b);
@@ -69,9 +73,12 @@ class RankingHost : public SchedulingHost {
     public:
         RankingHost(uint32_t id, double rate, uint32_t queue_type);
         void schedule_host_proc_evt();
+        // debug for max-min fairness
+        void print_max_min_fairness();
         // receiver side
         void receive_rts(RankingRTS* pkt);
         void flow_finish_at_receiver(Packet* pkt);
+        bool flow_compare(RankingFlow* long_flow, RankingFlow* short_flow);
         //void receive_nrts(RankingNRTS* pkt);
         void receive_gosrc(RankingGoSrc* pkt);
         void send_listSrcs();
@@ -79,11 +86,15 @@ class RankingHost : public SchedulingHost {
         void schedule_wakeup_event();
         void schedule_token_proc_evt(double time, bool is_timeout);
         void wakeup();
+
         RankingFlow* get_top_unfinish_flow(uint32_t src_id);
-        CustomPriorityQueue<RankingFlow*, std::vector<RankingFlow*>, RankingFlowComparatorAtReceiver> active_short_flows;
+        CustomPriorityQueue<RankingFlow*, std::vector<RankingFlow*>, RankingShortFlowComparatorAtReceiver> active_short_flows;
         std::unordered_map<uint32_t, CustomPriorityQueue<RankingFlow*, std::vector<RankingFlow*>, RankingFlowComparatorAtReceiver>> src_to_flows;
 
         GoSRC gosrc_info;
+
+        // only used for fairness testing
+        std::unordered_map<int, int> src_to_pkts;
         // std::list <RankingFlow*> pending_flows;
         RankingHostWakeupProcessingEvent *wakeup_evt;
         TokenProcessingEvent *token_send_evt;

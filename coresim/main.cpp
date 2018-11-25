@@ -17,7 +17,7 @@
 
 #include "../ext/factory.h"
 //#include "../ext/fastpasshost.h"
-
+#include "../ext/rankinghost.h"
 #include "../run/params.h"
 
 using namespace std;
@@ -103,12 +103,17 @@ void run_scenario() {
             same_evt_count = 0;
 
         last_evt_type = ev->type;
-        
+    
         if(same_evt_count > 100000){
             std::cout << "Ended event dead loop. Type:" << last_evt_type << "\n";
             break;
         }
-
+        if(params.print_max_min_fairness && get_current_time() > 1.2) {
+            for(int i = 0; i < topology->hosts.size(); i++) {
+                ((RankingHost*)topology->hosts[i])->print_max_min_fairness();
+            }
+            assert(false);
+        }
         delete ev;
     }
 }

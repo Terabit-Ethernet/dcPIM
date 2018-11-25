@@ -14,6 +14,8 @@
 
 #include <algorithm>    // std::sort
 #include <set>
+#include <climits>
+
 extern uint32_t total_finished_flows;
 extern double get_current_time();
 extern void add_to_event_queue(Event*);
@@ -82,6 +84,9 @@ bool RankingFlowComparator::operator() (RankingFlow* a, RankingFlow* b){
         return false;
 }
 bool RankingFlowComparatorAtReceiver::operator() (RankingFlow* a, RankingFlow* b){
+    if(params.deadline && params.schedule_by_deadline) {
+        return a->deadline > b->deadline;
+    }
     if(a->remaining_pkts() - a->token_gap() > b->remaining_pkts() - b->token_gap())
         return true;
     else if (a->remaining_pkts() - a->token_gap() == b->remaining_pkts() - b->token_gap())
@@ -89,7 +94,17 @@ bool RankingFlowComparatorAtReceiver::operator() (RankingFlow* a, RankingFlow* b
     else
         return false;
 }
-
+bool RankingShortFlowComparatorAtReceiver::operator() (RankingFlow* a, RankingFlow* b){
+    if(params.deadline && params.schedule_by_deadline) {
+        return a->deadline > b->deadline;
+    }
+    if(a->remaining_pkts() > b->remaining_pkts())
+        return true;
+    else if (a->remaining_pkts() == b->remaining_pkts())
+        return a->start_time > b->start_time; //TODO: this is cheating. but not a big problem
+    else
+        return false;
+}
 // bool RankingFlowComparatorAtReceiverForP1::operator() (RankingFlow* a, RankingFlow* b){
 //     if(a->token_count > 0)
 //         return false;
@@ -103,6 +118,21 @@ bool RankingFlowComparatorAtReceiver::operator() (RankingFlow* a, RankingFlow* b
 //         return false;
 // }
 
+bool RankingHost::flow_compare(RankingFlow* long_flow, RankingFlow* short_flow) {
+    if(long_flow == NULL)
+        return true;
+    if(short_flow == NULL)
+        return false;
+    if(params.deadline && params.schedule_by_deadline) {
+        return long_flow->deadline > short_flow->deadline;
+    }
+    if(long_flow->remaining_pkts() > short_flow->remaining_pkts())
+        return true;
+    else if (long_flow->remaining_pkts() == short_flow->remaining_pkts())
+        return long_flow->start_time > short_flow->start_time; //TODO: this is cheating. but not a big problem
+    else
+        return false;
+}
 RankingHost::RankingHost(uint32_t id, double rate, uint32_t queue_type) : SchedulingHost(id, rate, queue_type) {
 
     this->host_proc_event = NULL;
@@ -114,6 +144,26 @@ RankingHost::RankingHost(uint32_t id, double rate, uint32_t queue_type) : Schedu
     this->fake_flow = NULL;
 }
 
+// Statistics 
+
+void RankingHost::print_max_min_fairness() {
+    int max = 0;
+    int min = INT_MAX;
+    for (auto i = this->src_to_pkts.begin(); i != this->src_to_pkts.end(); i++) {
+        if(i->second > max) {
+            max = i->second;
+        }
+        if(i->second < min) {
+            min = i->second;
+        }
+    }
+    if(min == 0) {
+        std::cout << this->id << " " << this->src_to_pkts.size() << " " << 0 << std::endl;
+    }
+    else {
+        std::cout << this->id << " "  << this->src_to_pkts.size() << " " << (double)max / min << std::endl;
+    }
+}
 // ---- Sender -------
 void RankingHost::start_ranking_flow(RankingFlow* f) {
     f->assign_init_token();
@@ -220,6 +270,9 @@ void RankingHost::receive_rts(RankingRTS* pkt) {
             std::cout << get_current_time() << " flow " << pkt->flow->id << " "<< pkt->size_in_pkt <<  " received rts\n";
     ((RankingFlow*)pkt->flow)->rts_received = true;
     if(pkt->size_in_pkt > params.token_initial) {
+        if(debug_host(id)) {
+            std::cout << "push flow " << pkt->flow->id << std::endl;
+        }
         this->src_to_flows[pkt->flow->src->id].push((RankingFlow*)pkt->flow);
         if(this->gosrc_info.src != NULL && 
             this->gosrc_info.src->id == pkt->flow->src->id && 
@@ -282,6 +335,9 @@ void RankingHost::flow_finish_at_receiver(Packet* pkt) {
                 std::cout << "current go src" << "NULL" << std::endl;
             else
                 std::cout << "current go src " << this->gosrc_info.src->id << std::endl;
+            for(auto i = this->src_to_flows.begin(); i != this->src_to_flows.end(); i++) {
+                std::cout << i->first << " " << i->second.size() << std::endl;
+            }
         }
         assert(this->wakeup_evt == NULL);
         this->wakeup();
@@ -328,9 +384,9 @@ void RankingHost::send_listSrcs() {
 void RankingHost::schedule_wakeup_event() {
     assert(this->wakeup_evt == NULL);
     if(debug_host(this->id)) {
-        std::cout << get_current_time() << " next wake up"  << get_current_time() + params.rankinghost_idle_timeout / 1000000.0 << std::endl;
+        std::cout << get_current_time() << " next wake up"  << get_current_time() + params.rankinghost_idle_timeout << std::endl;
     }
-    this->wakeup_evt = new RankingHostWakeupProcessingEvent(get_current_time() + params.rankinghost_idle_timeout / 1000000.0, this);
+    this->wakeup_evt = new RankingHostWakeupProcessingEvent(get_current_time() + params.rankinghost_idle_timeout, this);
     add_to_event_queue(this->wakeup_evt);
 }
 
@@ -372,17 +428,19 @@ void RankingHost::send_token() {
             break;
         }
         RankingFlow* f = NULL;
-        if(best_large_flow != NULL && !this->active_short_flows.empty() && 
-         this->active_short_flows.top()->remaining_pkts() -  this->active_short_flows.top()->token_gap() 
-         > best_large_flow->remaining_pkts() - best_large_flow->token_gap()) {
-            f = best_large_flow;
-            best_large_flow = NULL;
-        } else if (this->active_short_flows.empty()){
-            f = best_large_flow;
-            best_large_flow = NULL;
-        } else {
+        RankingFlow* best_short_flow = NULL;
+        if(!this->active_short_flows.empty()) {
+            best_short_flow = this->active_short_flows.top();
+        }
+        if(flow_compare(best_large_flow, best_short_flow)) {
             f = this->active_short_flows.top();
             this->active_short_flows.pop();
+            if(debug_flow(f->id)) {
+                std::cout << get_current_time() << " pop flow " << f->id  << "\n";
+            }
+        } else {
+            f = best_large_flow;
+            best_large_flow = NULL;
         }
         // probably can do better here
         if(f->finished_at_receiver) {
@@ -569,7 +627,7 @@ void RankingArbiter::schedule_epoch() {
         this->last_reset_ranking_time = get_current_time();
     }
     //schedule next arbiter proc evt
-    this->schedule_proc_evt(get_current_time() + params.ranking_epoch_time);
+    this->schedule_proc_evt(get_current_time() + params.ranking_controller_epoch);
 }
 
 void RankingArbiter::receive_listsrcs(RankingListSrcs* pkt) {

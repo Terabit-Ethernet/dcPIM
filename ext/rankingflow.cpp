@@ -153,6 +153,10 @@ void RankingFlow::send_pending_data()
 
 Packet* RankingFlow::send(uint32_t seq, int token_seq, int data_seq, int priority, int ranking_round)
 {
+    // fairness testing
+    if(params.print_max_min_fairness) {
+        ((RankingHost*)dst)->src_to_pkts[src->id]++;
+    }
     this->latest_data_pkt_sent_time = get_current_time();
     
     uint32_t pkt_size;
@@ -196,7 +200,7 @@ void RankingFlow::receive(Packet *p) {
             this->receive_short_flow();
         }
         if(debug_flow(this->id)){
-            std::cout << get_current_time() << " flow " << this->id << "receive data seq " << p->capa_data_seq  << std::endl;
+            std::cout << get_current_time() << " flow " << this->id << "receive data seq " << p->capa_data_seq << " seq number:" << p->capability_seq_num_in_data  << " total q delay: " << p->total_queuing_delay << std::endl;
         }
         if(packets_received.count(p->capa_data_seq) == 0){
 
@@ -299,7 +303,10 @@ void RankingFlow::receive_short_flow() {
     if(this->token_count == this->token_goal){
         this->redundancy_ctrl_timeout = get_current_time() + init_token * params.get_full_pkt_tran_delay() * 2;
     }
-    dstination->hold_on += init_token;
+    if(debug_flow(this->id)) {
+        std::cout << get_current_time() << " flow id " << this->id << " token_count: " << init_token <<" redundancy_ctrl_timeout:" << this->redundancy_ctrl_timeout << "\n";
+    }
+    dstination->hold_on = init_token;
     dstination->active_short_flows.push(this);
     if (dstination->token_send_evt != NULL && dstination->token_send_evt->is_timeout_evt) {
         dstination->token_send_evt->cancelled = true;

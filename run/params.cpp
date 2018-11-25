@@ -16,6 +16,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     params.permutation_tm = 0;
     params.incast_tm = 0;
     params.hdr_size = 40;
+    params.print_max_min_fairness = false;
     while (std::getline(input, line)) {
         std::istringstream lineStream(line);
         if (line.empty()) {
@@ -154,6 +155,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         }
         else if (key == "rankinghost_idle_timeout") {
             lineStream >> params.rankinghost_idle_timeout;
+            params.rankinghost_idle_timeout /= 1000000;
         }
         else if (key == "ranking_reset_epoch") {
             lineStream >> params.ranking_reset_epoch;
@@ -161,6 +163,10 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         }
         else if (key == "ranking_max_tokens") {
             lineStream >> params.ranking_max_tokens;
+        }
+        else if (key == "ranking_controller_epoch") {
+            lineStream >> params.ranking_controller_epoch;
+            params.ranking_controller_epoch /= 1000000;
         }
         // --------------
         else if (key == "ddc") {
@@ -218,6 +224,9 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         else if (key == "bytes_mode") {
             lineStream >> params.bytes_mode;
         }
+        else if (key == "print_max_min_fairness") {
+            lineStream >> params.print_max_min_fairness;
+        }
         //else if (key == "dctcp_delayed_ack_freq") {
         //    lineStream >> params.dctcp_delayed_ack_freq;
         //}
@@ -227,7 +236,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         }
 
         params.fastpass_epoch_time = 1500 * 8 * (FASTPASS_EPOCH_PKTS + 0.5) / params.bandwidth;
-        params.ranking_epoch_time = 1500 * 8 * (RANKING_EPOCH_PKTS + 0.5) / params.bandwidth;
+        // params.ranking_epoch_time = 1500 * 8 * (RANKING_EPOCH_PKTS + 0.5) / params.bandwidth;
         // params.ranking_reset_epoch = 1; 
         params.param_str.append(line);
         params.param_str.append(", ");

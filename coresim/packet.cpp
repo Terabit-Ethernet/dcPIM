@@ -101,6 +101,7 @@ RankingListSrcs::RankingListSrcs(Flow *flow, Host *src, Host *dst, Host *rts_dst
     this->type = RANKING_LISTSRCS;
     this->rts_dst = rts_dst;
     this->listSrcs = listSrcs;
+    this->size += 4 * this->listSrcs.size();
 }
 
 RankingListSrcs::~RankingListSrcs() {
