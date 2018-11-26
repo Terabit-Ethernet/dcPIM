@@ -84,7 +84,7 @@ void RankingFlow::assign_init_token(){
     }
     for(int i = 0; i < init_token; i++){
         Token* c = new Token();
-        c->timeout = get_current_time() + init_token * params.get_full_pkt_tran_delay() + params.token_timeout * params.get_full_pkt_tran_delay();
+        c->timeout = get_current_time() + init_token * params.get_full_pkt_tran_delay() + params.token_timeout;
         c->seq_num = i;
         c->data_seq_num = i;
         c->ranking_round = -1;
@@ -368,7 +368,7 @@ void RankingFlow::send_token_pkt(){
         std::cout << get_current_time() << " flow " << this->id << " send token " << this->token_count << "data seq number:" << data_seq_num << "\n";
     } 
     last_token_data_seq_num_sent = data_seq_num;
-    RankingToken* cp = new RankingToken(this, this->dst, this->src, params.token_timeout * params.get_full_pkt_tran_delay(), this->remaining_pkts(), this->token_count, data_seq_num);
+    RankingToken* cp = new RankingToken(this, this->dst, this->src, params.token_timeout, this->remaining_pkts(), this->token_count, data_seq_num);
     // set ranking round of the tokens
     if(this->size_in_pkt > params.token_initial) {
         assert(this->src == ((RankingHost*)this->dst)->gosrc_info.src);

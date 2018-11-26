@@ -475,16 +475,16 @@ void RankingHost::send_token() {
             if(f->token_gap() > params.token_window)
             {
 
-                if(get_current_time() >= f->latest_token_sent_time + params.token_window_timeout * params.get_full_pkt_tran_delay()) {
+                if(get_current_time() >= f->latest_token_sent_time + params.token_window_timeout) {
                     f->relax_token_gap();
                     if(debug_host(this->id)) {
                         std::cout << get_current_time() << " host " << this->id << " relax token gap for flow " << f->id << std::endl;
                     }
                 }
                 else{
-                    if(f->latest_token_sent_time + params.token_window_timeout * params.get_full_pkt_tran_delay() < closet_timeout)
+                    if(f->latest_token_sent_time + params.token_window_timeout < closet_timeout)
                     {
-                        closet_timeout = f->latest_token_sent_time + params.token_window_timeout * params.get_full_pkt_tran_delay();
+                        closet_timeout = f->latest_token_sent_time + params.token_window_timeout;
                         if(debug_host(this->id)) {
                             std::cout << get_current_time() << " host " << this->id << " token_window full wait for timeout for flow " << f->id << std::endl;
                         }
@@ -501,7 +501,7 @@ void RankingHost::send_token() {
                 token_sent = true;
                 // this->token_hist.push_back(this->recv_flow->id);
                 if(f->token_count == f->token_goal){
-                    f->redundancy_ctrl_timeout = get_current_time() + params.token_resend_timeout * params.get_full_pkt_tran_delay();
+                    f->redundancy_ctrl_timeout = get_current_time() + params.token_resend_timeout;
                     if(debug_flow(f->id)) {
                         std::cout << get_current_time() << " redundancy_ctrl_timeout set up" << f->id << "timeout value: " << f->redundancy_ctrl_timeout << "\n";
                     }
@@ -605,17 +605,17 @@ void RankingArbiter::schedule_epoch() {
         }
         if(debug_host(request->dst->id)) {
             for(auto i = request->listSrcs.begin(); i != request->listSrcs.end(); i++) {
-                std::cout << "src " << (*i) << "state " << this->src_state[(*i)] << std::endl;
+                std::cout << get_current_time() << " src " << (*i) << "state " << this->src_state[(*i)] << std::endl;
             }
         }
         for(auto i = request->listSrcs.begin(); i != request->listSrcs.end(); i++) {
-            // if(debug_host(request->dst->id)) {
-            //     std::cout << "src " << (*i) << "state " << this->src_state[(*i)] << std::endl;
-            // }
             if(this->src_state[(*i)]) {
                 this->src_state[(*i)] = false;
                 this->dst_state[request->dst->id] = false;
                 // send GoSRC packet
+                // if(*i == 121) {
+                //     std::cout << get_current_time() << " src " << (*i) << " assign to dst " << request->dst->id << std::endl;
+                // }
                 ((RankingHost*)(request->dst))->fake_flow->sending_gosrc(*i);
                 break;
             }
@@ -625,6 +625,7 @@ void RankingArbiter::schedule_epoch() {
     if(get_current_time() > this->last_reset_ranking_time + params.ranking_reset_epoch) {
         this->pending_q.comp.reset_ranking();
         this->last_reset_ranking_time = get_current_time();
+        // std::cout << get_current_time() << " reset ranking " << std::endl;
     }
     //schedule next arbiter proc evt
     this->schedule_proc_evt(get_current_time() + params.ranking_controller_epoch);
@@ -642,7 +643,6 @@ void RankingArbiter::receive_listsrcs(RankingListSrcs* pkt) {
 void RankingArbiter::receive_nrts(RankingNRTS* pkt) {
     assert(this->src_state[pkt->src_id] == false);
     assert(this->dst_state[pkt->dst_id] == false);
-
     this->src_state[pkt->src_id] = true;
     this->dst_state[pkt->dst_id] = true;
 }

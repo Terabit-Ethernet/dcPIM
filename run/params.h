@@ -81,6 +81,7 @@ class DCExpParams {
         //uint32_t dctcp_delayed_ack_freq;
         
         // Ranking Algorithm
+        double BDP;
         double token_timeout;
         double token_resend_timeout;
         uint32_t token_initial;

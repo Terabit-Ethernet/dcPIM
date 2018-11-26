@@ -22,16 +22,16 @@ magic_delay_scheduling: 1
 use_flow_trace: 0
 smooth_cdf: 1
 burst_at_beginning: 0
-token_initial: 16
+token_initial: 2
+token_third_level: 1
 token_timeout: 1.5
 token_resend_timeout: 9
 token_window: 8
 token_window_timeout: 25
-token_third_level: 1
 rankinghost_idle_timeout: {0}
 ranking_reset_epoch: 50
-ranking_max_tokens: 80
-ranking_controller_epoch: 1
+ranking_max_tokens: 10
+ranking_controller_epoch: 3
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33
@@ -48,7 +48,7 @@ num_host_types: 13
 
 runs = ['ranking']
 workloads = ['aditya', 'dctcp', 'datamining', 'constant']
-idle_time = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+idle_time = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
 #epochs = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
 for r in runs:
     for w in workloads:
@@ -56,7 +56,7 @@ for r in runs:
         for idle in idle_time:
 	        if r == 'ranking':
 	        	conf_str = conf_str_ranking.format(idle * 0.3 * 8, w)
-	        confFile = "conf_{0}_{1}_{2}.txt".format(r, w, int(idle))
+	        confFile = "conf_{0}_{1}_{2}.txt".format(r, w, str(idle))
 	        with open(confFile, 'w') as f:
 	            print confFile
 	            f.write(conf_str)

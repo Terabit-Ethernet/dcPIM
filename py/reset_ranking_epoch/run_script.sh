@@ -1,6 +1,6 @@
 #!/bin/bash
 
-epochs=(100 200 300 400 500 600 700 800 900 1000)
+epochs=(10 20 30 40 50 60 70 80 90 100)
 algos=(ranking)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()

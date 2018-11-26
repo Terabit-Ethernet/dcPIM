@@ -1,6 +1,6 @@
 #!/bin/bash
 
-tokens=(10 20 30 40 50 60 70 80 90 100)
+tokens=(1 2 3 4 5 6 7 8 9 10)
 #tokens=(100)
 algos=(ranking)
 calc(){ awk "BEGIN { print "$*" }"; }
@@ -19,7 +19,7 @@ do
 	    algo=${algos[$i]}
 	    # echo conf_"$algo"_dctcp_"$token".txt
 	    # echo "$OUTPUT_FOLDER"/result_"$algo"_dctcp_"$token".txt
-	    ../../simulator 1 conf_"$algo"_"$2"_"$token".txt > "$OUTPUT_FOLDER/$DATE"/result_"$algo"_"$TRACE"_"$token".txt
+	    ../../simulator 1 conf_"$algo"_"$2"_"$token".txt > "$OUTPUT_FOLDER/$DATE"/result_"$algo"_"$TRACE"_"$token".txt&
 	#	nohup ./batch_simulate_sflow.py -P $p -F ../../../data/ -t ${threshold[$index]} -i 10 -N 1000 -s 1 -l results/conext18/flows/percentage-${percentage[$index]}.log &
 	    pids[${index}]=$!
 	done

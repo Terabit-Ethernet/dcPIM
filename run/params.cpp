@@ -17,6 +17,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     params.incast_tm = 0;
     params.hdr_size = 40;
     params.print_max_min_fairness = false;
+    params.BDP = 8;
     while (std::getline(input, line)) {
         std::istringstream lineStream(line);
         if (line.empty()) {
@@ -96,11 +97,6 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         else if (key == "capability_timeout") {
             lineStream >> params.capability_timeout;
         }
-        // For Ranking Algorithm
-        else if (key == "token_timeout") {
-            lineStream >> params.token_timeout;
-        }
-        // -------------
         else if (key == "use_flow_trace") {
             lineStream >> params.use_flow_trace;
         }
@@ -134,18 +130,22 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         // For Ranking Algorithm
         else if (key == "token_resend_timeout") {
             lineStream >> params.token_resend_timeout;
+            params.token_resend_timeout *= params.get_full_pkt_tran_delay();
         }
-        else if (key == "token_resend_timeout") {
-            lineStream >> params.token_resend_timeout;
+        else if (key == "token_timeout") {
+            lineStream >> params.token_timeout;
+            params.token_timeout *= params.get_full_pkt_tran_delay();
         }
         else if (key == "token_initial") {
             lineStream >> params.token_initial;
+            params.token_initial *= params.BDP;
         }
         else if (key == "token_window") {
             lineStream >> params.token_window;
         }
         else if (key == "token_window_timeout") {
             lineStream >> params.token_window_timeout;
+            params.token_window_timeout *= params.get_full_pkt_tran_delay();
         }
         else if (key == "token_third_level") {
             lineStream >> params.token_third_level;
@@ -155,18 +155,19 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         }
         else if (key == "rankinghost_idle_timeout") {
             lineStream >> params.rankinghost_idle_timeout;
-            params.rankinghost_idle_timeout /= 1000000;
+            params.rankinghost_idle_timeout *= params.BDP * params.get_full_pkt_tran_delay();
         }
         else if (key == "ranking_reset_epoch") {
             lineStream >> params.ranking_reset_epoch;
-            params.ranking_reset_epoch = 1500 * 8 * params.ranking_reset_epoch / params.bandwidth;
+            params.ranking_reset_epoch *= params.get_full_pkt_tran_delay();
         }
         else if (key == "ranking_max_tokens") {
             lineStream >> params.ranking_max_tokens;
+            params.ranking_max_tokens *= params.BDP;
         }
         else if (key == "ranking_controller_epoch") {
             lineStream >> params.ranking_controller_epoch;
-            params.ranking_controller_epoch /= 1000000;
+            params.ranking_controller_epoch *= params.get_full_pkt_tran_delay();
         }
         // --------------
         else if (key == "ddc") {
@@ -241,6 +242,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         params.param_str.append(line);
         params.param_str.append(", ");
     }
-
+    // std::cout << params.token_initial << " " << params.token_timeout << " " << params.token_window_timeout  << " " << params.token_resend_timeout << " " << params.ranking_max_tokens << " " << params.ranking_reset_epoch << " " << params.ranking_controller_epoch << " " << params.rankinghost_idle_timeout << std::endl;
+    // assert(false);
     params.mss = 1460;
 }
