@@ -23,22 +23,23 @@ class RankingHost;
 
 class GoSRC {
 public:
-    uint32_t max_tokens;
-    uint32_t remain_tokens;
+    int max_tokens;
+    int remain_tokens;
     int round;
-    RankingHost* src;    
+    RankingHost* src; 
+    bool send_nrts;   
     GoSRC() {
         max_tokens = -1;
         remain_tokens = -1;
         round = 0;
         src = NULL;
+        send_nrts = false;
     };
     void reset() {
         max_tokens = -1;
         remain_tokens = -1;
         src = NULL;
-        round += 1;
-    }
+    };
     ~GoSRC() = default;
 };
 

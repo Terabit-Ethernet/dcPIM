@@ -306,47 +306,26 @@ void RankingHost::receive_rts(RankingRTS* pkt) {
 }
 
 void RankingHost::flow_finish_at_receiver(Packet* pkt) {
-    // std::cout << pkt->flow->id << std::endl;
-    // std::cout << this->id << std::endl;
-
-    // clean the hash table for pending large flows
     if(debug_flow(pkt->flow->id)) {
         std::cout << get_current_time () << " flow finish at receiver " <<  pkt->flow->id << std::endl;
     }
     if(pkt->flow->size_in_pkt <= params.token_initial) {
         return;
     }
-
-    bool should_send_nrts = false;
     if(this->gosrc_info.round == pkt->ranking_round) {
-        assert(this->gosrc_info.src == (RankingHost*)pkt->flow->src);
-        should_send_nrts = true;
+        assert(this->wakeup_evt != NULL);
+        this->gosrc_info.reset();
     } else if (this->gosrc_info.src == (RankingHost*)pkt->flow->src) {
         auto best_large_flow = this->get_top_unfinish_flow(pkt->flow->src->id);
         if(best_large_flow == NULL) {
-            should_send_nrts = true;
-        }
-    }
-    if(should_send_nrts) {
-        this->gosrc_info.reset();
-        (this->fake_flow)->sending_nrts_to_arbiter(pkt->flow->src->id, pkt->flow->dst->id);
-        if(debug_host(id)) {
-            if (this->gosrc_info.src == NULL)
-                std::cout << "current go src" << "NULL" << std::endl;
-            else
-                std::cout << "current go src " << this->gosrc_info.src->id << std::endl;
-            for(auto i = this->src_to_flows.begin(); i != this->src_to_flows.end(); i++) {
-                std::cout << i->first << " " << i->second.size() << std::endl;
+            if(this->gosrc_info.send_nrts == false) {
+                (this->fake_flow)->sending_nrts_to_arbiter(pkt->flow->src->id, pkt->flow->dst->id);
+                assert(this->wakeup_evt == NULL);
+                this->wakeup();
             }
+            this->gosrc_info.reset();
         }
-        assert(this->wakeup_evt == NULL);
-        this->wakeup();
     }
-    // if(!this->src_to_flows.empty()) {
-    //     this->send_listSrcs();
-    //     assert(this->wakeup_evt == NULL);
-    //     schedule_wakeup_event();
-    // }
 }
 void RankingHost::send_listSrcs() {
     std::vector<std::pair<int, int>> vect;
@@ -515,10 +494,21 @@ void RankingHost::send_token() {
                     this->gosrc_info.remain_tokens--;
                     if(this->gosrc_info.remain_tokens == 0) {
                         this->gosrc_info.reset();
-                        this->fake_flow->sending_nrts_to_arbiter(f->src->id, f->dst->id);
-                        this->wakeup();
                     }
                 }
+            }
+        }
+        if(f->size_in_pkt > params.token_initial) {
+            auto gap = 0;
+            if(this->gosrc_info.remain_tokens > f->remaining_pkts() - f->token_gap()) {
+                gap = f->remaining_pkts() - f->token_gap();
+            } else {
+                gap = this->gosrc_info.remain_tokens;
+            }
+            if (gap <= params.BDP && this->gosrc_info.send_nrts == false) {
+                this->fake_flow->sending_nrts_to_arbiter(f->src->id, f->dst->id);
+                this->gosrc_info.send_nrts = true;
+                this->wakeup();
             }
         }
     }
@@ -557,6 +547,8 @@ void RankingHost::receive_gosrc(RankingGoSrc* pkt) {
     this->gosrc_info.src = (RankingHost*)this->src_to_flows[pkt->src_id].top()->src;
     this->gosrc_info.max_tokens = pkt->max_tokens;
     this->gosrc_info.remain_tokens = pkt->max_tokens;
+    this->gosrc_info.round += 1;
+    this->gosrc_info.send_nrts = false;
     //cancel wake up event
     if(this->wakeup_evt != NULL) {
         this->wakeup_evt->cancelled = true;
@@ -567,7 +559,7 @@ void RankingHost::receive_gosrc(RankingGoSrc* pkt) {
         this->token_send_evt->cancelled = true;
         this->token_send_evt = NULL;
     }
-    if(this->token_send_evt == NULL){
+    if(this->token_send_evt == NULL) {
         this->schedule_token_proc_evt(0, false);
     }
 }

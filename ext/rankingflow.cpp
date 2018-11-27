@@ -242,19 +242,11 @@ void RankingFlow::receive(Packet *p) {
                 if(dst->gosrc_info.src == (RankingHost*)p->flow->src && dst->gosrc_info.remain_tokens > 0 &&
                 best_large_flow == (RankingFlow*)p->flow) { 
                     if (dst->token_send_evt != NULL && dst->token_send_evt->is_timeout_evt) {
-                        if(debug_host(dst->id)) {
-                            std::cout << get_current_time() << " cancel timeout event " << this->id 
-                            << " for dst " << dst->id << std::endl;
-                        }
                         dst->token_send_evt->cancelled = true;
                         dst->token_send_evt = NULL;
                     }
 
                     if(dst->token_send_evt == NULL){
-                        if(debug_host(dst->id)) {
-                            std::cout << get_current_time() << " restart sending tokens for flow " << this->id 
-                            << " for dst " << dst->id << std::endl;
-                        }
                         dst->schedule_token_proc_evt(0, false);
                     }
                 }
