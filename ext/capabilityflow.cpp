@@ -240,12 +240,12 @@ Packet* CapabilityFlow::send(uint32_t seq, int capa_seq, int data_seq, int prior
 {
     this->latest_data_pkt_send_time = get_current_time();
 	
-	uint32_t pkt_size;
-	if (seq + mss > this->size) {
-		pkt_size = hdr_size + (this->size - seq);
-	} else {
-		pkt_size = hdr_size + mss;
-	}
+	uint32_t pkt_size = 1500;
+	// if (seq + mss > this->size) {
+	// 	pkt_size = hdr_size + (this->size - seq);
+	// } else {
+	// 	pkt_size = hdr_size + mss;
+	// }
 
     Packet *p = new Packet(get_current_time(), this, seq, priority, pkt_size, src, dst);
     p->capability_seq_num_in_data = capa_seq;

@@ -1,7 +1,7 @@
 #!/bin/bash
 
-algos=(ranking)
-pids=()
+algos=(pfabric fastpass phost ranking)
+aids=()
 OUTPUT_FOLDER=../result/all-to-all
 DATE=$1
 TRACE=$2
@@ -14,9 +14,9 @@ do
 	    # echo "$OUTPUT_FOLDER"/result_"$algo"_dctcp_"$incast".txt
 	../../simulator 1 conf_"$algo"_"$2".txt > "$OUTPUT_FOLDER/$DATE"/result_"$algo"_"$2".txt&
 	 pids[${i}]=$!
-	for pid in ${pids[*]}; 
-	do
-    	wait $pid
-    done
+#	for pid in ${pids[*]}; 
+#	do
+#    	wait $pid
+#    done
     pids=()
 done

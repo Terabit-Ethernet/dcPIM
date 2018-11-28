@@ -309,12 +309,19 @@ void RankingHost::flow_finish_at_receiver(Packet* pkt) {
     if(debug_flow(pkt->flow->id)) {
         std::cout << get_current_time () << " flow finish at receiver " <<  pkt->flow->id << std::endl;
     }
+
+    if (((RankingFlow*)pkt->flow)->finished_at_receiver)
+        return;
+    
+    ((RankingFlow*)pkt->flow)->finished_at_receiver = true;
+
     if(pkt->flow->size_in_pkt <= params.token_initial) {
         return;
     }
     if(this->gosrc_info.round == pkt->ranking_round) {
-        assert(this->wakeup_evt != NULL);
+        // assert(this->wakeup_evt != NULL);
         this->gosrc_info.reset();
+
     } else if (this->gosrc_info.src == (RankingHost*)pkt->flow->src) {
         auto best_large_flow = this->get_top_unfinish_flow(pkt->flow->src->id);
         if(best_large_flow == NULL) {

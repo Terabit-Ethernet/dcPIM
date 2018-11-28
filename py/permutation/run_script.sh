@@ -1,6 +1,6 @@
 #!/bin/bash
 
-algos=(phost fastpass ranking)
+algos=(phost ranking)
 pids=()
 OUTPUT_FOLDER=../result/permutation
 DATE=$1

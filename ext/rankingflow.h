@@ -38,6 +38,7 @@ public:
     virtual void send_pending_data();
 
     int init_token_size();
+    double calc_oct_time_ratio();
     // send control signals
     void sending_rts();
     void sending_nrts(int round);

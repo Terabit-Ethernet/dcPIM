@@ -42,7 +42,11 @@ void RankingFlow::start_flow() {
     ((RankingHost*) this->src)->start_ranking_flow(this);
     // To Do: adding short flow logic: 1. assign free tokens. 2. schedule host processing event.
 }
-
+double RankingFlow::calc_oct_time_ratio() {
+    double oct = topology->get_oracle_fct(this);
+    double time_diff = get_current_time() - this->start_time + params.ranking_max_tokens * params.get_full_pkt_tran_delay();
+    return oct / time_diff;
+}
 void RankingFlow::sending_rts() {
     if(debug_flow(this->id)) {
         std::cout << get_current_time() << "sending rts flow " << this->id << " src " << this->src->id << "size : " << size_in_pkt <<std::endl;
@@ -159,12 +163,12 @@ Packet* RankingFlow::send(uint32_t seq, int token_seq, int data_seq, int priorit
     }
     this->latest_data_pkt_sent_time = get_current_time();
     
-    uint32_t pkt_size;
-    if (seq + mss > this->size) {
-        pkt_size = hdr_size + (this->size - seq);
-    } else {
-        pkt_size = hdr_size + mss;
-    }
+    uint32_t pkt_size = 1500;
+    // if (seq + mss > this->size) {
+    //     pkt_size = hdr_size + (this->size - seq);
+    // } else {
+    //     pkt_size = hdr_size + mss;
+    // }
 
     Packet *p = new Packet(get_current_time(), this, seq, priority, pkt_size, src, dst);
     p->capability_seq_num_in_data = token_seq;
@@ -198,6 +202,8 @@ void RankingFlow::receive(Packet *p) {
         
         if (!rts_received) {
             this->receive_short_flow();
+            if(debug_flow(this->id))
+                std::cout << "capacity data seq" << p->capa_data_seq << std::endl;
         }
         if(debug_flow(this->id)){
             std::cout << get_current_time() << " flow " << this->id << "receive data seq " << p->capa_data_seq << " seq number:" << p->capability_seq_num_in_data  << " total q delay: " << p->total_queuing_delay << std::endl;
@@ -226,7 +232,6 @@ void RankingFlow::receive(Packet *p) {
 //        if(debug_flow(this->id))
 //            std::cout << get_current_time() << " flow " << this->id << " received pkt " << received_count << "\n";
         if (received_count >= goal) {
-            this->finished_at_receiver = true;
             sending_ack(p->ranking_round);
             ((RankingHost*)p->dst)->flow_finish_at_receiver(p);
             if(debug_flow(this->id))
@@ -293,7 +298,7 @@ void RankingFlow::receive_short_flow() {
     this->token_count = init_token;
     this->last_token_data_seq_num_sent = init_token - 1;
     if(this->token_count == this->token_goal){
-        this->redundancy_ctrl_timeout = get_current_time() + init_token * params.get_full_pkt_tran_delay() * 2;
+        this->redundancy_ctrl_timeout = get_current_time() + init_token * params.get_full_pkt_tran_delay() + params.BDP * params.get_full_pkt_tran_delay();
     }
     if(debug_flow(this->id)) {
         std::cout << get_current_time() << " flow id " << this->id << " token_count: " << init_token <<" redundancy_ctrl_timeout:" << this->redundancy_ctrl_timeout << "\n";
