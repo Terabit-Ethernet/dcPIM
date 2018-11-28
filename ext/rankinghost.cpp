@@ -1,5 +1,4 @@
 #include "assert.h"
-
 #include "../coresim/event.h"
 #include "../coresim/topology.h"
 #include "../coresim/debug.h"
@@ -330,6 +329,7 @@ void RankingHost::flow_finish_at_receiver(Packet* pkt) {
                 assert(this->wakeup_evt == NULL);
                 this->wakeup();
             }
+
             this->gosrc_info.reset();
         }
     }

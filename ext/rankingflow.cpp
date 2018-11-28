@@ -219,13 +219,13 @@ void RankingFlow::receive(Packet *p) {
             if(debug_flow(this->id)){
                 std::cout << get_current_time() << " flow " << this->id << " receive util " << received_until << std::endl;
             }
+            if(num_outstanding_packets >= ((p->size - hdr_size) / (mss)))
+                num_outstanding_packets -= ((p->size - hdr_size) / (mss));
+            else
+                num_outstanding_packets = 0;
         }
 
         received_bytes += (p->size - hdr_size);
-        if(num_outstanding_packets >= ((p->size - hdr_size) / (mss)))
-            num_outstanding_packets -= ((p->size - hdr_size) / (mss));
-        else
-            num_outstanding_packets = 0;
         total_queuing_time += p->total_queuing_delay;
         if(p->capability_seq_num_in_data > largest_token_seq_received)
             largest_token_seq_received = p->capability_seq_num_in_data;
