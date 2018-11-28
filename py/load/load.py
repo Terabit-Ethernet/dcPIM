@@ -8,7 +8,7 @@ queue_type: 2
 flow_type: 2
 num_flow: 100000
 flow_trace: ../CDF_{1}.txt
-cut_through: 1
+cut_through: 0
 mean_flow_size: 0
 load_balancing: 0
 preemptive_queue: 0
@@ -24,8 +24,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 8
-capability_window: 8
+capability_initial: 13
+capability_window: 13
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -41,7 +41,6 @@ capability_fourth_level: 0
 magic_inflate: 1
 interarrival_cdf: none
 num_host_types: 13
-incast_tm: 143
 '''
 
 conf_str_phost = '''init_cwnd: 2
@@ -54,7 +53,7 @@ queue_type: 2
 flow_type: 112
 num_flow: 100000
 flow_trace: ../CDF_{1}.txt
-cut_through: 1
+cut_through: 0
 mean_flow_size: 0
 load_balancing: 0
 preemptive_queue: 0
@@ -70,8 +69,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 8
-capability_window: 8
+capability_initial: 13
+capability_window: 13
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -87,7 +86,6 @@ capability_fourth_level: 0
 magic_inflate: 1
 interarrival_cdf: none
 num_host_types: 13
-incast_tm: 143
 '''
 
 conf_str_fastpass = '''init_cwnd: 6
@@ -100,7 +98,7 @@ queue_type: 2
 flow_type: 114
 num_flow: 100000
 flow_trace: ../CDF_{1}.txt
-cut_through: 1
+cut_through: 0
 mean_flow_size: 0
 load_balancing: 0
 preemptive_queue: 0
@@ -116,8 +114,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 8
-capability_window: 8
+capability_initial: 13
+capability_window: 13
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -133,7 +131,6 @@ capability_fourth_level: 0
 magic_inflate: 1
 interarrival_cdf: none
 num_host_types: 13
-incast_tm: 143
 '''
 
 conf_str_random = '''init_cwnd: 2
@@ -146,7 +143,7 @@ queue_type: 2
 flow_type: 112
 num_flow: 100000
 flow_trace: ../CDF_{1}.txt
-cut_through: 1
+cut_through: 0
 mean_flow_size: 0
 load_balancing: 0
 preemptive_queue: 0
@@ -162,8 +159,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 8
-capability_window: 8
+capability_initial: 13
+capability_window: 13
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -179,7 +176,6 @@ capability_fourth_level: 0
 magic_inflate: 1
 interarrival_cdf: none
 num_host_types: 13
-incast_tm: 143
 '''
 
 conf_str_ranking = '''init_cwnd: 2
@@ -192,7 +188,7 @@ queue_type: 2
 flow_type: 115
 num_flow: 100000
 flow_trace: ../CDF_{1}.txt
-cut_through: 1
+cut_through: 0
 mean_flow_size: 0
 load_balancing: 0
 preemptive_queue: 0
@@ -206,14 +202,16 @@ magic_delay_scheduling: 1
 use_flow_trace: 0
 smooth_cdf: 1
 burst_at_beginning: 0
-token_initial: 8
-token_timeout: 1.5
-token_resend_timeout: 9
-token_window: 8
-token_window_timeout: 25
-ranking_max_tokens: 300
-rankinghost_idle_timeout: 3
-ranking_reset_epoch: 50
+token_initial: 2
+token_third_level: 1
+token_timeout: 2
+token_resend_timeout: 1
+token_window: 1
+token_window_timeout: 1.1
+rankinghost_idle_timeout: 0.5
+ranking_reset_epoch: 5
+ranking_max_tokens: 2
+ranking_controller_epoch: 0.25
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33
@@ -226,7 +224,6 @@ avg_deadline: 0.0001
 magic_inflate: 1
 interarrival_cdf: none
 num_host_types: 13
-incast_tm: 143
 '''
 
 runs = ['pfabric', 'phost', 'fastpass', 'random', 'ranking']
