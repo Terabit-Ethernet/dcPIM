@@ -603,6 +603,7 @@ void RankingArbiter::schedule_epoch() {
             continue;
         }
         if(debug_host(request->dst->id)) {
+            std::cout << get_current_time() << " schedule epoch for dst " << request->dst->id << std::endl;
             for(auto i = request->listSrcs.begin(); i != request->listSrcs.end(); i++) {
                 std::cout << get_current_time() << " src " << (*i) << "state " << this->src_state[(*i)] << std::endl;
             }
@@ -615,6 +616,7 @@ void RankingArbiter::schedule_epoch() {
                 // if(*i == 121) {
                 //     std::cout << get_current_time() << " src " << (*i) << " assign to dst " << request->dst->id << std::endl;
                 // }
+
                 ((RankingHost*)(request->dst))->fake_flow->sending_gosrc(*i);
                 break;
             }

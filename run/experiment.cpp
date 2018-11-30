@@ -190,6 +190,10 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
         fg = new CustomCDFFlowGenerator(num_flows, topology, params.cdf_or_flow_trace, params.interarrival_cdf);
         fg->make_flows();
     }
+    else if (params.worstcase_tm != 0) {
+        fg = new WorstcaseTM(num_flows, topology, params.cdf_or_flow_trace);
+        fg->make_flows();
+    }
     else if (params.incast_tm != 0) {
         if (params.incast_tm == 1)
             fg = new PermutationTM(num_flows, topology, params.cdf_or_flow_trace);

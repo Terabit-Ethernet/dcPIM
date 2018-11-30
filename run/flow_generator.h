@@ -108,4 +108,10 @@ public:
     virtual void make_flows();
 
 };
+
+class WorstcaseTM : public FlowGenerator {
+public:
+    WorstcaseTM(uint32_t num_flows, Topology *topo, std::string filename);
+    virtual void make_flows();
+};
 #endif

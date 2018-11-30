@@ -543,6 +543,50 @@ void IncastTM::make_flows() {
     }
     current_time = 0;
 }
+
+WorstcaseTM::WorstcaseTM(uint32_t num_flows, Topology *topo, std::string filename) : FlowGenerator(num_flows, topo, filename) {
+}
+
+void WorstcaseTM::make_flows() {
+    //std::cout << "Lambda: " << lambda_per_host << std::endl;
+    ExponentialRandomVariable *nv_intarr;
+
+    //* [expr ($link_rate*$load*1000000000)/($meanFlowSize*8.0/1460*1500)]
+    for (uint32_t i = 0; i < topo->hosts.size(); i++) {
+        int mean_flow_size = ((i + 1) * 4  + 16) * 1460.0;
+        EmpiricalRandomVariable *nv_bytes = new ConstantVariable(mean_flow_size / 1460.0);
+        double lambda = params.bandwidth * params.load / (mean_flow_size * 8.0 / 1460 * 1500);
+        double lambda_per_host = lambda / (topo->hosts.size() - 1);
+ 
+        ExponentialRandomVariable *nv_intarr = new ExponentialRandomVariable(1.0 / lambda_per_host);
+        for (uint32_t j = 0; j < topo->hosts.size(); j++) {
+            if (i != j) {
+                double first_flow_time = 1.0 + nv_intarr->value();
+                add_to_event_queue(
+                    new FlowCreationForInitializationEvent(
+                        first_flow_time,
+                        topo->hosts[i], 
+                        topo->hosts[j],
+                        nv_bytes, 
+                        nv_intarr
+                    )
+                );
+            }
+        }
+    }
+
+    while (event_queue.size() > 0) {
+        Event *ev = event_queue.top();
+        event_queue.pop();
+        current_time = ev->time;
+        if (flows_to_schedule.size() < num_flows) {
+            ev->process_event();
+        }
+        delete ev;
+    }
+    current_time = 0;
+}
+
 OutcastTM::OutcastTM(uint32_t num_flows, Topology *topo, std::string filename, uint32_t outcast) : FlowGenerator(num_flows, topo, filename) {
     this->outcast = outcast;
 }

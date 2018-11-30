@@ -1,6 +1,6 @@
 #!/bin/bash
 
-epochs=(10 20 30 40 50 60 70 80 90 100)
+epochs=(0 0.5 1 1.5 2 2.5 3 3.5 4 4.5 5)
 algos=(ranking)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()
@@ -18,6 +18,7 @@ do
 	    algo=${algos[$i]}
 	    # echo conf_"$algo"_dctcp_$epoch.txt
 	    # echo "$OUTPUT_FOLDER"/result_"$algo"_dctcp_"$epoch".txt
+	    #echo $epoch
 	    ../../simulator 1 conf_"$algo"_"$2"_"$epoch".txt > "$OUTPUT_FOLDER/$DATE"/result_"$algo"_"$2"_"$epoch".txt&
 	#	nohup ./batch_simulate_sflow.py -P $p -F ../../../data/ -t ${threshold[$index]} -i 10 -N 1000 -s 1 -l results/conext18/flows/percentage-${percentage[$index]}.log &
 	    pids[${index}]=$!
