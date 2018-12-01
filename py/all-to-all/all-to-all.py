@@ -24,8 +24,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 8
-capability_window: 8
+capability_initial: 11
+capability_window: 11
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -69,8 +69,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 13
-capability_window: 13
+capability_initial: 11
+capability_window: 11
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -114,8 +114,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 8
-capability_window: 8
+capability_initial: 11
+capability_window: 11
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -159,8 +159,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 8
-capability_window: 8
+capability_initial: 11
+capability_window: 11
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
