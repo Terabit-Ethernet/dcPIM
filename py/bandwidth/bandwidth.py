@@ -5,7 +5,7 @@ max_cwnd: {2}
 retx_timeout: 45e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: {3}
 queue_type: 2
 flow_type: 2
 num_flow: 200000
@@ -50,7 +50,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: {2}
 queue_type: 2
 flow_type: 112
 num_flow: 200000
@@ -95,7 +95,7 @@ max_cwnd: 12
 retx_timeout: 45e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: {2}
 queue_type: 2
 flow_type: 114
 num_flow: 200000
@@ -140,7 +140,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: {2}
 queue_type: 2
 flow_type: 112
 num_flow: 200000
@@ -185,7 +185,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: {1}
 queue_type: 2
 flow_type: 115
 num_flow: 200000
@@ -238,15 +238,15 @@ for r in runs:
         	rtt = (4 * 0.0000002 + (1500.0 * 8 / b / 1000000000.0) * 2.5) * 2
         	bdp = int(math.ceil(rtt * b * 1000000000.0 / 1500 / 8))
 	        if r == 'pfabric':
-	            conf_str = conf_str_pfabric.format(bdp, w, int(bdp + 3))
+	            conf_str = conf_str_pfabric.format(bdp, w, int(bdp + 3), b * 1000000000)
 	        elif r == 'phost':
-	            conf_str = conf_str_phost.format(bdp, w)
+	            conf_str = conf_str_phost.format(bdp, w, b * 1000000000)
 	        elif r == 'fastpass':
-	            conf_str = conf_str_fastpass.format(bdp, w)
+	            conf_str = conf_str_fastpass.format(bdp, w, b * 1000000000)
 	        elif r == 'random':
-	            conf_str = conf_str_random.format(bdp, w)
+	            conf_str = conf_str_random.format(bdp, w, b * 1000000000)
 	        elif r == 'ranking':
-	        	conf_str = conf_str_ranking.format(w)
+	        	conf_str = conf_str_ranking.format(w, b * 1000000000)
 	        confFile = "conf_{0}_{1}_{2}.txt".format(r, w, int(b))
 	        with open(confFile, 'w') as f:
 	            print confFile

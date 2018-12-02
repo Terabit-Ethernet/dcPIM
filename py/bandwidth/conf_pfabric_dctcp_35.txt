@@ -3,7 +3,7 @@ max_cwnd: 13
 retx_timeout: 45e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: 35000000000
 queue_type: 2
 flow_type: 2
 num_flow: 200000
