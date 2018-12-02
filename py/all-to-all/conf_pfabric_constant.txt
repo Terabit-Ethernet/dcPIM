@@ -1,5 +1,5 @@
-init_cwnd: 12
-max_cwnd: 15
+init_cwnd: 11
+max_cwnd: 14
 retx_timeout: 45e-06
 queue_size: 36864
 propagation_delay: 0.0000002

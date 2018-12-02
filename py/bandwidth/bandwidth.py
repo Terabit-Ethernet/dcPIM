@@ -1,14 +1,14 @@
 import math
 
-conf_str_pfabric = '''init_cwnd: 12
-max_cwnd: 15
+conf_str_pfabric = '''init_cwnd: {0}
+max_cwnd: {2}
 retx_timeout: 45e-06
 queue_size: 36864
 propagation_delay: 0.0000002
 bandwidth: 40000000000.0
 queue_type: 2
 flow_type: 2
-num_flow: 100000
+num_flow: 200000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -53,7 +53,7 @@ propagation_delay: 0.0000002
 bandwidth: 40000000000.0
 queue_type: 2
 flow_type: 112
-num_flow: 100000
+num_flow: 200000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -98,7 +98,7 @@ propagation_delay: 0.0000002
 bandwidth: 40000000000.0
 queue_type: 2
 flow_type: 114
-num_flow: 100000
+num_flow: 200000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -143,7 +143,7 @@ propagation_delay: 0.0000002
 bandwidth: 40000000000.0
 queue_type: 2
 flow_type: 112
-num_flow: 100000
+num_flow: 200000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -188,7 +188,7 @@ propagation_delay: 0.0000002
 bandwidth: 40000000000.0
 queue_type: 2
 flow_type: 115
-num_flow: 100000
+num_flow: 200000
 flow_trace: ../CDF_{0}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -238,7 +238,7 @@ for r in runs:
         	rtt = (4 * 0.0000002 + (1500.0 * 8 / b / 1000000000.0) * 2.5) * 2
         	bdp = int(math.ceil(rtt * b * 1000000000.0 / 1500 / 8))
 	        if r == 'pfabric':
-	            conf_str = conf_str_pfabric.format(bdp, w)
+	            conf_str = conf_str_pfabric.format(bdp, w, int(bdp + 3))
 	        elif r == 'phost':
 	            conf_str = conf_str_phost.format(bdp, w)
 	        elif r == 'fastpass':

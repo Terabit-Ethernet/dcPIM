@@ -1,5 +1,5 @@
-conf_str_pfabric = '''init_cwnd: 12
-max_cwnd: 15
+conf_str_pfabric = '''init_cwnd: 11
+max_cwnd: 14
 retx_timeout: 45e-06
 queue_size: 36864
 propagation_delay: 0.0000002
@@ -186,7 +186,7 @@ propagation_delay: 0.0000002
 bandwidth: 40000000000.0
 queue_type: 2
 flow_type: 115
-num_flow: 200000
+num_flow: 100000
 flow_trace: ../CDF_{0}.txt
 cut_through: 0
 mean_flow_size: 0

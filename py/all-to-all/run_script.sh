@@ -1,6 +1,6 @@
 #!/bin/bash
 
-algos=(phost pfabric fastpass ranking)
+algos=(fastpass pfabric)
 aids=()
 OUTPUT_FOLDER=../result/all-to-all
 DATE=$1
@@ -16,7 +16,7 @@ do
 	 pids[${i}]=$!
 #	for pid in ${pids[*]}; 
 #	do
-#    	wait $pid
-#    done
+#       	   wait $pid
+#        done
     pids=()
 done

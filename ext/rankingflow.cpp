@@ -27,6 +27,7 @@ RankingFlow::RankingFlow(
     this->token_goal = (int)(std::ceil(this->size_in_pkt * 1.00));
     this->remaining_pkts_at_sender = this->size_in_pkt;
     this->largest_token_seq_received = -1;
+    this->largest_token_data_seq_received = -1;
     this->total_queuing_time = 0;
     this->rts_received = false;
     this->latest_token_sent_time = -1;
@@ -202,8 +203,6 @@ void RankingFlow::receive(Packet *p) {
         
         if (!rts_received) {
             this->receive_short_flow();
-            if(debug_flow(this->id))
-                std::cout << "capacity data seq" << p->capa_data_seq << std::endl;
         }
         if(debug_flow(this->id)){
             std::cout << get_current_time() << " flow " << this->id << "receive data seq " << p->capa_data_seq << " seq number:" << p->capability_seq_num_in_data  << " total q delay: " << p->total_queuing_delay << std::endl;
@@ -223,6 +222,9 @@ void RankingFlow::receive(Packet *p) {
                 num_outstanding_packets -= ((p->size - hdr_size) / (mss));
             else
                 num_outstanding_packets = 0;
+            if(largest_token_data_seq_received < p->capa_data_seq) {
+                largest_token_data_seq_received = p->capa_data_seq;
+            }
         }
 
         received_bytes += (p->size - hdr_size);

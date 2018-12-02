@@ -176,8 +176,14 @@ void RankingHost::start_ranking_flow(RankingFlow* f) {
 }
 void RankingHost::receive_token(RankingToken* pkt) {
     // To Do: need a queue to maintain current active sending flows;
+    if(debug_flow(pkt->flow->id)) {
+        std::cout << get_current_time() << " receive token " << pkt->data_seq_num << " timeout: " << get_current_time() + pkt->ttl  << " queue delay:" << pkt->total_queuing_delay<< std::endl;
+    }
     auto f = (RankingFlow*)pkt->flow;
     Token* t = new Token();
+    // if(!f->tokens.empty()) {
+    //     t->timeout = fto->back().timeout + get_full_pkt_tran_delay(1500) - pkt->ttl;
+    // }
     t->timeout = get_current_time() + pkt->ttl;
     t->seq_num = pkt->token_seq_num;
     t->data_seq_num = pkt->data_seq_num;
@@ -245,8 +251,10 @@ void RankingHost::schedule_token_proc_evt(double time, bool is_timeout)
     this->token_send_evt = new TokenProcessingEvent(get_current_time() + time + INFINITESIMAL_TIME, this, is_timeout);
     add_to_event_queue(this->token_send_evt);
 }
+
 RankingFlow* RankingHost::get_top_unfinish_flow(uint32_t src_id) {
     RankingFlow* best_large_flow = NULL;
+    std::queue<RankingFlow*> flows_tried;
     if(this->src_to_flows.find(src_id) == this->src_to_flows.end())
         return best_large_flow;
     while (!this->src_to_flows[src_id].empty()) {
@@ -254,16 +262,23 @@ RankingFlow* RankingHost::get_top_unfinish_flow(uint32_t src_id) {
         if(best_large_flow->finished_at_receiver) {
             best_large_flow = NULL;
             this->src_to_flows[src_id].pop();
+        } else if (best_large_flow->redundancy_ctrl_timeout > get_current_time()) {
+            flows_tried.push(best_large_flow);
+            this->src_to_flows[src_id].pop();
         } else {
             break;
         }
     }
-    if(best_large_flow == NULL){
-        assert(this->src_to_flows[src_id].empty());
+    while(!flows_tried.empty()) {
+        this->src_to_flows[src_id].push(flows_tried.front());
+        flows_tried.pop();
+    }
+    if(this->src_to_flows[src_id].empty()){
         this->src_to_flows.erase(src_id);
     }
     return best_large_flow;
 }
+
 void RankingHost::receive_rts(RankingRTS* pkt) {
     if(debug_flow(pkt->flow->id))
             std::cout << get_current_time() << " flow " << pkt->flow->id << " "<< pkt->size_in_pkt <<  " received rts\n";
@@ -305,7 +320,7 @@ void RankingHost::receive_rts(RankingRTS* pkt) {
 }
 
 void RankingHost::flow_finish_at_receiver(Packet* pkt) {
-    if(debug_flow(pkt->flow->id)) {
+    if(debug_host(this->id)) {
         std::cout << get_current_time () << " flow finish at receiver " <<  pkt->flow->id << std::endl;
     }
 
@@ -338,19 +353,32 @@ void RankingHost::send_listSrcs() {
     std::vector<std::pair<int, int>> vect;
     std::list<uint32_t> srcs;
     for (auto i = this->src_to_flows.begin(); i != this->src_to_flows.end();) {
+        std::queue<RankingFlow*> flows_tried;
+        RankingFlow* best_flow = NULL;
         while(!i->second.empty()) {
             if(i->second.top()->finished_at_receiver) {
                 i->second.pop();
-            } else {
+            } else if(i->second.top()->redundancy_ctrl_timeout > get_current_time()) {
+                flows_tried.push(i->second.top());
+                i->second.pop();
+            } 
+            else {
+                best_flow = i->second.top();
                 break;
             }
         }
-        if(!i->second.empty()) {
+        while(!flows_tried.empty()) {
+            i->second.push(flows_tried.front());
+            flows_tried.pop();
+        }
+        if(best_flow != NULL) {
             vect.push_back(std::make_pair(i->second.top()->remaining_pkts() - i->second.top()->token_gap(),
              i->first));
             i++;
-        } else {
+        } else if(i->second.empty()){
             i = this->src_to_flows.erase(i);
+        } else {
+            i++;
         }
     }
     sort(vect.begin(), vect.end());
@@ -428,6 +456,9 @@ void RankingHost::send_token() {
             f = best_large_flow;
             best_large_flow = NULL;
         }
+        if(debug_host(this->id)) {
+            std::cout << "try to send token" << std::endl;
+        }
         // probably can do better here
         if(f->finished_at_receiver) {
             continue;
@@ -438,7 +469,7 @@ void RankingHost::send_token() {
         //not yet timed out, shouldn't send
         if(f->redundancy_ctrl_timeout > get_current_time()){
             if(debug_flow(f->id)) {
-                std::cout << get_current_time() << " timeout not occur " << f->id  << "\n";
+                std::cout << get_current_time() << " redundancy_ctrl_timeout has not met " << f->id  << "\n";
             }
             if(f->redundancy_ctrl_timeout < closet_timeout)
             {
@@ -454,7 +485,7 @@ void RankingHost::send_token() {
                 f->redundancy_ctrl_timeout = -1;
                 f->token_goal += f->remaining_pkts();
                 if(debug_flow(f->id)) {
-                    std::cout << get_current_time() << " redundancy_ctrl_timeout" << f->id  << "\n";
+                    std::cout << get_current_time() << " redundancy_ctrl_timeout met" << f->id  << "\n";
                 }
             }
 
@@ -482,14 +513,14 @@ void RankingHost::send_token() {
             {
                 f->send_token_pkt();
                 if(debug_host(id)) {
-                        std::cout << get_current_time() << " sending tokens for flow" << f->id << std::endl;   
+                        std::cout << get_current_time() << " sending tokens for flow " << f->id << std::endl;   
                 }
                 token_sent = true;
                 // this->token_hist.push_back(this->recv_flow->id);
-                if(f->token_count == f->token_goal){
+                if(f->token_count >= f->token_goal && f->largest_token_data_seq_received <= f->get_next_token_seq_num()) {
                     f->redundancy_ctrl_timeout = get_current_time() + params.token_resend_timeout;
                     if(debug_flow(f->id)) {
-                        std::cout << get_current_time() << " redundancy_ctrl_timeout set up" << f->id << "timeout value: " << f->redundancy_ctrl_timeout << "\n";
+                        std::cout << get_current_time() << " redundancy_ctrl_timeout set up " << f->id << " timeout value: " << f->redundancy_ctrl_timeout << "\n";
                     }
                 }
                 // for P4 ranking algorithm

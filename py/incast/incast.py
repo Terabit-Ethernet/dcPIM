@@ -1,12 +1,12 @@
-conf_str_pfabric = '''init_cwnd: 12
-max_cwnd: 15
+conf_str_pfabric = '''init_cwnd: 11
+max_cwnd: 14
 retx_timeout: 45e-06
 queue_size: 36864
 propagation_delay: 0.0000002
 bandwidth: 40000000000.0
 queue_type: 2
 flow_type: 2
-num_flow: 100000
+num_flow: 200000
 flow_trace: ../../CDF_{1}.txt
 cut_through: 1
 mean_flow_size: 0
@@ -24,8 +24,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 8
-capability_window: 8
+capability_initial: 11
+capability_window: 11
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -52,7 +52,7 @@ propagation_delay: 0.0000002
 bandwidth: 40000000000.0
 queue_type: 2
 flow_type: 112
-num_flow: 100000
+num_flow: 200000
 flow_trace: ../../CDF_{1}.txt
 cut_through: 1
 mean_flow_size: 0
@@ -70,8 +70,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 8
-capability_window: 8
+capability_initial: 11
+capability_window: 11
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -98,7 +98,7 @@ propagation_delay: 0.0000002
 bandwidth: 40000000000.0
 queue_type: 2
 flow_type: 114
-num_flow: 100000
+num_flow: 200000
 flow_trace: ../../CDF_{1}.txt
 cut_through: 1
 mean_flow_size: 0
@@ -116,8 +116,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 8
-capability_window: 8
+capability_initial: 11
+capability_window: 11
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -144,7 +144,7 @@ propagation_delay: 0.0000002
 bandwidth: 40000000000.0
 queue_type: 2
 flow_type: 112
-num_flow: 100000
+num_flow: 200000
 flow_trace: ../../CDF_{1}.txt
 cut_through: 1
 mean_flow_size: 0
@@ -162,8 +162,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 8
-capability_window: 8
+capability_initial: 11
+capability_window: 11
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -190,7 +190,7 @@ propagation_delay: 0.0000002
 bandwidth: 40000000000.0
 queue_type: 2
 flow_type: 115
-num_flow: 100000
+num_flow: 200000
 flow_trace: ../../CDF_{1}.txt
 cut_through: 1
 mean_flow_size: 0
@@ -208,14 +208,14 @@ smooth_cdf: 1
 burst_at_beginning: 0
 token_initial: 2
 token_third_level: 1
-token_timeout: 1.5
-token_resend_timeout: 9
-token_window: 8
-token_window_timeout: 25
-rankinghost_idle_timeout: 5
-ranking_reset_epoch: 50
-ranking_max_tokens: 10
-ranking_controller_epoch: 3
+token_timeout: 2
+token_resend_timeout: 1
+token_window: 1
+token_window_timeout: 1.1
+rankinghost_idle_timeout: 0.5
+ranking_reset_epoch: 5
+ranking_max_tokens: 2
+ranking_controller_epoch: 0.25
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33

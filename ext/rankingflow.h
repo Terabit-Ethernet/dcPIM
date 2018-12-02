@@ -72,6 +72,7 @@ public:
     int token_goal;
     int remaining_pkts_at_sender;
     int largest_token_seq_received;
+    int largest_token_data_seq_received;
     double latest_token_sent_time;
     bool rts_received;
     double latest_data_pkt_sent_time;
