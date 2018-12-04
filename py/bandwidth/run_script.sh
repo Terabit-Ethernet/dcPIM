@@ -1,7 +1,7 @@
 #!/bin/bash
 
-bandwidths=(5 10 15 20 25 30 35 40 45 50)
-algos=(fastpass phost pfabric ranking)
+bandwidths=(5)
+algos=(ranking)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()
 

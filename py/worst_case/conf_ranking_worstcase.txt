@@ -14,7 +14,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 15
 traffic_imbalance: 0
-load: 0.8
+load: 1
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -28,8 +28,8 @@ token_resend_timeout: 1
 token_window: 1
 token_window_timeout: 1.1
 rankinghost_idle_timeout: 0.5
-ranking_reset_epoch: 0.5
-ranking_max_tokens: 2
+ranking_reset_epoch: 5
+ranking_max_tokens: 10
 ranking_controller_epoch: 0.25
 ddc: 0
 ddc_cpu_ratio: 0.33

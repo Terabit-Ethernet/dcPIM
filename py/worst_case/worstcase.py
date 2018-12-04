@@ -1,5 +1,5 @@
-conf_str_pfabric = '''init_cwnd: 12
-max_cwnd: 15
+conf_str_pfabric = '''init_cwnd: 11
+max_cwnd: 14
 retx_timeout: 45e-06
 queue_size: 36864
 propagation_delay: 0.0000002
@@ -14,7 +14,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 1
 traffic_imbalance: 0
-load: 0.8
+load: 1
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -23,8 +23,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 8
-capability_window: 8
+capability_initial: 11
+capability_window: 11
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -59,7 +59,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 12
 traffic_imbalance: 0
-load: 0.8
+load: 1
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -68,8 +68,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 13
-capability_window: 13
+capability_initial: 11
+capability_window: 11
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -104,7 +104,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 14
 traffic_imbalance: 0
-load: 0.8
+load: 1
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -113,8 +113,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 8
-capability_window: 8
+capability_initial: 11
+capability_window: 11
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -149,7 +149,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 16
 traffic_imbalance: 0
-load: 0.8
+load: 1
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -158,8 +158,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 8
-capability_window: 8
+capability_initial: 11
+capability_window: 11
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -194,7 +194,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 15
 traffic_imbalance: 0
-load: 0.8
+load: 1
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -208,8 +208,8 @@ token_resend_timeout: 1
 token_window: 1
 token_window_timeout: 1.1
 rankinghost_idle_timeout: 0.5
-ranking_reset_epoch: 0.5
-ranking_max_tokens: 2
+ranking_reset_epoch: 5
+ranking_max_tokens: 10
 ranking_controller_epoch: 0.25
 ddc: 0
 ddc_cpu_ratio: 0.33

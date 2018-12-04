@@ -336,7 +336,7 @@ bool CapabilityFlow::has_capability(){
             if(CAPABILITY_MEASURE_WASTE){
                 this->capability_waste_count += this->capabilities.top()->has_idle_sibling_sender?1:0;
             }
-            if(debug_flow(this->id)) {
+            if(debug_host(this->src->id)) {
                 std::cout << get_current_time() <<  "capacity timeout" << std::endl;
             }
             delete this->capabilities.top();

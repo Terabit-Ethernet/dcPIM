@@ -511,16 +511,21 @@ void RankingHost::send_token() {
             }
             if(f->token_gap() <= params.token_window)
             {
+                auto next_data_seq = f->get_next_token_seq_num();
                 f->send_token_pkt();
                 if(debug_host(id)) {
                         std::cout << get_current_time() << " sending tokens for flow " << f->id << std::endl;   
                 }
                 token_sent = true;
                 // this->token_hist.push_back(this->recv_flow->id);
-                if(f->token_count >= f->token_goal && f->largest_token_data_seq_received <= f->get_next_token_seq_num()) {
-                    f->redundancy_ctrl_timeout = get_current_time() + params.token_resend_timeout;
-                    if(debug_flow(f->id)) {
-                        std::cout << get_current_time() << " redundancy_ctrl_timeout set up " << f->id << " timeout value: " << f->redundancy_ctrl_timeout << "\n";
+                if(next_data_seq > f->get_next_token_seq_num()) {
+                    if(!f->first_loop) {
+                        f->first_loop = true;
+                    } else {
+                        f->redundancy_ctrl_timeout = get_current_time() + params.token_resend_timeout;
+                        if(debug_flow(f->id)) {
+                            std::cout << get_current_time() << " redundancy_ctrl_timeout set up " << f->id << " timeout value: " << f->redundancy_ctrl_timeout << "\n";
+                        }
                     }
                 }
                 // for P4 ranking algorithm
@@ -543,11 +548,20 @@ void RankingHost::send_token() {
             } else {
                 gap = this->gosrc_info.remain_tokens;
             }
-            if (gap <= params.BDP && this->gosrc_info.send_nrts == false) {
+            if ((gap <= params.BDP && this->gosrc_info.send_nrts == false)) {
                 this->fake_flow->sending_nrts_to_arbiter(f->src->id, f->dst->id);
                 this->gosrc_info.send_nrts = true;
                 this->wakeup();
-            }
+            } 
+            // else if (f->redundancy_ctrl_timeout > get_current_time()) {
+            //     this->fake_flow->sending_nrts_to_arbiter(f->src->id, f->dst->id);
+            //     this->gosrc_info.send_nrts = true;
+            //     if(this->wakeup_evt != NULL) {
+            //         this->wakeup_evt->cancelled = true;
+            //         this->wakeup_evt = NULL;
+            //     }
+            //     this->wakeup();
+            // }
         }
     }
     while(!flows_tried.empty()) {

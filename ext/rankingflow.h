@@ -77,6 +77,7 @@ public:
     bool rts_received;
     double latest_data_pkt_sent_time;
     // int notified_num_flow_at_sender;
+    bool first_loop;
 };
 
 // #define RANKING_FLOW_PROCESSING 18

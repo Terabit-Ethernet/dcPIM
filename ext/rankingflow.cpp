@@ -37,6 +37,7 @@ RankingFlow::RankingFlow(
     this->last_token_data_seq_num_sent = -1;
     this->received_until = 0;
     this->received_count = 0;
+    this->first_loop = false;
 }
 
 void RankingFlow::start_flow() {
