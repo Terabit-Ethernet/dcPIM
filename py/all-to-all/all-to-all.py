@@ -210,7 +210,7 @@ token_window: 1
 token_window_timeout: 1.1
 rankinghost_idle_timeout: 0.5
 ranking_reset_epoch: 5
-ranking_max_tokens: 2
+ranking_max_tokens: 1
 ranking_controller_epoch: 0.25
 ddc: 0
 ddc_cpu_ratio: 0.33
