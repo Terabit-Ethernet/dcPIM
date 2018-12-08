@@ -62,8 +62,8 @@ void CapabilityFlow::send_pending_data()
 		next_seq_no = this->size;
 	}
 
-    if(debug_flow(this->id))
-        std::cout << get_current_time() << " flow " << this->id << " send pkt " << this->total_pkt_sent << " " << "capacity data sequence: " << capa_data_seq  << " " << p->size << "\n";
+    if(debug_host(this->src->id))
+        std::cout << get_current_time() << " sender " << this->src->id << " flow " << this->id << " send pkt " << this->total_pkt_sent << " " << "capacity data sequence: " << capa_data_seq  << " " << p->size << "\n";
 
     double td = src->queue->get_transmission_delay(p->size);
     assert(((SchedulingHost*) src)->host_proc_event == NULL);

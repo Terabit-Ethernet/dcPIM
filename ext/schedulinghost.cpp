@@ -15,6 +15,7 @@ extern DCExpParams params;
 
 HostProcessingEvent::HostProcessingEvent(double time, SchedulingHost *h) : Event(HOST_PROCESSING, time) {
     this->host = h;
+    this->is_timeout = false;
 }
 
 HostProcessingEvent::~HostProcessingEvent() {

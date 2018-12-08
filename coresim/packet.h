@@ -25,6 +25,13 @@
 #define RANKING_NRTS 13
 #define RANKING_GOSRC 14
 #define RANKING_TOKEN 15
+
+// MR
+#define MRCTS_PACKET 16
+#define MR_ACK 17
+#define CTSR_PACKET 18
+#define MRRTS_PACKET 19
+
 class FastpassEpochSchedule;
 
 class Packet {
@@ -83,21 +90,53 @@ class RTS : public Packet{
 
 class OfferPkt : public Packet{
     public:
-        OfferPkt(Flow *flow, Host *src, Host *dst, bool is_free, int iter);
+        OfferPkt(Flow *flow, Host *src, Host *dst, bool is_free, int iter, int round);
         bool is_free;
         int iter;
+        int round;
 };
 
 class DecisionPkt : public Packet{
     public:
-        DecisionPkt(Flow *flow, Host *src, Host *dst, bool accept);
+        DecisionPkt(Flow *flow, Host *src, Host *dst, bool accept, int iter, int round);
         bool accept;
+        int iter;
+        int round;
 };
 
 class CTS : public Packet{
     public:
         CTS(Flow *flow, Host *src, Host *dst);
 };
+
+// For Multi-Round algorithm (PIM)
+class MRRTS : public Packet{
+    public:
+        MRRTS(Flow *flow, Host *src, Host *dst, int iter, int round);
+        int iter;
+        int round;
+};
+
+class CTSR : public Packet{
+    public:
+        CTSR(Flow *flow, Host *src, Host *dst, int iter, int round);
+        int iter;
+        int round;
+};
+
+class MRCTS : public Packet{
+    public:
+        MRCTS(Flow *flow, Host *src, Host *dst, int iter, int round);
+        int iter;
+        int round;
+};
+
+class MRAck : public Packet {
+    public:
+        MRAck(Flow *flow, uint32_t seq_no_acked, uint32_t data_seq_num, uint32_t size, Host* src, Host* dst);
+        uint32_t data_seq_no_acked;
+};
+
 
 class CapabilityPkt : public Packet{
     public:
