@@ -52,19 +52,45 @@ RTS::RTS(Flow *flow, Host *src, Host *dst, double delay, int iter) : Packet(0, f
 }
 
 
-OfferPkt::OfferPkt(Flow *flow, Host *src, Host *dst, bool is_free, int iter) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+OfferPkt::OfferPkt(Flow *flow, Host *src, Host *dst, bool is_free, int iter, int round) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = OFFER_PACKET;
     this->is_free = is_free;
     this->iter = iter;
+    this->round = round;
 }
 
-DecisionPkt::DecisionPkt(Flow *flow, Host *src, Host *dst, bool accept) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+DecisionPkt::DecisionPkt(Flow *flow, Host *src, Host *dst, bool accept, int iter, int round) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = DECISION_PACKET;
     this->accept = accept;
+    this->iter = iter;
+    this->round = round;
 }
+
 
 CTS::CTS(Flow *flow, Host *src, Host *dst) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = CTS_PACKET;
+}
+
+CTSR::CTSR(Flow *flow, Host *src, Host *dst, int iter, int round) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+    this->type = CTSR_PACKET;
+    this->iter = iter;
+    this->round = round;
+}
+MRCTS::MRCTS(Flow *flow, Host *src, Host *dst, int iter, int round) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+    this->type = MRCTS_PACKET;
+    this->iter = iter;
+    this->round = round;
+}
+
+MRRTS::MRRTS(Flow *flow, Host *src, Host *dst, int iter, int round) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+    this->type = MRRTS_PACKET;
+    this->iter = iter;
+    this->round = round;
+}
+
+MRAck::MRAck(Flow *flow, uint32_t seq_no_acked, uint32_t data_seq_no_acked, uint32_t size, Host* src, Host *dst) : Packet(0, flow, seq_no_acked, 0, size, src, dst) {
+    this->type = MR_ACK;
+    this->data_seq_no_acked = data_seq_no_acked;
 }
 
 CapabilityPkt::CapabilityPkt(Flow *flow, Host *src, Host *dst, double ttl, int remaining, int cap_seq_num, int data_seq_num) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {

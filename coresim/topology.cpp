@@ -20,7 +20,6 @@ PFabricTopology::PFabricTopology(
         uint32_t queue_type
         ) : Topology () {
     uint32_t hosts_per_agg_switch = num_hosts / num_agg_switches;
-
     this->num_hosts = num_hosts;
     this->num_agg_switches = num_agg_switches;
     this->num_core_switches = num_core_switches;

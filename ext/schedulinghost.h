@@ -32,6 +32,7 @@ class HostProcessingEvent : public Event {
         ~HostProcessingEvent();
         void process_event();
         SchedulingHost *host;
+        bool is_timeout;
 };
 
 #endif

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-algos=(ranking)
+algos=(multi_round)
 aids=()
 OUTPUT_FOLDER=../result/worst_case
 DATE=$1

@@ -98,10 +98,19 @@ class DCExpParams {
         double ranking_controller_epoch;
         double ranking_reset_epoch;
         
-        uint32_t ranking_max_tokens;
-        
+        double ranking_max_tokens;
+        double rtt;
+        double ctrl_pkt_rtt;
         // debug for max-min fairness
         bool print_max_min_fairness;
+
+        // Multi Round Distributed protoocl
+        uint32_t mr_iter_limit;
+        double mr_epoch;
+        int mr_window_size;
+        int mr_small_flow;
+        double mr_window_timeout;
+        double mr_resend_timeout;
         double get_full_pkt_tran_delay(uint32_t size_in_byte = 1500)
         {
             return size_in_byte * 8 / this->bandwidth;

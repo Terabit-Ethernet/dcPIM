@@ -22,6 +22,9 @@
 #include "rankingflow.h"
 #include "rankinghost.h"
 
+#include "mrflow.h"
+#include "mrhost.h"
+
 #include "ideal.h"
 
 IdealArbiter* ideal_arbiter = NULL;
@@ -85,6 +88,8 @@ Flow* Factory::get_flow(
         case MAGIC_FLOW:
             return new MagicFlow(id, start_time, size, src, dst);
             break;
+        case MR_FLOW:
+            return new MrFlow(id, start_time, size, src, dst);
         case RANKING_FLOW:
             return new RankingFlow(id, start_time, size, src, dst);
             break;
@@ -127,6 +132,8 @@ Host* Factory::get_host(
         case MAGIC_HOST:
             return new MagicHost(id, rate, queue_type);
             break;
+        case MR_HOST:
+            return new MrHost(id, rate, queue_type);
         case RANKING_HOST:
             return new RankingHost(id, rate, queue_type);
             break;
