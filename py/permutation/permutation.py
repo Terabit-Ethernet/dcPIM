@@ -292,6 +292,8 @@ for r in runs:
             conf_str = conf_str_random.format(w)
         elif r == 'ranking':
             conf_str = conf_str_ranking.format(w)
+        elif r == 'multi_round':
+            conf_str = conf_str_multiround.format(w)
         confFile = "conf_{0}_{1}.txt".format(r, w)
         with open(confFile, 'w') as f:
             print confFile

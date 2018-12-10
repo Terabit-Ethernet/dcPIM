@@ -7,7 +7,7 @@ bandwidth: 40000000000.0
 queue_type: 2
 flow_type: 116
 num_flow: 200000
-flow_trace: ../CDF_constant.txt
+flow_trace: ../CDF_datamining.txt
 cut_through: 0
 mean_flow_size: 0
 load_balancing: 0
@@ -15,7 +15,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 17
 traffic_imbalance: 0
-load: 0.8
+load: 0.5
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -40,4 +40,3 @@ avg_deadline: 0.0001
 magic_inflate: 1
 interarrival_cdf: none
 num_host_types: 13
-permutation_tm: 1

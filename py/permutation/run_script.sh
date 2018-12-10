@@ -1,6 +1,6 @@
 #!/bin/bash
 
-algos=(ranking multi_round)
+algos=(multi_round)
 pids=()
 OUTPUT_FOLDER=../result/permutation
 DATE=$1
