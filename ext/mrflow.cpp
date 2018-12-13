@@ -74,8 +74,8 @@ void MrFlow::send_rts(int iter, int round) {
 }
 
 void MrFlow::send_decision_pkt(int iter, int round, bool accept){
-    if(debug_flow(id) || debug_host(this->dst->id)) {
-        std::cout << get_current_time() << " iter " << iter <<  " send decision for flow " << id  << " to dst:" << this->dst->id << std::endl; 
+    if(debug_flow(id) || debug_host(this->src->id)) {
+        std::cout << get_current_time() << " iter " << iter <<  " send decision " << accept <<  " for flow " << id  << " to dst:" << this->dst->id << std::endl; 
     }
     DecisionPkt* dpkt = new DecisionPkt(this, this->src, this->dst, accept, iter, round);
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), dpkt, src->queue));

@@ -250,6 +250,13 @@ void MrHost::start_flow(MrFlow* f) {
     }
     if(f->is_small_flow()) {
         this->active_short_flows.push(f);
+        if(this->host_proc_event != NULL && this->host_proc_event->is_timeout) {
+            this->host_proc_event->cancelled = true;
+            this->host_proc_event = NULL;
+        }
+        if(this->host_proc_event == NULL) {
+            this->schedule_host_proc_evt();
+        }
     } else {
         this->dst_to_flows[f->dst->id].push(f);
     }
