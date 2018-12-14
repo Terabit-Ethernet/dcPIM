@@ -49,11 +49,11 @@ void MrFlow::start_flow()
 bool MrFlow::is_small_flow() {
     return this->size_in_pkt < params.mr_small_flow;
 }
-void MrFlow::send_cts(int iter, int round) {
+void MrFlow::send_cts(int iter, int round, bool prompt) {
     if(debug_flow(id) || debug_host(this->dst->id)) {
         std::cout << get_current_time() << " iter " << iter << "send cts for flow " << id  << " to src:" << this->src->id << std::endl; 
     }
-    MRCTS* cts = new MRCTS(this, this->dst, this->src, iter, round);
+    MRCTS* cts = new MRCTS(this, this->dst, this->src, iter, round, prompt);
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), cts, dst->queue));
 }
 
@@ -130,10 +130,11 @@ void MrFlow::receive_ack(MRAck* p) {
         while(ack_until < size_in_pkt && ack_received.count(ack_until) > 0) {
             ack_until++;
         }
-        if(debug_flow(this->id)) {
-            std::cout << get_current_time() << " flow " << this->id << " ack util " << ack_until << std::endl;
-        }
         remaining_pkts_at_sender--;
+
+        if(debug_flow(this->id)) {
+            std::cout << get_current_time() << " flow " << this->id << " ack util " << ack_until << " remaining packets:"  << remaining_pkts_at_sender << std::endl;
+        }
     }
     if(this->largest_seq_ack < int(p->seq_no)) {
         this->largest_seq_ack = p->seq_no;
@@ -172,15 +173,40 @@ void MrFlow::receive(Packet *p) {
         return;
     }
     if(p->type == MRRTS_PACKET) {
-        ((MrHost*)dst)->receive_rts((MRRTS*)p);
+        auto d = (MrHost*)dst;
+        int round = ((MRRTS*)p)->round;
+        if(d->cur_round < round) {
+            assert(d->epochs.count(round) > 0);
+            d->epochs[round].receive_rts((MRRTS*)p);
+        }
     } else if (p->type == OFFER_PACKET) {
-        ((MrHost*)src)->receive_offer_packet((OfferPkt*)p);
+        auto s = (MrHost*)src;
+        int round = ((OfferPkt*)p)->round;
+        if(s->cur_round < round) {
+            assert(s->epochs.count(round) > 0);
+            s->epochs[round].receive_offer_packet((OfferPkt*)p);
+        }
     } else if (p->type == MRCTS_PACKET) {
-        ((MrHost*)src)->receive_cts((MRCTS*)p);
+        auto s = (MrHost*)src;
+        int round  = ((MRCTS*)p)->round;
+        if(s->cur_round < round) {
+            assert(s->epochs.count(round) > 0);
+            s->epochs[round].receive_cts((MRCTS*)p);
+        }
     } else if (p->type == DECISION_PACKET) {
-        ((MrHost*)dst)->receive_decision_pkt((DecisionPkt*)p);
+        auto d = (MrHost*)dst;
+        int round = ((DecisionPkt*)p)->round;
+        if(d->cur_round < round) {
+            assert(d->epochs.count(round) > 0);
+            d->epochs[round].receive_decision_pkt((DecisionPkt*)p);
+        }
     } else if(p->type == CTSR_PACKET) {
-       ((MrHost*)src)->receive_ctsr((CTSR*)p);
+        auto s = (MrHost*)src;
+        int round = ((CTSR*)p)->round;
+        if(s->cur_round < round) {
+            assert(s->epochs.count(round) > 0);
+            s->epochs[round].receive_ctsr((CTSR*)p);
+        }
     } else if (p->type == NORMAL_PACKET) {
         if (this->first_byte_receive_time == -1) {
             this->first_byte_receive_time = get_current_time();

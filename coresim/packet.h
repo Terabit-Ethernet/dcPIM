@@ -126,9 +126,10 @@ class CTSR : public Packet{
 
 class MRCTS : public Packet{
     public:
-        MRCTS(Flow *flow, Host *src, Host *dst, int iter, int round);
+        MRCTS(Flow *flow, Host *src, Host *dst, int iter, int round, bool prompt);
         int iter;
         int round;
+        bool prompt;
 };
 
 class MRAck : public Packet {

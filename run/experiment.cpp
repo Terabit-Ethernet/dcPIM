@@ -265,7 +265,7 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
     }
     if(params.flow_type == MR_FLOW) {
         for(int i = 0; i < params.num_hosts; i++) {
-            ((MrHost*)topology->hosts[i])->start_host();
+            ((MrHost*)topology->hosts[i])->start_new_epoch(1.0, 0);
         }
     }
     // 

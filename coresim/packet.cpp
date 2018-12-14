@@ -76,10 +76,11 @@ CTSR::CTSR(Flow *flow, Host *src, Host *dst, int iter, int round) : Packet(0, fl
     this->iter = iter;
     this->round = round;
 }
-MRCTS::MRCTS(Flow *flow, Host *src, Host *dst, int iter, int round) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+MRCTS::MRCTS(Flow *flow, Host *src, Host *dst, int iter, int round, bool prompt) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = MRCTS_PACKET;
     this->iter = iter;
     this->round = round;
+    this->prompt = prompt;
 }
 
 MRRTS::MRRTS(Flow *flow, Host *src, Host *dst, int iter, int round) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {

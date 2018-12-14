@@ -50,7 +50,7 @@ public:
     double latest_data_pkt_send_time;
     bool first_loop;
     // receiver logic
-    void send_cts(int iter, int round);
+    void send_cts(int iter, int round, bool prompt);
     void send_offer_pkt(int iter, int round, bool is_free);
     void send_ack(Packet* p);
     void send_ctsr(int iter, int round);
