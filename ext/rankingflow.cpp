@@ -140,10 +140,10 @@ void RankingFlow::send_pending_data()
 
     Packet *p;
     if (next_seq_no + mss <= this->size) {
-        p = this->send(next_seq_no, token_seq, token_data_seq, params.token_third_level && this->size_in_pkt > params.token_initial?2:1, ranking_round);
+        p = this->send(next_seq_no, token_seq, token_data_seq, params.packet_priority(this->size_in_pkt, params.token_initial), ranking_round);
         next_seq_no += mss;
     } else {
-        p = this->send(next_seq_no, token_seq, token_data_seq, params.token_third_level && this->size_in_pkt > params.token_initial?2:1, ranking_round);
+        p = this->send(next_seq_no, token_seq, token_data_seq, params.packet_priority(this->size_in_pkt, params.token_initial), ranking_round);
         next_seq_no = this->size;
     }
 

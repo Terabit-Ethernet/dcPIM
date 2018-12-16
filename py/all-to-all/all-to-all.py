@@ -251,11 +251,12 @@ use_flow_trace: 0
 smooth_cdf: 1
 burst_at_beginning: 0
 mr_iter_limit: 4
-mr_epoch: 10
+mr_epoch: 6
 mr_window_size: 1
-mr_small_flow: 1
+mr_small_flow: 0
 mr_window_timeout: 1e-0.6
 mr_resend_timeout: 1
+mr_low_priority: 0
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33
