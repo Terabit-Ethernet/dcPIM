@@ -40,6 +40,7 @@ public:
     bool is_small_flow();
     Packet* send(uint32_t, uint32_t, int);
     void send_pending_data();
+    void send_pending_data_low_priority();
     int ack_until;
     std::set<uint32_t> ack_received;
     int largest_seq_ack;

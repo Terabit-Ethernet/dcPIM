@@ -47,7 +47,7 @@ void MrFlow::start_flow()
     ((MrHost*) this->src)->start_flow(this);
 }
 bool MrFlow::is_small_flow() {
-    return this->size_in_pkt < params.mr_small_flow;
+    return this->size_in_pkt <= params.mr_small_flow;
 }
 void MrFlow::send_cts(int iter, int round, bool prompt) {
     if(debug_flow(id) || debug_host(this->dst->id)) {
@@ -91,14 +91,13 @@ void MrFlow::send_offer_pkt(int iter, int round, bool is_free) {
 void MrFlow::send_pending_data() {
 	Packet *p;
     auto data_seq = get_next_data_seq_num();
-	if (next_seq_no + mss <= this->size) {
-		p = this->send(next_seq_no, data_seq, this->size_in_pkt > params.capability_prio_thresh?2:1);
-        next_seq_no++;
-	} else {
-		p = this->send(next_seq_no, data_seq, this->size_in_pkt > params.capability_prio_thresh?2:1);
-        next_seq_no++;
-	}
-   // std::cout << params.capability_prio_thresh << std:: endl;
+	// if (next_seq_no + mss <= this->size) {
+	p = this->send(next_seq_no, data_seq, params.packet_priority(this->size_in_pkt, params.mr_small_flow));
+    next_seq_no++;
+	// } else {
+	// 	p = this->send(next_seq_no, data_seq, params.packet_priority(this->size_in_pkt, params.mr_small_flow));
+ //        next_seq_no++;
+	// }
   //  assert(false);
     if(debug_flow(this->id))
         std::cout << get_current_time() << " flow " << this->id << " send pkt data seq:" << data_seq << "\n";
@@ -109,6 +108,25 @@ void MrFlow::send_pending_data() {
     add_to_event_queue(((SchedulingHost*) src)->host_proc_event);
 }
 
+void MrFlow::send_pending_data_low_priority() {
+    Packet *p;
+    auto data_seq = get_next_data_seq_num();
+    // if (next_seq_no + mss <= this->size) {
+    p = this->send(next_seq_no, data_seq, 7);
+    next_seq_no++;
+    // } else {
+    //     p = this->send(next_seq_no, data_seq, 7);
+    //     next_seq_no++;
+    // }
+  //  assert(false);
+    if(debug_flow(this->id))
+        std::cout << get_current_time() << " flow " << this->id << " send pkt data seq:" << data_seq << "\n";
+
+    double td = src->queue->get_transmission_delay(p->size);
+    assert(((SchedulingHost*) src)->host_proc_event == NULL);
+    ((SchedulingHost*) src)->host_proc_event = new HostProcessingEvent(get_current_time() + td + INFINITESIMAL_TIME, (SchedulingHost*) src);
+    add_to_event_queue(((SchedulingHost*) src)->host_proc_event);
+}
 void MrFlow::send_ack(Packet* p) {
     if(debug_flow(this->id)) {
         std::cout << get_current_time() << " send ack: " << p->seq_no << " " << p->capa_data_seq << std::endl;

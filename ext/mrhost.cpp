@@ -1,6 +1,6 @@
 #include <assert.h>
 #include <stdlib.h>
-
+#include <climits>
 #include "../coresim/event.h"
 #include "../coresim/flow.h"
 #include "../coresim/packet.h"
@@ -25,23 +25,6 @@ bool MrFlowComparator::operator() (MrFlow* a, MrFlow* b){
     else
         return false;
 }
-
-// UpdateRoundEvent::UpdateRoundEvent(double time, MrHost *h)
-//     : Event(UPDATE_ROUND_PROCESSING, time) {
-//         this->host = h;
-//     }
-
-// UpdateRoundEvent::~UpdateRoundEvent() {
-//     if (host->update_round_evt == this) {
-//         host->update_round_evt = NULL;
-//     }
-// }
-
-// void UpdateRoundEvent::process_event() {
-//     this->host->update_round_evt = NULL;
-//     this->host->schedule_update_round_evt();
-// }
-
 
 NewRoundEvent::NewRoundEvent(double time, int round, MrHost *h)
     : Event(NEW_ROUND_PROCESSING, time) {
@@ -247,7 +230,8 @@ void MrEpoch::handle_all_rts() {
     for(uint32_t i = 0; i < this->rts_q.size(); i++) {
         if (i == index && this->match_sender == NULL) {
             // send CTS
-            this->rts_q[i].f->send_cts(this->iter, this->round, this->round - 1 == this->host->cur_round && this->host->sender == NULL);
+            this->rts_q[i].f->send_cts(this->iter, this->round, false);
+            // this->rts_q[i].f->send_cts(this->iter, this->round, this->round - 1 == this->host->cur_round && this->host->sender == NULL);
         } else {
             // send offerPkt
             this->rts_q[i].f->send_offer_pkt(this->iter, this->round, this->match_sender == NULL);
@@ -261,6 +245,7 @@ void MrEpoch::handle_all_cts() {
     assert(this->proc_sender_iter_evt == NULL);
     if(this->cts_q.empty())
         return;
+    int min_size = INT_MAX;
     uint32_t index = 0;
     while(!this->cts_q.empty()) {
         index = rand() % this->cts_q.size();
@@ -271,6 +256,12 @@ void MrEpoch::handle_all_cts() {
             break;
         }
     }
+    // for(uint32_t i = 0; i < this->cts_q.size(); i++) { 
+    //     if(min_size > this->cts_q[i].f->size_in_pkt && this->iter == this->cts_q[index].iter) {
+    //         min_size = this->cts_q[i].f->size_in_pkt;
+    //         index = i;
+    //     }
+    // }
     for(uint32_t i = 0; i < this->cts_q.size(); i++) {
         if (i == index && this->match_receiver == NULL) {
             // send decision_pkt true
@@ -373,7 +364,8 @@ void MrHost::start_new_epoch(double time, int round) {
     this->epochs[round].host = this;
     this->epochs[round].proc_receiver_iter_evt = new ProcessReceiverIterEvent(time + this->iter_epoch / 2, &this->epochs[round]);
     this->epochs[round].proc_sender_iter_evt = new ProcessSenderIterEvent(time, &this->epochs[round]);
-    this->new_round_evt = new NewRoundEvent(time + params.mr_epoch - this->iter_epoch * params.mr_iter_limit, round + 1 , this);
+    // this->new_round_evt = new NewRoundEvent(time + params.mr_epoch - this->iter_epoch * params.mr_iter_limit, round + 1 , this);
+    this->new_round_evt = new NewRoundEvent(time + params.mr_epoch, round + 1 , this);
     add_to_event_queue(this->epochs[round].proc_receiver_iter_evt);
     add_to_event_queue(this->epochs[round].proc_sender_iter_evt);
     add_to_event_queue(this->new_round_evt);
@@ -434,15 +426,15 @@ void MrHost::start_flow(MrFlow* f) {
     }
     if(f->is_small_flow()) {
         this->active_short_flows.push(f);
-        if(this->host_proc_event != NULL && this->host_proc_event->is_timeout) {
-            this->host_proc_event->cancelled = true;
-            this->host_proc_event = NULL;
-        }
-        if(this->host_proc_event == NULL) {
-            this->schedule_host_proc_evt();
-        }
     } else {
         this->dst_to_flows[f->dst->id].push(f);
+    }
+    if(this->host_proc_event != NULL && this->host_proc_event->is_timeout) {
+        this->host_proc_event->cancelled = true;
+        this->host_proc_event = NULL;
+    }
+    if(this->host_proc_event == NULL) {
+        this->schedule_host_proc_evt();
     }
 }
 
@@ -586,6 +578,44 @@ void MrHost::send(){
                 }
             }
         }
+        // if(!pkt_sent && params.mr_low_priority) {
+        //     int min = INT_MAX;
+        //     MrFlow* f_low = NULL;
+        //     for(auto i = this->dst_to_flows.begin(); i != this->dst_to_flows.end(); i++) {
+        //         std::queue<MrFlow*> flows_low_tried;
+        //         if(this->receiver != NULL && i->first == this->receiver->id) {
+        //             continue;
+        //         }
+        //         while(1) {
+        //             if(i->second.empty()) {
+        //                 break;
+        //             }
+        //             if(i->second.top()->redundancy_ctrl_timeout > get_current_time()) {
+        //                 flows_low_tried.push(i->second.top());
+        //                 i->second.pop();
+        //                 continue;
+        //             } else if(i->second.top()->gap() > params.mr_window_size 
+        //                 && get_current_time() < i->second.top()->latest_data_pkt_send_time + params.mr_window_timeout) {
+        //                 flows_low_tried.push(i->second.top());
+        //                 i->second.pop();
+        //                 continue;                
+        //             }
+        //             if(min > i->second.top()->size_in_pkt) {
+        //                 min = i->second.top()->size_in_pkt;
+        //                 f_low = i->second.top();
+        //             }
+        //             break;
+        //         }
+        //         while(!flows_low_tried.empty()) {
+        //             i->second.push(flows_low_tried.front());
+        //             flows_low_tried.pop();
+        //         }
+        //     }
+        //     if(f_low != NULL) {
+        //         f_low->send_pending_data_low_priority();
+        //         pkt_sent = true;
+        //     }
+        // }
 
         while(!flows_tried.empty()) {
             MrFlow* f = flows_tried.front();

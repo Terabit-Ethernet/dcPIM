@@ -111,10 +111,12 @@ class DCExpParams {
         int mr_small_flow;
         double mr_window_timeout;
         double mr_resend_timeout;
+        int mr_low_priority;
         double get_full_pkt_tran_delay(uint32_t size_in_byte = 1500)
         {
             return size_in_byte * 8 / this->bandwidth;
         }
+        int packet_priority(int size_in_pkt, int base);
 
 };
 

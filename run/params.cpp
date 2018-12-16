@@ -182,6 +182,9 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         else if (key == "mr_small_flow") {
             lineStream >> params.mr_small_flow;
         }
+        else if (key == "mr_low_priority") {
+            lineStream >> params.mr_low_priority;
+        }
         // -----------------
         else if (key == "ddc") {
             lineStream >> params.ddc;
@@ -283,4 +286,18 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     //std::cout << params.token_initial << " " << params.token_window << " " << params.token_timeout << " " << params.token_window_timeout  << " " << params.token_resend_timeout << " " << params.ranking_max_tokens << " " << params.ranking_reset_epoch << " " << params.ranking_controller_epoch << " " << params.rankinghost_idle_timeout << std::endl;
     // assert(false);
     params.mss = 1460;
+}
+
+int DCExpParams::packet_priority(int size_in_pkt, int base) {
+    if (base == 0)
+        return 1;
+    int priority = 1;
+    int size = base;
+    while(size_in_pkt > size) {
+        size *= base;
+        priority++;
+    }
+    if (priority > 6)
+        priority = 6;
+    return priority;
 }
