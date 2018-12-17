@@ -64,8 +64,12 @@ void RankingFlow::sending_nrts(int round) {
 }
 
 void RankingFlow::sending_nrts_to_arbiter(uint32_t src_id, uint32_t dst_id) {
-    RankingNRTS* nrts = new RankingNRTS(this, this->dst, dynamic_cast<RankingTopology*>(topology)->arbiter, src_id, dst_id);
-    add_to_event_queue(new PacketQueuingEvent(get_current_time(), nrts, dst->queue));
+    RankingNRTS* nrts = new RankingNRTS(this, this->src, dynamic_cast<RankingTopology*>(topology)->arbiter, src_id, dst_id);
+    if(debug_host(dst_id)) {
+        std::cout << get_current_time() << " dst " << src->id <<  " sending nrts to arbiter" << " packet address" << nrts << std::endl;
+    }
+    // fake flow
+    add_to_event_queue(new PacketQueuingEvent(get_current_time(), nrts, src->queue));
 }
 
 void RankingFlow::sending_gosrc(uint32_t src_id) {
