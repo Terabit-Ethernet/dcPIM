@@ -82,7 +82,7 @@ class RankingHost : public SchedulingHost {
         bool flow_compare(RankingFlow* long_flow, RankingFlow* short_flow);
         //void receive_nrts(RankingNRTS* pkt);
         void receive_gosrc(RankingGoSrc* pkt);
-        void send_listSrcs();
+        void send_listSrcs(int src_id = -1);
         void send_token();
         void schedule_wakeup_event();
         void schedule_token_proc_evt(double time, bool is_timeout);

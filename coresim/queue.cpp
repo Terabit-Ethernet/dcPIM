@@ -95,7 +95,7 @@ void Queue::drop(Packet *packet) {
         dead_packets += 1;
     }
     if(packet->type == RANKING_LISTSRCS) {
-        std::cout << get_current_time() << " nrts pkt drop. flow:" << packet->flow->id
+        std::cout << get_current_time() << " listSRC pkt drop. flow:" << packet->flow->id
             << " type:" << packet->type << " seq:" << packet->seq_no
             << " at queue id:" << this->id << " loc:" << this->location << "\n";
     }

@@ -341,16 +341,17 @@ void RankingHost::flow_finish_at_receiver(Packet* pkt) {
         auto best_large_flow = this->get_top_unfinish_flow(pkt->flow->src->id);
         if(best_large_flow == NULL) {
             if(this->gosrc_info.send_nrts == false) {
-                (this->fake_flow)->sending_nrts_to_arbiter(pkt->flow->src->id, pkt->flow->dst->id);
+                // (this->fake_flow)->sending_nrts_to_arbiter(pkt->flow->src->id, pkt->flow->dst->id);
                 assert(this->wakeup_evt == NULL);
-                this->wakeup();
+                this->send_listSrcs(pkt->flow->src->id);
+                this->schedule_wakeup_event();
             }
 
             this->gosrc_info.reset();
         }
     }
 }
-void RankingHost::send_listSrcs() {
+void RankingHost::send_listSrcs(int nrts_src_id) {
     std::vector<std::pair<int, int>> vect;
     std::list<uint32_t> srcs;
     for (auto i = this->src_to_flows.begin(); i != this->src_to_flows.end();) {
@@ -389,7 +390,7 @@ void RankingHost::send_listSrcs() {
         //     std::cout << get_current_time() << " " << i->first << " " << i->second << std::endl;
         // }
     }
-    if(srcs.empty())
+    if(srcs.empty() && (nrts_src_id == -1))
         return;
     if(debug_host(id)) {
         std::cout << get_current_time() << " dst " << id <<  " sending listsrc; num src:" << srcs.size() << std::endl;
@@ -397,6 +398,13 @@ void RankingHost::send_listSrcs() {
 
     RankingListSrcs* listSrcs = new RankingListSrcs(this->fake_flow,
      this, dynamic_cast<RankingTopology*>(topology)->arbiter , this, srcs);
+    if(nrts_src_id != -1) {
+        listSrcs->has_nrts = true;
+        listSrcs->nrts_src_id = nrts_src_id;
+        listSrcs->nrts_dst_id = this->id;
+        listSrcs->pf_priority = 0;
+        this->gosrc_info.send_nrts = true;
+    }
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), listSrcs, this->queue));
 } 
 
@@ -559,9 +567,11 @@ void RankingHost::send_token() {
             if ((f->redundancy_ctrl_timeout > get_current_time() || 
                 gap * params.get_full_pkt_tran_delay() <= params.ctrl_pkt_rtt + params.ranking_controller_epoch)
              && this->gosrc_info.send_nrts == false) {
-                this->fake_flow->sending_nrts_to_arbiter(f->src->id, f->dst->id);
-                this->gosrc_info.send_nrts = true;
-                this->wakeup();
+                // this->fake_flow->sending_nrts_to_arbiter(f->src->id, f->dst->id);
+                // this->gosrc_info.send_nrts = true;
+                assert(this->wakeup_evt == NULL);
+                this->send_listSrcs(f->src->id);
+                this->schedule_wakeup_event();
             } 
             // else if (f->redundancy_ctrl_timeout > get_current_time()) {
             //     this->fake_flow->sending_nrts_to_arbiter(f->src->id, f->dst->id);
@@ -602,10 +612,17 @@ void RankingHost::receive_gosrc(RankingGoSrc* pkt) {
     // find the minimum size of the flow for a source;
     RankingFlow* best_large_flow = this->get_top_unfinish_flow(pkt->src_id);
     if(best_large_flow == NULL) {
+        // this->fake_flow->sending_nrts_to_arbiter(pkt->src_id, this->id);
+        this->send_listSrcs(pkt->src_id);
+        // if(!this->src_to_flows.empty()) {
+        //     assert(this->wakeup_evt != NULL);
+        // }
+        if(this->wakeup_evt != NULL) {
+            this->wakeup_evt->cancelled = true;
+            this->wakeup_evt = NULL;
+        }
+        this->schedule_wakeup_event();
         this->gosrc_info.reset();
-        this->fake_flow->sending_nrts_to_arbiter(pkt->src_id, this->id);
-        if(!this->src_to_flows.empty())
-            assert(this->wakeup_evt != NULL);
         return;
     }
     this->gosrc_info.src = (RankingHost*)this->src_to_flows[pkt->src_id].top()->src;
@@ -703,6 +720,10 @@ void RankingArbiter::receive_listsrcs(RankingListSrcs* pkt) {
     listSrcs->dst = pkt->rts_dst;
     listSrcs->listSrcs = pkt->listSrcs;
     this->pending_q.push(listSrcs);
+    if(pkt->has_nrts) {
+        this->src_state[pkt->nrts_src_id] = true;
+        this->dst_state[pkt->nrts_dst_id] = true;
+    }
 }
 
 void RankingArbiter::receive_nrts(RankingNRTS* pkt) {

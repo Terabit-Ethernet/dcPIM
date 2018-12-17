@@ -184,6 +184,9 @@ class RankingListSrcs : public Packet
         ~RankingListSrcs();
         std::list<uint32_t> listSrcs;
         Host* rts_dst;
+        bool has_nrts;
+        int nrts_src_id;
+        int nrts_dst_id;
 };
 
 class RankingNRTS : public Packet
