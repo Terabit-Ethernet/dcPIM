@@ -28,7 +28,7 @@ token_timeout: 2
 token_resend_timeout: 1
 token_window: 1
 token_window_timeout: 1.1
-rankinghost_idle_timeout: 0.5
+rankinghost_idle_timeout: 0.8
 ranking_reset_epoch: 5
 ranking_max_tokens: {0}
 ranking_controller_epoch: 0.25
