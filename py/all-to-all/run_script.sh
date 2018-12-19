@@ -1,6 +1,6 @@
 #!/bin/bash
 
-algos=(multi_round)
+algos=(pim)
 aids=()
 OUTPUT_FOLDER=../result/all-to-all
 DATE=$1

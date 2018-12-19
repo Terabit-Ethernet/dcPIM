@@ -20,7 +20,7 @@
 #define MAGIC_FLOW 113
 #define FASTPASS_FLOW 114
 #define RANKING_FLOW 115
-#define MR_FLOW 116
+#define PIM_FLOW 116
 #define IDEAL_FLOW 120
 
 /* Host types */
@@ -31,7 +31,7 @@
 #define FASTPASS_HOST 14
 #define RANKING_HOST 15
 #define RANDOM_HOST 16
-#define MR_HOST 17
+#define PIM_HOST 17
 #define FASTPASS_ARBITER 10
 #define RANKING_ARBITER 11
 #define IDEAL_HOST 20

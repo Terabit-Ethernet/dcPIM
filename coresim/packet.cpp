@@ -52,45 +52,51 @@ RTS::RTS(Flow *flow, Host *src, Host *dst, double delay, int iter) : Packet(0, f
 }
 
 
-OfferPkt::OfferPkt(Flow *flow, Host *src, Host *dst, bool is_free, int iter, int round) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+OfferPkt::OfferPkt(Flow *flow, Host *src, Host *dst, bool is_free, int iter, int epoch) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = OFFER_PACKET;
     this->is_free = is_free;
     this->iter = iter;
-    this->round = round;
+    this->epoch = epoch;
 }
 
-DecisionPkt::DecisionPkt(Flow *flow, Host *src, Host *dst, bool accept, int iter, int round) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+DecisionPkt::DecisionPkt(Flow *flow, Host *src, Host *dst, bool accept, int iter, int epoch) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = DECISION_PACKET;
     this->accept = accept;
     this->iter = iter;
-    this->round = round;
+    this->epoch = epoch;
 }
 
+AcceptPkt::AcceptPkt(Flow *flow, Host *src, Host *dst, bool accept, int iter, int epoch) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+    this->type = ACCEPT_PACKET;
+    this->accept = accept;
+    this->iter = iter;
+    this->epoch = epoch;
+}
 
 CTS::CTS(Flow *flow, Host *src, Host *dst) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = CTS_PACKET;
 }
 
-CTSR::CTSR(Flow *flow, Host *src, Host *dst, int iter, int round) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
-    this->type = CTSR_PACKET;
+GrantsR::GrantsR(Flow *flow, Host *src, Host *dst, int iter, int epoch) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+    this->type = GRANTSR_PACKET;
     this->iter = iter;
-    this->round = round;
+    this->epoch = epoch;
 }
-MRCTS::MRCTS(Flow *flow, Host *src, Host *dst, int iter, int round, bool prompt) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
-    this->type = MRCTS_PACKET;
+PIMGrants::PIMGrants(Flow *flow, Host *src, Host *dst, int iter, int epoch, bool prompt) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+    this->type = PIM_GRANTS_PACKET;
     this->iter = iter;
-    this->round = round;
+    this->epoch = epoch;
     this->prompt = prompt;
 }
 
-MRRTS::MRRTS(Flow *flow, Host *src, Host *dst, int iter, int round) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
-    this->type = MRRTS_PACKET;
+PIMRTS::PIMRTS(Flow *flow, Host *src, Host *dst, int iter, int epoch) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+    this->type = PIM_RTS_PACKET;
     this->iter = iter;
-    this->round = round;
+    this->epoch = epoch;
 }
 
-MRAck::MRAck(Flow *flow, uint32_t seq_no_acked, uint32_t data_seq_no_acked, uint32_t size, Host* src, Host *dst) : Packet(0, flow, seq_no_acked, 0, size, src, dst) {
-    this->type = MR_ACK;
+PIMAck::PIMAck(Flow *flow, uint32_t seq_no_acked, uint32_t data_seq_no_acked, uint32_t size, Host* src, Host *dst) : Packet(0, flow, seq_no_acked, 0, size, src, dst) {
+    this->type = PIM_ACK;
     this->data_seq_no_acked = data_seq_no_acked;
 }
 

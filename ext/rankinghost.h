@@ -88,12 +88,17 @@ class RankingHost : public SchedulingHost {
         void schedule_token_proc_evt(double time, bool is_timeout);
         void wakeup();
 
+        int debug_send_flow_finish;
+        int debug_send_go_src;
+        int debug_send_wake_up;
+        int debug_new_flow;
+        int debug_use_all_tokens;
         RankingFlow* get_top_unfinish_flow(uint32_t src_id);
         CustomPriorityQueue<RankingFlow*, std::vector<RankingFlow*>, RankingShortFlowComparatorAtReceiver> active_short_flows;
         std::unordered_map<uint32_t, CustomPriorityQueue<RankingFlow*, std::vector<RankingFlow*>, RankingFlowComparatorAtReceiver>> src_to_flows;
 
         GoSRC gosrc_info;
-
+        double idle_count;
         // only used for fairness testing
         std::unordered_map<int, int> src_to_pkts;
         // std::list <RankingFlow*> pending_flows;

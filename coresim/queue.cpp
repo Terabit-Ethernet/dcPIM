@@ -95,8 +95,8 @@ void Queue::drop(Packet *packet) {
         dead_packets += 1;
     }
     if(packet->type == RANKING_LISTSRCS) {
-        std::cout << get_current_time() << " listSRC pkt drop. flow:" << packet->flow->id
-            << " type:" << packet->type << " seq:" << packet->seq_no
+        std::cout << get_current_time() << " listSRC pkt drop. flow:" << packet->flow->id << " packet size:" << packet->size
+            << " type:" << packet->type << " seq:" << packet->seq_no << " src:" << packet->src->id << " num of packets in queue: " << packets.size()
             << " at queue id:" << this->id << " loc:" << this->location << "\n";
     }
     if(debug_flow(packet->flow->id))

@@ -140,7 +140,14 @@ RankingHost::RankingHost(uint32_t id, double rate, uint32_t queue_type) : Schedu
     this->host_type = RANKING_HOST;
     this->total_token_schd_evt_count = 0;
     this->hold_on = 0;
+    this->idle_count = 0;
     this->fake_flow = NULL;
+
+    this->debug_new_flow = 0;
+    this->debug_send_flow_finish = 0;
+    this->debug_send_go_src = 0;
+    this->debug_send_wake_up = 0;
+    this->debug_use_all_tokens = 0;
 }
 
 // Statistics 
@@ -305,6 +312,7 @@ void RankingHost::receive_rts(RankingRTS* pkt) {
             if(debug_host(id)) {
                 std::cout << get_current_time() << "sending listSRC for new flow " <<pkt->flow->id << std::endl;
             }
+            this->debug_new_flow++;
             send_listSrcs();
 
             if(this->wakeup_evt != NULL) {
@@ -343,6 +351,8 @@ void RankingHost::flow_finish_at_receiver(Packet* pkt) {
             if(this->gosrc_info.send_nrts == false) {
                 // (this->fake_flow)->sending_nrts_to_arbiter(pkt->flow->src->id, pkt->flow->dst->id);
                 assert(this->wakeup_evt == NULL);
+                assert(false);
+                this->debug_send_flow_finish++;
                 this->send_listSrcs(pkt->flow->src->id);
                 this->schedule_wakeup_event();
             }
@@ -354,6 +364,13 @@ void RankingHost::flow_finish_at_receiver(Packet* pkt) {
 void RankingHost::send_listSrcs(int nrts_src_id) {
     std::vector<std::pair<int, int>> vect;
     std::list<uint32_t> srcs;
+    if(debug_host(this->id)) {
+        std::cout << get_current_time() << " debug_new_flow: " << this->debug_new_flow
+        << " debug_send_flow_finish " << this->debug_send_flow_finish 
+        << " debug_send_go_src " << this->debug_send_go_src
+        << " debug_send_wake_up" << this->debug_send_wake_up
+        << " debug_use_all_tokens" << this->debug_use_all_tokens << std::endl;
+    }
     for (auto i = this->src_to_flows.begin(); i != this->src_to_flows.end();) {
         std::queue<RankingFlow*> flows_tried;
         RankingFlow* best_flow = NULL;
@@ -394,6 +411,11 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
         return;
     if(debug_host(id)) {
         std::cout << get_current_time() << " dst " << id <<  " sending listsrc; num src:" << srcs.size() << std::endl;
+        if(srcs.size() > 10) {
+            for(auto i = srcs.begin(); i != srcs.end(); i++) {
+                std::cout << this->src_to_flows[*i].top()->id << " " << (this->src_to_flows[*i].top()->redundancy_ctrl_timeout > get_current_time()) << std::endl;
+            }
+        }
     }
 
     RankingListSrcs* listSrcs = new RankingListSrcs(this->fake_flow,
@@ -410,23 +432,30 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
 
 void RankingHost::schedule_wakeup_event() {
     assert(this->wakeup_evt == NULL);
+    double max_idle_time = pow(params.rankinghost_idle_timeout * 1000000.0, this->idle_count + 1) / 1000000.0;
+    double idle_time = (max_idle_time - params.rankinghost_idle_timeout) * 
+        ((double)rand() / (double)RAND_MAX) + params.rankinghost_idle_timeout;
+
     if(debug_host(this->id)) {
-        std::cout << get_current_time() << " next wake up"  << get_current_time() + params.rankinghost_idle_timeout << std::endl;
+        std::cout << get_current_time() << " next wake up "  << get_current_time() + idle_time << " idle count:" << this->idle_count << " max idle time: " << max_idle_time << std::endl;
     }
-    this->wakeup_evt = new RankingHostWakeupProcessingEvent(get_current_time() + params.rankinghost_idle_timeout, this);
+    this->wakeup_evt = new RankingHostWakeupProcessingEvent(get_current_time() + idle_time, this);
     add_to_event_queue(this->wakeup_evt);
 }
 
 void RankingHost::wakeup() {
     assert(this->wakeup_evt == NULL);
     // if(!this->src_to_flows.empty()) {
-        if(debug_host(id)) {
-            std::cout << "wake up for sending listSRC" << std::endl;
-        }
-        this->send_listSrcs();
-        if(!this->src_to_flows.empty()) {
-            this->schedule_wakeup_event();
-        }
+    this->idle_count++;
+    if(debug_host(id)) {
+        std::cout << "wake up for sending listSRC" << std::endl;
+    }
+    this->debug_send_wake_up++;
+
+    this->send_listSrcs();
+    if(!this->src_to_flows.empty()) {
+        this->schedule_wakeup_event();
+    }
     //}
 }
 void RankingHost::send_token() {
@@ -442,13 +471,6 @@ void RankingHost::send_token() {
     RankingFlow* best_large_flow = NULL;
     if(this->gosrc_info.src!= NULL) {
         best_large_flow = this->get_top_unfinish_flow(this->gosrc_info.src->id);
-        // if(best_large_flow == NULL) {
-        //     std::cout << "i am here" << std::endl;
-        //     this->fake_flow->sending_nrts_to_arbiter(this->gosrc_info.src->id, id);
-        //     this->gosrc_info.reset();
-        //     assert(this->wakeup_evt == NULL);
-        //     this->wakeup();
-        // }
     }
     while(!token_sent) {
         if (this->active_short_flows.empty() && best_large_flow == NULL) {
@@ -531,7 +553,7 @@ void RankingHost::send_token() {
                 }
                 token_sent = true;
                 // this->token_hist.push_back(this->recv_flow->id);
-                if(next_data_seq > f->get_next_token_seq_num()) {
+                if(next_data_seq >= f->get_next_token_seq_num()) {
                     // if(!f->first_loop) {
                     //     f->first_loop = true;
                     // } else {
@@ -570,18 +592,10 @@ void RankingHost::send_token() {
                 // this->fake_flow->sending_nrts_to_arbiter(f->src->id, f->dst->id);
                 // this->gosrc_info.send_nrts = true;
                 assert(this->wakeup_evt == NULL);
+                this->debug_use_all_tokens++;
                 this->send_listSrcs(f->src->id);
                 this->schedule_wakeup_event();
             } 
-            // else if (f->redundancy_ctrl_timeout > get_current_time()) {
-            //     this->fake_flow->sending_nrts_to_arbiter(f->src->id, f->dst->id);
-            //     this->gosrc_info.send_nrts = true;
-            //     if(this->wakeup_evt != NULL) {
-            //         this->wakeup_evt->cancelled = true;
-            //         this->wakeup_evt = NULL;
-            //     }
-            //     this->wakeup();
-            // }
         }
     }
     while(!flows_tried.empty()) {
@@ -613,6 +627,7 @@ void RankingHost::receive_gosrc(RankingGoSrc* pkt) {
     RankingFlow* best_large_flow = this->get_top_unfinish_flow(pkt->src_id);
     if(best_large_flow == NULL) {
         // this->fake_flow->sending_nrts_to_arbiter(pkt->src_id, this->id);
+        this->debug_send_go_src++;
         this->send_listSrcs(pkt->src_id);
         // if(!this->src_to_flows.empty()) {
         //     assert(this->wakeup_evt != NULL);
@@ -625,6 +640,8 @@ void RankingHost::receive_gosrc(RankingGoSrc* pkt) {
         this->gosrc_info.reset();
         return;
     }
+    this->idle_count = 0;
+
     this->gosrc_info.src = (RankingHost*)this->src_to_flows[pkt->src_id].top()->src;
     this->gosrc_info.max_tokens = pkt->max_tokens;
     this->gosrc_info.remain_tokens = pkt->max_tokens;

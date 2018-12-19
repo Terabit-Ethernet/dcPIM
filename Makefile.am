@@ -27,8 +27,8 @@ simulator_SOURCES = 				 		 	 \
 					ext/rankinghost.cpp	         \
 					ext/rankingflow.cpp	         \
 					ext/rankingTopology.cpp      \
-					ext/mrflow.cpp               \
-					ext/mrhost.cpp		     \
+					ext/pimflow.cpp               \
+					ext/pimhost.cpp		     \
 					ext/tcpflow.cpp				 \
 					ext/dctcpQueue.cpp			 \
 					ext/dctcpFlow.cpp			 \

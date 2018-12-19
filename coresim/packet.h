@@ -26,11 +26,12 @@
 #define RANKING_GOSRC 14
 #define RANKING_TOKEN 15
 
-// MR
-#define MRCTS_PACKET 16
-#define MR_ACK 17
-#define CTSR_PACKET 18
-#define MRRTS_PACKET 19
+// PIM
+#define PIM_GRANTS_PACKET 16
+#define PIM_ACK 17
+#define GRANTSR_PACKET 18
+#define PIM_RTS_PACKET 19
+#define ACCEPT_PACKET 20
 
 class FastpassEpochSchedule;
 
@@ -90,19 +91,20 @@ class RTS : public Packet{
 
 class OfferPkt : public Packet{
     public:
-        OfferPkt(Flow *flow, Host *src, Host *dst, bool is_free, int iter, int round);
+        OfferPkt(Flow *flow, Host *src, Host *dst, bool is_free, int iter, int epoch);
         bool is_free;
         int iter;
-        int round;
+        int epoch;
 };
 
 class DecisionPkt : public Packet{
     public:
-        DecisionPkt(Flow *flow, Host *src, Host *dst, bool accept, int iter, int round);
+        DecisionPkt(Flow *flow, Host *src, Host *dst, bool accept, int iter, int epoch);
         bool accept;
         int iter;
-        int round;
+        int epoch;
 };
+
 
 class CTS : public Packet{
     public:
@@ -110,31 +112,39 @@ class CTS : public Packet{
 };
 
 // For Multi-Round algorithm (PIM)
-class MRRTS : public Packet{
+class PIMRTS : public Packet{
     public:
-        MRRTS(Flow *flow, Host *src, Host *dst, int iter, int round);
+        PIMRTS(Flow *flow, Host *src, Host *dst, int iter, int epoch);
         int iter;
-        int round;
+        int epoch;
 };
 
-class CTSR : public Packet{
+class GrantsR : public Packet{
     public:
-        CTSR(Flow *flow, Host *src, Host *dst, int iter, int round);
+        GrantsR(Flow *flow, Host *src, Host *dst, int iter, int epoch);
         int iter;
-        int round;
+        int epoch;
 };
 
-class MRCTS : public Packet{
+class AcceptPkt : public Packet{
     public:
-        MRCTS(Flow *flow, Host *src, Host *dst, int iter, int round, bool prompt);
+        AcceptPkt(Flow *flow, Host *src, Host *dst, bool accept, int iter, int epoch);
+        bool accept;
         int iter;
-        int round;
+        int epoch;
+};
+
+class PIMGrants : public Packet{
+    public:
+        PIMGrants(Flow *flow, Host *src, Host *dst, int iter, int epoch, bool prompt);
+        int iter;
+        int epoch;
         bool prompt;
 };
 
-class MRAck : public Packet {
+class PIMAck : public Packet {
     public:
-        MRAck(Flow *flow, uint32_t seq_no_acked, uint32_t data_seq_num, uint32_t size, Host* src, Host* dst);
+        PIMAck(Flow *flow, uint32_t seq_no_acked, uint32_t data_seq_num, uint32_t size, Host* src, Host* dst);
         uint32_t data_seq_no_acked;
 };
 

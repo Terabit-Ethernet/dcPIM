@@ -105,13 +105,13 @@ class DCExpParams {
         bool print_max_min_fairness;
 
         // Multi Round Distributed protoocl
-        uint32_t mr_iter_limit;
-        double mr_epoch;
-        int mr_window_size;
-        int mr_small_flow;
-        double mr_window_timeout;
-        double mr_resend_timeout;
-        int mr_low_priority;
+        uint32_t pim_iter_limit;
+        double pim_epoch;
+        int pim_window_size;
+        int pim_small_flow;
+        double pim_window_timeout;
+        double pim_resend_timeout;
+        int pim_low_priority;
         double get_full_pkt_tran_delay(uint32_t size_in_byte = 1500)
         {
             return size_in_byte * 8 / this->bandwidth;

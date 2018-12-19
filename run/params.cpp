@@ -164,26 +164,26 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         }
         // --------------
         // Multi-Round algorithm
-        else if (key == "mr_iter_limit") {
-            lineStream >> params.mr_iter_limit;
+        else if (key == "pim_iter_limit") {
+            lineStream >> params.pim_iter_limit;
         }
-        else if (key == "mr_epoch") {
-            lineStream >> params.mr_epoch;
+        else if (key == "pim_epoch") {
+            lineStream >> params.pim_epoch;
         }
-        else if (key == "mr_window_timeout") {
-            lineStream >> params.mr_window_timeout;
+        else if (key == "pim_window_timeout") {
+            lineStream >> params.pim_window_timeout;
         }
-        else if (key == "mr_resend_timeout") {
-            lineStream >> params.mr_resend_timeout;
+        else if (key == "pim_resend_timeout") {
+            lineStream >> params.pim_resend_timeout;
         }
-        else if (key == "mr_window_size") {
-            lineStream >> params.mr_window_size;
+        else if (key == "pim_window_size") {
+            lineStream >> params.pim_window_size;
         }
-        else if (key == "mr_small_flow") {
-            lineStream >> params.mr_small_flow;
+        else if (key == "pim_small_flow") {
+            lineStream >> params.pim_small_flow;
         }
-        else if (key == "mr_low_priority") {
-            lineStream >> params.mr_low_priority;
+        else if (key == "pim_low_priority") {
+            lineStream >> params.pim_low_priority;
         }
         // -----------------
         else if (key == "ddc") {
@@ -275,14 +275,14 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     params.ranking_controller_epoch *= params.BDP * params.get_full_pkt_tran_delay();
 
     // multi-round protocol
-    // params.mr_iter_limit = 4;
-    // params.mr_epoch = params.iter_limit * params.ctrl_pkt_rtt * 2 + 5;
-    // params.mr_window_timeout = 1.0 / 1000000;
-    params.mr_resend_timeout *= params.BDP * params.get_full_pkt_tran_delay();
-    params.mr_epoch *= params.BDP * params.get_full_pkt_tran_delay();
-    params.mr_window_size *= params.BDP;
-    params.mr_small_flow *= params.BDP;
-    // std::cout << params.mr_resend_timeout << " " << params.mr_epoch << " " << params.mr_iter_limit << std::endl;
+    // params.pim_iter_limit = 4;
+    // params.pim_epoch = params.iter_limit * params.ctrl_pkt_rtt * 2 + 5;
+    // params.pim_window_timeout = 1.0 / 1000000;
+    params.pim_resend_timeout *= params.BDP * params.get_full_pkt_tran_delay();
+    params.pim_epoch *= params.BDP * params.get_full_pkt_tran_delay();
+    params.pim_window_size *= params.BDP;
+    params.pim_small_flow *= params.BDP;
+    // std::cout << params.pim_resend_timeout << " " << params.pim_epoch << " " << params.pim_iter_limit << std::endl;
     //std::cout << params.token_initial << " " << params.token_window << " " << params.token_timeout << " " << params.token_window_timeout  << " " << params.token_resend_timeout << " " << params.ranking_max_tokens << " " << params.ranking_reset_epoch << " " << params.ranking_controller_epoch << " " << params.rankinghost_idle_timeout << std::endl;
     // assert(false);
     params.mss = 1460;

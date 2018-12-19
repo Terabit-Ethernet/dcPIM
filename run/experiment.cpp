@@ -24,7 +24,7 @@
 #include "../ext/capabilityflow.h"
 #include "../ext/fastpassTopology.h"
 #include "../ext/rankingTopology.h"
-#include "../ext/mrhost.h"
+#include "../ext/pimhost.h"
 
 #include "flow_generator.h"
 #include "stats.h"
@@ -263,9 +263,9 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
     if (params.flow_type == RANKING_FLOW) {
         dynamic_cast<RankingTopology*>(topology)->arbiter->start_arbiter();
     }
-    if(params.flow_type == MR_FLOW) {
+    if(params.flow_type == PIM_FLOW) {
         for(int i = 0; i < params.num_hosts; i++) {
-            ((MrHost*)topology->hosts[i])->start_new_epoch(1.0, 0);
+            ((PimHost*)topology->hosts[i])->start_new_epoch(1.0, 0);
         }
     }
     // 
