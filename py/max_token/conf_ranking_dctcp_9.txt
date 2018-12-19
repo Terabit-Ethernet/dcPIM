@@ -6,7 +6,7 @@ propagation_delay: 0.0000002
 bandwidth: 40000000000.0
 queue_type: 2
 flow_type: 115
-num_flow: 100000
+num_flow: 200000
 flow_trace: ../CDF_dctcp.txt
 cut_through: 0
 mean_flow_size: 0
@@ -28,7 +28,7 @@ token_timeout: 2
 token_resend_timeout: 1
 token_window: 1
 token_window_timeout: 1.1
-rankinghost_idle_timeout: 0.5
+rankinghost_idle_timeout: 0.8
 ranking_reset_epoch: 5
 ranking_max_tokens: 9
 ranking_controller_epoch: 0.25
