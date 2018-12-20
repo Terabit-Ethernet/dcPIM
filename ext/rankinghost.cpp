@@ -371,6 +371,7 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
         << " debug_send_wake_up" << this->debug_send_wake_up
         << " debug_use_all_tokens" << this->debug_use_all_tokens << std::endl;
     }
+    auto max_flow_limit = INT_MAX;
     for (auto i = this->src_to_flows.begin(); i != this->src_to_flows.end();) {
         std::queue<RankingFlow*> flows_tried;
         RankingFlow* best_flow = NULL;
@@ -393,6 +394,9 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
         if(best_flow != NULL) {
             vect.push_back(std::make_pair(best_flow->remaining_pkts() - best_flow->token_gap(),
              i->first));
+            if(i->first == nrts_src_id) {
+                max_flow_limit = best_flow->remaining_pkts() - best_flow->token_gap();
+            }
             i++;
         } else if(i->second.empty()){
             i = this->src_to_flows.erase(i);
@@ -403,7 +407,7 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
     sort(vect.begin(), vect.end());
     for(auto i = vect.begin(); i != vect.end(); i++) {
         srcs.push_back(i->second);
-        if(i->second == nrts_src_id) {
+        if(i->first > max_flow_limit) {
             break;
         }
         // if(debug_host(this->id)) {
@@ -591,7 +595,7 @@ void RankingHost::send_token() {
             } else {
                 gap = this->gosrc_info.remain_tokens;
             }
-            if(debug_flow(f->id)) {
+            if(debug_host(id)) {
                 std::cout << get_current_time() << " gap " << gap << " large or not " <<  (gap * params.get_full_pkt_tran_delay() <= ctrl_pkt_rtt + params.ranking_controller_epoch) << std::endl;
             }
             if ((f->redundancy_ctrl_timeout > get_current_time() || 
