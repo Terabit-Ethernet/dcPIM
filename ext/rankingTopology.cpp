@@ -169,3 +169,11 @@ Queue* RankingTopology::get_next_hop(Packet* p, Queue* q) {
     assert(false);
 }
 
+double RankingTopology::get_control_pkt_rtt(int host_id) {
+    if(host_id % 16 == 0) {
+        return (2 * params.propagation_delay + (40 * 8 / params.bandwidth)) * 2;
+    } else {
+        return (4 * params.propagation_delay + (40 * 8 / params.bandwidth) * 2.5) * 2;
+    }
+}
+

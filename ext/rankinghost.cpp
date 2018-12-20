@@ -403,6 +403,9 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
     sort(vect.begin(), vect.end());
     for(auto i = vect.begin(); i != vect.end(); i++) {
         srcs.push_back(i->second);
+        if(i->second == nrts_src_id) {
+            break;
+        }
         // if(debug_host(this->id)) {
         //     std::cout << get_current_time() << " " << i->first << " " << i->second << std::endl;
         // }
@@ -411,6 +414,7 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
         return;
     if(debug_host(id)) {
         std::cout << get_current_time() << " dst " << id <<  " sending listsrc; num src:" << srcs.size() << std::endl;
+        std::cout << " total srcs:" << vect.size() << std::endl;
         if(srcs.size() > 10) {
             for(auto i = srcs.begin(); i != srcs.end(); i++) {
                 std::cout << this->src_to_flows[*i].top()->id << " " << (this->src_to_flows[*i].top()->redundancy_ctrl_timeout > get_current_time()) << std::endl;
@@ -432,13 +436,16 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
 
 void RankingHost::schedule_wakeup_event() {
     assert(this->wakeup_evt == NULL);
-    double max_idle_time = pow(params.rankinghost_idle_timeout * 1000000.0, this->idle_count + 1) / 1000000.0;
-    double idle_time = (max_idle_time - params.rankinghost_idle_timeout) * 
-        ((double)rand() / (double)RAND_MAX) + params.rankinghost_idle_timeout;
-
-    if(debug_host(this->id)) {
-        std::cout << get_current_time() << " next wake up "  << get_current_time() + idle_time << " idle count:" << this->idle_count << " max idle time: " << max_idle_time << std::endl;
-    }
+    // double max_idle_time = pow(params.rankinghost_idle_timeout * 1000000.0, this->idle_count + 1) / 1000000.0;
+    // double idle_time = (max_idle_time - params.rankinghost_idle_timeout) * 
+    //     ((double)rand() / (double)RAND_MAX) + params.rankinghost_idle_timeout;
+    double idle_time = params.rankinghost_idle_timeout;
+    // if(idle_time > 7.0 / 1000000) {
+    //     idle_time = 7.0 / 1000000;
+    // }
+    // if(debug_host(this->id)) {
+    //     std::cout << get_current_time() << " next wake up "  << get_current_time() + idle_time << " idle count:" << this->idle_count << " max idle time: " << max_idle_time << std::endl;
+    // }
     this->wakeup_evt = new RankingHostWakeupProcessingEvent(get_current_time() + idle_time, this);
     add_to_event_queue(this->wakeup_evt);
 }
@@ -578,16 +585,17 @@ void RankingHost::send_token() {
         }
         if(f->size_in_pkt > params.token_initial) {
             auto gap = 0;
+            auto ctrl_pkt_rtt = dynamic_cast<RankingTopology*>(topology)->get_control_pkt_rtt(this->id);
             if(this->gosrc_info.remain_tokens > f->remaining_pkts() - f->token_gap()) {
                 gap = f->remaining_pkts() - f->token_gap();
             } else {
                 gap = this->gosrc_info.remain_tokens;
             }
             if(debug_flow(f->id)) {
-                std::cout << get_current_time() << " gap " << gap << " large or not " <<  (gap * params.get_full_pkt_tran_delay() <= params.ctrl_pkt_rtt + params.ranking_controller_epoch) << std::endl;
+                std::cout << get_current_time() << " gap " << gap << " large or not " <<  (gap * params.get_full_pkt_tran_delay() <= ctrl_pkt_rtt + params.ranking_controller_epoch) << std::endl;
             }
             if ((f->redundancy_ctrl_timeout > get_current_time() || 
-                gap * params.get_full_pkt_tran_delay() <= params.ctrl_pkt_rtt + params.ranking_controller_epoch)
+                gap * params.get_full_pkt_tran_delay() <= ctrl_pkt_rtt + params.ranking_controller_epoch)
              && this->gosrc_info.send_nrts == false) {
                 // this->fake_flow->sending_nrts_to_arbiter(f->src->id, f->dst->id);
                 // this->gosrc_info.send_nrts = true;
