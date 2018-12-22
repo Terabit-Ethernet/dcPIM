@@ -292,9 +292,9 @@ void RankingHost::receive_rts(RankingRTS* pkt) {
             std::cout << get_current_time() << " flow " << pkt->flow->id << " "<< pkt->size_in_pkt <<  " received rts\n";
     ((RankingFlow*)pkt->flow)->rts_received = true;
     if(pkt->size_in_pkt > params.token_initial) {
-        if(debug_host(id)) {
-            std::cout << "push flow " << pkt->flow->id << std::endl;
-        }
+        // if(debug_host(id)) {
+        //     std::cout << "push flow " << pkt->flow->id << std::endl;
+        // }
         this->src_to_flows[pkt->flow->src->id].push((RankingFlow*)pkt->flow);
         if(this->gosrc_info.src != NULL && 
             this->gosrc_info.src->id == pkt->flow->src->id && 
@@ -351,7 +351,8 @@ void RankingHost::flow_finish_at_receiver(Packet* pkt) {
             if(this->gosrc_info.send_nrts == false) {
                 // (this->fake_flow)->sending_nrts_to_arbiter(pkt->flow->src->id, pkt->flow->dst->id);
                 assert(this->wakeup_evt == NULL);
-                assert(false);
+                //std::cout << pkt->flow->id << " "  << pkt->flow->src->id << " " << pkt->flow->dst->id << std::endl;
+                //assert(false);
                 this->debug_send_flow_finish++;
                 this->send_listSrcs(pkt->flow->src->id);
                 this->schedule_wakeup_event();
@@ -370,13 +371,13 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
     if(this->gosrc_info.src != NULL && this->gosrc_info.src->id == nrts_src_id){
         remain_tokens = this->gosrc_info.remain_tokens;
     }
-    if(debug_host(this->id)) {
-        std::cout << get_current_time() << " debug_new_flow: " << this->debug_new_flow
-        << " debug_send_flow_finish " << this->debug_send_flow_finish 
-        << " debug_send_go_src " << this->debug_send_go_src
-        << " debug_send_wake_up" << this->debug_send_wake_up
-        << " debug_use_all_tokens" << this->debug_use_all_tokens << std::endl;
-    }
+    // if(debug_host(this->id)) {
+    //     std::cout << get_current_time() << " debug_new_flow: " << this->debug_new_flow
+    //     << " debug_send_flow_finish " << this->debug_send_flow_finish 
+    //     << " debug_send_go_src " << this->debug_send_go_src
+    //     << " debug_send_wake_up" << this->debug_send_wake_up
+    //     << " debug_use_all_tokens" << this->debug_use_all_tokens << std::endl;
+    // }
     auto max_flow_limit = INT_MAX;
     for (auto i = this->src_to_flows.begin(); i != this->src_to_flows.end();) {
         std::queue<RankingFlow*> flows_tried;
@@ -533,16 +534,16 @@ void RankingHost::send_token() {
         if(flow_compare(best_large_flow, best_short_flow)) {
             f = this->active_short_flows.top();
             this->active_short_flows.pop();
-            if(debug_flow(f->id)) {
-                std::cout << get_current_time() << " pop flow " << f->id  << "\n";
-            }
+            // if(debug_flow(f->id)) {
+            //     std::cout << get_current_time() << " pop flow " << f->id  << "\n";
+            // }
         } else {
             f = best_large_flow;
             best_large_flow = NULL;
         }
-        if(debug_host(this->id)) {
-            std::cout << "try to send token" << std::endl;
-        }
+        // if(debug_host(this->id)) {
+        //     std::cout << "try to send token" << std::endl;
+        // }
         // probably can do better here
         if(f->finished_at_receiver) {
             continue;
@@ -633,9 +634,9 @@ void RankingHost::send_token() {
             } else {
                 gap = this->gosrc_info.remain_tokens;
             }
-            if(debug_host(id)) {
-                std::cout << get_current_time() << " gap " << gap << " large or not " <<  (gap * params.get_full_pkt_tran_delay() <= ctrl_pkt_rtt + params.ranking_controller_epoch) << std::endl;
-            }
+            // if(debug_host(id)) {
+            //     std::cout << get_current_time() << " gap " << gap << " large or not " <<  (gap * params.get_full_pkt_tran_delay() <= ctrl_pkt_rtt + params.ranking_controller_epoch) << std::endl;
+            // }
             if ((f->redundancy_ctrl_timeout > get_current_time() || 
                 gap * params.get_full_pkt_tran_delay() <= ctrl_pkt_rtt + params.ranking_controller_epoch)
              && this->gosrc_info.send_nrts == false) {

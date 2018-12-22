@@ -89,9 +89,9 @@ void RankingFlow::sending_ack(int round) {
 void RankingFlow::assign_init_token(){
     //sender side
     int init_token = this->init_token_size();
-    if(debug_flow(this->id)) {
-        std::cout << "initial token for flow " << this->id << " token size:" << init_token << std::endl;
-    }
+    // if(debug_flow(this->id)) {
+    //     std::cout << "initial token for flow " << this->id << " token size:" << init_token << std::endl;
+    // }
     for(int i = 0; i < init_token; i++){
         Token* c = new Token();
         c->timeout = get_current_time() + init_token * params.get_full_pkt_tran_delay() + params.token_timeout;
@@ -307,9 +307,9 @@ void RankingFlow::receive_short_flow() {
     if(this->token_count == this->token_goal){
         this->redundancy_ctrl_timeout = get_current_time() + init_token * params.get_full_pkt_tran_delay() + params.BDP * params.get_full_pkt_tran_delay();
     }
-    if(debug_flow(this->id)) {
-        std::cout << get_current_time() << " flow id " << this->id << " token_count: " << init_token <<" redundancy_ctrl_timeout:" << this->redundancy_ctrl_timeout << "\n";
-    }
+    // if(debug_flow(this->id)) {
+    //     std::cout << get_current_time() << " flow id " << this->id << " token_count: " << init_token <<" redundancy_ctrl_timeout:" << this->redundancy_ctrl_timeout << "\n";
+    // }
     dstination->hold_on = init_token;
     dstination->active_short_flows.push(this);
     if (dstination->token_send_evt != NULL && dstination->token_send_evt->is_timeout_evt) {
