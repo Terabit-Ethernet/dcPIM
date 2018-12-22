@@ -43,6 +43,14 @@ public:
     ~GoSRC() = default;
 };
 
+class ListSrcComparator {
+public:
+    bool operator()(const std::pair<int,int> &left, const std::pair<int,int> &right) {
+        return left.first < right.first;
+    }
+};
+
+
 class ListSrcsComparator {
     public:
         ListSrcsComparator();

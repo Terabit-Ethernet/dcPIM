@@ -97,10 +97,10 @@ class DCExpParams {
         double rankinghost_idle_timeout;
         double ranking_controller_epoch;
         double ranking_reset_epoch;
-        
         double ranking_max_tokens;
         double rtt;
         double ctrl_pkt_rtt;
+        double ranking_max_src_num;
         // debug for max-min fairness
         bool print_max_min_fairness;
 

@@ -362,8 +362,14 @@ void RankingHost::flow_finish_at_receiver(Packet* pkt) {
     }
 }
 void RankingHost::send_listSrcs(int nrts_src_id) {
-    std::vector<std::pair<int, int>> vect;
+    std::vector<std::pair<int, int>> vect1;
+    std::vector<std::pair<int, int>> vect2;
+
     std::list<uint32_t> srcs;
+    int remain_tokens = 0;
+    if(this->gosrc_info.src != NULL && this->gosrc_info.src->id == nrts_src_id){
+        remain_tokens = this->gosrc_info.remain_tokens;
+    }
     if(debug_host(this->id)) {
         std::cout << get_current_time() << " debug_new_flow: " << this->debug_new_flow
         << " debug_send_flow_finish " << this->debug_send_flow_finish 
@@ -383,8 +389,21 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
                 i->second.pop();
             } 
             else {
-                best_flow = i->second.top();
-                break;
+                if(i->first == nrts_src_id) {
+                    if(remain_tokens > 0){
+                        remain_tokens -= (i->second.top()->remaining_pkts() - i->second.top()->token_gap());
+                    }
+                    if(remain_tokens < 0){
+                        best_flow = i->second.top();
+                        break;
+                    } else {
+                        flows_tried.push(i->second.top());
+                        i->second.pop();               
+                    }
+                } else {
+                    best_flow = i->second.top();
+                    break;
+                }
             }
         }
         while(!flows_tried.empty()) {
@@ -392,7 +411,7 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
             flows_tried.pop();
         }
         if(best_flow != NULL) {
-            vect.push_back(std::make_pair(best_flow->remaining_pkts() - best_flow->token_gap(),
+            vect1.push_back(std::make_pair(best_flow->remaining_pkts() - best_flow->token_gap(),
              i->first));
             if(i->first == nrts_src_id) {
                 max_flow_limit = best_flow->remaining_pkts() - best_flow->token_gap();
@@ -404,27 +423,46 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
             i++;
         }
     }
-    sort(vect.begin(), vect.end());
-    for(auto i = vect.begin(); i != vect.end(); i++) {
-        srcs.push_back(i->second);
-        if(i->first > max_flow_limit) {
-            break;
-        }
-        // if(debug_host(this->id)) {
-        //     std::cout << get_current_time() << " " << i->first << " " << i->second << std::endl;
+    // sort(vect.begin(), vect.end());
+    std::random_shuffle(vect1.begin(), vect1.end());
+    // if(nrts_src_id != -1) {
+    //     sort(vect1.begin(), vect1.end());
+    //     for(auto i = vect1.begin(); i != vect1.end(); i++) {
+    //         if(srcs.size() < params.ranking_max_src_num)
+    //             srcs.push_back(i->second);
+    //         else
+    //             break;
+    //     }
+        // for(auto i = vect1.begin(); i != vect1.end(); i++) {
+        //     if(i->first <= max_flow_limit) {
+        //         vect2.push_back(*i);
+        //     }
         // }
+        // vect1.clear();
+        // auto num_flow = uint32_t(params.ranking_max_src_num) 
+        //     < vect2.size() ? uint32_t(params.ranking_max_src_num) : vect2.size() ;
+        // std::random_shuffle(vect2.begin(), vect2.end());
+        // for(auto i = 0; i < num_flow; i++) {
+        //     vect1.push_back(vect2[i]);
+        // }
+    // }
+    // uint32_t src_num = nrts_src_id == -1 ? vect1.size() : uint32_t(params.ranking_max_src_num);
+    // std::sort(vect1.begin(), vect1.end(), );
+    std::sort(vect1.begin(), vect1.end(), ListSrcComparator());
+    if(debug_host(id)) {
+
+        for(auto i = vect1.begin(); i != vect1.end(); i++) {
+            std::cout << i->first << " " << i->second << std::endl;
+        }
+
+    }
+    for(auto i = vect1.begin(); i != vect1.end(); i++) {
+        srcs.push_back(i->second);
+        // if(srcs.size() >= src_num)
+        //     break;
     }
     if(srcs.empty() && (nrts_src_id == -1))
         return;
-    if(debug_host(id)) {
-        std::cout << get_current_time() << " dst " << id <<  " sending listsrc; num src:" << srcs.size() << std::endl;
-        std::cout << " total srcs:" << vect.size() << std::endl;
-        if(srcs.size() > 10) {
-            for(auto i = srcs.begin(); i != srcs.end(); i++) {
-                std::cout << this->src_to_flows[*i].top()->id << " " << (this->src_to_flows[*i].top()->redundancy_ctrl_timeout > get_current_time()) << std::endl;
-            }
-        }
-    }
 
     RankingListSrcs* listSrcs = new RankingListSrcs(this->fake_flow,
      this, dynamic_cast<RankingTopology*>(topology)->arbiter , this, srcs);
@@ -577,10 +615,10 @@ void RankingHost::send_token() {
                 // for P4 ranking algorithm
                 if(f->size_in_pkt > params.token_initial) {
                     assert( this->gosrc_info.remain_tokens > 0);
+                    this->gosrc_info.remain_tokens--;
                     if(debug_host(id)) {
                         std::cout << get_current_time() << " remain_tokens: " << this->gosrc_info.remain_tokens << std::endl;   
                     }
-                    this->gosrc_info.remain_tokens--;
                     if(this->gosrc_info.remain_tokens == 0) {
                         this->gosrc_info.reset();
                     }
@@ -633,7 +671,7 @@ void RankingHost::send_token() {
 
 void RankingHost::receive_gosrc(RankingGoSrc* pkt) {
     if(debug_host(this->id)) {
-        std::cout << get_current_time() << " receive GoSRC for dst " << this->id << "src id is " << pkt->src_id << std::endl; 
+        std::cout << get_current_time() << " receive GoSRC for dst " << this->id << "src id is " << pkt->src_id << " queue delay:" << pkt->total_queuing_delay << std::endl; 
     }
     // find the minimum size of the flow for a source;
     RankingFlow* best_large_flow = this->get_top_unfinish_flow(pkt->src_id);

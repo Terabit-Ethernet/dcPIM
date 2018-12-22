@@ -19,6 +19,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     params.incast_tm = 0;
     params.hdr_size = 40;
     params.print_max_min_fairness = false;
+    params.num_hosts = 144;
     while (std::getline(input, line)) {
         std::istringstream lineStream(line);
         if (line.empty()) {
@@ -273,6 +274,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     params.token_window_timeout *= params.BDP * params.get_full_pkt_tran_delay();
     params.ranking_reset_epoch *= params.BDP * params.get_full_pkt_tran_delay();
     params.ranking_controller_epoch *= params.BDP * params.get_full_pkt_tran_delay();
+    params.ranking_max_src_num = (params.bandwidth / 8 * (params.ranking_max_tokens * params.get_full_pkt_tran_delay()) / params.num_hosts - params.hdr_size) / 2;
 
     // multi-round protocol
     // params.pim_iter_limit = 4;

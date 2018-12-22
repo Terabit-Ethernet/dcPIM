@@ -134,7 +134,8 @@ RankingListSrcs::RankingListSrcs(Flow *flow, Host *src, Host *dst, Host *rts_dst
     this->type = RANKING_LISTSRCS;
     this->rts_dst = rts_dst;
     this->listSrcs = listSrcs;
-    this->size += uint32_t(2.5 * this->listSrcs.size());
+    // assume src id  is 2 bytes;
+    this->size += uint32_t(2 * this->listSrcs.size());
     this->has_nrts = false;
 }
 
