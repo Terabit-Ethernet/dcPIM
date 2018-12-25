@@ -107,6 +107,7 @@ class RankingHost : public SchedulingHost {
 
         GoSRC gosrc_info;
         double idle_count;
+        double last_send_list_src_time;
         // only used for fairness testing
         std::unordered_map<int, int> src_to_pkts;
         // std::list <RankingFlow*> pending_flows;

@@ -148,6 +148,7 @@ RankingHost::RankingHost(uint32_t id, double rate, uint32_t queue_type) : Schedu
     this->debug_send_go_src = 0;
     this->debug_send_wake_up = 0;
     this->debug_use_all_tokens = 0;
+    this->last_send_list_src_time = 1.0;
 }
 
 // Statistics 
@@ -371,6 +372,10 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
     if(this->gosrc_info.src != NULL && this->gosrc_info.src->id == nrts_src_id){
         remain_tokens = this->gosrc_info.remain_tokens;
     }
+    if(debug_host(id)) {
+        std::cout << get_current_time() << "send list_src time diff:" <<  get_current_time() - this->last_send_list_src_time << std::endl;
+        this->last_send_list_src_time = get_current_time();
+    }
     // if(debug_host(this->id)) {
     //     std::cout << get_current_time() << " debug_new_flow: " << this->debug_new_flow
     //     << " debug_send_flow_finish " << this->debug_send_flow_finish 
@@ -567,59 +572,58 @@ void RankingHost::send_token() {
             //just timeout, reset timeout state
             if(f->redundancy_ctrl_timeout > 0)
             {
-                f->redundancy_ctrl_timeout = -1;
-                f->token_goal += f->remaining_pkts();
                 if(debug_flow(f->id)) {
                     std::cout << get_current_time() << " redundancy_ctrl_timeout met" << f->id  << "\n";
                 }
+                f->redundancy_ctrl_timeout = -1;
+                f->token_goal += f->remaining_pkts();
             }
 
             if(f->token_gap() > params.token_window)
             {
-
                 if(get_current_time() >= f->latest_token_sent_time + params.token_window_timeout) {
-                    f->relax_token_gap();
                     if(debug_host(this->id)) {
                         std::cout << get_current_time() << " host " << this->id << " relax token gap for flow " << f->id << std::endl;
                     }
+                    f->relax_token_gap();
                 }
                 else{
                     if(f->latest_token_sent_time + params.token_window_timeout < closet_timeout)
                     {
-                        closet_timeout = f->latest_token_sent_time + params.token_window_timeout;
                         if(debug_host(this->id)) {
                             std::cout << get_current_time() << " host " << this->id << " token_window full wait for timeout for flow " << f->id << std::endl;
                         }
+                        closet_timeout = f->latest_token_sent_time + params.token_window_timeout;
                     }
                 }
 
             }
             if(f->token_gap() <= params.token_window)
             {
-                auto next_data_seq = f->get_next_token_seq_num();
-                f->send_token_pkt();
                 if(debug_host(id)) {
                         std::cout << get_current_time() << " sending tokens for flow " << f->id << std::endl;   
                 }
+                auto next_data_seq = f->get_next_token_seq_num();
+                f->send_token_pkt();
                 token_sent = true;
                 // this->token_hist.push_back(this->recv_flow->id);
                 if(next_data_seq >= f->get_next_token_seq_num()) {
                     // if(!f->first_loop) {
                     //     f->first_loop = true;
                     // } else {
-                        f->redundancy_ctrl_timeout = get_current_time() + params.token_resend_timeout;
                         if(debug_flow(f->id)) {
                             std::cout << get_current_time() << " redundancy_ctrl_timeout set up " << f->id << " timeout value: " << f->redundancy_ctrl_timeout << "\n";
                         }
+                        f->redundancy_ctrl_timeout = get_current_time() + params.token_resend_timeout;
                     // }
                 }
                 // for P4 ranking algorithm
                 if(f->size_in_pkt > params.token_initial) {
                     assert( this->gosrc_info.remain_tokens > 0);
-                    this->gosrc_info.remain_tokens--;
                     if(debug_host(id)) {
                         std::cout << get_current_time() << " remain_tokens: " << this->gosrc_info.remain_tokens << std::endl;   
                     }
+                    this->gosrc_info.remain_tokens--;
                     if(this->gosrc_info.remain_tokens == 0) {
                         this->gosrc_info.reset();
                     }
