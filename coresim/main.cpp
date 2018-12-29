@@ -18,6 +18,8 @@
 #include "../ext/factory.h"
 //#include "../ext/fastpasshost.h"
 #include "../ext/rankinghost.h"
+#include "../ext/rankingTopology.h"
+
 #include "../run/params.h"
 
 using namespace std;
@@ -78,6 +80,7 @@ double get_current_time() {
 void run_scenario() {
     // Flow Arrivals create new flow arrivals
     // Add the first flow arrival
+    double next_time = 1.0;
     if (flow_arrivals.size() > 0) {
         add_to_event_queue(flow_arrivals.front());
         flow_arrivals.pop_front();
@@ -113,6 +116,14 @@ void run_scenario() {
                 ((RankingHost*)topology->hosts[i])->print_max_min_fairness();
             }
             assert(false);
+        }
+        if(params.debug_controller_queue) {
+            if(current_time > next_time) {
+                next_time = current_time + 0.0000001;
+                RankingTopology* t = dynamic_cast<RankingTopology*>(topology);
+                RankingAggSwitch* agg_switch = (RankingAggSwitch*)(t->agg_switches[0]);
+                std::cout << "queue size: " << agg_switch->queue_to_arbiter->bytes_in_queue << " time: "<< next_time << std::endl;
+            }
         }
         delete ev;
     }

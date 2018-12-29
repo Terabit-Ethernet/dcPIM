@@ -20,6 +20,8 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     params.hdr_size = 40;
     params.print_max_min_fairness = false;
     params.num_hosts = 144;
+    params.debug_controller_queue = false;
+    params.policy = "rtt";
     while (std::getline(input, line)) {
         std::istringstream lineStream(line);
         if (line.empty()) {
@@ -162,6 +164,8 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         }
         else if (key == "ranking_controller_epoch") {
             lineStream >> params.ranking_controller_epoch;
+        } else if (key == "debug_controller_queue") {
+            lineStream >> params.debug_controller_queue;
         }
         // --------------
         // Multi-Round algorithm

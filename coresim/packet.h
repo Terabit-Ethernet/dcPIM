@@ -193,6 +193,7 @@ class RankingListSrcs : public Packet
         RankingListSrcs(Flow *flow, Host *src, Host *dst, Host* rts_dst, std::list<uint32_t> listSrcs);
         ~RankingListSrcs();
         std::list<uint32_t> listSrcs;
+        std::list<uint32_t> flowSizes;
         Host* rts_dst;
         bool has_nrts;
         int nrts_src_id;

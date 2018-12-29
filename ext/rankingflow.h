@@ -19,17 +19,6 @@ public:
     int ranking_round;
 };
 
-class ListSrcs //for extendability
-{
-public:
-    Host* dst;
-    std::list<uint32_t> listSrcs;
-    ListSrcs() = default;
-    ~ListSrcs() {
-        listSrcs.clear();
-    };
-};
-
 class RankingFlow : public FountainFlow {
 public:
     RankingFlow(uint32_t id, double start_time, uint32_t size, Host *s, Host *d);

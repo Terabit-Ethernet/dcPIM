@@ -2,6 +2,7 @@
 #define RANKING_HOST_H
 
 #include <map>
+// #include <queue>
 #include <unordered_map>
 #include <set>
 
@@ -43,6 +44,25 @@ public:
     ~GoSRC() = default;
 };
 
+class ListSrcs //for extendability
+{
+public:
+    Host* dst;
+    std::list<uint32_t> listSrcs;
+    ListSrcs() = default;
+    ~ListSrcs() {
+        listSrcs.clear();
+    };
+};
+
+class PqElement {
+public:
+    Host* dst;
+    uint32_t src_id;
+    int flow_size;
+};
+
+// used for host when forming new listSrc
 class ListSrcComparator {
 public:
     bool operator()(const std::pair<int,int> &left, const std::pair<int,int> &right) {
@@ -50,13 +70,20 @@ public:
     }
 };
 
-
+// used for the arbiter
 class ListSrcsComparator {
     public:
         ListSrcsComparator();
         std::vector<double> ranking;
         bool operator() (ListSrcs* a, ListSrcs* b);
         void reset_ranking();
+};
+
+class PqElementComparator {
+public:
+    bool operator() (PqElement* a, PqElement* b) {
+        return a->flow_size > b->flow_size;
+    }
 };
 
 class RankingFlowComparator {
@@ -135,11 +162,14 @@ class RankingArbiter : public Host {
         void receive_listsrcs(RankingListSrcs* pkt);
         void receive_nrts(RankingNRTS* pkt);
         void reset_ranking();
+        void rtt_schedule();
+        void ranking_schedule();
         std::vector<bool> src_state;
         std::vector<bool> dst_state;
         RankingArbiterProcessingEvent* arbiter_proc_evt;
         double last_reset_ranking_time;
-        CustomPriorityQueue<ListSrcs*, std::vector<ListSrcs*>, ListSrcsComparator> pending_q;
+        CustomPriorityQueue<ListSrcs*, std::vector<ListSrcs*>, ListSrcsComparator> ranking_q;
+        CustomPriorityQueue<PqElement*, std::vector<PqElement*>, PqElementComparator> rtt_q;
 };
 
 #define RANKING_ARBITER_PROCESSING 17

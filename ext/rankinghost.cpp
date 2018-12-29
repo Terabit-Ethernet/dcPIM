@@ -368,6 +368,7 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
     std::vector<std::pair<int, int>> vect2;
 
     std::list<uint32_t> srcs;
+    std::list<uint32_t> flow_sizes;
     int remain_tokens = 0;
     if(this->gosrc_info.src != NULL && this->gosrc_info.src->id == nrts_src_id){
         remain_tokens = this->gosrc_info.remain_tokens;
@@ -429,31 +430,7 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
             i++;
         }
     }
-    // sort(vect.begin(), vect.end());
     std::random_shuffle(vect1.begin(), vect1.end());
-    // if(nrts_src_id != -1) {
-    //     sort(vect1.begin(), vect1.end());
-    //     for(auto i = vect1.begin(); i != vect1.end(); i++) {
-    //         if(srcs.size() < params.ranking_max_src_num)
-    //             srcs.push_back(i->second);
-    //         else
-    //             break;
-    //     }
-        // for(auto i = vect1.begin(); i != vect1.end(); i++) {
-        //     if(i->first <= max_flow_limit) {
-        //         vect2.push_back(*i);
-        //     }
-        // }
-        // vect1.clear();
-        // auto num_flow = uint32_t(params.ranking_max_src_num) 
-        //     < vect2.size() ? uint32_t(params.ranking_max_src_num) : vect2.size() ;
-        // std::random_shuffle(vect2.begin(), vect2.end());
-        // for(auto i = 0; i < num_flow; i++) {
-        //     vect1.push_back(vect2[i]);
-        // }
-    // }
-    // uint32_t src_num = nrts_src_id == -1 ? vect1.size() : uint32_t(params.ranking_max_src_num);
-    // std::sort(vect1.begin(), vect1.end(), );
     std::sort(vect1.begin(), vect1.end(), ListSrcComparator());
     if(debug_host(id)) {
 
@@ -463,6 +440,7 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
 
     }
     for(auto i = vect1.begin(); i != vect1.end(); i++) {
+        flow_sizes.push_back(i->first);
         srcs.push_back(i->second);
         // if(srcs.size() >= src_num)
         //     break;
@@ -472,6 +450,13 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
 
     RankingListSrcs* listSrcs = new RankingListSrcs(this->fake_flow,
      this, dynamic_cast<RankingTopology*>(topology)->arbiter , this, srcs);
+    if(params.policy == "rtt") {
+        listSrcs->flowSizes = flow_sizes;
+        if(debug_host(id)) {
+            std::cout << "flow size" << flow_sizes.size() << std::endl;
+        }
+        listSrcs->size += 2 * flow_sizes.size();
+    }
     if(nrts_src_id != -1) {
         listSrcs->has_nrts = true;
         listSrcs->nrts_src_id = nrts_src_id;
@@ -737,19 +722,10 @@ void RankingArbiter::schedule_proc_evt(double time) {
     add_to_event_queue(this->arbiter_proc_evt);
 }
 
-void RankingArbiter::schedule_epoch() {
-    if (total_finished_flows >= params.num_flows_to_run)
-        return;
-    // if(total_finished_flows == 9727) {
-    //     for(int i = 0; i < this->src_state.size(); i++) {
-    //         std::cout << "src " << i << " state " << this->src_state[i] << std::endl;
-    //     }
-    //     assert(false);
-    // }
-    //std::cout << get_current_time() <<  "pending queue size of arbirter " << this->pending_q.size() << std::endl;
-    while(!this->pending_q.empty()) {
-        auto request = this->pending_q.top();
-        this->pending_q.pop();
+void RankingArbiter::ranking_schedule() {
+    while(!this->ranking_q.empty()) {
+        auto request = this->ranking_q.top();
+        this->ranking_q.pop();
         if(this->dst_state[request->dst->id] == false) {
             delete request;
             continue;
@@ -777,9 +753,36 @@ void RankingArbiter::schedule_epoch() {
     }
     if(get_current_time() > this->last_reset_ranking_time + params.ranking_reset_epoch) {
         // std::cout <<  get_current_time() << " reset ranking" << std::endl;
-        this->pending_q.comp.reset_ranking();
+        this->ranking_q.comp.reset_ranking();
         this->last_reset_ranking_time = get_current_time();
         // std::cout << get_current_time() << " reset ranking " << std::endl;
+    }
+}
+void RankingArbiter::rtt_schedule() {
+    while(!this->rtt_q.empty()) {
+        auto request = this->rtt_q.top();
+        this->rtt_q.pop();
+        if(this->dst_state[request->dst->id] == false || this->src_state[request->src_id] == false) {
+            delete request;
+            continue;
+        }
+        if(debug_host(request->dst->id)) {
+            std::cout << get_current_time() << " schedule epoch for dst " << request->dst->id << std::endl;
+            std::cout << get_current_time() << " src " << (request->src_id) << "state " << this->src_state[request->src_id] << " flow size:" << request->flow_size << std::endl;
+        }
+        this->src_state[request->src_id] = false;
+        this->dst_state[request->dst->id] = false;
+        ((RankingHost*)(request->dst))->fake_flow->sending_gosrc(request->src_id);
+        delete request;
+    }
+}
+void RankingArbiter::schedule_epoch() {
+    if (total_finished_flows >= params.num_flows_to_run)
+        return;
+    if(params.policy == "ranking") {
+        this->ranking_schedule();
+    } else if(params.policy == "rtt") {
+        this->rtt_schedule();
     }
     //schedule next arbiter proc evt
     this->schedule_proc_evt(get_current_time() + params.ranking_controller_epoch);
@@ -788,10 +791,24 @@ void RankingArbiter::schedule_epoch() {
 void RankingArbiter::receive_listsrcs(RankingListSrcs* pkt) {
     if(debug_host(pkt->rts_dst->id))
         std::cout << get_current_time() << " Arbiter: receive listsrcs " << pkt->rts_dst->id << std::endl;
-    auto listSrcs = new ListSrcs();
-    listSrcs->dst = pkt->rts_dst;
-    listSrcs->listSrcs = pkt->listSrcs;
-    this->pending_q.push(listSrcs);
+    if(params.policy == "ranking") {
+        auto listSrcs = new ListSrcs();
+        listSrcs->dst = pkt->rts_dst;
+        listSrcs->listSrcs = pkt->listSrcs;
+        this->ranking_q.push(listSrcs);
+    } else if(params.policy == "rtt") {
+        auto i = pkt->listSrcs.begin();
+        auto j = pkt->flowSizes.begin();
+        while(i != pkt->listSrcs.end()) {
+            auto element = new PqElement();
+            element->dst = pkt->rts_dst;
+            element->src_id = *i;
+            element->flow_size = *j;
+            i++;
+            j++;
+            this->rtt_q.push(element);
+        }
+    }
     if(pkt->has_nrts) {
         this->src_state[pkt->nrts_src_id] = true;
         this->dst_state[pkt->nrts_dst_id] = true;

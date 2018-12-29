@@ -101,6 +101,9 @@ class DCExpParams {
         double rtt;
         double ctrl_pkt_rtt;
         double ranking_max_src_num;
+        bool debug_controller_queue;
+        std::string policy;
+
         // debug for max-min fairness
         bool print_max_min_fairness;
 
@@ -112,6 +115,7 @@ class DCExpParams {
         double pim_window_timeout;
         double pim_resend_timeout;
         int pim_low_priority;
+
         double get_full_pkt_tran_delay(uint32_t size_in_byte = 1500)
         {
             return size_in_byte * 8 / this->bandwidth;
