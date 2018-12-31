@@ -1,7 +1,7 @@
 #!/bin/bash
 
 loads=(5 6 7 8 9 10)
-algos=(ranking)
+algos=(ranking fastpass pfabric phost)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()
 
