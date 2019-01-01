@@ -1,9 +1,9 @@
-conf_str_pfabric = '''init_cwnd: 12
-max_cwnd: 15
+conf_str_pfabric = '''init_cwnd: 7
+max_cwnd: 10
 retx_timeout: 45e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 2
 num_flow: 200000
@@ -24,8 +24,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 11
-capability_window: 11
+capability_initial: 7
+capability_window: 7
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -49,7 +49,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 112
 num_flow: 200000
@@ -70,8 +70,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 11
-capability_window: 11
+capability_initial: 7
+capability_window: 7
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -95,7 +95,7 @@ max_cwnd: 12
 retx_timeout: 45e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 114
 num_flow: 200000
@@ -116,8 +116,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 11
-capability_window: 11
+capability_initial: 7
+capability_window: 7
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -141,7 +141,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 112
 num_flow: 200000
@@ -162,8 +162,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 11
-capability_window: 11
+capability_initial: 7
+capability_window: 7
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -187,7 +187,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 115
 num_flow: 200000
@@ -212,10 +212,10 @@ token_timeout: 2
 token_resend_timeout: 1
 token_window: 1
 token_window_timeout: 1.1
-rankinghost_idle_timeout: 0.5
-ranking_reset_epoch: 5
-ranking_max_tokens: 1
-ranking_controller_epoch: 0.25
+rankinghost_idle_timeout: 1.0
+ranking_reset_epoch: 1
+ranking_max_tokens: 2
+ranking_controller_epoch: 0.75
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33
@@ -236,7 +236,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 116
 num_flow: 200000
@@ -276,7 +276,7 @@ num_host_types: 13
 permutation_tm: 1
 '''
 
-runs = ['pfabric', 'phost', 'fastpass', 'random', 'ranking', "multi_round"]
+runs = ['pfabric', 'phost', 'fastpass', 'random', 'ranking']
 workloads = ['aditya', 'dctcp', 'datamining', 'constant']
 #incasts = [1,143]
 for r in runs:

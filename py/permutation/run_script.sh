@@ -1,6 +1,6 @@
 #!/bin/bash
 
-algos=(multi_round)
+algos=(ranking fastpass pfabric phost)
 pids=()
 OUTPUT_FOLDER=../result/permutation
 DATE=$1
@@ -14,9 +14,9 @@ do
 	    # echo "$OUTPUT_FOLDER"/result_"$algo"_dctcp_"$incast".txt
 	../../simulator 1 conf_"$algo"_"$2".txt > "$OUTPUT_FOLDER/$DATE"/result_"$algo"_"$2".txt&
 	 pids[${i}]=$!
-	for pid in ${pids[*]}; 
-	do
-    	wait $pid
-    done
+#	for pid in ${pids[*]}; 
+#	do
+    	#wait $pid
+ #   done
     pids=()
 done
