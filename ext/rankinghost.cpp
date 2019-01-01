@@ -418,7 +418,7 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
             flows_tried.pop();
         }
         if(best_flow != NULL) {
-            vect1.push_back(std::make_pair(best_flow->remaining_pkts() - best_flow->token_gap(),
+            vect1.push_back(std::make_pair(std::min(best_flow->remaining_pkts() - best_flow->token_gap(), 65535),
              i->first));
             if(i->first == nrts_src_id) {
                 max_flow_limit = best_flow->remaining_pkts() - best_flow->token_gap();
@@ -432,13 +432,6 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
     }
     std::random_shuffle(vect1.begin(), vect1.end());
     std::sort(vect1.begin(), vect1.end(), ListSrcComparator());
-    if(debug_host(id)) {
-
-        for(auto i = vect1.begin(); i != vect1.end(); i++) {
-            std::cout << i->first << " " << i->second << std::endl;
-        }
-
-    }
     for(auto i = vect1.begin(); i != vect1.end(); i++) {
         flow_sizes.push_back(i->first);
         srcs.push_back(i->second);
