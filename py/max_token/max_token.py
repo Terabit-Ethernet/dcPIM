@@ -28,10 +28,10 @@ token_timeout: 2
 token_resend_timeout: 1
 token_window: 1
 token_window_timeout: 1.1
-rankinghost_idle_timeout: 1.0
+rankinghost_idle_timeout: {3}
 ranking_reset_epoch: 1
 ranking_max_tokens: {0}
-ranking_controller_epoch: 0.75
+ranking_controller_epoch: {2}
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33
@@ -49,22 +49,25 @@ num_host_types: 13
 runs = ['ranking']
 workloads = ['aditya', 'dctcp', 'datamining', 'constant']
 tokens = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+control_epochs = [0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]
 #epochs = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
 for r in runs:
     for w in workloads:
         #  generate conf file
         for token in tokens:
-	        if r == 'pfabric':
-	            conf_str = conf_str_pfabric.format(token, w)
-	        elif r == 'phost':
-	            conf_str = conf_str_phost.format(token, w)
-	        elif r == 'fastpass':
-	            conf_str = conf_str_fastpass.format(token, w)
-	        elif r == 'random':
-	            conf_str = conf_str_random.format(token, w)
-	        elif r == 'ranking':
-	        	conf_str = conf_str_ranking.format(token, w)
-	        confFile = "conf_{0}_{1}_{2}.txt".format(r, w, int(token))
-	        with open(confFile, 'w') as f:
-	            print confFile
-	            f.write(conf_str)
+        	for control_epoch in control_epochs:
+	        # if r == 'pfabric':
+	        #     conf_str = conf_str_pfabric.format(token, w)
+	        # elif r == 'phost':
+	        #     conf_str = conf_str_phost.format(token, w)
+	        # elif r == 'fastpass':
+	        #     conf_str = conf_str_fastpass.format(token, w)
+	        # elif r == 'random':
+	        #     conf_str = conf_str_random.format(token, w)
+		        c_time = control_epoch * token
+		        idle_time = 0.25 + c_time
+	    		conf_str = conf_str_ranking.format(token, w, c_time, idle_time)
+		        confFile = "conf_{0}_{1}_{2}_{3}.txt".format(r, w, int(token), control_epoch)
+		        with open(confFile, 'w') as f:
+		            print confFile
+		            f.write(conf_str)
