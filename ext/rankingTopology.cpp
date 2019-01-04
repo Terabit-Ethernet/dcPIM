@@ -123,6 +123,7 @@ RankingTopology::RankingTopology(
 
 Queue* RankingTopology::get_next_hop(Packet* p, Queue* q) {
     if (q->dst->type == HOST) {
+        assert(p->dst->id == q->dst->id);
         return NULL; // Packet Arrival
     }
 
@@ -136,7 +137,11 @@ Queue* RankingTopology::get_next_hop(Packet* p, Queue* q) {
                  (p->dst->host_type == RANKING_ARBITER && p->src->id / 16 == 0)
                 )
            ) {
-            return ((Switch *) q->dst)->queues[p->dst->id % 16];
+            // arbiter id = 144; 144 / 16 = 9; no other src can be 9;
+            if(p->dst->host_type == RANKING_ARBITER)
+                return ((RankingAggSwitch *) q->dst)->queue_to_arbiter;
+            else
+                return ((Switch *) q->dst)->queues[p->dst->id % 16];
         } 
         else {
             uint32_t hash_port = 0;
@@ -171,7 +176,7 @@ Queue* RankingTopology::get_next_hop(Packet* p, Queue* q) {
 
 double RankingTopology::get_control_pkt_rtt(int host_id) {
     if(host_id / 16 == 0) {
-        return (2 * params.propagation_delay + (40 * 8 / params.bandwidth)) * 2;
+        return (2 * params.propagation_delay + (40 * 8 / params.bandwidth) * 2) * 2;
     } else {
         return (4 * params.propagation_delay + (40 * 8 / params.bandwidth) * 2.5) * 2;
     }

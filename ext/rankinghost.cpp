@@ -443,13 +443,13 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
 
     RankingListSrcs* listSrcs = new RankingListSrcs(this->fake_flow,
      this, dynamic_cast<RankingTopology*>(topology)->arbiter , this, srcs);
-    if(params.policy == "rtt") {
-        listSrcs->flowSizes = flow_sizes;
-        if(debug_host(id)) {
-            std::cout << "flow size" << flow_sizes.size() << std::endl;
-        }
-        listSrcs->size += 2 * flow_sizes.size();
+    // if(params.policy == "rtt") {
+    listSrcs->flowSizes = flow_sizes;
+    if(debug_host(id)) {
+        std::cout << "flow size" << flow_sizes.size() << std::endl;
     }
+    listSrcs->size += 2 * flow_sizes.size();
+    // }
     if(nrts_src_id != -1) {
         listSrcs->has_nrts = true;
         listSrcs->nrts_src_id = nrts_src_id;
@@ -481,7 +481,7 @@ void RankingHost::wakeup() {
     // if(!this->src_to_flows.empty()) {
     this->idle_count++;
     if(debug_host(id)) {
-        std::cout << "wake up for sending listSRC" << std::endl;
+        std::cout <<get_current_time() <<  " wake up for sending listSRC" << std::endl;
     }
     this->debug_send_wake_up++;
 
@@ -716,53 +716,58 @@ void RankingArbiter::schedule_proc_evt(double time) {
 }
 
 void RankingArbiter::ranking_schedule() {
-    while(!this->ranking_q.empty()) {
-        auto request = this->ranking_q.top();
-        this->ranking_q.pop();
-        if(this->dst_state[request->dst->id] == false) {
-            delete request;
-            continue;
-        }
-        if(debug_host(request->dst->id)) {
-            std::cout << get_current_time() << " schedule epoch for dst " << request->dst->id << std::endl;
-            for(auto i = request->listSrcs.begin(); i != request->listSrcs.end(); i++) {
-                std::cout << get_current_time() << " src " << (*i) << "state " << this->src_state[(*i)] << std::endl;
-            }
-        }
-        for(auto i = request->listSrcs.begin(); i != request->listSrcs.end(); i++) {
-            if(this->src_state[(*i)]) {
-                this->src_state[(*i)] = false;
-                this->dst_state[request->dst->id] = false;
-                // send GoSRC packet
-                // if(*i == 121) {
-                //     std::cout << get_current_time() << " src " << (*i) << " assign to dst " << request->dst->id << std::endl;
-                // }
+    assert(false);
+    // while(!this->ranking_q.empty()) {
+    //     auto request = this->ranking_q.top();
+    //     this->ranking_q.pop();
+    //     if(this->dst_state[request->dst->id] == false) {
+    //         delete request;
+    //         continue;
+    //     }
+    //     if(debug_host(request->dst->id)) {
+    //         std::cout << get_current_time() << " schedule epoch for dst " << request->dst->id << std::endl;
+    //         for(auto i = request->listSrcs.begin(); i != request->listSrcs.end(); i++) {
+    //             std::cout << get_current_time() << " src " << (*i) << "state " << this->src_state[(*i)] << std::endl;
+    //         }
+    //     }
+    //     for(auto i = request->listSrcs.begin(); i != request->listSrcs.end(); i++) {
+    //         if(this->src_state[(*i)]) {
+    //             this->src_state[(*i)] = false;
+    //             this->dst_state[request->dst->id] = false;
+    //             // send GoSRC packet
+    //             // if(*i == 121) {
+    //             //     std::cout << get_current_time() << " src " << (*i) << " assign to dst " << request->dst->id << std::endl;
+    //             // }
 
-                ((RankingHost*)(request->dst))->fake_flow->sending_gosrc(*i);
-                break;
-            }
-        }
-        delete request;
-    }
-    if(get_current_time() > this->last_reset_ranking_time + params.ranking_reset_epoch) {
-        // std::cout <<  get_current_time() << " reset ranking" << std::endl;
-        this->ranking_q.comp.reset_ranking();
-        this->last_reset_ranking_time = get_current_time();
-        // std::cout << get_current_time() << " reset ranking " << std::endl;
-    }
+    //             ((RankingHost*)(request->dst))->fake_flow->sending_gosrc(*i);
+    //             break;
+    //         }
+    //     }
+    //     delete request;
+    // }
+    // if(get_current_time() > this->last_reset_ranking_time + params.ranking_reset_epoch) {
+    //     // std::cout <<  get_current_time() << " reset ranking" << std::endl;
+    //     this->ranking_q.comp.reset_ranking();
+    //     this->last_reset_ranking_time = get_current_time();
+    //     // std::cout << get_current_time() << " reset ranking " << std::endl;
+    // }
 }
 void RankingArbiter::rtt_schedule() {
     while(!this->rtt_q.empty()) {
         auto request = this->rtt_q.top();
         this->rtt_q.pop();
-        if(this->dst_state[request->dst->id] == false || this->src_state[request->src_id] == false) {
-            delete request;
-            continue;
-        }
         if(debug_host(request->dst->id)) {
             std::cout << get_current_time() << " schedule epoch for dst " << request->dst->id << std::endl;
             std::cout << get_current_time() << " src " << (request->src_id) << "state " << this->src_state[request->src_id] << " flow size:" << request->flow_size << std::endl;
         }
+        if(this->dst_state[request->dst->id] == false || this->src_state[request->src_id] == false) {
+            delete request;
+            continue;
+        }
+        // if(request->src_id == 1) {
+        //     std::cout << get_current_time() << " schedule epoch for dst " << request->dst->id << std::endl;
+        //     std::cout << get_current_time() << " src " << (request->src_id) << "state " << this->src_state[request->src_id] << " flow size:" << request->flow_size << std::endl;
+        // }
         this->src_state[request->src_id] = false;
         this->dst_state[request->dst->id] = false;
         ((RankingHost*)(request->dst))->fake_flow->sending_gosrc(request->src_id);
@@ -772,24 +777,30 @@ void RankingArbiter::rtt_schedule() {
 void RankingArbiter::schedule_epoch() {
     if (total_finished_flows >= params.num_flows_to_run)
         return;
-    if(params.policy == "ranking") {
-        this->ranking_schedule();
-    } else if(params.policy == "rtt") {
-        this->rtt_schedule();
-    }
+    // if(params.policy == "ranking") {
+    //     this->ranking_schedule();
+    // } else if(params.policy == "rtt") {
+    this->rtt_schedule();
+    // }
     //schedule next arbiter proc evt
     this->schedule_proc_evt(get_current_time() + params.ranking_controller_epoch);
 }
 
 void RankingArbiter::receive_listsrcs(RankingListSrcs* pkt) {
     if(debug_host(pkt->rts_dst->id))
-        std::cout << get_current_time() << " Arbiter: receive listsrcs " << pkt->rts_dst->id << std::endl;
-    if(params.policy == "ranking") {
-        auto listSrcs = new ListSrcs();
-        listSrcs->dst = pkt->rts_dst;
-        listSrcs->listSrcs = pkt->listSrcs;
-        this->ranking_q.push(listSrcs);
-    } else if(params.policy == "rtt") {
+        std::cout << get_current_time() << " Arbiter: receive listsrcs " << pkt->rts_dst->id << " queue delay:" << pkt->total_queuing_delay << std::endl;
+    if(pkt->has_nrts) {
+        this->src_state[pkt->nrts_src_id] = true;
+        this->dst_state[pkt->nrts_dst_id] = true;
+    }
+    // if(this->dst_state[pkt->rts_dst->id]) {
+    //     if(params.policy == "ranking") {
+    //         auto listSrcs = new ListSrcs();
+    //         listSrcs->dst = pkt->rts_dst;
+    //         listSrcs->listSrcs = pkt->listSrcs;
+    //         this->ranking_q.push(listSrcs);
+    //     } else if(params.policy == "rtt") {
+    if(this->dst_state[pkt->rts_dst->id]){
         auto i = pkt->listSrcs.begin();
         auto j = pkt->flowSizes.begin();
         while(i != pkt->listSrcs.end()) {
@@ -802,10 +813,8 @@ void RankingArbiter::receive_listsrcs(RankingListSrcs* pkt) {
             this->rtt_q.push(element);
         }
     }
-    if(pkt->has_nrts) {
-        this->src_state[pkt->nrts_src_id] = true;
-        this->dst_state[pkt->nrts_dst_id] = true;
-    }
+    //     }
+    // }
 }
 
 void RankingArbiter::receive_nrts(RankingNRTS* pkt) {

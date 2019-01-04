@@ -81,6 +81,7 @@ void run_scenario() {
     // Flow Arrivals create new flow arrivals
     // Add the first flow arrival
     double next_time = 1.0;
+    double max = 0;
     if (flow_arrivals.size() > 0) {
         add_to_event_queue(flow_arrivals.front());
         flow_arrivals.pop_front();
@@ -119,10 +120,19 @@ void run_scenario() {
         }
         if(params.debug_controller_queue) {
             if(current_time > next_time) {
-                next_time = current_time + 0.0000001;
+                next_time = current_time + 0.000002;
                 RankingTopology* t = dynamic_cast<RankingTopology*>(topology);
                 RankingAggSwitch* agg_switch = (RankingAggSwitch*)(t->agg_switches[0]);
-                std::cout << "queue size: " << agg_switch->queue_to_arbiter->bytes_in_queue << " time: "<< next_time << std::endl;
+                auto queue = agg_switch->queue_to_arbiter;
+                if (queue->bytes_in_queue > max)
+                    max = queue->bytes_in_queue;
+                // if(queue->bytes_in_queue  > 3000 && max == queue->bytes_in_queue) {
+                        std::cout << get_current_time() << " " << queue->bytes_in_queue << std::endl;
+                        // for(int i = 0; i < queue->packets.size(); i++) {
+                        //     std::cout << queue->packets[i]->src->id << " " <<
+                        //      dynamic_cast<RankingListSrcs*> (queue->packets[i])->listSrcs.size() << std::endl;
+                        // }
+                // }
             }
         }
         delete ev;

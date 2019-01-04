@@ -96,13 +96,13 @@ class DCExpParams {
         //double ranking_epoch_time;
         double rankinghost_idle_timeout;
         double ranking_controller_epoch;
-        double ranking_reset_epoch;
+        // double ranking_reset_epoch;
         double ranking_max_tokens;
         double rtt;
         double ctrl_pkt_rtt;
         double ranking_max_src_num;
         bool debug_controller_queue;
-        std::string policy;
+        // std::string policy;
 
         // debug for max-min fairness
         bool print_max_min_fairness;

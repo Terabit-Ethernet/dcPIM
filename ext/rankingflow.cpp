@@ -96,7 +96,8 @@ void RankingFlow::assign_init_token(){
     // }
     for(int i = 0; i < init_token; i++){
         Token* c = new Token();
-        c->timeout = get_current_time() + init_token * params.get_full_pkt_tran_delay() + params.token_timeout;
+        // free token never timeout
+        c->timeout = get_current_time() + 100000000.0;
         c->seq_num = i;
         c->data_seq_num = i;
         c->ranking_round = -1;
