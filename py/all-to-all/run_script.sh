@@ -1,6 +1,6 @@
 #!/bin/bash
 
-algos=(fastpass ranking)
+algos=(ranking)
 aids=()
 OUTPUT_FOLDER=../result/all-to-all
 DATE=$1
