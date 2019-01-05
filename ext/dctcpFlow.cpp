@@ -136,7 +136,7 @@ void DctcpFlow::receive_data_pkt(Packet* p) {
     total_queuing_time += p->total_queuing_delay;
 
     if (received.count(p->seq_no) == 0) {
-        received[p->seq_no] = true;
+        received.insert(p->seq_no);
         if(num_outstanding_packets >= ((p->size - hdr_size) / (mss)))
             num_outstanding_packets -= ((p->size - hdr_size) / (mss));
         else

@@ -1,7 +1,7 @@
 #ifndef FLOW_H
 #define FLOW_H
 
-#include <unordered_map>
+#include <set>
 #include "node.h"
 
 class Packet;
@@ -54,7 +54,7 @@ class Flow {
         //  std::unordered_map<uint32_t, Packet *> packets;
 
         // Receiver variables
-        std::unordered_map<uint32_t, bool> received;
+        std::set<uint32_t> received;
         uint32_t received_bytes;
         uint32_t recv_till;
         uint32_t max_seq_no_recv;
