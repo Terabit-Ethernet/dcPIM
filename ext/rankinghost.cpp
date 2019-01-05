@@ -454,7 +454,7 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
         listSrcs->has_nrts = true;
         listSrcs->nrts_src_id = nrts_src_id;
         listSrcs->nrts_dst_id = this->id;
-        listSrcs->pf_priority = 0;
+        // listSrcs->pf_priority = 0;
         this->gosrc_info.send_nrts = true;
     }
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), listSrcs, this->queue));

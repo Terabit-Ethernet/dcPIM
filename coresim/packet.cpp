@@ -130,7 +130,7 @@ RankingRTS::RankingRTS(Flow *flow, Host *src, Host *dst, int size_in_pkt) : Pack
     this->size_in_pkt = size_in_pkt;
 }
 
-RankingListSrcs::RankingListSrcs(Flow *flow, Host *src, Host *dst, Host *rts_dst, std::list<uint32_t> listSrcs) : Packet(0, flow, 0, 1, params.hdr_size, src, dst) {
+RankingListSrcs::RankingListSrcs(Flow *flow, Host *src, Host *dst, Host *rts_dst, std::list<uint32_t> listSrcs) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = RANKING_LISTSRCS;
     this->rts_dst = rts_dst;
     this->listSrcs = listSrcs;
