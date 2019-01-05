@@ -103,6 +103,7 @@ class DCExpParams {
         double ranking_max_src_num;
         bool debug_controller_queue;
         // std::string policy;
+        std::string topology;
 
         // debug for max-min fairness
         bool print_max_min_fairness;

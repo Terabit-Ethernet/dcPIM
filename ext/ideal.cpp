@@ -7,7 +7,7 @@ extern DCExpParams params;
 
 extern double get_current_time();
 extern void add_to_event_queue(Event *);
-extern uint32_t num_outstanding_packets;
+extern long long num_outstanding_packets;
 extern IdealArbiter* ideal_arbiter;
 
 IdealArbiter::IdealArbiter() {

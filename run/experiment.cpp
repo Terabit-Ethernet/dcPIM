@@ -16,6 +16,7 @@
 #include "../coresim/node.h"
 #include "../coresim/event.h"
 #include "../coresim/topology.h"
+#include "../coresim/fatTreeTopology.h"
 #include "../coresim/queue.h"
 #include "../coresim/random_variable.h"
 
@@ -38,18 +39,18 @@ extern std::priority_queue<Event*, std::vector<Event*>, EventComparator> event_q
 extern std::deque<Flow*> flows_to_schedule;
 extern std::deque<Event*> flow_arrivals;
 
-extern uint32_t num_outstanding_packets;
-extern uint32_t max_outstanding_packets;
+extern long long num_outstanding_packets;
+extern long long max_outstanding_packets;
 extern DCExpParams params;
 extern void add_to_event_queue(Event*);
 extern void read_experiment_parameters(std::string conf_filename, uint32_t exp_type);
 extern void read_flows_to_schedule(std::string filename, uint32_t num_lines, Topology *topo);
 extern uint32_t duplicated_packets_received;
 
-extern uint32_t num_outstanding_packets_at_50;
-extern uint32_t num_outstanding_packets_at_100;
-extern uint32_t arrival_packets_at_50;
-extern uint32_t arrival_packets_at_100;
+extern long long num_outstanding_packets_at_50;
+extern long long num_outstanding_packets_at_100;
+extern long long arrival_packets_at_50;
+extern long long arrival_packets_at_100;
 
 extern double start_time;
 extern double get_current_time();

@@ -24,14 +24,14 @@ extern DCExpParams params;
 extern std::deque<Event*> flow_arrivals;
 extern std::deque<Flow*> flows_to_schedule;
 
-extern uint32_t num_outstanding_packets;
-extern uint32_t max_outstanding_packets;
+extern long long num_outstanding_packets;
+extern long long max_outstanding_packets;
 
-extern uint32_t num_outstanding_packets_at_50;
-extern uint32_t num_outstanding_packets_at_100;
-extern uint32_t arrival_packets_at_50;
-extern uint32_t arrival_packets_at_100;
-extern uint32_t arrival_packets_count;
+extern long long num_outstanding_packets_at_50;
+extern long long num_outstanding_packets_at_100;
+extern long long arrival_packets_at_50;
+extern long long arrival_packets_at_100;
+extern long long arrival_packets_count;
 extern uint32_t total_finished_flows;
 
 extern uint32_t backlog3;

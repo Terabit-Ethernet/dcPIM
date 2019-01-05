@@ -22,6 +22,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     params.num_hosts = 144;
     params.debug_controller_queue = false;
     // params.policy = "rtt";
+    // params.topology = "FatTree";
     while (std::getline(input, line)) {
         std::istringstream lineStream(line);
         if (line.empty()) {

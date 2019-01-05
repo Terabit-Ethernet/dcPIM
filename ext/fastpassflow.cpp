@@ -12,7 +12,7 @@ extern Topology *topology;
 extern double get_current_time();
 extern void add_to_event_queue(Event*);
 extern DCExpParams params;
-extern uint32_t num_outstanding_packets;
+extern long long num_outstanding_packets;
 
 FastpassFlow::FastpassFlow(
         uint32_t id, 

@@ -12,8 +12,8 @@ extern double get_current_time();
 extern void add_to_event_queue(Event *);
 extern int get_event_queue_size();
 extern DCExpParams params;
-extern uint32_t num_outstanding_packets;
-extern uint32_t max_outstanding_packets;
+extern long long num_outstanding_packets;
+extern long long max_outstanding_packets;
 extern uint32_t duplicated_packets_received;
 
 Flow::Flow(uint32_t id, double start_time, uint32_t size, Host *s, Host *d) {
