@@ -1,0 +1,63 @@
+
+gnuplot scripts/constant_util.gp
+
+gnuplot scripts/constant_slowdown.gp
+
+gnuplot -c scripts/util.gp all-to-all
+
+gnuplot -c scripts/util.gp permutation
+
+gnuplot -c scripts/slowdown.gp all-to-all
+
+gnuplot -c scripts/slowdown.gp permutation
+
+gnuplot -c scripts/slowdown-flow_size.gp aditya all-to-all
+
+gnuplot -c scripts/slowdown-flow_size.gp dctcp all-to-all
+
+gnuplot -c scripts/slowdown-flow_size.gp datamining all-to-all
+
+gnuplot -c scripts/slowdown-flow_size.gp aditya permutation
+
+gnuplot -c scripts/slowdown-flow_size.gp dctcp permutation
+
+gnuplot -c scripts/slowdown-flow_size.gp datamining permutation
+
+gnuplot -c scripts/control_epoch_util.gp aditya
+
+gnuplot -c scripts/control_epoch_util.gp dctcp
+
+gnuplot -c scripts/control_epoch_util.gp datamining
+
+gnuplot -c scripts/control_epoch_slowdown.gp dctcp
+
+gnuplot -c scripts/control_epoch_slowdown.gp aditya
+
+gnuplot -c scripts/control_epoch_slowdown.gp datamining
+
+gnuplot -c scripts/max_token_slowdown.gp aditya 15
+
+gnuplot -c scripts/max_token_slowdown.gp dctcp 60
+
+gnuplot -c scripts/max_token_slowdown.gp datamining
+
+gnuplot -c scripts/max_token_util.gp aditya 0.88
+
+gnuplot -c scripts/max_token_util.gp dctcp 0.90
+
+gnuplot -c scripts/max_token_util.gp datamining
+
+gnuplot -c scripts/load_util.gp datamining
+
+gnuplot -c scripts/load_util.gp dctcp
+
+gnuplot -c scripts/load_util.gp aditya
+
+gnuplot -c scripts/load_slowdown.gp aditya
+
+gnuplot -c scripts/load_slowdown.gp dctcp
+
+gnuplot -c scripts/load_slowdown.gp datamining
+
+# gnuplot -c scripts/queue_occupancy.gp aditya 1.4
+# gnuplot -c scripts/queue_occupancy.gp dctcp 4
