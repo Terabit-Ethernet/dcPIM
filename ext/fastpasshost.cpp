@@ -163,7 +163,7 @@ void FastpassArbiter::receive_rts(FastpassRTS* rts)
     if(!((FastpassFlow*)rts->flow)->arbiter_received_rts)
     {
         ((FastpassFlow*) rts->flow)->arbiter_received_rts = true;
-        dynamic_cast<FastpassTopology*>(topology)->arbiter->sending_flows.push((FastpassFlow*)rts->flow);
+        dynamic_cast<FastpassArbiter*>(topology->arbiter)->sending_flows.push((FastpassFlow*)rts->flow);
     }
 
     if(rts->remaining_num_pkts < 0){

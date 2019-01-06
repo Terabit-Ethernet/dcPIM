@@ -442,7 +442,7 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
         return;
 
     RankingListSrcs* listSrcs = new RankingListSrcs(this->fake_flow,
-     this, dynamic_cast<RankingTopology*>(topology)->arbiter , this, srcs);
+     this, topology->arbiter , this, srcs);
     // if(params.policy == "rtt") {
     listSrcs->flowSizes = flow_sizes;
     if(debug_host(id)) {
@@ -610,15 +610,15 @@ void RankingHost::send_token() {
         }
         if(f->size_in_pkt > params.token_initial) {
             auto gap = 0;
-            auto ctrl_pkt_rtt = dynamic_cast<RankingTopology*>(topology)->get_control_pkt_rtt(this->id);
+            auto ctrl_pkt_rtt = topology->get_control_pkt_rtt(this->id);
             if(this->gosrc_info.remain_tokens > f->remaining_pkts() - f->token_gap()) {
                 gap = f->remaining_pkts() - f->token_gap();
             } else {
                 gap = this->gosrc_info.remain_tokens;
             }
-            // if(debug_host(id)) {
-            //     std::cout << get_current_time() << " gap " << gap << " large or not " <<  (gap * params.get_full_pkt_tran_delay() <= ctrl_pkt_rtt + params.ranking_controller_epoch) << std::endl;
-            // }
+            if(debug_host(id)) {
+                std::cout << get_current_time() << " gap " << gap << " large or not " <<  (gap * params.get_full_pkt_tran_delay() <= ctrl_pkt_rtt + params.ranking_controller_epoch) << std::endl;
+            }
             if ((f->redundancy_ctrl_timeout > get_current_time() || 
                 gap * params.get_full_pkt_tran_delay() <= ctrl_pkt_rtt + params.ranking_controller_epoch)
              && this->gosrc_info.send_nrts == false) {
@@ -780,6 +780,7 @@ void RankingArbiter::schedule_epoch() {
     // if(params.policy == "ranking") {
     //     this->ranking_schedule();
     // } else if(params.policy == "rtt") {
+    // std::cout << get_current_time() << " Arbiter schedule" << std::endl;
     this->rtt_schedule();
     // }
     //schedule next arbiter proc evt

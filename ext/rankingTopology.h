@@ -20,8 +20,6 @@ class RankingTopology : virtual public PFabricTopology {
                 uint32_t queue_type
                 );
         virtual Queue* get_next_hop(Packet* p, Queue* q);
-        double get_control_pkt_rtt(int host_id); 
-        RankingArbiter* arbiter;
 };
 
 #endif

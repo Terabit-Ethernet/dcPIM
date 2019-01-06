@@ -7,7 +7,9 @@ extern DCExpParams params;
    uint32_t num_agg_switches = 9;
    uint32_t num_core_switches = 4;
    */
-Topology::Topology() {}
+Topology::Topology() {
+    this->arbiter = NULL;
+}
 
 /*
  * PFabric topology with 144 hosts (16, 9, 4)
@@ -135,8 +137,10 @@ double PFabricTopology::get_oracle_fct(Flow *f) {
     double pkts = (double) f->size / params.mss;
     uint32_t np = floor(pkts);
     uint32_t leftover = (pkts - np) * params.mss;
-	double incl_overhead_bytes = (params.mss + f->hdr_size) * np + (leftover + f->hdr_size);
-
+	double incl_overhead_bytes = (params.mss + f->hdr_size) * np + leftover;
+    if(leftover != 0) {
+        incl_overhead_bytes += f->hdr_size;
+    }
     double bandwidth = f->src->queue->rate / 1000000.0; // For us
     double transmission_delay;
     if (params.cut_through) {
@@ -153,10 +157,10 @@ double PFabricTopology::get_oracle_fct(Flow *f) {
         //std::cout << "pd: " << propagation_delay << " td: " << transmission_delay << std::endl;
     }
     else {
-		transmission_delay = (incl_overhead_bytes + 2.0 * f->hdr_size) * 8.0 / bandwidth;
+		transmission_delay = (incl_overhead_bytes + f->hdr_size) * 8.0 / bandwidth;
 		if (num_hops == 4) {
 			// 1 packet and 1 ack
-			if (np == 0) {
+			if (leftover != params.mss && leftover != 0) {
 				// less than mss sized flow. the 1 packet is leftover sized.
 				transmission_delay += 2 * (leftover + 2*params.hdr_size) * 8.0 / (4 * bandwidth);
 				
@@ -165,6 +169,14 @@ double PFabricTopology::get_oracle_fct(Flow *f) {
 				transmission_delay += 2 * (params.mss + 2*params.hdr_size) * 8.0 / (4 * bandwidth);
 			}
 		}
+        if (leftover != params.mss && leftover != 0) {
+            // less than mss sized flow. the 1 packet is leftover sized.
+            transmission_delay += (leftover + 2*params.hdr_size) * 8.0 / (bandwidth);
+            
+        } else {
+            // 1 packet is full sized
+            transmission_delay += (params.mss + 2*params.hdr_size) * 8.0 / (bandwidth);
+        }
         //transmission_delay = 
         //    (
         //        (np + 1) * (params.mss + params.hdr_size) + (leftover + params.hdr_size)
@@ -177,7 +189,13 @@ double PFabricTopology::get_oracle_fct(Flow *f) {
     }
     return (propagation_delay + transmission_delay); //us
 }
-
+double PFabricTopology::get_control_pkt_rtt(int host_id) {
+    if(host_id / 16 == 0) {
+        return (2 * params.propagation_delay + (40 * 8 / params.bandwidth) * 2) * 2;
+    } else {
+        return (4 * params.propagation_delay + (40 * 8 / params.bandwidth) * 2.5) * 2;
+    }
+}
 
 /*
  *BigSwitchTopology  with 144 hosts

@@ -16,6 +16,7 @@ extern double get_current_time();
 extern void add_to_event_queue(Event*);
 extern DCExpParams params;
 extern uint32_t total_finished_flows;
+extern Topology *topology;
 
 bool PimFlowComparator::operator() (PimFlow* a, PimFlow* b){
     if (a->remaining_pkts_at_sender > b->remaining_pkts_at_sender)
@@ -357,7 +358,7 @@ PimHost::PimHost(uint32_t id, double rate, uint32_t queue_type) : SchedulingHost
     this->sender = NULL;
     this->receiver = NULL;
     this->new_epoch_evt = NULL;
-    this->iter_epoch = 2 * (params.ctrl_pkt_rtt / 2 + 0.5 /1000000); // assuming 500ns queuing delay; can do better;
+    this->iter_epoch = 2 * (topology->get_control_pkt_rtt(143) / 2 + 0.5 /1000000); // assuming 500ns queuing delay; can do better;
     // for(uint32_t i = 0; i < params.num_hosts; i++) {
     //     this->receiver_state.push_back(true);
     // }

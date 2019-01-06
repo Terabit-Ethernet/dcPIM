@@ -33,9 +33,8 @@ FastpassFlow::FastpassFlow(
 void FastpassFlow::start_flow() {
     update_remaining_size();
 }
-
 void FastpassFlow::update_remaining_size() {
-    FastpassRTS* rts = new FastpassRTS(this, this->src, dynamic_cast<FastpassTopology*>(topology)->arbiter, this->sender_finished?-1:this->sender_remaining_num_pkts);
+    FastpassRTS* rts = new FastpassRTS(this, this->src, topology->arbiter, this->sender_finished?-1:this->sender_remaining_num_pkts);
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), rts, src->queue));
 }
 
@@ -45,8 +44,8 @@ void FastpassFlow::send_ack_pkt(uint32_t seq) {
 }
 
 void FastpassFlow::send_schedule_pkt(FastpassEpochSchedule* schd) {
-    FastpassSchedulePkt* pkt = new FastpassSchedulePkt(this, dynamic_cast<FastpassTopology*>(topology)->arbiter, this->src, schd);
-    add_to_event_queue(new PacketQueuingEvent(get_current_time(), pkt, dynamic_cast<FastpassTopology*>(topology)->arbiter->queue));
+    FastpassSchedulePkt* pkt = new FastpassSchedulePkt(this, topology->arbiter, this->src, schd);
+    add_to_event_queue(new PacketQueuingEvent(get_current_time(), pkt, topology->arbiter->queue));
 }
 
 
@@ -89,7 +88,7 @@ void FastpassFlow::receive(Packet *p) {
     if (p->type == FASTPASS_RTS) {
         if(debug_flow(this->id))
             std::cout << get_current_time() << " flow " << this->id << " received rts\n";
-        dynamic_cast<FastpassTopology*>(topology)->arbiter->receive_rts((FastpassRTS*) p);
+        dynamic_cast<FastpassArbiter*>(topology->arbiter)->receive_rts((FastpassRTS*) p);
     } else if (p->type == FASTPASS_SCHEDULE) {
         if(debug_flow(this->id))
             std::cout << get_current_time() << " flow " << this->id << " received schedule\n";

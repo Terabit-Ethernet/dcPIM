@@ -20,9 +20,9 @@ class Topology {
         Topology();
         virtual Queue *get_next_hop(Packet *p, Queue *q) = 0;
         virtual double get_oracle_fct(Flow* f) = 0;
-
+        virtual double get_control_pkt_rtt(int host_id) = 0;
         uint32_t num_hosts;
-
+        Host* arbiter;
         std::vector<Host *> hosts;
         std::vector<Switch*> switches;
 };
@@ -39,7 +39,7 @@ class PFabricTopology : public Topology {
 
         virtual Queue* get_next_hop(Packet *p, Queue *q);
         virtual double get_oracle_fct(Flow* f);
-
+        virtual double get_control_pkt_rtt(int host_id);
         uint32_t num_agg_switches;
         uint32_t num_core_switches;
 
@@ -53,7 +53,9 @@ class BigSwitchTopology : public Topology {
         BigSwitchTopology(uint32_t num_hosts, double bandwidth, uint32_t queue_type);
         virtual Queue *get_next_hop(Packet *p, Queue *q);
         virtual double get_oracle_fct(Flow* f);
-
+        virtual double get_control_pkt_rtt(int host_id) {
+            assert(false);
+        }
         CoreSwitch* the_switch;
 };
 
