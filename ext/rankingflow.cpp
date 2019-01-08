@@ -76,8 +76,8 @@ void RankingFlow::sending_gosrc(uint32_t src_id) {
     if(debug_host(this->src->id)) {
         std::cout << get_current_time () << " sending gosrc to host " << this->src->id << std::endl;
     }
-    // uint32_t max_token = rand()%(int(params.BDP)) + params.ranking_max_tokens;
-    uint32_t max_token = params.ranking_max_tokens;
+    uint32_t max_token =  rand()%(int(params.ranking_max_tokens - params.ranking_min_tokens)) + params.ranking_min_tokens;
+    // uint32_t max_token = params.ranking_max_tokens;
     RankingGoSrc* gosrc = new RankingGoSrc(this, topology->arbiter, this->src, src_id, max_token);
 
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), gosrc, topology->arbiter->queue));

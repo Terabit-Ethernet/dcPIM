@@ -166,6 +166,9 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         else if (key == "ranking_max_tokens") {
             lineStream >> params.ranking_max_tokens;
         }
+        else if (key == "ranking_min_tokens") {
+            lineStream >> params.ranking_min_tokens;
+        }
         else if (key == "ranking_controller_epoch") {
             lineStream >> params.ranking_controller_epoch;
         } else if (key == "debug_controller_queue") {

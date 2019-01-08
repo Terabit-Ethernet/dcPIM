@@ -7,7 +7,7 @@ bandwidth: 40000000000.0
 queue_type: 2
 flow_type: 115
 num_flow: 200000
-flow_trace: ../CDF_datamining.txt
+flow_trace: ../CDF_constant.txt
 cut_through: 0
 mean_flow_size: 0
 load_balancing: 0
@@ -28,10 +28,10 @@ token_timeout: 2
 token_resend_timeout: 1
 token_window: 1
 token_window_timeout: 1.1
-rankinghost_idle_timeout: 1
-ranking_reset_epoch: 1
-ranking_max_tokens: 2
-ranking_controller_epoch: 0.25
+rankinghost_idle_timeout: 3.5
+ranking_max_tokens: 10
+ranking_min_tokens: 5
+ranking_controller_epoch: 3
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33

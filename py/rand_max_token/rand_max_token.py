@@ -3,7 +3,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 115
 num_flow: 200000
@@ -28,10 +28,10 @@ token_timeout: 2
 token_resend_timeout: 1
 token_window: 1
 token_window_timeout: 1.1
-rankinghost_idle_timeout: {2}
+rankinghost_idle_timeout: 3.5
 ranking_max_tokens: 10
-ranking_min_tokens: 5
-ranking_controller_epoch: {0}
+ranking_min_tokens: {0}
+ranking_controller_epoch: 3
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33
@@ -48,23 +48,26 @@ num_host_types: 13
 
 runs = ['ranking']
 workloads = ['aditya', 'dctcp', 'datamining', 'constant']
-epochs = [1, 2, 3, 4, 5, 6]
+tokens = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+#control_epochs = [0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]
 #epochs = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
 for r in runs:
     for w in workloads:
         #  generate conf file
-        for e in epochs:
-	        if r == 'pfabric':
-	            conf_str = conf_str_pfabric.format(e, w)
-	        elif r == 'phost':
-	            conf_str = conf_str_phost.format(e, w)
-	        elif r == 'fastpass':
-	            conf_str = conf_str_fastpass.format(e, w)
-	        elif r == 'random':
-	            conf_str = conf_str_random.format(e, w)
-	        elif r == 'ranking':
-	        	conf_str = conf_str_ranking.format(e, w, e + 0.5)
-	        confFile = "conf_{0}_{1}_{2}.txt".format(r, w, str(e))
-	        with open(confFile, 'w') as f:
-	            print confFile
-	            f.write(conf_str)
+        for token in tokens:
+ #       	for control_epoch in control_epochs:
+	        # if r == 'pfabric':
+	        #     conf_str = conf_str_pfabric.format(token, w)
+	        # elif r == 'phost':
+	        #     conf_str = conf_str_phost.format(token, w)
+	        # elif r == 'fastpass':
+	        #     conf_str = conf_str_fastpass.format(token, w)
+	        # elif r == 'random':
+	        #     conf_str = conf_str_random.format(token, w)
+#		        c_time = control_epoch * token
+#		        idle_time = 0.25 + c_time
+	        conf_str = conf_str_ranking.format(token, w)
+		confFile = "conf_{0}_{1}_{2}.txt".format(r, w, int(token))
+		with open(confFile, 'w') as f:
+		    print confFile
+		    f.write(conf_str)

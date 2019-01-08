@@ -34,6 +34,8 @@ void PFabricQueue::enque(Packet *packet) {
         pkt_drop++;
         drop(worst_packet);
     }
+    // for debugging
+    packet->hop++;
 }
 
 Packet* PFabricQueue::deque() {

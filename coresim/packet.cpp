@@ -20,7 +20,7 @@ Packet::Packet(
     this->size = size;
     this->src = src;
     this->dst = dst;
-
+    this->hop = 0;
     this->type = NORMAL_PACKET;
     this->unique_id = Packet::instance_count++;
     this->total_queuing_delay = 0;

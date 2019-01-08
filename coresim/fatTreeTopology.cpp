@@ -56,7 +56,7 @@ FatTreeTopology::FatTreeTopology(
     //Connect host queues
     for (uint32_t i = 0; i < num_hosts; i++) {
         hosts[i]->queue->set_src_dst(hosts[i], edge_switches[2 * i / k]);
-        //std::cout << "Linking Host " << i << " to Agg " << i/16 << "\n";
+        // std::cout << "Linking Host " << i << " to Edge " << edge_switches[2 * i / k]->id << "\n";
     }
 
     // For edge switches -- REMAINING
@@ -71,7 +71,7 @@ FatTreeTopology::FatTreeTopology(
     	for (uint32_t j = 0; j < k / 2; j++) {
             Queue *q = edge_switches[i]->queues[j + k / 2];
             q->set_src_dst(edge_switches[i], agg_switches[ pod * k / 2 + j]);
-            //std::cout << "Linking Agg " << i << " to Core" << j << "\n";
+            // std::cout << "Linking Edge  " << edge_switches[i]->id << " to Agg " << agg_switches[ pod * k / 2 + j]->id << "\n";
         }
 
 
@@ -85,13 +85,13 @@ FatTreeTopology::FatTreeTopology(
         for (uint32_t j = 0; j < k / 2; j++) { // TODO make generic
             Queue *q = agg_switches[i]->queues[j];
             q->set_src_dst(agg_switches[i], edge_switches[pod * k / 2 + j]);
-            //std::cout << "Linking Agg " << i << " to Host" << i * 16 + j << "\n";
+            // std::cout << "Linking Agg " << agg_switches[i]->id << " to Edge" << edge_switches[pod * k / 2 + j]->id << "\n";
         }
         // Queues to Core
         for (uint32_t j = 0; j < k / 2; j++) {
             Queue *q = agg_switches[i]->queues[j + k / 2];
             q->set_src_dst(agg_switches[i], core_switches[j + base]);
-            // std::cout << "Linking Agg " << i << " to Core" << j + base << "\n";
+            // std::cout << "Linking Agg " << agg_switches[i]->id << " to Core" << core_switches[j + base]->id << "\n";
         }
     }
 
@@ -101,7 +101,7 @@ FatTreeTopology::FatTreeTopology(
         for (uint32_t j = 0; j < k; j++) {
             Queue *q = core_switches[i]->queues[j];
             q->set_src_dst(core_switches[i], agg_switches[k / 2 * j + base]);
-            // std::cout << "Linking Core " << i << " to Agg" << k / 2 * j + base << "\n";
+            // std::cout << "Linking Core " << core_switches[i]->id << " to Agg" << agg_switches[k / 2 * j + base]->id << "\n";
         }
     }
     // Set arbiter
@@ -189,6 +189,19 @@ Queue *FatTreeTopology::get_next_hop(Packet *p, Queue *q) {
 
     	}
     	assert(q->dst->id == p->dst->id);
+        int hop = 6;
+        if(is_same_rack(p->src, p->dst)){
+            hop = 2;
+        }
+        else if(is_same_pod(p->src, p->dst)){
+            hop = 4;
+        }
+        if(p->hop != hop) {
+            std::cout << p->src->id << " " << p->dst->id << std::endl;
+            std::cout << p->hop << " " << hop << std::endl;
+            std::cout << p->flow->id << std::endl;
+        }
+        assert(p->hop == hop);
         return NULL; // Packet Arrival
     }
     // At host level
@@ -224,7 +237,7 @@ Queue *FatTreeTopology::get_host_next_hop(Packet *p, Queue *q) {
         if(params.load_balancing == 0)
             hash_port = q->spray_counter++% (_k / 2);
         else if(params.load_balancing == 1)
-            hash_port = (p->src->id + p->dst->id + p->flow->id) % (_k + 2);
+            hash_port = (p->src->id + p->dst->id + p->flow->id) % (_k / 2);
         return ((Switch *) q->dst)->queues[_k / 2 + hash_port];
     }
 }
@@ -241,7 +254,7 @@ Queue* FatTreeTopology::get_edge_next_hop(Packet *p, Queue *q) {
         if(params.load_balancing == 0)
             hash_port = q->spray_counter++% (_k / 2);
         else if(params.load_balancing == 1)
-            hash_port = (p->src->id + p->dst->id + p->flow->id) % (_k + 2);
+            hash_port = (p->src->id + p->dst->id + p->flow->id) % (_k / 2);
         return ((Switch *) q->dst)->queues[_k / 2 + hash_port];
 	}
 }

@@ -98,10 +98,18 @@ void Queue::drop(Packet *packet) {
         std::cout << get_current_time() << " listSRC pkt drop. flow:" << packet->flow->id << " packet size:" << packet->size
             << " type:" << packet->type << " seq:" << packet->seq_no << " src:" << packet->src->id << " num of packets in queue: " << packets.size()
             << " at queue id:" << this->id << " loc:" << this->location << "\n";
-        for(int i = 0; i < packets.size(); i++) {
-            std::cout << packets[i]->src->id << " " <<
-             dynamic_cast<RankingListSrcs*> (packets[i])->listSrcs.size() << std::endl;
-        }
+    }
+    else if(packet->type == RANKING_GOSRC) {
+        std::cout << get_current_time() << " gosrc pkt drop. flow:" << packet->flow->id << " packet size:" << packet->size
+            << " type:" << packet->type << " seq:" << packet->seq_no << " src:" << packet->src->id << " num of packets in queue: " << packets.size()
+            << " at queue id:" << this->id << " loc:" << this->location << "\n";
+    }
+    else if (packet->type == FASTPASS_SCHEDULE) {
+        // std::cout << get_current_time() << " fastpass pkt drop. flow:" << packet->flow->id << " packet size:" << packet->size
+        //     << " type:" << packet->type << " seq:" << packet->seq_no << " src:" << packet->src->id << " num of packets in queue: " << packets.size()
+        //     << " at queue id:" << this->id << " loc:" << this->location << std::endl;
+        // assert(false);
+        delete ((FastpassSchedulePkt*)packet)->schedule;
     }
     if(debug_flow(packet->flow->id))
         std::cout << get_current_time() << " pkt drop. flow:" << packet->flow->id

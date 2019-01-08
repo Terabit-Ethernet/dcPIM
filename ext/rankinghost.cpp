@@ -56,6 +56,23 @@ void RankingHostWakeupProcessingEvent::process_event() {
     this->host->wakeup();
 }
 
+RankingGoSrcQueuingEvent::RankingGoSrcQueuingEvent(double time, RankingArbiter *h)
+    : Event(RANKING_GOSRC_QUEUING, time) {
+        this->arbiter = h;
+    }
+
+RankingGoSrcQueuingEvent::~RankingGoSrcQueuingEvent() {
+    if (arbiter->gosrc_queue_evt == this) {
+        arbiter->gosrc_queue_evt = NULL;
+    }
+}
+
+void RankingGoSrcQueuingEvent::process_event() {
+    this->arbiter->gosrc_queue_evt = NULL;
+    this->arbiter->send_gosrc();
+}
+
+
 
 // Comparator
 ListSrcsComparator::ListSrcsComparator() {
@@ -701,7 +718,8 @@ RankingArbiter::RankingArbiter(uint32_t id, double rate, uint32_t queue_type) : 
     this->src_state = std::vector<bool>(params.num_hosts, true);
     this->dst_state = std::vector<bool>(params.num_hosts, true);
     this->arbiter_proc_evt = NULL;
-    this->last_reset_ranking_time = 0;
+    this->gosrc_queue_evt = NULL;
+    // this->last_reset_ranking_time = 0;
 }
 
 void RankingArbiter::start_arbiter() {
@@ -715,6 +733,25 @@ void RankingArbiter::schedule_proc_evt(double time) {
     add_to_event_queue(this->arbiter_proc_evt);
 }
 
+void RankingArbiter::send_gosrc() {
+    assert(this->gosrc_queue_evt == NULL);
+    uint32_t gosrc_size = 40;
+    uint32_t max_go_src = (this->queue->limit_bytes - this->queue->bytes_in_queue) / gosrc_size;
+    while(this->gosrc_queue.size() > 0) {
+        auto request = this->gosrc_queue.front();
+        request.first->fake_flow->sending_gosrc(request.second);
+        max_go_src--;
+        if(max_go_src == 0)
+            break;
+        this->gosrc_queue.pop();
+    }
+    if(!this->gosrc_queue.empty()) {
+        this->gosrc_queue_evt = new RankingGoSrcQueuingEvent(this->queue->get_transmission_delay(this->queue->limit_bytes) + INFINITESIMAL_TIME + get_current_time(), this);
+        add_to_event_queue(this->gosrc_queue_evt);
+        assert(false);
+    }
+
+}
 void RankingArbiter::ranking_schedule() {
     assert(false);
     // while(!this->ranking_q.empty()) {
@@ -753,6 +790,9 @@ void RankingArbiter::ranking_schedule() {
     // }
 }
 void RankingArbiter::rtt_schedule() {
+    assert(gosrc_queue.empty());
+    uint32_t gosrc_size = 40;
+    uint32_t max_go_src = (this->queue->limit_bytes - this->queue->bytes_in_queue) / gosrc_size;
     while(!this->rtt_q.empty()) {
         auto request = this->rtt_q.top();
         this->rtt_q.pop();
@@ -770,8 +810,17 @@ void RankingArbiter::rtt_schedule() {
         // }
         this->src_state[request->src_id] = false;
         this->dst_state[request->dst->id] = false;
-        ((RankingHost*)(request->dst))->fake_flow->sending_gosrc(request->src_id);
+        if(max_go_src > 0){
+            ((RankingHost*)(request->dst))->fake_flow->sending_gosrc(request->src_id);
+            max_go_src--;
+        } else {
+            this->gosrc_queue.push(std::make_pair((RankingHost*)request->dst, request->src_id));
+        }
         delete request;
+    }
+    if(!this->gosrc_queue.empty() && this->gosrc_queue_evt == NULL) {
+        this->gosrc_queue_evt = new RankingGoSrcQueuingEvent(this->queue->get_transmission_delay(this->queue->limit_bytes) + INFINITESIMAL_TIME + get_current_time(), this);
+        add_to_event_queue(this->gosrc_queue_evt);
     }
 }
 void RankingArbiter::schedule_epoch() {

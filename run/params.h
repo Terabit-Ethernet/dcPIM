@@ -102,6 +102,7 @@ class DCExpParams {
         double ranking_controller_epoch;
         // double ranking_reset_epoch;
         double ranking_max_tokens;
+        double ranking_min_tokens;
         double rtt;
         // double ctrl_pkt_rtt;
         double ranking_max_src_num;

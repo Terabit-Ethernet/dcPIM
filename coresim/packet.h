@@ -60,6 +60,7 @@ class Packet {
         int capa_data_seq;
         // round of ranking
         int ranking_round;
+        int hop;
 };
 
 class PlainAck : public Packet {
