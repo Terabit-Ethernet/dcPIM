@@ -12,6 +12,7 @@
 #include "node.h"
 #include "event.h"
 #include "topology.h"
+#include "fatTreeTopology.h"
 #include "queue.h"
 #include "random_variable.h"
 
@@ -121,11 +122,15 @@ void run_scenario() {
         if(params.debug_controller_queue) {
             if(current_time > next_time) {
                 next_time = current_time + 0.000002;
-                RankingTopology* t = dynamic_cast<RankingTopology*>(topology);
-                RankingAggSwitch* agg_switch = (RankingAggSwitch*)(t->agg_switches[0]);
-                auto queue = agg_switch->queue_to_arbiter;
-                if (queue->bytes_in_queue > max)
-                    max = queue->bytes_in_queue;
+                Queue* queue = NULL;
+                if(params.topology == "FatTree") {
+                    queue = dynamic_cast<FatTreeTopology*>(topology)->edge_switches[0]->queue_to_arbiter;
+                } else {
+                    RankingTopology* t = dynamic_cast<RankingTopology*>(topology);
+                    RankingAggSwitch* agg_switch = (RankingAggSwitch*)(t->agg_switches[0]);
+                    queue = agg_switch->queue_to_arbiter;
+                }
+
                 // if(queue->bytes_in_queue  > 3000 && max == queue->bytes_in_queue) {
                         std::cout << get_current_time() << " " << queue->bytes_in_queue << std::endl;
                         // for(int i = 0; i < queue->packets.size(); i++) {
