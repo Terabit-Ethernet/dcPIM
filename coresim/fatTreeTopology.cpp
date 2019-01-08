@@ -117,6 +117,7 @@ void FatTreeTopology::set_up_parameter() {
         // params.ctrl_pkt_rtt = (4 * params.propagation_delay + (40 * 8 / params.bandwidth) * 2.5) * 2;
         params.BDP = ceil(params.rtt * params.bandwidth / 1500 / 8);
         params.ranking_max_tokens = ceil(params.ranking_max_tokens * params.BDP);
+        params.ranking_min_tokens = ceil(params.ranking_min_tokens * params.BDP);
         params.token_window *= params.BDP;
         params.token_initial *= params.BDP;
         params.token_timeout *= params.get_full_pkt_tran_delay();
