@@ -132,7 +132,7 @@ void run_scenario() {
                 }
 
                 // if(queue->bytes_in_queue  > 3000 && max == queue->bytes_in_queue) {
-                        std::cout << get_current_time() << " " << queue->bytes_in_queue << std::endl;
+                        std::cout << get_current_time() << " " << queue->bytes_in_queue << "\n";
                         // for(int i = 0; i < queue->packets.size(); i++) {
                         //     std::cout << queue->packets[i]->src->id << " " <<
                         //      dynamic_cast<RankingListSrcs*> (queue->packets[i])->listSrcs.size() << std::endl;
