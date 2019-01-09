@@ -1,7 +1,7 @@
 #!/bin/bash
 
-loads=(5 6 7 8 9 10)
-algos=(ranking fastpass pfabric phost)
+loads=(5 6 7 8 9)
+algos=(ranking)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()
 
@@ -24,7 +24,7 @@ do
 	done
 	for pid in ${pids[*]}; 
 	do
-    	wait $pid
-    done
+    	  wait $pid
+        done
     pids=()
 done
