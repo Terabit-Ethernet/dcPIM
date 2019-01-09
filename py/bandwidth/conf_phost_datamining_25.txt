@@ -6,7 +6,7 @@ propagation_delay: 0.0000002
 bandwidth: 25000000000
 queue_type: 2
 flow_type: 112
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_datamining.txt
 cut_through: 0
 mean_flow_size: 0
