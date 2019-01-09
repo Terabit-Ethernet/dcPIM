@@ -6,7 +6,7 @@ propagation_delay: 0.0000002
 bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 2
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_{0}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -51,7 +51,7 @@ propagation_delay: 0.0000002
 bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 112
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_{0}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -96,7 +96,7 @@ propagation_delay: 0.0000002
 bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 114
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_{0}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -141,7 +141,7 @@ propagation_delay: 0.0000002
 bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 112
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_{0}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -186,7 +186,7 @@ propagation_delay: 0.0000002
 bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 115
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_{0}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -208,9 +208,10 @@ token_timeout: 2
 token_resend_timeout: 1
 token_window: 1
 token_window_timeout: 1.1
-rankinghost_idle_timeout: 8.5
+rankinghost_idle_timeout: 5.5
 ranking_max_tokens: 10
-ranking_controller_epoch: 8
+ranking_min_tokens: 5
+ranking_controller_epoch: 5
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33
@@ -230,10 +231,10 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 116
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_{0}.txt
 cut_through: 0
 mean_flow_size: 0
