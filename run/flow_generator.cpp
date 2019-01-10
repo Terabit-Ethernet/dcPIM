@@ -552,15 +552,15 @@ void WorstcaseTM::make_flows() {
     ExponentialRandomVariable *nv_intarr;
 
     //* [expr ($link_rate*$load*1000000000)/($meanFlowSize*8.0/1460*1500)]
-    for (uint32_t i = 0; i < 40; i++) {
+    for (uint32_t i = 0; i < topo->hosts.size(); i++) {
         int mean_flow_size = 0;
         mean_flow_size = ((params.BDP)* (i + 2) + 1) * 1460;
         EmpiricalRandomVariable *nv_bytes = new ConstantVariable(mean_flow_size / 1460.0);
         double lambda = params.bandwidth * params.load / (mean_flow_size * 8.0 / 1460 * 1500);
-        double lambda_per_host = lambda / (40 - 1);
+        double lambda_per_host = lambda / topo->hosts.size();
  
         ExponentialRandomVariable *nv_intarr = new ExponentialRandomVariable(1.0 / lambda_per_host);
-        for (uint32_t j = 0; j < 40; j++) {
+        for (uint32_t j = 0; j < topo->hosts.size(); j++) {
             if (i != j) {
                 double first_flow_time = 1.0 + nv_intarr->value();
                 add_to_event_queue(

@@ -259,6 +259,11 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         else if (key == "print_max_min_fairness") {
             lineStream >> params.print_max_min_fairness;
         }
+
+        // ----- fastpass ----
+        else if (key == "fastpass_epoch_pkts") {
+            lineStream >> params.fastpass_epoch_pkts;
+        }
         //else if (key == "dctcp_delayed_ack_freq") {
         //    lineStream >> params.dctcp_delayed_ack_freq;
         //}
@@ -267,7 +272,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
             assert(false);
         }
 
-        params.fastpass_epoch_time = 1500 * 8 * (FASTPASS_EPOCH_PKTS + 0.5) / params.bandwidth;
+        params.fastpass_epoch_time = 1500 * 8 * (params.fastpass_epoch_pkts + 0.5) / params.bandwidth;
         // params.ranking_epoch_time = 1500 * 8 * (RANKING_EPOCH_PKTS + 0.5) / params.bandwidth;
         // params.ranking_reset_epoch = 1; 
         params.param_str.append(line);

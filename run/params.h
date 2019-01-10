@@ -85,7 +85,7 @@ class DCExpParams {
 
         uint32_t dctcp_mark_thresh;
         //uint32_t dctcp_delayed_ack_freq;
-        
+        uint32_t fastpass_epoch_pkts;
         // Ranking Algorithm
         double BDP;
         double token_timeout;
@@ -134,7 +134,7 @@ class DCExpParams {
 #define CAPABILITY_HOLD true
 
 //#define FASTPASS_EPOCH_TIME 0.000010
-#define FASTPASS_EPOCH_PKTS 8
+// #define FASTPASS_EPOCH_PKTS 8
 // #define RANKING_EPOCH_PKTS 3
 
 #define TOKEN_HOLD true

@@ -114,6 +114,7 @@ magic_delay_scheduling: 1
 use_flow_trace: 0
 smooth_cdf: 1
 burst_at_beginning: 0
+fastpass_epoch_pkt: 7
 capability_timeout: 1.5
 capability_resend_timeout: 9
 capability_initial: 7
