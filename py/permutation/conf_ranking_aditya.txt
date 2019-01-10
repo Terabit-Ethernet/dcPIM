@@ -28,9 +28,10 @@ token_timeout: 2
 token_resend_timeout: 1
 token_window: 1
 token_window_timeout: 1.1
-rankinghost_idle_timeout: 8.0
+rankinghost_idle_timeout: 5.5
 ranking_max_tokens: 10
-ranking_controller_epoch: 8.5
+ranking_min_tokens: 5
+ranking_controller_epoch: 5
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33

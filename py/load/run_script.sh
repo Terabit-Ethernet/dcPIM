@@ -1,15 +1,15 @@
 #!/bin/bash
 
-loads=(5 6 7 8 9 10)
-algos=(ranking fastpass pfabric phost)
+loads=(5 6 7 8 9)
+algos=(fastpass)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()
 
 OUTPUT_FOLDER=../result/load
 DATE=$1
 TRACE=$2
-mkdir $OUTPUT_FOLDER
-mkdir $OUTPUT_FOLDER/"$DATE"
+mkdir -p $OUTPUT_FOLDER
+mkdir -p $OUTPUT_FOLDER/"$DATE"
 for i in ${!algos[*]}
 do 
 	for index in ${!loads[*]};
@@ -24,7 +24,7 @@ do
 	done
 	for pid in ${pids[*]}; 
 	do
-    	wait $pid
-    done
+    	  wait $pid
+        done
     pids=()
 done
