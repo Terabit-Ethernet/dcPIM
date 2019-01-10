@@ -1,6 +1,6 @@
 #!/bin/bash
 
-algos=(ranking)
+algos=(fastpass)
 pids=()
 OUTPUT_FOLDER=../result/permutation
 DATE=$1
