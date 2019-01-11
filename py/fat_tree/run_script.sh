@@ -1,12 +1,12 @@
 #!/bin/bash
 
-algos=(fastpass)
+algos=(pfabric phost)
 aids=()
 OUTPUT_FOLDER=../result/fat_tree
 DATE=$1
 TRACE=$2
-mkdir $OUTPUT_FOLDER
-mkdir $OUTPUT_FOLDER/"$DATE"
+mkdir -p $OUTPUT_FOLDER
+mkdir -p $OUTPUT_FOLDER/"$DATE"
 for i in ${!algos[*]}
 do 
 	algo=${algos[$i]}

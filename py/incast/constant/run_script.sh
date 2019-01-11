@@ -8,7 +8,7 @@ DATE=$1
 TRACE=$2
 mkdir $OUTPUT_FOLDER
 mkdir $OUTPUT_FOLDER/"$DATE"
-for j in `seq 1 1`;
+for j in `seq 1 10000`;
 do
 	for i in ${!algos[*]}
 	do 

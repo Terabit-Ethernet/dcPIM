@@ -445,68 +445,22 @@ IncastTM::IncastTM(uint32_t num_flows, Topology *topo, std::string filename, uin
     this->incast = incast;
 }
 
-// void IncastTM::make_flows() {
-//     srand(time(0));
-//     EmpiricalRandomVariable *nv_bytes;
-//     if (params.smooth_cdf)
-//         nv_bytes = new EmpiricalRandomVariable(filename);
-//     else
-//         nv_bytes = new CDFRandomVariable(filename);
-//     auto nv_intarr = new ExponentialRandomVariable(1);
-//     int i = 0;
-//     int j = 0;
-//     std::set<uint32_t> target_srcs;
-
-//     while (1) { // orig. "j != i"
-//         j = rand() % topo->hosts.size();
-//         if (j == i) {
-//             continue; 
-//         }
-//         if (target_srcs.find(j) == target_srcs.end() && target_srcs.size() < this->incast) {
-//             target_srcs.insert(j);
-//         } else if(target_srcs.size() == this->incast){
-//             break;
-//         }
-//     }
-//     for (auto k = target_srcs.begin(); k != target_srcs.end(); k++) {
-//         double first_flow_time = 1.0;
-//         assert(i != *k);
-//         add_to_event_queue(
-//             new FlowCreationForInitializationEvent(
-//                 first_flow_time,
-//                 topo->hosts[*k],
-//                 topo->hosts[i], 
-//                 nv_bytes, 
-//                 nv_intarr
-//             )
-//         );
-//     }
-//     while (event_queue.size() > 0) {
-//         Event *ev = event_queue.top();
-//         event_queue.pop();
-//         current_time = ev->time;
-//         if (flows_to_schedule.size() < num_flows) {
-//             ev->process_event();
-//         }
-//         delete ev;
-//     }
-// }
 void IncastTM::make_flows() {
-    EmpiricalRandomVariable *nv_bytes;
-    if (params.smooth_cdf)
-        nv_bytes = new EmpiricalRandomVariable(filename);
-    else
-        nv_bytes = new CDFRandomVariable(filename);
+    srand(time(0));
+    // 100 MB
+    double data = 100 * 1024 * 1024;
+    // EmpiricalRandomVariable *nv_bytes;
+    // if (params.smooth_cdf)
+    //     nv_bytes = new EmpiricalRandomVariable(filename);
+    // else
+    //     nv_bytes = new CDFRandomVariable(filename);
+    EmpiricalRandomVariable *nv_bytes = new ConstantVariable(int(data / this->incast / 1460.0));
 
-    params.mean_flow_size = nv_bytes->mean_flow_size;
-    double lambda = params.bandwidth * params.load / (params.mean_flow_size * 8.0 / 1460 * 1500);
-    //std::cout << "Lambda: " << lambda << std::endl;
-    double lambda_per_host = lambda / this->incast;
-    auto *nv_intarr = new ExponentialRandomVariable(1.0 / lambda_per_host);
-    assert(this->incast <= topo->hosts.size());
-    uint32_t i = 0;
-    uint32_t j = i;
+    auto nv_intarr = new ExponentialRandomVariable(1);
+    int i = 0;
+    int j = 0;
     std::set<uint32_t> target_srcs;
+
     while (1) { // orig. "j != i"
         j = rand() % topo->hosts.size();
         if (j == i) {
@@ -519,7 +473,7 @@ void IncastTM::make_flows() {
         }
     }
     for (auto k = target_srcs.begin(); k != target_srcs.end(); k++) {
-        double first_flow_time = 1.0 + nv_intarr->value();
+        double first_flow_time = 1.0;
         assert(i != *k);
         add_to_event_queue(
             new FlowCreationForInitializationEvent(
@@ -531,7 +485,6 @@ void IncastTM::make_flows() {
             )
         );
     }
-    
     while (event_queue.size() > 0) {
         Event *ev = event_queue.top();
         event_queue.pop();
@@ -541,8 +494,59 @@ void IncastTM::make_flows() {
         }
         delete ev;
     }
-    current_time = 0;
 }
+// void IncastTM::make_flows() {
+//     EmpiricalRandomVariable *nv_bytes;
+//     if (params.smooth_cdf)
+//         nv_bytes = new EmpiricalRandomVariable(filename);
+//     else
+//         nv_bytes = new CDFRandomVariable(filename);
+
+//     params.mean_flow_size = nv_bytes->mean_flow_size;
+//     double lambda = params.bandwidth * params.load / (params.mean_flow_size * 8.0 / 1460 * 1500);
+//     //std::cout << "Lambda: " << lambda << std::endl;
+//     double lambda_per_host = lambda / this->incast;
+//     auto *nv_intarr = new ExponentialRandomVariable(1.0 / lambda_per_host);
+//     assert(this->incast <= topo->hosts.size());
+//     uint32_t i = 0;
+//     uint32_t j = i;
+//     std::set<uint32_t> target_srcs;
+//     while (1) { // orig. "j != i"
+//         j = rand() % topo->hosts.size();
+//         if (j == i) {
+//             continue; 
+//         }
+//         if (target_srcs.find(j) == target_srcs.end() && target_srcs.size() < this->incast) {
+//             target_srcs.insert(j);
+//         } else if(target_srcs.size() == this->incast){
+//             break;
+//         }
+//     }
+//     for (auto k = target_srcs.begin(); k != target_srcs.end(); k++) {
+//         double first_flow_time = 1.0 + nv_intarr->value();
+//         assert(i != *k);
+//         add_to_event_queue(
+//             new FlowCreationForInitializationEvent(
+//                 first_flow_time,
+//                 topo->hosts[*k],
+//                 topo->hosts[i], 
+//                 nv_bytes, 
+//                 nv_intarr
+//             )
+//         );
+//     }
+    
+//     while (event_queue.size() > 0) {
+//         Event *ev = event_queue.top();
+//         event_queue.pop();
+//         current_time = ev->time;
+//         if (flows_to_schedule.size() < num_flows) {
+//             ev->process_event();
+//         }
+//         delete ev;
+//     }
+//     current_time = 0;
+// }
 
 WorstcaseTM::WorstcaseTM(uint32_t num_flows, Topology *topo, std::string filename) : FlowGenerator(num_flows, topo, filename) {
 }
