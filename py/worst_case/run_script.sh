@@ -1,6 +1,6 @@
 #!/bin/bash
 
-algos=(multi_round)
+algos=(phost ranking pfabric fastpass)
 aids=()
 OUTPUT_FOLDER=../result/worst_case
 DATE=$1
