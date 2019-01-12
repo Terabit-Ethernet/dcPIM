@@ -7,7 +7,7 @@ algos=(ranking)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()
 
-OUTPUT_FOLDER=../result/rand_max_token
+OUTPUT_FOLDER=../result/rand_min_token
 DATE=$1
 TRACE=$2
 mkdir $OUTPUT_FOLDER
