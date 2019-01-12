@@ -8,7 +8,7 @@ queue_type: 2
 flow_type: 2
 num_flow: {0}
 flow_trace: ../../CDF_{1}.txt
-cut_through: 1
+cut_through: 0
 mean_flow_size: 0
 load_balancing: 0
 preemptive_queue: 0
@@ -54,7 +54,7 @@ queue_type: 2
 flow_type: 112
 num_flow: {0}
 flow_trace: ../../CDF_{1}.txt
-cut_through: 1
+cut_through: 0
 mean_flow_size: 0
 load_balancing: 0
 preemptive_queue: 0
@@ -100,7 +100,7 @@ queue_type: 2
 flow_type: 114
 num_flow: {0}
 flow_trace: ../../CDF_{1}.txt
-cut_through: 1
+cut_through: 0
 mean_flow_size: 0
 load_balancing: 0
 preemptive_queue: 0
@@ -147,7 +147,7 @@ queue_type: 2
 flow_type: 112
 num_flow: {0}
 flow_trace: ../../CDF_{1}.txt
-cut_through: 1
+cut_through: 0
 mean_flow_size: 0
 load_balancing: 0
 preemptive_queue: 0
@@ -193,7 +193,7 @@ queue_type: 2
 flow_type: 115
 num_flow: {0}
 flow_trace: ../../CDF_{1}.txt
-cut_through: 1
+cut_through: 0
 mean_flow_size: 0
 load_balancing: 0
 preemptive_queue: 0
