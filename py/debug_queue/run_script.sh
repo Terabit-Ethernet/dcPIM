@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #tokens=(100)
-tokens=(2)
-control_epoch=(0.375 0.5 0.625 0.75 0.875 1)
+tokens=(10)
+control_epoch=(5 6)
 algos=(ranking)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()
