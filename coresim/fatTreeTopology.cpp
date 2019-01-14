@@ -24,7 +24,7 @@ FatTreeTopology::FatTreeTopology(
         hosts.push_back(Factory::get_host(i, c, queue_type, params.host_type)); 
     }
     if(params.host_type == RANKING_HOST) {
-    	this->arbiter = new RankingArbiter(num_hosts, c, queue_type);
+    	this->arbiter = new RankingArbiter(num_hosts, 100000000000.0, queue_type);
 	    // Create fake flow to communicate with the arbiter
 	    for (uint32_t i = 0; i < num_hosts; i++) {
 	        ((RankingHost*)hosts[i])->fake_flow = new RankingFlow(-1, -1, -1, hosts[i], arbiter);
