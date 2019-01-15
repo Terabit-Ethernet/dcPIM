@@ -1,6 +1,6 @@
 #!/bin/bash
 
-algos=(pfabric phost)
+algos=(pfabric phost ranking)
 aids=()
 OUTPUT_FOLDER=../result/fat_tree
 DATE=$1

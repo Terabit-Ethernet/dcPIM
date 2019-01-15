@@ -17,7 +17,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 1
 traffic_imbalance: 0
-load: 0.8
+load: 0.6
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -64,7 +64,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 12
 traffic_imbalance: 0
-load: 0.8
+load: 0.6
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -111,7 +111,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 14
 traffic_imbalance: 0
-load: 0.8
+load: 0.6
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -159,7 +159,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 16
 traffic_imbalance: 0
-load: 0.8
+load: 0.6
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -206,7 +206,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 15
 traffic_imbalance: 0
-load: 0.8
+load: 0.6
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -256,7 +256,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 17
 traffic_imbalance: 0
-load: 0.8
+load: 0.6
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
