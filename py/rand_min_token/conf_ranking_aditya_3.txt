@@ -15,7 +15,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 15
 traffic_imbalance: 0
-load: 0.8
+load: 0.7
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
