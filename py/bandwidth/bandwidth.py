@@ -231,7 +231,7 @@ num_host_types: 13
 
 runs = ['pfabric', 'phost', 'fastpass', 'random', 'ranking']
 workloads = ['aditya', 'dctcp', 'datamining', 'constant']
-bandwidth = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
+bandwidth = [10, 40, 100]
 for r in runs:
     for w in workloads:
         #  generate conf file
