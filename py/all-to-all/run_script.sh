@@ -1,6 +1,6 @@
 #!/bin/bash
 
-algos=(fastpass)
+algos=(fastpass pfabric ranking phost)
 aids=()
 OUTPUT_FOLDER=../result/all-to-all
 DATE=$1
