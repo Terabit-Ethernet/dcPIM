@@ -42,9 +42,4 @@ To compile, the Automake and Autoconf files are included: `configure.ac` and `Ma
 Authors
 -------
 
-* Gautam Kumar
-* Akshay Narayan
-* Peter Gao
-
-![Our Project Mascot](yaps-mascot.png)
 
