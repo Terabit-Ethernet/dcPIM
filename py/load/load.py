@@ -1,12 +1,12 @@
-conf_str_pfabric = '''init_cwnd: 11
-max_cwnd: 14
+conf_str_pfabric = '''init_cwnd: 7
+max_cwnd: 10
 retx_timeout: 45e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 2
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -22,10 +22,11 @@ magic_delay_scheduling: 1
 use_flow_trace: 0
 smooth_cdf: 1
 burst_at_beginning: 0
+fastpass_epoch_pkts: 7
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 11
-capability_window: 11
+capability_initial: 7
+capability_window: 7
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -48,10 +49,10 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 112
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -69,8 +70,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 11
-capability_window: 11
+capability_initial: 7
+capability_window: 7
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -93,10 +94,10 @@ max_cwnd: 12
 retx_timeout: 45e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 114
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -114,8 +115,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 11
-capability_window: 11
+capability_initial: 7
+capability_window: 7
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -138,10 +139,10 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 112
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -159,8 +160,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 11
-capability_window: 11
+capability_initial: 7
+capability_window: 7
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -183,10 +184,10 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 115
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -208,10 +209,10 @@ token_timeout: 2
 token_resend_timeout: 1
 token_window: 1
 token_window_timeout: 1.1
-rankinghost_idle_timeout: 0.5
-ranking_reset_epoch: 1
-ranking_max_tokens: 1
-ranking_controller_epoch: 0.25
+rankinghost_idle_timeout: 5.5
+ranking_max_tokens: 10
+ranking_min_tokens: 5
+ranking_controller_epoch: 5.0
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33
@@ -231,10 +232,10 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 116
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -271,7 +272,7 @@ num_host_types: 13
 '''
 
 
-runs = ['pfabric', 'phost', 'fastpass', 'random', 'ranking', 'multi_round']
+runs = ['pfabric', 'phost', 'fastpass', 'random', 'ranking']
 workloads = ['aditya', 'dctcp', 'datamining', 'constant']
 loads = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 for r in runs:

@@ -12,12 +12,15 @@
 #include "node.h"
 #include "event.h"
 #include "topology.h"
+#include "fatTreeTopology.h"
 #include "queue.h"
 #include "random_variable.h"
 
 #include "../ext/factory.h"
 //#include "../ext/fastpasshost.h"
 #include "../ext/rankinghost.h"
+#include "../ext/rankingTopology.h"
+
 #include "../run/params.h"
 
 using namespace std;
@@ -28,13 +31,13 @@ std::priority_queue<Event*, std::vector<Event*>, EventComparator> event_queue;
 std::deque<Flow*> flows_to_schedule;
 std::deque<Event*> flow_arrivals;
 
-uint32_t num_outstanding_packets = 0;
-uint32_t max_outstanding_packets = 0;
-uint32_t num_outstanding_packets_at_50 = 0;
-uint32_t num_outstanding_packets_at_100 = 0;
-uint32_t arrival_packets_at_50 = 0;
-uint32_t arrival_packets_at_100 = 0;
-uint32_t arrival_packets_count = 0;
+long long num_outstanding_packets = 0;
+long long max_outstanding_packets = 0;
+long long num_outstanding_packets_at_50 = 0;
+long long num_outstanding_packets_at_100 = 0;
+long long arrival_packets_at_50 = 0;
+long long arrival_packets_at_100 = 0;
+long long arrival_packets_count = 0;
 uint32_t total_finished_flows = 0;
 uint32_t duplicated_packets_received = 0;
 
@@ -78,6 +81,8 @@ double get_current_time() {
 void run_scenario() {
     // Flow Arrivals create new flow arrivals
     // Add the first flow arrival
+    double next_time = 1.0;
+    double max = 0;
     if (flow_arrivals.size() > 0) {
         add_to_event_queue(flow_arrivals.front());
         flow_arrivals.pop_front();
@@ -113,6 +118,27 @@ void run_scenario() {
                 ((RankingHost*)topology->hosts[i])->print_max_min_fairness();
             }
             assert(false);
+        }
+        if(params.debug_controller_queue) {
+            if(current_time > next_time) {
+                next_time = current_time + 0.000002;
+                Queue* queue = NULL;
+                if(params.topology == "FatTree") {
+                    queue = dynamic_cast<FatTreeTopology*>(topology)->edge_switches[0]->queue_to_arbiter;
+                } else {
+                    RankingTopology* t = dynamic_cast<RankingTopology*>(topology);
+                    RankingAggSwitch* agg_switch = (RankingAggSwitch*)(t->agg_switches[0]);
+                    queue = agg_switch->queue_to_arbiter;
+                }
+
+                // if(queue->bytes_in_queue  > 3000 && max == queue->bytes_in_queue) {
+                        std::cout << get_current_time() << " " << queue->bytes_in_queue << "\n";
+                        // for(int i = 0; i < queue->packets.size(); i++) {
+                        //     std::cout << queue->packets[i]->src->id << " " <<
+                        //      dynamic_cast<RankingListSrcs*> (queue->packets[i])->listSrcs.size() << std::endl;
+                        // }
+                // }
+            }
         }
         delete ev;
     }

@@ -55,3 +55,11 @@ AggSwitch::AggSwitch(
         queues.push_back(Factory::get_queue(i, r2, params.queue_size, type, 0, 1));
     }
 }
+
+FatTreeSwitch::FatTreeSwitch(uint32_t id, uint32_t nq, double rate, uint32_t queue_type, uint32_t switch_type) : Switch(id, switch_type) {
+    this->queue_to_arbiter = NULL;
+    for (uint32_t i = 0; i < nq; i++) {
+        // ddc = 0, the queue location doesn't matter.
+        queues.push_back(Factory::get_queue(i, rate, params.queue_size, queue_type, 0, 2));
+    }
+}

@@ -56,6 +56,23 @@ void RankingHostWakeupProcessingEvent::process_event() {
     this->host->wakeup();
 }
 
+RankingGoSrcQueuingEvent::RankingGoSrcQueuingEvent(double time, RankingArbiter *h)
+    : Event(RANKING_GOSRC_QUEUING, time) {
+        this->arbiter = h;
+    }
+
+RankingGoSrcQueuingEvent::~RankingGoSrcQueuingEvent() {
+    if (arbiter->gosrc_queue_evt == this) {
+        arbiter->gosrc_queue_evt = NULL;
+    }
+}
+
+void RankingGoSrcQueuingEvent::process_event() {
+    this->arbiter->gosrc_queue_evt = NULL;
+    this->arbiter->send_gosrc();
+}
+
+
 
 // Comparator
 ListSrcsComparator::ListSrcsComparator() {
@@ -148,6 +165,7 @@ RankingHost::RankingHost(uint32_t id, double rate, uint32_t queue_type) : Schedu
     this->debug_send_go_src = 0;
     this->debug_send_wake_up = 0;
     this->debug_use_all_tokens = 0;
+    this->last_send_list_src_time = 1.0;
 }
 
 // Statistics 
@@ -367,9 +385,14 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
     std::vector<std::pair<int, int>> vect2;
 
     std::list<uint32_t> srcs;
+    std::list<uint32_t> flow_sizes;
     int remain_tokens = 0;
     if(this->gosrc_info.src != NULL && this->gosrc_info.src->id == nrts_src_id){
         remain_tokens = this->gosrc_info.remain_tokens;
+    }
+    if(debug_host(id)) {
+        std::cout << get_current_time() << "send list_src time diff:" <<  get_current_time() - this->last_send_list_src_time << std::endl;
+        this->last_send_list_src_time = get_current_time();
     }
     // if(debug_host(this->id)) {
     //     std::cout << get_current_time() << " debug_new_flow: " << this->debug_new_flow
@@ -412,7 +435,7 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
             flows_tried.pop();
         }
         if(best_flow != NULL) {
-            vect1.push_back(std::make_pair(best_flow->remaining_pkts() - best_flow->token_gap(),
+            vect1.push_back(std::make_pair(std::min(best_flow->remaining_pkts() - best_flow->token_gap(), 65535),
              i->first));
             if(i->first == nrts_src_id) {
                 max_flow_limit = best_flow->remaining_pkts() - best_flow->token_gap();
@@ -424,40 +447,10 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
             i++;
         }
     }
-    // sort(vect.begin(), vect.end());
     std::random_shuffle(vect1.begin(), vect1.end());
-    // if(nrts_src_id != -1) {
-    //     sort(vect1.begin(), vect1.end());
-    //     for(auto i = vect1.begin(); i != vect1.end(); i++) {
-    //         if(srcs.size() < params.ranking_max_src_num)
-    //             srcs.push_back(i->second);
-    //         else
-    //             break;
-    //     }
-        // for(auto i = vect1.begin(); i != vect1.end(); i++) {
-        //     if(i->first <= max_flow_limit) {
-        //         vect2.push_back(*i);
-        //     }
-        // }
-        // vect1.clear();
-        // auto num_flow = uint32_t(params.ranking_max_src_num) 
-        //     < vect2.size() ? uint32_t(params.ranking_max_src_num) : vect2.size() ;
-        // std::random_shuffle(vect2.begin(), vect2.end());
-        // for(auto i = 0; i < num_flow; i++) {
-        //     vect1.push_back(vect2[i]);
-        // }
-    // }
-    // uint32_t src_num = nrts_src_id == -1 ? vect1.size() : uint32_t(params.ranking_max_src_num);
-    // std::sort(vect1.begin(), vect1.end(), );
     std::sort(vect1.begin(), vect1.end(), ListSrcComparator());
-    if(debug_host(id)) {
-
-        for(auto i = vect1.begin(); i != vect1.end(); i++) {
-            std::cout << i->first << " " << i->second << std::endl;
-        }
-
-    }
     for(auto i = vect1.begin(); i != vect1.end(); i++) {
+        flow_sizes.push_back(i->first);
         srcs.push_back(i->second);
         // if(srcs.size() >= src_num)
         //     break;
@@ -466,12 +459,19 @@ void RankingHost::send_listSrcs(int nrts_src_id) {
         return;
 
     RankingListSrcs* listSrcs = new RankingListSrcs(this->fake_flow,
-     this, dynamic_cast<RankingTopology*>(topology)->arbiter , this, srcs);
+     this, topology->arbiter , this, srcs);
+    // if(params.policy == "rtt") {
+    listSrcs->flowSizes = flow_sizes;
+    if(debug_host(id)) {
+        std::cout << "flow size" << flow_sizes.size() << std::endl;
+    }
+    listSrcs->size += 2 * flow_sizes.size();
+    // }
     if(nrts_src_id != -1) {
         listSrcs->has_nrts = true;
         listSrcs->nrts_src_id = nrts_src_id;
         listSrcs->nrts_dst_id = this->id;
-        listSrcs->pf_priority = 0;
+        // listSrcs->pf_priority = 0;
         this->gosrc_info.send_nrts = true;
     }
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), listSrcs, this->queue));
@@ -498,7 +498,7 @@ void RankingHost::wakeup() {
     // if(!this->src_to_flows.empty()) {
     this->idle_count++;
     if(debug_host(id)) {
-        std::cout << "wake up for sending listSRC" << std::endl;
+        std::cout <<get_current_time() <<  " wake up for sending listSRC" << std::endl;
     }
     this->debug_send_wake_up++;
 
@@ -567,59 +567,58 @@ void RankingHost::send_token() {
             //just timeout, reset timeout state
             if(f->redundancy_ctrl_timeout > 0)
             {
-                f->redundancy_ctrl_timeout = -1;
-                f->token_goal += f->remaining_pkts();
                 if(debug_flow(f->id)) {
                     std::cout << get_current_time() << " redundancy_ctrl_timeout met" << f->id  << "\n";
                 }
+                f->redundancy_ctrl_timeout = -1;
+                f->token_goal += f->remaining_pkts();
             }
 
             if(f->token_gap() > params.token_window)
             {
-
                 if(get_current_time() >= f->latest_token_sent_time + params.token_window_timeout) {
-                    f->relax_token_gap();
                     if(debug_host(this->id)) {
                         std::cout << get_current_time() << " host " << this->id << " relax token gap for flow " << f->id << std::endl;
                     }
+                    f->relax_token_gap();
                 }
                 else{
                     if(f->latest_token_sent_time + params.token_window_timeout < closet_timeout)
                     {
-                        closet_timeout = f->latest_token_sent_time + params.token_window_timeout;
                         if(debug_host(this->id)) {
                             std::cout << get_current_time() << " host " << this->id << " token_window full wait for timeout for flow " << f->id << std::endl;
                         }
+                        closet_timeout = f->latest_token_sent_time + params.token_window_timeout;
                     }
                 }
 
             }
             if(f->token_gap() <= params.token_window)
             {
-                auto next_data_seq = f->get_next_token_seq_num();
-                f->send_token_pkt();
                 if(debug_host(id)) {
                         std::cout << get_current_time() << " sending tokens for flow " << f->id << std::endl;   
                 }
+                auto next_data_seq = f->get_next_token_seq_num();
+                f->send_token_pkt();
                 token_sent = true;
                 // this->token_hist.push_back(this->recv_flow->id);
                 if(next_data_seq >= f->get_next_token_seq_num()) {
                     // if(!f->first_loop) {
                     //     f->first_loop = true;
                     // } else {
-                        f->redundancy_ctrl_timeout = get_current_time() + params.token_resend_timeout;
                         if(debug_flow(f->id)) {
                             std::cout << get_current_time() << " redundancy_ctrl_timeout set up " << f->id << " timeout value: " << f->redundancy_ctrl_timeout << "\n";
                         }
+                        f->redundancy_ctrl_timeout = get_current_time() + params.token_resend_timeout;
                     // }
                 }
                 // for P4 ranking algorithm
                 if(f->size_in_pkt > params.token_initial) {
                     assert( this->gosrc_info.remain_tokens > 0);
-                    this->gosrc_info.remain_tokens--;
                     if(debug_host(id)) {
                         std::cout << get_current_time() << " remain_tokens: " << this->gosrc_info.remain_tokens << std::endl;   
                     }
+                    this->gosrc_info.remain_tokens--;
                     if(this->gosrc_info.remain_tokens == 0) {
                         this->gosrc_info.reset();
                     }
@@ -628,15 +627,15 @@ void RankingHost::send_token() {
         }
         if(f->size_in_pkt > params.token_initial) {
             auto gap = 0;
-            auto ctrl_pkt_rtt = dynamic_cast<RankingTopology*>(topology)->get_control_pkt_rtt(this->id);
+            auto ctrl_pkt_rtt = topology->get_control_pkt_rtt(this->id);
             if(this->gosrc_info.remain_tokens > f->remaining_pkts() - f->token_gap()) {
                 gap = f->remaining_pkts() - f->token_gap();
             } else {
                 gap = this->gosrc_info.remain_tokens;
             }
-            // if(debug_host(id)) {
-            //     std::cout << get_current_time() << " gap " << gap << " large or not " <<  (gap * params.get_full_pkt_tran_delay() <= ctrl_pkt_rtt + params.ranking_controller_epoch) << std::endl;
-            // }
+            if(debug_host(id)) {
+                std::cout << get_current_time() << " gap " << gap << " large or not " <<  (gap * params.get_full_pkt_tran_delay() <= ctrl_pkt_rtt + params.ranking_controller_epoch) << std::endl;
+            }
             if ((f->redundancy_ctrl_timeout > get_current_time() || 
                 gap * params.get_full_pkt_tran_delay() <= ctrl_pkt_rtt + params.ranking_controller_epoch)
              && this->gosrc_info.send_nrts == false) {
@@ -719,7 +718,8 @@ RankingArbiter::RankingArbiter(uint32_t id, double rate, uint32_t queue_type) : 
     this->src_state = std::vector<bool>(params.num_hosts, true);
     this->dst_state = std::vector<bool>(params.num_hosts, true);
     this->arbiter_proc_evt = NULL;
-    this->last_reset_ranking_time = 0;
+    this->gosrc_queue_evt = NULL;
+    // this->last_reset_ranking_time = 0;
 }
 
 void RankingArbiter::start_arbiter() {
@@ -733,65 +733,138 @@ void RankingArbiter::schedule_proc_evt(double time) {
     add_to_event_queue(this->arbiter_proc_evt);
 }
 
-void RankingArbiter::schedule_epoch() {
-    if (total_finished_flows >= params.num_flows_to_run)
-        return;
-    // if(total_finished_flows == 9727) {
-    //     for(int i = 0; i < this->src_state.size(); i++) {
-    //         std::cout << "src " << i << " state " << this->src_state[i] << std::endl;
+void RankingArbiter::send_gosrc() {
+    assert(this->gosrc_queue_evt == NULL);
+    uint32_t gosrc_size = 40;
+    uint32_t max_go_src = (this->queue->limit_bytes - this->queue->bytes_in_queue) / gosrc_size;
+    while(this->gosrc_queue.size() > 0) {
+        auto request = this->gosrc_queue.front();
+        request.first->fake_flow->sending_gosrc(request.second);
+        max_go_src--;
+        if(max_go_src == 0)
+            break;
+        this->gosrc_queue.pop();
+    }
+    if(!this->gosrc_queue.empty()) {
+        this->gosrc_queue_evt = new RankingGoSrcQueuingEvent(this->queue->get_transmission_delay(this->queue->limit_bytes) + INFINITESIMAL_TIME + get_current_time(), this);
+        add_to_event_queue(this->gosrc_queue_evt);
+        assert(false);
+    }
+
+}
+void RankingArbiter::ranking_schedule() {
+    assert(false);
+    // while(!this->ranking_q.empty()) {
+    //     auto request = this->ranking_q.top();
+    //     this->ranking_q.pop();
+    //     if(this->dst_state[request->dst->id] == false) {
+    //         delete request;
+    //         continue;
     //     }
-    //     assert(false);
+    //     if(debug_host(request->dst->id)) {
+    //         std::cout << get_current_time() << " schedule epoch for dst " << request->dst->id << std::endl;
+    //         for(auto i = request->listSrcs.begin(); i != request->listSrcs.end(); i++) {
+    //             std::cout << get_current_time() << " src " << (*i) << "state " << this->src_state[(*i)] << std::endl;
+    //         }
+    //     }
+    //     for(auto i = request->listSrcs.begin(); i != request->listSrcs.end(); i++) {
+    //         if(this->src_state[(*i)]) {
+    //             this->src_state[(*i)] = false;
+    //             this->dst_state[request->dst->id] = false;
+    //             // send GoSRC packet
+    //             // if(*i == 121) {
+    //             //     std::cout << get_current_time() << " src " << (*i) << " assign to dst " << request->dst->id << std::endl;
+    //             // }
+
+    //             ((RankingHost*)(request->dst))->fake_flow->sending_gosrc(*i);
+    //             break;
+    //         }
+    //     }
+    //     delete request;
     // }
-    //std::cout << get_current_time() <<  "pending queue size of arbirter " << this->pending_q.size() << std::endl;
-    while(!this->pending_q.empty()) {
-        auto request = this->pending_q.top();
-        this->pending_q.pop();
-        if(this->dst_state[request->dst->id] == false) {
+    // if(get_current_time() > this->last_reset_ranking_time + params.ranking_reset_epoch) {
+    //     // std::cout <<  get_current_time() << " reset ranking" << std::endl;
+    //     this->ranking_q.comp.reset_ranking();
+    //     this->last_reset_ranking_time = get_current_time();
+    //     // std::cout << get_current_time() << " reset ranking " << std::endl;
+    // }
+}
+void RankingArbiter::rtt_schedule() {
+    assert(gosrc_queue.empty());
+    uint32_t gosrc_size = 40;
+    uint32_t max_go_src = (this->queue->limit_bytes - this->queue->bytes_in_queue) / gosrc_size;
+    while(!this->rtt_q.empty()) {
+        auto request = this->rtt_q.top();
+        this->rtt_q.pop();
+        if(debug_host(request->dst->id)) {
+            std::cout << get_current_time() << " schedule epoch for dst " << request->dst->id << std::endl;
+            std::cout << get_current_time() << " src " << (request->src_id) << "state " << this->src_state[request->src_id] << " flow size:" << request->flow_size << std::endl;
+        }
+        if(this->dst_state[request->dst->id] == false || this->src_state[request->src_id] == false) {
             delete request;
             continue;
         }
-        if(debug_host(request->dst->id)) {
-            std::cout << get_current_time() << " schedule epoch for dst " << request->dst->id << std::endl;
-            for(auto i = request->listSrcs.begin(); i != request->listSrcs.end(); i++) {
-                std::cout << get_current_time() << " src " << (*i) << "state " << this->src_state[(*i)] << std::endl;
-            }
-        }
-        for(auto i = request->listSrcs.begin(); i != request->listSrcs.end(); i++) {
-            if(this->src_state[(*i)]) {
-                this->src_state[(*i)] = false;
-                this->dst_state[request->dst->id] = false;
-                // send GoSRC packet
-                // if(*i == 121) {
-                //     std::cout << get_current_time() << " src " << (*i) << " assign to dst " << request->dst->id << std::endl;
-                // }
-
-                ((RankingHost*)(request->dst))->fake_flow->sending_gosrc(*i);
-                break;
-            }
+        // if(request->src_id == 1) {
+        //     std::cout << get_current_time() << " schedule epoch for dst " << request->dst->id << std::endl;
+        //     std::cout << get_current_time() << " src " << (request->src_id) << "state " << this->src_state[request->src_id] << " flow size:" << request->flow_size << std::endl;
+        // }
+        this->src_state[request->src_id] = false;
+        this->dst_state[request->dst->id] = false;
+        if(max_go_src > 0){
+            ((RankingHost*)(request->dst))->fake_flow->sending_gosrc(request->src_id);
+            max_go_src--;
+        } else {
+            this->gosrc_queue.push(std::make_pair((RankingHost*)request->dst, request->src_id));
         }
         delete request;
     }
-    if(get_current_time() > this->last_reset_ranking_time + params.ranking_reset_epoch) {
-        // std::cout <<  get_current_time() << " reset ranking" << std::endl;
-        this->pending_q.comp.reset_ranking();
-        this->last_reset_ranking_time = get_current_time();
-        // std::cout << get_current_time() << " reset ranking " << std::endl;
+    if(!this->gosrc_queue.empty() && this->gosrc_queue_evt == NULL) {
+        this->gosrc_queue_evt = new RankingGoSrcQueuingEvent(this->queue->get_transmission_delay(this->queue->limit_bytes) + INFINITESIMAL_TIME + get_current_time(), this);
+        add_to_event_queue(this->gosrc_queue_evt);
     }
+}
+void RankingArbiter::schedule_epoch() {
+    if (total_finished_flows >= params.num_flows_to_run)
+        return;
+    // if(params.policy == "ranking") {
+    //     this->ranking_schedule();
+    // } else if(params.policy == "rtt") {
+    // std::cout << get_current_time() << " Arbiter schedule" << std::endl;
+    this->rtt_schedule();
+    // }
     //schedule next arbiter proc evt
     this->schedule_proc_evt(get_current_time() + params.ranking_controller_epoch);
 }
 
 void RankingArbiter::receive_listsrcs(RankingListSrcs* pkt) {
     if(debug_host(pkt->rts_dst->id))
-        std::cout << get_current_time() << " Arbiter: receive listsrcs " << pkt->rts_dst->id << std::endl;
-    auto listSrcs = new ListSrcs();
-    listSrcs->dst = pkt->rts_dst;
-    listSrcs->listSrcs = pkt->listSrcs;
-    this->pending_q.push(listSrcs);
+        std::cout << get_current_time() << " Arbiter: receive listsrcs " << pkt->rts_dst->id << " queue delay:" << pkt->total_queuing_delay << std::endl;
     if(pkt->has_nrts) {
         this->src_state[pkt->nrts_src_id] = true;
         this->dst_state[pkt->nrts_dst_id] = true;
     }
+    // if(this->dst_state[pkt->rts_dst->id]) {
+    //     if(params.policy == "ranking") {
+    //         auto listSrcs = new ListSrcs();
+    //         listSrcs->dst = pkt->rts_dst;
+    //         listSrcs->listSrcs = pkt->listSrcs;
+    //         this->ranking_q.push(listSrcs);
+    //     } else if(params.policy == "rtt") {
+    if(this->dst_state[pkt->rts_dst->id]){
+        auto i = pkt->listSrcs.begin();
+        auto j = pkt->flowSizes.begin();
+        while(i != pkt->listSrcs.end()) {
+            auto element = new PqElement();
+            element->dst = pkt->rts_dst;
+            element->src_id = *i;
+            element->flow_size = *j;
+            i++;
+            j++;
+            this->rtt_q.push(element);
+        }
+    }
+    //     }
+    // }
 }
 
 void RankingArbiter::receive_nrts(RankingNRTS* pkt) {

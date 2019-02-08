@@ -20,6 +20,9 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     params.hdr_size = 40;
     params.print_max_min_fairness = false;
     params.num_hosts = 144;
+    params.debug_controller_queue = false;
+    // params.policy = "rtt";
+    params.topology = "LeafSpine";
     while (std::getline(input, line)) {
         std::istringstream lineStream(line);
         if (line.empty()) {
@@ -30,7 +33,13 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         lineStream >> key;
         assert(key[key.length()-1] == ':');
         key = key.substr(0, key.length()-1);
-        if (key == "init_cwnd") {
+        if(key == "topology") {
+            lineStream >> params.topology;
+        } 
+        else if (key == "k") {
+            lineStream >> params.k;
+        }
+        else if (key == "init_cwnd") {
             lineStream >> params.initial_cwnd;
         }
         else if (key == "max_cwnd") {
@@ -154,14 +163,16 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         else if (key == "rankinghost_idle_timeout") {
             lineStream >> params.rankinghost_idle_timeout;
         }
-        else if (key == "ranking_reset_epoch") {
-            lineStream >> params.ranking_reset_epoch;
-        }
         else if (key == "ranking_max_tokens") {
             lineStream >> params.ranking_max_tokens;
         }
+        else if (key == "ranking_min_tokens") {
+            lineStream >> params.ranking_min_tokens;
+        }
         else if (key == "ranking_controller_epoch") {
             lineStream >> params.ranking_controller_epoch;
+        } else if (key == "debug_controller_queue") {
+            lineStream >> params.debug_controller_queue;
         }
         // --------------
         // Multi-Round algorithm
@@ -248,6 +259,11 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         else if (key == "print_max_min_fairness") {
             lineStream >> params.print_max_min_fairness;
         }
+
+        // ----- fastpass ----
+        else if (key == "fastpass_epoch_pkts") {
+            lineStream >> params.fastpass_epoch_pkts;
+        }
         //else if (key == "dctcp_delayed_ack_freq") {
         //    lineStream >> params.dctcp_delayed_ack_freq;
         //}
@@ -256,34 +272,22 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
             assert(false);
         }
 
-        params.fastpass_epoch_time = 1500 * 8 * (FASTPASS_EPOCH_PKTS + 0.5) / params.bandwidth;
+        params.fastpass_epoch_time = 1500 * 8 * (params.fastpass_epoch_pkts + 0.5) / params.bandwidth;
         // params.ranking_epoch_time = 1500 * 8 * (RANKING_EPOCH_PKTS + 0.5) / params.bandwidth;
         // params.ranking_reset_epoch = 1; 
         params.param_str.append(line);
         params.param_str.append(", ");
     }
-    params.rtt = (4 * params.propagation_delay + (1500 * 8 / params.bandwidth) * 2.5) * 2;
-    params.ctrl_pkt_rtt = (4 * params.propagation_delay + (40 * 8 / params.bandwidth) * 2.5) * 2;
-    params.BDP = ceil(params.rtt * params.bandwidth / 1500 / 8);
-    params.ranking_max_tokens = ceil(params.ranking_max_tokens * params.BDP);
-    params.token_window *= params.BDP;
-    params.token_initial *= params.BDP;
-    params.token_timeout *= params.get_full_pkt_tran_delay();
-    params.token_resend_timeout *= params.BDP * params.get_full_pkt_tran_delay();
-    params.rankinghost_idle_timeout *= params.BDP * params.get_full_pkt_tran_delay();
-    params.token_window_timeout *= params.BDP * params.get_full_pkt_tran_delay();
-    params.ranking_reset_epoch *= params.BDP * params.get_full_pkt_tran_delay();
-    params.ranking_controller_epoch *= params.BDP * params.get_full_pkt_tran_delay();
-    params.ranking_max_src_num = (params.bandwidth / 8 * (params.ranking_max_tokens * params.get_full_pkt_tran_delay()) / params.num_hosts - params.hdr_size) / 2;
+    // params.ranking_max_src_num = (params.bandwidth / 8 * (params.ranking_max_tokens * params.get_full_pkt_tran_delay()) / params.num_hosts - params.hdr_size) / 2;
 
     // multi-round protocol
     // params.pim_iter_limit = 4;
     // params.pim_epoch = params.iter_limit * params.ctrl_pkt_rtt * 2 + 5;
     // params.pim_window_timeout = 1.0 / 1000000;
-    params.pim_resend_timeout *= params.BDP * params.get_full_pkt_tran_delay();
-    params.pim_epoch *= params.BDP * params.get_full_pkt_tran_delay();
-    params.pim_window_size *= params.BDP;
-    params.pim_small_flow *= params.BDP;
+    // params.pim_resend_timeout *= params.BDP * params.get_full_pkt_tran_delay();
+    // params.pim_epoch *= params.BDP * params.get_full_pkt_tran_delay();
+    // params.pim_window_size *= params.BDP;
+    // params.pim_small_flow *= params.BDP;
     // std::cout << params.pim_resend_timeout << " " << params.pim_epoch << " " << params.pim_iter_limit << std::endl;
     //std::cout << params.token_initial << " " << params.token_window << " " << params.token_timeout << " " << params.token_window_timeout  << " " << params.token_resend_timeout << " " << params.ranking_max_tokens << " " << params.ranking_reset_epoch << " " << params.ranking_controller_epoch << " " << params.rankinghost_idle_timeout << std::endl;
     // assert(false);

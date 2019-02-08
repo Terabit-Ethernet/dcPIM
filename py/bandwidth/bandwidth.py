@@ -8,7 +8,7 @@ propagation_delay: 0.0000002
 bandwidth: {3}
 queue_type: 2
 flow_type: 2
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -17,7 +17,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 1
 traffic_imbalance: 0
-load: 0.8
+load: 0.7
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -53,7 +53,7 @@ propagation_delay: 0.0000002
 bandwidth: {2}
 queue_type: 2
 flow_type: 112
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -62,7 +62,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 12
 traffic_imbalance: 0
-load: 0.8
+load: 0.7
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -98,7 +98,7 @@ propagation_delay: 0.0000002
 bandwidth: {2}
 queue_type: 2
 flow_type: 114
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -107,13 +107,14 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 14
 traffic_imbalance: 0
-load: 0.8
+load: 0.7
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
 use_flow_trace: 0
 smooth_cdf: 1
 burst_at_beginning: 0
+fastpass_epoch_pkts: {0}
 capability_timeout: 1.5
 capability_resend_timeout: 9
 capability_initial: {0}
@@ -143,7 +144,7 @@ propagation_delay: 0.0000002
 bandwidth: {2}
 queue_type: 2
 flow_type: 112
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -152,7 +153,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 16
 traffic_imbalance: 0
-load: 0.8
+load: 0.7
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -188,7 +189,7 @@ propagation_delay: 0.0000002
 bandwidth: {1}
 queue_type: 2
 flow_type: 115
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_{0}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -197,7 +198,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 15
 traffic_imbalance: 0
-load: 0.8
+load: 0.7
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -210,10 +211,10 @@ token_timeout: 2
 token_resend_timeout: 1
 token_window: 1
 token_window_timeout: 1.1
-rankinghost_idle_timeout: 0.5
-ranking_reset_epoch: 5
-ranking_max_tokens: 2
-ranking_controller_epoch: 0.25
+rankinghost_idle_timeout: 5.5
+ranking_max_tokens: 10
+ranking_min_tokens: 5
+ranking_controller_epoch: 5
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33
@@ -230,7 +231,7 @@ num_host_types: 13
 
 runs = ['pfabric', 'phost', 'fastpass', 'random', 'ranking']
 workloads = ['aditya', 'dctcp', 'datamining', 'constant']
-bandwidth = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
+bandwidth = [10, 40, 100]
 for r in runs:
     for w in workloads:
         #  generate conf file

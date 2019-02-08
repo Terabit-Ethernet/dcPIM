@@ -24,14 +24,14 @@ bool FastpassFlowComparator::operator() (FastpassFlow* a, FastpassFlow* b) {
 
 FastpassEpochSchedule::FastpassEpochSchedule(double s) {
     this->start_time = s;
-    for(int i = 0; i < FASTPASS_EPOCH_PKTS; i++)
+    for(int i = 0; i < params.fastpass_epoch_pkts; i++)
     {
         schedule[i] = NULL;
     }
 }
 
 FastpassFlow* FastpassEpochSchedule::get_sender() {
-    for (int i = 0; i < FASTPASS_EPOCH_PKTS; i++) {
+    for (int i = 0; i < params.fastpass_epoch_pkts; i++) {
         if (schedule[i]) return schedule[i];
     }
     return NULL;
@@ -46,10 +46,10 @@ void FastpassHost::receive_schedule_pkt(FastpassSchedulePkt* pkt) {
         pkt->schedule->start_time = get_current_time();
     }
 
-    for(int i = 0; i < FASTPASS_EPOCH_PKTS; i++)
+    for(int i = 0; i < params.fastpass_epoch_pkts; i++)
     {
         if(pkt->schedule->schedule[i])
-            pkt->schedule->schedule[i]->schedule_send_pkt(pkt->schedule->start_time + i * params.fastpass_epoch_time / FASTPASS_EPOCH_PKTS);
+            pkt->schedule->schedule[i]->schedule_send_pkt(pkt->schedule->start_time + i * params.fastpass_epoch_time / params.fastpass_epoch_pkts);
     }
 
     delete pkt->schedule;
@@ -130,7 +130,7 @@ void FastpassArbiter::schedule_epoch() {
 
 
 
-    for(int i = 0; i < FASTPASS_EPOCH_PKTS; i++){
+    for(int i = 0; i < params.fastpass_epoch_pkts; i++){
         if(this->sending_flows.size() > 0){
             std::map<int, FastpassFlow*> one_time_slot = schedule_timeslot();
 
@@ -163,7 +163,7 @@ void FastpassArbiter::receive_rts(FastpassRTS* rts)
     if(!((FastpassFlow*)rts->flow)->arbiter_received_rts)
     {
         ((FastpassFlow*) rts->flow)->arbiter_received_rts = true;
-        dynamic_cast<FastpassTopology*>(topology)->arbiter->sending_flows.push((FastpassFlow*)rts->flow);
+        dynamic_cast<FastpassArbiter*>(topology->arbiter)->sending_flows.push((FastpassFlow*)rts->flow);
     }
 
     if(rts->remaining_num_pkts < 0){

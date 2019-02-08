@@ -422,6 +422,9 @@ void CapabilityHost::send_capability(){
 
             if(f->capability_gap() <= params.capability_window)
             {
+		    	if(debug_host(id)) {
+		    		std::cout << get_current_time() << " send capa to flow " << f->id  << std::endl;
+		    	}
                 f->send_capability_pkt();
                 this->recv_flow = f;
                 capability_sent = true;

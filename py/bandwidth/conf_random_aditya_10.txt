@@ -6,7 +6,7 @@ propagation_delay: 0.0000002
 bandwidth: 10000000000
 queue_type: 2
 flow_type: 112
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_aditya.txt
 cut_through: 0
 mean_flow_size: 0
@@ -15,7 +15,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 16
 traffic_imbalance: 0
-load: 0.8
+load: 0.7
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1

@@ -12,7 +12,7 @@ extern Topology *topology;
 extern double get_current_time();
 extern void add_to_event_queue(Event*);
 extern DCExpParams params;
-extern uint32_t num_outstanding_packets;
+extern long long num_outstanding_packets;
 
 RankingFlow::RankingFlow(
         uint32_t id, 
@@ -64,7 +64,7 @@ void RankingFlow::sending_nrts(int round) {
 }
 
 void RankingFlow::sending_nrts_to_arbiter(uint32_t src_id, uint32_t dst_id) {
-    RankingNRTS* nrts = new RankingNRTS(this, this->src, dynamic_cast<RankingTopology*>(topology)->arbiter, src_id, dst_id);
+    RankingNRTS* nrts = new RankingNRTS(this, this->src, topology->arbiter, src_id, dst_id);
     if(debug_host(dst_id)) {
         std::cout << get_current_time() << " dst " << src->id <<  " sending nrts to arbiter" << " packet address" << nrts << std::endl;
     }
@@ -76,9 +76,16 @@ void RankingFlow::sending_gosrc(uint32_t src_id) {
     if(debug_host(this->src->id)) {
         std::cout << get_current_time () << " sending gosrc to host " << this->src->id << std::endl;
     }
-    RankingGoSrc* gosrc = new RankingGoSrc(this, dynamic_cast<RankingTopology*>(topology)->arbiter, this->src, src_id, params.ranking_max_tokens);
+    uint32_t max_token = 0;
+    if(params.ranking_max_tokens == params.ranking_min_tokens) {
+        max_token = params.ranking_max_tokens;
+    } else {
+        max_token =  rand()%(int(params.ranking_max_tokens - params.ranking_min_tokens)) + params.ranking_min_tokens;
+    }
+    // uint32_t max_token = params.ranking_max_tokens;
+    RankingGoSrc* gosrc = new RankingGoSrc(this, topology->arbiter, this->src, src_id, max_token);
 
-    add_to_event_queue(new PacketQueuingEvent(get_current_time(), gosrc, dynamic_cast<RankingTopology*>(topology)->arbiter->queue));
+    add_to_event_queue(new PacketQueuingEvent(get_current_time(), gosrc, topology->arbiter->queue));
 }
 void RankingFlow::sending_ack(int round) {
     Packet *ack = new PlainAck(this, 0, hdr_size, dst, src);
@@ -94,7 +101,8 @@ void RankingFlow::assign_init_token(){
     // }
     for(int i = 0; i < init_token; i++){
         Token* c = new Token();
-        c->timeout = get_current_time() + init_token * params.get_full_pkt_tran_delay() + params.token_timeout;
+        // free token never timeout
+        c->timeout = get_current_time() + 100000000.0;
         c->seq_num = i;
         c->data_seq_num = i;
         c->ranking_round = -1;
@@ -195,7 +203,7 @@ void RankingFlow::receive(Packet *p) {
             ((RankingHost*) this->dst)->receive_rts((RankingRTS*) p);
         }
     } else if(p->type == RANKING_LISTSRCS) {
-        dynamic_cast<RankingTopology*>(topology)->arbiter->receive_listsrcs((RankingListSrcs*) p);
+        dynamic_cast<RankingArbiter*>(topology->arbiter)->receive_listsrcs((RankingListSrcs*) p);
        //((RankingListRTS*) p)->listRTS->listFlows.clear();
     } else if (p->type == RANKING_GOSRC) {
         ((RankingHost*) this->src)->receive_gosrc((RankingGoSrc*) p);
@@ -275,7 +283,7 @@ void RankingFlow::receive(Packet *p) {
         add_to_event_queue(new FlowFinishedEvent(get_current_time(), this));
     } else if (p->type == RANKING_NRTS) {
         if(p->dst->id == params.num_hosts) {
-            dynamic_cast<RankingTopology*>(topology)->arbiter->receive_nrts((RankingNRTS*) p);
+            dynamic_cast<RankingArbiter*>(topology->arbiter)->receive_nrts((RankingNRTS*) p);
         // } else {
         //     ((RankingHost*) this->dst)->receive_nrts((RankingNRTS*) p);
         // }

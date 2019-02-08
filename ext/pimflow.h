@@ -1,7 +1,7 @@
 #ifndef PIM_FLOW_H
 #define PIM_FLOW_H
 
-#include <map>
+#include <unordered_map>
 #include <set>
 
 #include "fountainflow.h"

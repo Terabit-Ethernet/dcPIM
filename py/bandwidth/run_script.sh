@@ -1,7 +1,7 @@
 #!/bin/bash
 
-bandwidths=(5)
-algos=(ranking)
+bandwidths=(100)
+algos=(fastpass pfabric ranking phost)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()
 
@@ -25,6 +25,6 @@ do
 	for pid in ${pids[*]}; 
 	do
     	wait $pid
-    done
+        done
     pids=()
 done

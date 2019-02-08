@@ -119,10 +119,25 @@ RankingTopology::RankingTopology(
             assert((*q)->src != NULL && (*q)->dst != NULL);
         }
     }
+    // set up parameter
+    params.rtt = (4 * params.propagation_delay + (1500 * 8 / params.bandwidth) * 2.5) * 2;
+    // params.ctrl_pkt_rtt = (4 * params.propagation_delay + (40 * 8 / params.bandwidth) * 2.5) * 2;
+    params.BDP = ceil(params.rtt * params.bandwidth / 1500 / 8);
+    params.ranking_max_tokens = ceil(params.ranking_max_tokens * params.BDP);
+    params.ranking_min_tokens = ceil(params.ranking_min_tokens * params.BDP);
+    params.token_window *= params.BDP;
+    params.token_initial *= params.BDP;
+    params.token_timeout *= params.get_full_pkt_tran_delay();
+    params.token_resend_timeout *= params.BDP * params.get_full_pkt_tran_delay();
+    params.rankinghost_idle_timeout *= params.BDP * params.get_full_pkt_tran_delay();
+    params.token_window_timeout *= params.BDP * params.get_full_pkt_tran_delay();
+    // params.ranking_reset_epoch *= params.BDP * params.get_full_pkt_tran_delay();
+    params.ranking_controller_epoch *= params.BDP * params.get_full_pkt_tran_delay();
 }
 
 Queue* RankingTopology::get_next_hop(Packet* p, Queue* q) {
     if (q->dst->type == HOST) {
+        assert(p->dst->id == q->dst->id);
         return NULL; // Packet Arrival
     }
 
@@ -136,7 +151,11 @@ Queue* RankingTopology::get_next_hop(Packet* p, Queue* q) {
                  (p->dst->host_type == RANKING_ARBITER && p->src->id / 16 == 0)
                 )
            ) {
-            return ((Switch *) q->dst)->queues[p->dst->id % 16];
+            // arbiter id = 144; 144 / 16 = 9; no other src can be 9;
+            if(p->dst->host_type == RANKING_ARBITER)
+                return ((RankingAggSwitch *) q->dst)->queue_to_arbiter;
+            else
+                return ((Switch *) q->dst)->queues[p->dst->id % 16];
         } 
         else {
             uint32_t hash_port = 0;
@@ -167,13 +186,5 @@ Queue* RankingTopology::get_next_hop(Packet* p, Queue* q) {
     }
 
     assert(false);
-}
-
-double RankingTopology::get_control_pkt_rtt(int host_id) {
-    if(host_id % 16 == 0) {
-        return (2 * params.propagation_delay + (40 * 8 / params.bandwidth)) * 2;
-    } else {
-        return (4 * params.propagation_delay + (40 * 8 / params.bandwidth) * 2.5) * 2;
-    }
 }
 

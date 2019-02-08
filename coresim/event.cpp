@@ -24,14 +24,14 @@ extern DCExpParams params;
 extern std::deque<Event*> flow_arrivals;
 extern std::deque<Flow*> flows_to_schedule;
 
-extern uint32_t num_outstanding_packets;
-extern uint32_t max_outstanding_packets;
+extern long long num_outstanding_packets;
+extern long long max_outstanding_packets;
 
-extern uint32_t num_outstanding_packets_at_50;
-extern uint32_t num_outstanding_packets_at_100;
-extern uint32_t arrival_packets_at_50;
-extern uint32_t arrival_packets_at_100;
-extern uint32_t arrival_packets_count;
+extern long long num_outstanding_packets_at_50;
+extern long long num_outstanding_packets_at_100;
+extern long long arrival_packets_at_50;
+extern long long arrival_packets_at_100;
+extern long long arrival_packets_count;
 extern uint32_t total_finished_flows;
 
 extern uint32_t backlog3;
@@ -305,10 +305,6 @@ void FlowFinishedEvent::process_event() {
     if (slowdown < 1.0 && slowdown > 0.9999) {
         slowdown = 1.0;
     }
-    if (slowdown < 1.0) {
-        std::cout << "bad slowdown " << 1e6 * flow->flow_completion_time << " " << topology->get_oracle_fct(flow) << " " << slowdown << "\n";
-    }
-    assert(slowdown >= 1.0);
 
     if (print_flow_result()) {
         std::cout << std::setprecision(4) << std::fixed ;
@@ -328,6 +324,10 @@ void FlowFinishedEvent::process_event() {
             << "\n";
         std::cout << std::setprecision(9) << std::fixed;
     }
+    if (slowdown < 1.0) {
+        std::cout << "bad slowdown " << "flow size:" << flow->size_in_pkt << " " << 1e6 * flow->flow_completion_time << " " << topology->get_oracle_fct(flow) << " " << slowdown << std::endl;
+    }
+    assert(slowdown >= 1.0);
 }
 
 

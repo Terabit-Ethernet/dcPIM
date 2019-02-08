@@ -7,6 +7,10 @@
 class DCExpParams {
     public:
         std::string param_str;
+        
+        std::string topology;
+        // for fat tree topology;
+        int k;
 
         uint32_t initial_cwnd;
         uint32_t max_cwnd;
@@ -81,7 +85,7 @@ class DCExpParams {
 
         uint32_t dctcp_mark_thresh;
         //uint32_t dctcp_delayed_ack_freq;
-        
+        uint32_t fastpass_epoch_pkts;
         // Ranking Algorithm
         double BDP;
         double token_timeout;
@@ -96,11 +100,14 @@ class DCExpParams {
         //double ranking_epoch_time;
         double rankinghost_idle_timeout;
         double ranking_controller_epoch;
-        double ranking_reset_epoch;
+        // double ranking_reset_epoch;
         double ranking_max_tokens;
+        double ranking_min_tokens;
         double rtt;
-        double ctrl_pkt_rtt;
+        // double ctrl_pkt_rtt;
         double ranking_max_src_num;
+        bool debug_controller_queue;
+        // std::string policy;
         // debug for max-min fairness
         bool print_max_min_fairness;
 
@@ -112,6 +119,7 @@ class DCExpParams {
         double pim_window_timeout;
         double pim_resend_timeout;
         int pim_low_priority;
+
         double get_full_pkt_tran_delay(uint32_t size_in_byte = 1500)
         {
             return size_in_byte * 8 / this->bandwidth;
@@ -126,7 +134,7 @@ class DCExpParams {
 #define CAPABILITY_HOLD true
 
 //#define FASTPASS_EPOCH_TIME 0.000010
-#define FASTPASS_EPOCH_PKTS 8
+// #define FASTPASS_EPOCH_PKTS 8
 // #define RANKING_EPOCH_PKTS 3
 
 #define TOKEN_HOLD true

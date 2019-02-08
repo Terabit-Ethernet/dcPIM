@@ -20,8 +20,6 @@ class FastpassTopology : virtual public PFabricTopology {
                 uint32_t queue_type
                 );
         virtual Queue* get_next_hop(Packet* p, Queue* q);
-
-        FastpassArbiter* arbiter;
 };
 
 #endif
