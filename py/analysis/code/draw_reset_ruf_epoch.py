@@ -20,7 +20,7 @@ matplotlib.rcParams['xtick.minor.width'] = 0
 
 marker = [".", "o", "x", "s", "*", "^"]
 load = 0.8
-algos = ["ranking"]
+algos = ["ruf"]
 epochs = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5] 
 # input_file1 = sys.argv[1]
 # output_file = sys.argv[2]
@@ -121,7 +121,7 @@ def read_outputs(direc, matric, lastFlowID, bandwidth, num_nodes, trace):
         fct_oct_ratio[j] = 0
         stats[j] = {}
     for j in epochs:
-        file = input_prefix  + "ranking" +  "_" + trace + "_" + str(j) +".txt"
+        file = input_prefix  + "ruf" +  "_" + trace + "_" + str(j) +".txt"
         output, total_sent_packets, total_pkt, finish_time, start_time = read_file(file)
         util[j] = total_sent_packets  / float(total_pkt)
         fct_oct_ratio[j] = get_mean_fct_oct_ratio(output)
@@ -177,7 +177,7 @@ def draw_graph(dicts, name):
     value = []
     for j in epochs:
         value.append(dicts[j])
-    eb = plt.errorbar(np.array(epochs), value, marker = marker[0], label = 'ranking', alpha = 0.5)
+    eb = plt.errorbar(np.array(epochs), value, marker = marker[0], label = 'ruf', alpha = 0.5)
         # eb[-1][0].set_linestyle('--')
 
     ax.legend(fancybox=False, shadow=False, frameon=False, loc = 1)
@@ -203,7 +203,7 @@ def output_file(output, filename):
 def main():
     date = str(sys.argv[1])
     trace = str(sys.argv[2])
-    util, fct_oct_ratio, stats, num_elements =  read_outputs("../../../data/reset_ranking_epoch/" + date, "", 99999, 40000000000, 144, trace)
+    util, fct_oct_ratio, stats, num_elements =  read_outputs("../../../data/reset_ruf_epoch/" + date, "", 99999, 40000000000, 144, trace)
     # draw_graph(util, trace + " Reset Epoch Utilization")
     # draw_graph(fct_oct_ratio,  trace + " Reset Epoch SlowDown")
     # draw_bar_graph(stats, num_elements, trace + " bar chart for Slowdown")

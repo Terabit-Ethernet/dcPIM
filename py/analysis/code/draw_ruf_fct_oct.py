@@ -19,8 +19,8 @@ matplotlib.rcParams['xtick.minor.width'] = 0
 # matplotlib.rcParams['ps.fonttype'] = 42
 
 marker = [".", "o", "x", "s", "*"]
-#algos = ["ranking"]
-algos = ["pfabric", "phost", "random", "ranking", "fastpass"]
+#algos = ["ruf"]
+algos = ["pfabric", "phost", "random", "ruf", "fastpass"]
 incasts = [1, 2, 4, 9, 18, 36, 72, 143]
 # input_file1 = sys.argv[1]
 # output_file = sys.argv[2]
@@ -56,13 +56,13 @@ def read_data_file(filename):
                     output[dst].append(ratio)
     return output
 
-def read_ranking_file(filename = 'ranking.txt'):
-    ranking = []
+def read_ruf_file(filename = 'ruf.txt'):
+    ruf = []
     with open(filename) as f:
         lines = f.readlines()
         for line in lines:
-            ranking.append(int(line))
-    return ranking
+            ruf.append(int(line))
+    return ruf
 
 def get_mean_fct_oct_ratio(output):
     average = []
@@ -70,32 +70,32 @@ def get_mean_fct_oct_ratio(output):
         average.append(np.sum(output[i]) / float(len(output[i])))
     return average
 
-def draw_graph(average, ranking):
+def draw_graph(average, ruf):
     fig, ax = plt.subplots()
      
-    average = [x for _, x in sorted(zip(ranking,average), key=lambda pair: pair[0])]
-    ranking = [x for x, _ in sorted(zip(ranking,average), key=lambda pair: pair[0])]
-    print ranking
+    average = [x for _, x in sorted(zip(ruf,average), key=lambda pair: pair[0])]
+    ruf = [x for x, _ in sorted(zip(ruf,average), key=lambda pair: pair[0])]
+    print ruf
 
 
-    eb = plt.errorbar(ranking, average, marker = marker[0], alpha = 0.5)
+    eb = plt.errorbar(ruf, average, marker = marker[0], alpha = 0.5)
         # eb[-1][0].set_linestyle('--')
 
     ax.legend(fancybox=False, shadow=False, frameon=False, loc = 1)
 
-    plt.xlabel('ranking')
+    plt.xlabel('ruf')
     plt.ylabel('fct/oct ratio')
     ## add a legend
     plt.show()
-    plt.savefig("ranking_fct_oct")
+    plt.savefig("ruf_fct_oct")
 
 def main():
     date = str(sys.argv[1])
     trace = str(sys.argv[2])
-    output = read_data_file("../../../data/incast/" + date + "/result_ranking_" + trace + "_2.txt")
-    ranking = read_ranking_file()
+    output = read_data_file("../../../data/incast/" + date + "/result_ruf_" + trace + "_2.txt")
+    ruf = read_ruf_file()
     average = get_mean_fct_oct_ratio(output)
-    draw_graph(average, ranking)
+    draw_graph(average, ruf)
 main()
 # def draw_histogram(data):
             

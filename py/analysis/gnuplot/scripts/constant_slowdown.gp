@@ -30,4 +30,4 @@ set output 'img/constant_slowdown.png'
 plot 'data/constant_slowdown.dat' using 2:xtic(1) title 'pFabric' fillstyle pattern 1, \
 	'' using 3 title 'Fastpass' fillstyle pattern 2, \
 	'' using 4 title 'pHost' fillstyle pattern 4, \
-	'' using 5 title 'Ranking' fillstyle pattern 5
+	'' using 5 title 'Ruf' fillstyle pattern 5
