@@ -20,8 +20,8 @@ matplotlib.rcParams['xtick.minor.width'] = 0
 
 marker = [".", "o", "x", "s", "*"]
 
-algos = ["pfabric", "phost", "ranking", "fastpass"]
-bandwidths = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
+algos = ["pfabric","fastpass", "phost", "ranking"]
+bandwidths = [10, 40, 100]
 # input_file1 = sys.argv[1]
 # output_file = sys.argv[2]
 
@@ -39,12 +39,56 @@ THIRD_THRESHOLD = 24000
 FOURTH_THRESHOLD = 48000
 FIFTH_THRESHOLD = 96000
 set_dst = {}
-def read_file(filename):
+
+def get_oracle_fct(src_addr, dst_addr, flow_size, bandwidth):
+    num_hops = 4
+    if (src_addr / 16 == dst_addr / 16):
+        num_hops = 2
+
+    propagation_delay = num_hops * 0.0000002
+
+   
+    # pkts = (float)(flow_size) / 1460.0
+    # np = math.floor(pkts)
+    # # leftover = (pkts - np) * 1460
+    # incl_overhead_bytes = 1500 * np
+    # incl_overhead_bytes = 1500 * np + leftover
+    # if(leftover != 0): 
+    #     incl_overhead_bytes += 40
+    
+    # bandwidth = 10000000000.0 #10Gbps
+    transmission_delay = 0
+
+    # transmission_delay = (incl_overhead_bytes + 40) * 8.0 / bandwidth
+    transmission_delay = flow_size * 8.0 / bandwidth
+    if (num_hops == 4):
+        # 1 packet and 1 ack
+        # if (leftover != 1460 and leftover != 0):
+        #     # less than mss sized flow. the 1 packet is leftover sized.
+        #     transmission_delay += 2 * (leftover + 2 * 40) * 8.0 / (4 * bandwidth)
+            
+        # else:
+        # # 1 packet is full sized
+        #     transmission_delay += 2 * (1460 + 2 * 40) * 8.0 / (4 * bandwidth)
+        transmission_delay += 1.5 * 1500 * 8.0 / bandwidth
+    # if (leftover != 1460 and leftover != 0):
+    #     # less than mss sized flow. the 1 packet is leftover sized.
+    #     transmission_delay += (leftover + 2 * 40) * 8.0 / (bandwidth)
+        
+    # else:
+    #     # 1 packet is full sized
+    #     transmission_delay += (1460 + 2 * 40) * 8.0 / (bandwidth)
+    else:
+        transmission_delay += 1 * 1500 * 8.0 / bandwidth
+    return transmission_delay + propagation_delay
+
+def read_file(filename, bandwidth):
     output = []
     total_sent_packets = 0
+    total_packets = 0
     finish_time = 0
     s_time = 0
-    reach_check_point = False
+    reach_check_point = 0
     with open(filename) as f:
         lines = f.readlines()
         for i in range(len(lines) - 1):
@@ -52,22 +96,38 @@ def read_file(filename):
             params = line.split()
             if params[0] == "##" :
                 total_sent_packets = int(params[9]) - int(params[3])
+                total_packets = int(params[9])
                 finish_time = float(params[1])
-                reach_check_point = True
-                break
-            else:
+                reach_check_point += 1
+            elif reach_check_point < 10:
                 flowId = int(params[0])
                 size = float(params[1])
+                src = int(params[2])
+                dst = int(params[3])
                 start_time = float(params[4])
                 end_time = float(params[5])
-                fct = float(params[6])
-                orct = float(params[7])
-                ratio = float(params[8])
+                fct = float(params[6]) / 1000000.0
+                orct = float(get_oracle_fct(src, dst, size, bandwidth* 1000000000))
+                ratio = fct / orct
+                if(orct > fct):
+                    print size, src, dst, fct, orct
+                assert(ratio > 1.0)
                 if flowId == 0:
                     s_time = start_time / 1000000.0
-                if reach_check_point == False:
+                if reach_check_point < 10:
                     output.append([flowId, size, start_time, end_time, fct, orct, ratio])
-    return output, total_sent_packets, finish_time, s_time
+    return output, total_sent_packets, total_packets, finish_time, s_time
+
+def output_file(output, filename):
+    workload = ""
+    file = open(filename, "w+")
+    for i in bandwidths:
+        string = ""
+        string += str(float(i))
+        for j in algos:
+            string += " " + str(output[j][i])
+        string += "\n"
+        file.write(string)
 
 def get_mean_fct_oct_ratio_by_size(output, segments):
     total = []
@@ -110,7 +170,7 @@ def get_utilization(output, end_time, bandwidth, num_nodes):
 
     return total * 8 / bandwidth / end_time / num_nodes
 
-def read_outputs(direc, matric, lastFlowID, bandwidth, num_nodes, trace):
+def read_outputs(direc, trace):
     input_prefix = direc + "/result_"
     util = {}
     fct_oct_ratio = {}
@@ -126,14 +186,14 @@ def read_outputs(direc, matric, lastFlowID, bandwidth, num_nodes, trace):
     for i in algos:
         for j in bandwidths:
             file = input_prefix  + str(i) +  "_" + trace + "_" + str(j) +".txt"
-            output, total_sent_packets, finish_time, start_time = read_file(file)
-            util[i][j] = total_sent_packets  * 1500 * 8 / (( finish_time - start_time) * j * 1000000000 * num_nodes) / load
+            output, total_sent_packets, total_packets, finish_time, start_time = read_file(file, j)
+            util[i][j] = float(total_sent_packets) / total_packets
             fct_oct_ratio[i][j] = get_mean_fct_oct_ratio(output)
-            if i == "ranking":
-                total, num_elements = get_mean_fct_oct_ratio_by_size(output, 6)
-                stats[j]['median'] = [ np.median(total[k]) for k in range(len(total))]
-                stats[j]['std'] =  [ np.std(total[k]) for k in range(len(total))]
-    return util, fct_oct_ratio, stats, num_elements
+            # if i == "ranking":
+            #     total, num_elements = get_mean_fct_oct_ratio_by_size(output, 6)
+            #     stats[j]['median'] = [ np.median(total[k]) for k in range(len(total))]
+            #     stats[j]['std'] =  [ np.std(total[k]) for k in range(len(total))]
+    return util, fct_oct_ratio
 
 def draw_bar_graph(stats,num_elements, name):
     fig = plt.figure()
@@ -203,11 +263,14 @@ def draw_graph(dicts, name):
 def main():
     date = str(sys.argv[1])
     trace = str(sys.argv[2])
-    util, fct_oct_ratio, stats, num_elements =  read_outputs("../../../data/bandwidth/" + date, "", 99999, 40000000000, 144, trace)
-    draw_graph(util, trace + " bandwidth Utilization")
-    draw_graph(fct_oct_ratio,  trace + " bandwidth FCT_OCT_ratio")
-    draw_bar_graph(stats, num_elements, trace + " bar chart for Slowdown")
-
+    util, fct_oct_ratio =  read_outputs("../../result/bandwidth/" + date, trace)
+    # draw_graph(util, trace + " bandwidth Utilization")
+    # draw_graph(fct_oct_ratio,  trace + " bandwidth FCT_OCT_ratio")
+    # draw_bar_graph(stats, num_elements, trace + " bar chart for Slowdown")
+    print util
+    print fct_oct_ratio
+    output_file(util, "../gnuplot/data/{}_bandwidth_util.dat".format(trace))
+    output_file(fct_oct_ratio, "../gnuplot/data/{}_bandwidth_slowdown.dat".format(trace))
 main()
 # def draw_histogram(data):
             

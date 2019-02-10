@@ -31,9 +31,9 @@ set style line 7 lt rgb "#F4A460" lw 1 pt 5
 set style line 6 lt rgb "#AFEEEE" lw 1 pt 7
 set style line 7 lt rgb "#FFC0CB" lw 1 pt 8
 
-set xlabel 'Time'
-set ylabel 'Queue_occupancy'
-
+set xlabel 'Time(s)' font ", 15"
+set ylabel 'Queue Occupancy (Bytes)' font ", 15"
+set tics font ", 12"
 set key top left
 
 set xrange [1:ARG2]
@@ -42,12 +42,7 @@ set xrange [1:ARG2]
 
 set output "img/".ARG1."_queue_occupancy.png"
 
-plot "data/".ARG1."_queue_occupancy.dat" using 1:2 with lp ls 1 title 'ratio=0.375',\
-'' using 3:4 with lp ls 2 title 'ratio=0.5',\
-'' using 5:6 with lp ls 3 title 'ratio=0.625' ,\
-'' using 7:8 with lp ls 4 title 'ratio=0.75' ,\
-'' using 9:10 with lp ls 5 title 'ratio=0.875' ,\
-'' using 11:12 with lp ls 6 title 'ratio=1.0'
+plot "data/".ARG1."_queue_occupancy.dat" using 1:2 with lp ls 1 title 'control_epoch=5BDP'
 
 # set terminal xterm
 # replot

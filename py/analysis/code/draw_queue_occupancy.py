@@ -21,8 +21,8 @@ matplotlib.rcParams['xtick.minor.width'] = 0
 marker = [".", "o", "x", "s", "*"]
 
 algos = ["ranking"]
-tokens = [2]
-epochs = [0.375, 0.5, 0.625, 0.75, 0.875, 1]
+tokens = [10]
+epochs = [5, 6]
 # traces = ['aditya', 'dctcp', 'datamining']
 load = 0.8
 #tokens = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]

@@ -21,7 +21,7 @@ matplotlib.rcParams['xtick.minor.width'] = 0
 marker = [".", "o", "x", "s", "*"]
 #algos = ["ranking"]
 #algos = ["p1", "p2", "p2+p3", "p2+p3+p4", "p2+p3+p4+p5"]
-algos = ["pfabric", "phost", "fastpass", "ranking"]
+algos = ["pfabric","fastpass", "phost", "ranking"]
 incasts = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
 # input_file1 = sys.argv[1]
 # output_file = sys.argv[2]
@@ -34,44 +34,59 @@ FCT = 4
 ORCT = 5
 SENT_PACKET = 6
 DROP_PACKET = 7
-# def read_file(filename):
-#     with open(filename) as f:
-#         lines = f.readlines()
-#         drop_rate = json.loads(lines[0])
-#         fct_oct_ratio = json.loads(lines[1])
-#         print drop_rate, fct_oct_ratio
-#         return drop_rate, fct_oct_ratio
+
+def get_oracle_fct(flowsize, bandwidth):
+    return float(flowsize) * 8.0 / bandwidth * 1000000.0 
 
 def read_file(filename):
-    output = []
-    total_sent_packets = 0
-    finish_time = 0
-    s_time = 1.0 
-    reach_check_point = False
     with open(filename) as f:
         lines = f.readlines()
-        for i in range(len(lines) - 1):
-            line = lines[i]
-            params = line.split()
-            if params[0] == "##":
-                total_sent_packets = int(params[9]) - int(params[3])
-                finish_time = float(params[1])
-                reach_check_point = True
-            else:
-                flowId = int(params[0])
-                size = float(params[1])
-                src = int(params[2])
-                dst = int(params[3])
-                start_time = float(params[4])
-                end_time = float(params[5])
-                fct = float(params[6])
-                orct = float(params[7])
-                ratio = float(params[8])
-                sent_packet = float(params[9].split('/')[0])
-                drop_packet = float(params[10].split('/')[0])
-                if reach_check_point == False:
-                    output.append([flowId, size, start_time, end_time, fct, orct, sent_packet, drop_packet])
-    return output, total_sent_packets, finish_time, s_time
+        drop_rate = json.loads(lines[0])
+        fct_oct_ratio = json.loads(lines[1])
+        request_complete_time = json.loads(lines[2])
+        # print drop_rate, fct_oct_ratio
+        return drop_rate, fct_oct_ratio, request_complete_time
+
+def output_file(output, filename, factor = 1.0):
+    workload = ""
+    file = open(filename, "w+")
+    for i in range(len(incasts)):
+        string = ""
+        string += str(incasts[i])
+        for j in algos:
+            string += " " + str(float(output[j][i]) * factor)
+        string += "\n"
+        file.write(string)
+# def read_file(filename):
+#     output = []
+#     total_sent_packets = 0
+#     finish_time = 0
+#     s_time = 1.0 
+#     reach_check_point = False
+#     with open(filename) as f:
+#         lines = f.readlines()
+#         for i in range(len(lines) - 1):
+#             line = lines[i]
+#             params = line.split()
+#             if params[0] == "##":
+#                 total_sent_packets = int(params[9]) - int(params[3])
+#                 finish_time = float(params[1])
+#                 reach_check_point = True
+#             else:
+#                 flowId = int(params[0])
+#                 size = float(params[1])
+#                 src = int(params[2])
+#                 dst = int(params[3])
+#                 start_time = float(params[4])
+#                 end_time = float(params[5])
+#                 fct = float(params[6])
+#                 orct = float(params[7])
+#                 ratio = float(params[8])
+#                 sent_packet = float(params[9].split('/')[0])
+#                 drop_packet = float(params[10].split('/')[0])
+#                 if reach_check_point == False:
+#                     output.append([flowId, size, start_time, end_time, fct, orct, sent_packet, drop_packet])
+#     return output, total_sent_packets, finish_time, s_time
 
 def get_mean_fct_oct_ratio(output):
     total = 0
@@ -147,10 +162,15 @@ def draw_graph(dicts, name, min = 0, max = 1.1):
 def main():
     date = str(sys.argv[1])
     trace = str(sys.argv[2])
-    util, fct_oct_ratio, drop_rate =  read_outputs("../../../data/incast/" + trace + '/' + date, 40000000000, 144 , trace)
-    draw_graph(drop_rate, trace + " " + "Incast Drop Rate", min = 0.0, max = 0.5)
-    draw_graph(fct_oct_ratio, trace + " " + "Incast FCT_OCT_ratio", min = 1, max = 10)
-    draw_graph(util, trace + " " + "Incast Utilization", min = 0.9, max = 1.1)
+    drop_rate, fct_oct_ratio, request_complete_time = read_file('../../result/incast/{}/result_{}.txt'.format(trace, date))
+    output_file(drop_rate, "../gnuplot/data/incast_drop_rate.dat")
+    output_file(fct_oct_ratio, "../gnuplot/data/incast_slowdown.dat")
+    output_file(request_complete_time, "../gnuplot/data/incast_request_complete_time.dat", 1000)
+
+    # util, fct_oct_ratio, drop_rate =  read_outputs("../../../data/incast/" + trace + '/' + date, 40000000000, 144 , trace)
+    # draw_graph(drop_rate, trace + " " + "Incast Drop Rate", min = 0.0, max = 0.5)
+    # draw_graph(fct_oct_ratio, trace + " " + "Incast FCT_OCT_ratio", min = 1, max = 10)
+    # draw_graph(util, trace + " " + "Incast Utilization", min = 0.9, max = 1.1)
 
 main()
 # def draw_histogram(data):

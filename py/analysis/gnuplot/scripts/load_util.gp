@@ -16,6 +16,7 @@ set border 3 back linestyle 80 # Remove border on top and right.  These
 
 #set log x
 #set mxtics 10    # Makes logscale look good.
+set log y 
 
 # Line styles: try to pick pleasing colors, rather
 # than strictly primary colors or hard-to-see colors
@@ -25,6 +26,7 @@ set style line 1 lt rgb "#A00000" lw 2 pt 1
 set style line 2 lt rgb "#00A000" lw 2 pt 6
 set style line 3 lt rgb "#5060D0" lw 2 pt 2
 set style line 4 lt rgb "#F25900" lw 2 pt 9
+set style line 5 lt rgb "#CC0066" lw 2 pt 7
 
 set xlabel 'Load'
 set ylabel 'Utilization'
@@ -38,9 +40,10 @@ set yrange [0.7:1]
 set output "img/".ARG1."_load_util.eps"
 
 plot "data/".ARG1."_load_util.dat" using 1:2 with lp ls 1 title 'pFabric',\
-'' using 1:3 with lp ls 2 title 'Fastpass',\
+'' using 1:3 with lp ls 4 title 'Fastpass',\
 '' using 1:4 with lp ls 3 title 'pHost',\
-'' using 1:5 with lp ls 4 title 'Ranking'
+'' using 1:6 with lp ls 5 title 'NDP' ,\
+'' using 1:5 with lp ls 2 title 'RUF'
 
 # set terminal xterm
 # replot

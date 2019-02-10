@@ -1,3 +1,14 @@
+gnuplot -c scripts/wc_util.gp phost
+
+gnuplot -c scripts/wc_util.gp pfabric
+
+gnuplot -c scripts/wc_util.gp NDP
+
+gnuplot -c scripts/wc_util.gp worst_case_ranking_phost phost
+
+gnuplot -c scripts/wc_util.gp worst_case_ranking_pfabric pfabric
+
+gnuplot -c scripts/wc_util.gp worst_case_ranking_NDP NDP
 
 gnuplot scripts/constant_util.gp
 
@@ -11,6 +22,10 @@ gnuplot -c scripts/slowdown.gp all-to-all
 
 gnuplot -c scripts/slowdown.gp permutation
 
+gnuplot -c scripts/slowdown_99.gp all-to-all
+
+gnuplot -c scripts/slowdown_99.gp permutation
+
 gnuplot -c scripts/slowdown-flow_size.gp aditya all-to-all
 
 gnuplot -c scripts/slowdown-flow_size.gp dctcp all-to-all
@@ -23,29 +38,13 @@ gnuplot -c scripts/slowdown-flow_size.gp dctcp permutation
 
 gnuplot -c scripts/slowdown-flow_size.gp datamining permutation
 
-gnuplot -c scripts/control_epoch_util.gp aditya
+gnuplot scripts/control_epoch_util.gp
 
-gnuplot -c scripts/control_epoch_util.gp dctcp
+gnuplot scripts/control_epoch_slowdown.gp
 
-gnuplot -c scripts/control_epoch_util.gp datamining
+gnuplot scripts/rand_min_token_util.gp
 
-gnuplot -c scripts/control_epoch_slowdown.gp dctcp
-
-gnuplot -c scripts/control_epoch_slowdown.gp aditya
-
-gnuplot -c scripts/control_epoch_slowdown.gp datamining
-
-gnuplot -c scripts/max_token_slowdown.gp aditya 15
-
-gnuplot -c scripts/max_token_slowdown.gp dctcp 60
-
-gnuplot -c scripts/max_token_slowdown.gp datamining
-
-gnuplot -c scripts/max_token_util.gp aditya 0.88
-
-gnuplot -c scripts/max_token_util.gp dctcp 0.90
-
-gnuplot -c scripts/max_token_util.gp datamining
+gnuplot scripts/rand_min_token_slowdown.gp
 
 gnuplot -c scripts/load_util.gp datamining
 
@@ -58,6 +57,38 @@ gnuplot -c scripts/load_slowdown.gp aditya
 gnuplot -c scripts/load_slowdown.gp dctcp
 
 gnuplot -c scripts/load_slowdown.gp datamining
+
+gnuplot -c scripts/bandwidth_util.gp datamining
+
+gnuplot -c scripts/bandwidth_util.gp dctcp
+
+gnuplot -c scripts/bandwidth_util.gp aditya
+
+gnuplot -c scripts/bandwidth_slowdown.gp aditya
+
+gnuplot -c scripts/bandwidth_slowdown.gp dctcp
+
+gnuplot -c scripts/bandwidth_slowdown.gp datamining
+
+gnuplot -c scripts/slowdown-rand_min_token_flow_size.gp aditya
+
+gnuplot -c scripts/slowdown-rand_min_token_flow_size.gp dctcp
+
+gnuplot -c scripts/slowdown-rand_min_token_flow_size.gp datamining
+
+gnuplot -c scripts/slowdown-control_epoch_flow_size.gp aditya
+
+gnuplot -c scripts/slowdown-control_epoch_flow_size.gp dctcp
+
+gnuplot -c scripts/slowdown-control_epoch_flow_size.gp datamining
+
+gnuplot scripts/incast_slowdown.gp
+
+gnuplot scripts/incast_request_complete_time.gp
+
+gnuplot scripts/fat_tree_slowdown.gp
+
+gnuplot scripts/fat_tree_util.gp
 
 # gnuplot -c scripts/queue_occupancy.gp aditya 1.4
 # gnuplot -c scripts/queue_occupancy.gp dctcp 4

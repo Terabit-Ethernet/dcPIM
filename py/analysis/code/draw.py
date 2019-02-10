@@ -21,7 +21,7 @@ matplotlib.rcParams['xtick.minor.width'] = 0
 marker = [".", "o", "x", "s", "*"]
 #algos = ["ranking"]
 #algos = ["p1", "p2", "p2+p3", "p2+p3+p4", "p2+p3+p4+p5"]
-algos = ["pfabric", "fastpass", "phost", "ranking"]
+algos = ["pfabric","fastpass", "phost", "ranking"]
 traces = ["aditya", "dctcp", "datamining"]
 #traces = ['aditya', 'dctcp']
 # input_file1 = sys.argv[1]
@@ -34,6 +34,48 @@ START_TIME = 2
 END_TIME = 3
 FCT = 4
 ORCT = 5
+
+def get_oracle_fct(src_addr, dst_addr, flow_size, bandwidth):
+    num_hops = 4
+    if (src_addr / 16 == dst_addr / 16):
+        num_hops = 2
+
+    propagation_delay = num_hops * 0.0000002
+
+   
+    # pkts = (float)(flow_size) / 1460.0
+    # np = math.floor(pkts)
+    # # leftover = (pkts - np) * 1460
+    # incl_overhead_bytes = 1500 * np
+    # incl_overhead_bytes = 1500 * np + leftover
+    # if(leftover != 0): 
+    #     incl_overhead_bytes += 40
+    
+    # bandwidth = 10000000000.0 #10Gbps
+    transmission_delay = 0
+
+    # transmission_delay = (incl_overhead_bytes + 40) * 8.0 / bandwidth
+    transmission_delay = flow_size * 8.0 / bandwidth
+    if (num_hops == 4):
+        # 1 packet and 1 ack
+        # if (leftover != 1460 and leftover != 0):
+        #     # less than mss sized flow. the 1 packet is leftover sized.
+        #     transmission_delay += 2 * (leftover + 2 * 40) * 8.0 / (4 * bandwidth)
+            
+        # else:
+        # # 1 packet is full sized
+        #     transmission_delay += 2 * (1460 + 2 * 40) * 8.0 / (4 * bandwidth)
+        transmission_delay += 1.5 * 1500 * 8.0 / bandwidth
+    # if (leftover != 1460 and leftover != 0):
+    #     # less than mss sized flow. the 1 packet is leftover sized.
+    #     transmission_delay += (leftover + 2 * 40) * 8.0 / (bandwidth)
+        
+    # else:
+    #     # 1 packet is full sized
+    #     transmission_delay += (1460 + 2 * 40) * 8.0 / (bandwidth)
+    else:
+        transmission_delay += 1 * 1500 * 8.0 / bandwidth
+    return transmission_delay + propagation_delay
 
 def read_file(filename):
     output = []
@@ -59,9 +101,10 @@ def read_file(filename):
                 dst = int(params[3])
                 start_time = float(params[4])
                 end_time = float(params[5])
-                fct = float(params[6])
-                orct = float(params[7])
-                ratio = float(params[8])
+                fct = float(params[6]) / 1000000.0
+                orct = get_oracle_fct(src, dst, size, 10000000000.0)
+                assert(fct > orct)
+                # ratio = float(params[8])
                 if reach_check_point < 10:
                     output.append([flowId, size, start_time, end_time, fct, orct])
     return output, total_sent_packets,total_packets, finish_time, s_time
@@ -86,11 +129,20 @@ def output_file(output, filename):
             string += " " + str(output[i][j])
         string += "\n"
         file.write(string)
+
 def get_mean_fct_oct_ratio(output):
     total = 0
     for line in output:
         total += line[FCT] / line[ORCT]
     return total / float(len(output))
+
+def get_99_fct_oct_ratio(output):
+    data = []
+    for line in output:
+        data.append(line[FCT] / line[ORCT])
+        if line[FCT] / line[RCT] > 8.0:
+            print line[SIZE] / 1460
+    return np.percentile(data, 99)
 
 def get_utilization(output, end_time, bandwidth, num_nodes):
     total = 0
@@ -103,20 +155,23 @@ def read_outputs(direc):
     input_prefix = direc + "/result_"
     util = {}
     fct_oct_ratio = {}
+    fct_oct_ratio_99 = {}
     for k in traces:
         util[k] = {}
         fct_oct_ratio[k] = {}
+        fct_oct_ratio_99[k] = {}
         for i in algos:
             util[k][i] = 0
             fct_oct_ratio[k][i] = 0
-
+            fct_oct_ratio_99[k][i] = 0
     for k in traces:
         for i in algos:
             file = input_prefix  + i +  "_" + k + ".txt"
             output, total_sent_packets, total_packets, finish_time, start_time = read_file(file)
             util[k][i] = total_sent_packets  / float(total_packets)
             fct_oct_ratio[k][i] = get_mean_fct_oct_ratio(output)
-    return util, fct_oct_ratio
+            fct_oct_ratio_99[k][i] = get_99_fct_oct_ratio(output)
+    return util, fct_oct_ratio, fct_oct_ratio_99
 
 # def draw_graph(dicts, name):
 #     fig, ax = plt.subplots()
@@ -183,12 +238,13 @@ def draw_graph(dicts, name):
 def main():
     date = str(sys.argv[1])
     trace = str(sys.argv[2])
-    util, fct_oct_ratio =  read_outputs("../../result/" + trace + '/' + date)
+    util, fct_oct_ratio, fct_oct_ratio_99 =  read_outputs("../../result/" + trace + '/' + date)
     # draw_graph(util, trace + " Utilization")
     # draw_graph(fct_oct_ratio, trace + " Slowdown")
-    print util, fct_oct_ratio
+    print util, fct_oct_ratio, fct_oct_ratio_99
     output_file(util, "../gnuplot/data/{0}_util.dat".format(trace))
     output_file(fct_oct_ratio, "../gnuplot/data/{0}_slowdown.dat".format(trace))
+    output_file(fct_oct_ratio_99, "../gnuplot/data/{0}_99_slowdown.dat".format(trace))
 
 main()
 # def draw_histogram(data):

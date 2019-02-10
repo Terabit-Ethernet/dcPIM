@@ -1,4 +1,4 @@
-set terminal png font "Gill Sans,9" linewidth 4 rounded fontscale 1.0
+set terminal eps font "Gill Sans,9" linewidth 4 rounded fontscale 1.0
 
 # Line style for axes
 set style line 80 lt rgb "#808080"
@@ -21,23 +21,24 @@ set border 3 back linestyle 80 # Remove border on top and right.  These
 # than strictly primary colors or hard-to-see colors
 # like gnuplot's default yellow.  Make the lines thick
 # so they're easy to see in small plots in papers.
-set style line 1 lt rgb "#A00000" lw 2 pt 1
-set style line 2 lt rgb "#00A000" lw 2 pt 6
-set style line 3 lt rgb "#5060D0" lw 2 pt 2
-set style line 4 lt rgb "#F25900" lw 2 pt 9
+set style line 1 lt rgb "#FF6666" lw 2 pt 1
+set style line 2 lt rgb "#FF99CC" lw 2 pt 6
+set style line 3 lt rgb "#FFB266" lw 2 pt 2
+set style line 4 lt rgb "#99CCFF" lw 2 pt 9
 
-set xlabel 'Control Epoch(BDP Transmission time)'
-set ylabel 'Slowdown'
+set xlabel 'Control Epoch(BDP)'
+set ylabel 'Mean Slowdown'
 
-set key bottom right
+set key top right
 
-set xrange [0:1]
+set xrange [1:6]
 set yrange [1:8]
 
-set output "img/".ARG1."_control_epoch_slowdown.png"
+set output "img/control_epoch_slowdown.eps"
 
-plot "data/".ARG1."_control_epoch_slowdown.dat" using 1:2 with lp ls 1 title 'Ranking'
-
+plot "data/control_epoch_slowdown.dat" using 1:2 with lp ls 2 title 'IMC 10',\
+'' using 1:3 with lp ls 3 title 'Web Search',\
+'' using 1:4 with lp ls 4 title 'Data Mining'
 
 # set terminal xterm
 # replot

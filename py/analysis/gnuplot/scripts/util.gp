@@ -5,7 +5,7 @@ set xlabel ''
 set ylabel 'Utilization' font ",18"
 
 set grid y
-set key right bottom opaque samplen 3 font ",20"
+set key left bottom opaque samplen 2 font ",16"
 #set key below center horizontal noreverse enhanced autotitle box dashtype solid
 set tics out nomirror
 set tics font ",18"
@@ -29,7 +29,7 @@ set style fill   pattern 7 border
 set terminal eps enhanced
 set output "img/".ARG1."_util.eps"
 plot 'data/'.ARG1.'_util.dat' using 2:xtic(1) title 'pFabric' fillstyle pattern 1, \
-	'' using 3 title 'Fastpass' fillstyle pattern 2, \
+	'' using 3 title 'Fastpass' fillstyle pattern 5 transparent lc rgb "#FF8000", \
 	'' using 4 title 'pHost' fillstyle pattern 4, \
-	'' using 5 title 'Ranking' fillstyle pattern 5, \
-	'' using 6 title 'PIM' fillstyle pattern 7 transparent lc rgb "#A52A2A"
+	'' using 6 title 'NDP' fillstyle pattern 7 transparent lc rgb "#A52A2A", \
+	'' using 5 title 'RUF' fillstyle pattern 2 transparent lc rgb "#009900"

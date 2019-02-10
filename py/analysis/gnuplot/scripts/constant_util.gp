@@ -5,12 +5,14 @@ set xlabel ''
 set ylabel 'Utilization'
 
 set grid y
+set nokey 
+
 #set key left top
-set key below center horizontal noreverse enhanced autotitle box dashtype solid
+#set key below center horizontal noreverse enhanced autotitle box dashtype solid
 set tics out nomirror
 set border 3 front linetype black linewidth 1.0 dashtype solid
 
-set xrange [-1:1]
+set xrange [-1:5]
 set xtics 1
 #set mxtics 1
 
@@ -25,9 +27,6 @@ set style data histograms
 set boxwidth 1.0 absolute
 set style fill   pattern 7 border
 
-set terminal png enhanced
-set output 'img/constant_util.png'
-plot 'data/constant_util.dat' using 2:xtic(1) title 'pFabric' fillstyle pattern 1, \
-	'' using 3 title 'Fastpass' fillstyle pattern 2, \
-	'' using 4 title 'pHost' fillstyle pattern 4, \
-	'' using 5 title 'Ranking' fillstyle pattern 5
+set terminal eps enhanced
+set output 'img/constant_util.eps'
+plot 'data/constant_util.dat' using 2:xtic(1) fillstyle pattern 1

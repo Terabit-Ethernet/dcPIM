@@ -38,6 +38,49 @@ THIRD_THRESHOLD = 24000
 FOURTH_THRESHOLD = 48000
 FIFTH_THRESHOLD = 96000
 set_dst = {}
+
+def get_oracle_fct(src_addr, dst_addr, flow_size, bandwidth):
+    num_hops = 4
+    if (src_addr / 16 == dst_addr / 16):
+        num_hops = 2
+
+    propagation_delay = num_hops * 0.0000002
+
+   
+    # pkts = (float)(flow_size) / 1460.0
+    # np = math.floor(pkts)
+    # # leftover = (pkts - np) * 1460
+    # incl_overhead_bytes = 1500 * np
+    # incl_overhead_bytes = 1500 * np + leftover
+    # if(leftover != 0): 
+    #     incl_overhead_bytes += 40
+    
+    # bandwidth = 10000000000.0 #10Gbps
+    transmission_delay = 0
+
+    # transmission_delay = (incl_overhead_bytes + 40) * 8.0 / bandwidth
+    transmission_delay = flow_size * 8.0 / bandwidth
+    if (num_hops == 4):
+        # 1 packet and 1 ack
+        # if (leftover != 1460 and leftover != 0):
+        #     # less than mss sized flow. the 1 packet is leftover sized.
+        #     transmission_delay += 2 * (leftover + 2 * 40) * 8.0 / (4 * bandwidth)
+            
+        # else:
+        # # 1 packet is full sized
+        #     transmission_delay += 2 * (1460 + 2 * 40) * 8.0 / (4 * bandwidth)
+        transmission_delay += 1.5 * 1500 * 8.0 / bandwidth
+    # if (leftover != 1460 and leftover != 0):
+    #     # less than mss sized flow. the 1 packet is leftover sized.
+    #     transmission_delay += (leftover + 2 * 40) * 8.0 / (bandwidth)
+        
+    # else:
+    #     # 1 packet is full sized
+    #     transmission_delay += (1460 + 2 * 40) * 8.0 / (bandwidth)
+    else:
+        transmission_delay += 1 * 1500 * 8.0 / bandwidth
+    return transmission_delay + propagation_delay
+
 def read_file(filename):
     output = []
     total_sent_packets = 0
@@ -59,11 +102,13 @@ def read_file(filename):
             elif reach_check_point < 10:
                 flowId = int(params[0])
                 size = float(params[1])
+                src = int(params[2])
+                dst = int(params[3])
                 start_time = float(params[4])
                 end_time = float(params[5])
-                fct = float(params[6])
-                orct = float(params[7])
-                ratio = float(params[8])
+                fct = float(params[6]) / 1000000.0
+                orct = get_oracle_fct(src, dst, size, 10000000000.0)
+                ratio = fct / orct 
                 if flowId == 0:
                     s_time = start_time / 1000000.0
                 if reach_check_point < 10:
@@ -212,7 +257,7 @@ def draw_graph(dicts, name):
 def main():
     date = str(sys.argv[1])
     trace = str(sys.argv[2])
-    util, fct_oct_ratio, stats =  read_outputs("../../../data/load/" + date, trace)
+    util, fct_oct_ratio, stats =  read_outputs("../../result/load/" + date, trace)
     # draw_graph(util, trace + " load Utilization")
     # draw_graph(fct_oct_ratio,  trace + " load FCT_OCT_ratio")
     # draw_bar_graph(stats, num_elements, trace + " bar chart for Slowdown")
