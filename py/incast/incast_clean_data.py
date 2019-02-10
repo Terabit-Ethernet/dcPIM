@@ -8,7 +8,7 @@ from matplotlib import cm
 import sys
 import json
 
-algos = ["pfabric","fastpass", "phost", "ruf"]
+algos = ["pfabric","fastpass", "phost", "ranking"]
 incasts = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
 
 ID = 0
