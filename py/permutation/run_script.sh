@@ -1,6 +1,6 @@
 #!/bin/bash
 
-algos=(fastpass ranking pfabric phost)
+algos=(fastpass ruf pfabric phost)
 pids=()
 OUTPUT_FOLDER=../result/permutation
 DATE=$1

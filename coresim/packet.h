@@ -19,12 +19,12 @@
 #define FASTPASS_RTS 9
 #define FASTPASS_SCHEDULE 10
 
-// RANKING
-#define RANKING_RTS 11
-#define RANKING_LISTSRCS 12
-#define RANKING_NRTS 13
-#define RANKING_GOSRC 14
-#define RANKING_TOKEN 15
+// RUF
+#define RUF_RTS 11
+#define RUF_LISTSRCS 12
+#define RUF_NRTS 13
+#define RUF_GOSRC 14
+#define RUF_TOKEN 15
 
 // PIM
 #define PIM_GRANTS_PACKET 16
@@ -58,8 +58,8 @@ class Packet {
         double last_enque_time;
 
         int capa_data_seq;
-        // round of ranking
-        int ranking_round;
+        // round of ruf
+        int ruf_round;
         int hop;
 };
 
@@ -180,19 +180,19 @@ class FastpassSchedulePkt : public Packet
         FastpassSchedulePkt(Flow *flow, Host *src, Host *dst, FastpassEpochSchedule* schd);
         FastpassEpochSchedule* schedule;
 };
-// Ranking Algorithm
-class RankingRTS : public Packet
+// Ruf Algorithm
+class RufRTS : public Packet
 {
     public:
-        RankingRTS(Flow *flow, Host *src, Host *dst, int size_in_pkt);
+        RufRTS(Flow *flow, Host *src, Host *dst, int size_in_pkt);
         int size_in_pkt;
 };
 
-class RankingListSrcs : public Packet
+class RufListSrcs : public Packet
 {
     public:
-        RankingListSrcs(Flow *flow, Host *src, Host *dst, Host* rts_dst, std::list<uint32_t> listSrcs);
-        ~RankingListSrcs();
+        RufListSrcs(Flow *flow, Host *src, Host *dst, Host* rts_dst, std::list<uint32_t> listSrcs);
+        ~RufListSrcs();
         std::list<uint32_t> listSrcs;
         std::list<uint32_t> flowSizes;
         Host* rts_dst;
@@ -201,27 +201,27 @@ class RankingListSrcs : public Packet
         int nrts_dst_id;
 };
 
-class RankingNRTS : public Packet
+class RufNRTS : public Packet
 {
     public:
-        RankingNRTS(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t dst_id);
+        RufNRTS(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t dst_id);
         uint32_t src_id;
         uint32_t dst_id;
 
 };
 
-class RankingGoSrc : public Packet
+class RufGoSrc : public Packet
 {
     public:
-        RankingGoSrc(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t max_tokens);
+        RufGoSrc(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t max_tokens);
         uint32_t src_id;
         uint32_t max_tokens;
 };
 
-class RankingToken : public Packet
+class RufToken : public Packet
 {
     public:
-        RankingToken(Flow *flow, Host *src, Host *dst, double ttl, int remaining, int token_seq_num, int data_seq_num);
+        RufToken(Flow *flow, Host *src, Host *dst, double ttl, int remaining, int token_seq_num, int data_seq_num);
         double ttl;
         int remaining_sz;
         int token_seq_num;

@@ -13,7 +13,7 @@
 #include "topology.h"
 
 #include "../ext/factory.h"
-#include "../ext/rankinghost.h"
+#include "../ext/rufhost.h"
 #include "../ext/fastpasshost.h"
 
 

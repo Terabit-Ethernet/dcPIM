@@ -25,9 +25,9 @@ simulator_SOURCES = 				 		 	 \
 					ext/fastpassflow.cpp 	   	 \
 					ext/fastpasshost.cpp 	   	 \
 					ext/fastpassTopology.cpp	 \
-					ext/rankinghost.cpp	         \
-					ext/rankingflow.cpp	         \
-					ext/rankingTopology.cpp      \
+					ext/rufhost.cpp	         \
+					ext/rufflow.cpp	         \
+					ext/rufTopology.cpp      \
 					ext/pimflow.cpp               \
 					ext/pimhost.cpp		     \
 					ext/tcpflow.cpp				 \

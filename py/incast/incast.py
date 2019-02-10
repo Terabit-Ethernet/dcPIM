@@ -183,7 +183,7 @@ num_host_types: 13
 incast_tm: {0}
 '''
 
-conf_str_ranking = '''init_cwnd: 2
+conf_str_ruf = '''init_cwnd: 2
 max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
@@ -213,10 +213,10 @@ token_timeout: 2
 token_resend_timeout: 1
 token_window: 1
 token_window_timeout: 1.1
-rankinghost_idle_timeout: 5.5
-ranking_max_tokens: 10
-ranking_min_tokens: 5
-ranking_controller_epoch: 5
+rufhost_idle_timeout: 5.5
+ruf_max_tokens: 10
+ruf_min_tokens: 5
+ruf_controller_epoch: 5
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33
@@ -232,7 +232,7 @@ num_host_types: 13
 incast_tm: {0}
 '''
 
-runs = ['pfabric', 'phost', 'fastpass', 'random', 'ranking']
+runs = ['pfabric', 'phost', 'fastpass', 'random', 'ruf']
 workloads = ['aditya', 'dctcp', 'datamining', 'constant']
 incasts = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
 size = 100 #MB
@@ -256,8 +256,8 @@ for r in runs:
 	            conf_str = conf_str_fastpass.format(incast, w)
 	        elif r == 'random':
 	            conf_str = conf_str_random.format(incast, w)
-	        elif r == 'ranking':
-	        	conf_str = conf_str_ranking.format(incast, w)
+	        elif r == 'ruf':
+	        	conf_str = conf_str_ruf.format(incast, w)
 	        confFile = w + "/conf_{0}_{1}_{2}.txt".format(r, w, incast)
 	        with open(confFile, 'w') as f:
                     print confFile

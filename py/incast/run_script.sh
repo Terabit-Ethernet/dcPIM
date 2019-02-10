@@ -1,7 +1,7 @@
 #!/bin/bash
 
 incasts=(1 143)
-algos=(phost pfabric fastpass ranking)
+algos=(phost pfabric fastpass ruf)
 pids=()
 OUTPUT_FOLDER=../result/incast
 DATE=$1

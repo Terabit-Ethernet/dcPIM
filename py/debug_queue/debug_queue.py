@@ -1,4 +1,4 @@
-conf_str_ranking = '''init_cwnd: 2
+conf_str_ruf = '''init_cwnd: 2
 max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
@@ -30,10 +30,10 @@ token_timeout: 2
 token_resend_timeout: 1
 token_window: 1
 token_window_timeout: 1.1
-rankinghost_idle_timeout: {2}
-ranking_max_tokens: 10
-ranking_min_tokens: 5
-ranking_controller_epoch: {0}
+rufhost_idle_timeout: {2}
+ruf_max_tokens: 10
+ruf_min_tokens: 5
+ruf_controller_epoch: {0}
 debug_controller_queue: 1
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -49,7 +49,7 @@ interarrival_cdf: none
 num_host_types: 13
 '''
 
-runs = ['ranking']
+runs = ['ruf']
 workloads = ['aditya', 'dctcp', 'datamining', 'constant']
 tokens = [10]
 control_epochs = [5, 6]
@@ -69,7 +69,7 @@ for r in runs:
 	        #     conf_str = conf_str_random.format(token, w)
 		        c_time = control_epoch
 		        idle_time = 0.5 + c_time
-	    		conf_str = conf_str_ranking.format(c_time, w, idle_time)
+	    		conf_str = conf_str_ruf.format(c_time, w, idle_time)
 		        confFile = "conf_{0}_{1}_{2}_{3}.txt".format(r, w, int(token), control_epoch)
 		        with open(confFile, 'w') as f:
 		            print confFile

@@ -138,7 +138,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         else if (key == "capability_window_timeout") {
             lineStream >> params.capability_window_timeout;
         }
-        // For Ranking Algorithm
+        // For Ruf Algorithm
         else if (key == "token_resend_timeout") {
             lineStream >> params.token_resend_timeout;
         }
@@ -160,17 +160,17 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         else if (key == "token_fourth_level") {
             lineStream >> params.token_fourth_level;
         }
-        else if (key == "rankinghost_idle_timeout") {
-            lineStream >> params.rankinghost_idle_timeout;
+        else if (key == "rufhost_idle_timeout") {
+            lineStream >> params.rufhost_idle_timeout;
         }
-        else if (key == "ranking_max_tokens") {
-            lineStream >> params.ranking_max_tokens;
+        else if (key == "ruf_max_tokens") {
+            lineStream >> params.ruf_max_tokens;
         }
-        else if (key == "ranking_min_tokens") {
-            lineStream >> params.ranking_min_tokens;
+        else if (key == "ruf_min_tokens") {
+            lineStream >> params.ruf_min_tokens;
         }
-        else if (key == "ranking_controller_epoch") {
-            lineStream >> params.ranking_controller_epoch;
+        else if (key == "ruf_controller_epoch") {
+            lineStream >> params.ruf_controller_epoch;
         } else if (key == "debug_controller_queue") {
             lineStream >> params.debug_controller_queue;
         }
@@ -273,12 +273,12 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         }
 
         params.fastpass_epoch_time = 1500 * 8 * (params.fastpass_epoch_pkts + 0.5) / params.bandwidth;
-        // params.ranking_epoch_time = 1500 * 8 * (RANKING_EPOCH_PKTS + 0.5) / params.bandwidth;
-        // params.ranking_reset_epoch = 1; 
+        // params.ruf_epoch_time = 1500 * 8 * (RUF_EPOCH_PKTS + 0.5) / params.bandwidth;
+        // params.ruf_reset_epoch = 1; 
         params.param_str.append(line);
         params.param_str.append(", ");
     }
-    // params.ranking_max_src_num = (params.bandwidth / 8 * (params.ranking_max_tokens * params.get_full_pkt_tran_delay()) / params.num_hosts - params.hdr_size) / 2;
+    // params.ruf_max_src_num = (params.bandwidth / 8 * (params.ruf_max_tokens * params.get_full_pkt_tran_delay()) / params.num_hosts - params.hdr_size) / 2;
 
     // multi-round protocol
     // params.pim_iter_limit = 4;
@@ -289,7 +289,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     // params.pim_window_size *= params.BDP;
     // params.pim_small_flow *= params.BDP;
     // std::cout << params.pim_resend_timeout << " " << params.pim_epoch << " " << params.pim_iter_limit << std::endl;
-    //std::cout << params.token_initial << " " << params.token_window << " " << params.token_timeout << " " << params.token_window_timeout  << " " << params.token_resend_timeout << " " << params.ranking_max_tokens << " " << params.ranking_reset_epoch << " " << params.ranking_controller_epoch << " " << params.rankinghost_idle_timeout << std::endl;
+    //std::cout << params.token_initial << " " << params.token_window << " " << params.token_timeout << " " << params.token_window_timeout  << " " << params.token_resend_timeout << " " << params.ruf_max_tokens << " " << params.ruf_reset_epoch << " " << params.ruf_controller_epoch << " " << params.rufhost_idle_timeout << std::endl;
     // assert(false);
     params.mss = 1460;
 }

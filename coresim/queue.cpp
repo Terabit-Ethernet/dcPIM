@@ -94,12 +94,12 @@ void Queue::drop(Packet *packet) {
     if (location != 0 && packet->type == NORMAL_PACKET) {
         dead_packets += 1;
     }
-    if(packet->type == RANKING_LISTSRCS) {
+    if(packet->type == RUF_LISTSRCS) {
         std::cout << get_current_time() << " listSRC pkt drop. flow:" << packet->flow->id << " packet size:" << packet->size
             << " type:" << packet->type << " seq:" << packet->seq_no << " src:" << packet->src->id << " num of packets in queue: " << packets.size()
             << " at queue id:" << this->id << " loc:" << this->location << "\n";
     }
-    else if(packet->type == RANKING_GOSRC) {
+    else if(packet->type == RUF_GOSRC) {
         std::cout << get_current_time() << " gosrc pkt drop. flow:" << packet->flow->id << " packet size:" << packet->size
             << " type:" << packet->type << " seq:" << packet->seq_no << " src:" << packet->src->id << " num of packets in queue: " << packets.size()
             << " at queue id:" << this->id << " loc:" << this->location << "\n";

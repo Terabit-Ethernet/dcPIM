@@ -179,7 +179,7 @@ interarrival_cdf: none
 num_host_types: 13
 '''
 
-conf_str_ranking = '''init_cwnd: 2
+conf_str_ruf = '''init_cwnd: 2
 max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
@@ -209,10 +209,10 @@ token_timeout: 2
 token_resend_timeout: 1
 token_window: 1
 token_window_timeout: 1.1
-rankinghost_idle_timeout: 5.5
-ranking_max_tokens: 10
-ranking_min_tokens: 5
-ranking_controller_epoch: 5
+rufhost_idle_timeout: 5.5
+ruf_max_tokens: 10
+ruf_min_tokens: 5
+ruf_controller_epoch: 5
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33
@@ -272,7 +272,7 @@ interarrival_cdf: none
 num_host_types: 13
 '''
 
-runs = ['pfabric', 'phost', 'fastpass', 'random', 'ranking', "pim"]
+runs = ['pfabric', 'phost', 'fastpass', 'random', 'ruf', "pim"]
 workloads = ['aditya', 'dctcp', 'datamining', 'constant']
 #incasts = [1,143]
 for r in runs:
@@ -286,8 +286,8 @@ for r in runs:
             conf_str = conf_str_fastpass.format(w)
         elif r == 'random':
             conf_str = conf_str_random.format(w)
-        elif r == 'ranking':
-            conf_str = conf_str_ranking.format(w)
+        elif r == 'ruf':
+            conf_str = conf_str_ruf.format(w)
         elif r == 'pim':
             conf_str = conf_str_pim.format(w)
         confFile = "conf_{0}_{1}.txt".format(r, w)

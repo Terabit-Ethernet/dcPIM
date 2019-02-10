@@ -24,7 +24,7 @@
 #include "../ext/fountainflow.h"
 #include "../ext/capabilityflow.h"
 #include "../ext/fastpassTopology.h"
-#include "../ext/rankingTopology.h"
+#include "../ext/rufTopology.h"
 #include "../ext/pimhost.h"
 
 #include "flow_generator.h"
@@ -172,8 +172,8 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
         if (params.flow_type == FASTPASS_FLOW) {
             topology = new FastpassTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
         } 
-        else if (params.flow_type == RANKING_FLOW) {
-            topology = new RankingTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
+        else if (params.flow_type == RUF_FLOW) {
+            topology = new RufTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
         }
         else if (params.big_switch) {
             topology = new BigSwitchTopology(params.num_hosts, params.bandwidth, params.queue_type);
@@ -264,8 +264,8 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
     if (params.flow_type == FASTPASS_FLOW) {
         dynamic_cast<FastpassArbiter*>(topology->arbiter)->start_arbiter();
     }
-    if (params.flow_type == RANKING_FLOW) {
-        dynamic_cast<RankingArbiter*>(topology->arbiter)->start_arbiter();
+    if (params.flow_type == RUF_FLOW) {
+        dynamic_cast<RufArbiter*>(topology->arbiter)->start_arbiter();
     }
     if(params.flow_type == PIM_FLOW) {
         for(int i = 0; i < params.num_hosts; i++) {

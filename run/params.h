@@ -86,7 +86,7 @@ class DCExpParams {
         uint32_t dctcp_mark_thresh;
         //uint32_t dctcp_delayed_ack_freq;
         uint32_t fastpass_epoch_pkts;
-        // Ranking Algorithm
+        // Ruf Algorithm
         double BDP;
         double token_timeout;
         double token_resend_timeout;
@@ -97,15 +97,15 @@ class DCExpParams {
         uint32_t token_third_level;
         uint32_t token_fourth_level;
         
-        //double ranking_epoch_time;
-        double rankinghost_idle_timeout;
-        double ranking_controller_epoch;
-        // double ranking_reset_epoch;
-        double ranking_max_tokens;
-        double ranking_min_tokens;
+        //double ruf_epoch_time;
+        double rufhost_idle_timeout;
+        double ruf_controller_epoch;
+        // double ruf_reset_epoch;
+        double ruf_max_tokens;
+        double ruf_min_tokens;
         double rtt;
         // double ctrl_pkt_rtt;
-        double ranking_max_src_num;
+        double ruf_max_src_num;
         bool debug_controller_queue;
         // std::string policy;
         // debug for max-min fairness

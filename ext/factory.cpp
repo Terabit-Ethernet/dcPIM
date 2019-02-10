@@ -19,8 +19,8 @@
 #include "dctcpQueue.h"
 #include "dctcpFlow.h"
 
-#include "rankingflow.h"
-#include "rankinghost.h"
+#include "rufflow.h"
+#include "rufhost.h"
 
 #include "pimflow.h"
 #include "pimhost.h"
@@ -90,8 +90,8 @@ Flow* Factory::get_flow(
             break;
         case PIM_FLOW:
             return new PimFlow(id, start_time, size, src, dst);
-        case RANKING_FLOW:
-            return new RankingFlow(id, start_time, size, src, dst);
+        case RUF_FLOW:
+            return new RufFlow(id, start_time, size, src, dst);
             break;
         case FASTPASS_FLOW:
             return new FastpassFlow(id, start_time, size, src, dst);
@@ -134,8 +134,8 @@ Host* Factory::get_host(
             break;
         case PIM_HOST:
             return new PimHost(id, rate, queue_type);
-        case RANKING_HOST:
-            return new RankingHost(id, rate, queue_type);
+        case RUF_HOST:
+            return new RufHost(id, rate, queue_type);
             break;
         case FASTPASS_HOST:
             return new FastpassHost(id, rate, queue_type);

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 epochs=(1 2 3 4 5 6)
-algos=(ranking)
+algos=(ruf)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()
 

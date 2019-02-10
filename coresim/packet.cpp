@@ -24,7 +24,7 @@ Packet::Packet(
     this->type = NORMAL_PACKET;
     this->unique_id = Packet::instance_count++;
     this->total_queuing_delay = 0;
-    this->ranking_round = -1;
+    this->ruf_round = -1;
 }
 
 PlainAck::PlainAck(Flow *flow, uint32_t seq_no_acked, uint32_t size, Host* src, Host *dst) : Packet(0, flow, seq_no_acked, 0, size, src, dst) {
@@ -123,15 +123,15 @@ FastpassSchedulePkt::FastpassSchedulePkt(Flow *flow, Host *src, Host *dst, Fastp
     this->type = FASTPASS_SCHEDULE;
     this->schedule = schd;
 }
-// ----- for ranking algorithm
+// ----- for ruf algorithm
 
-RankingRTS::RankingRTS(Flow *flow, Host *src, Host *dst, int size_in_pkt) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
-    this->type = RANKING_RTS;
+RufRTS::RufRTS(Flow *flow, Host *src, Host *dst, int size_in_pkt) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+    this->type = RUF_RTS;
     this->size_in_pkt = size_in_pkt;
 }
 
-RankingListSrcs::RankingListSrcs(Flow *flow, Host *src, Host *dst, Host *rts_dst, std::list<uint32_t> listSrcs) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
-    this->type = RANKING_LISTSRCS;
+RufListSrcs::RufListSrcs(Flow *flow, Host *src, Host *dst, Host *rts_dst, std::list<uint32_t> listSrcs) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+    this->type = RUF_LISTSRCS;
     this->rts_dst = rts_dst;
     this->listSrcs = listSrcs;
     // assume src id  is 2 bytes;
@@ -139,23 +139,23 @@ RankingListSrcs::RankingListSrcs(Flow *flow, Host *src, Host *dst, Host *rts_dst
     this->has_nrts = false;
 }
 
-RankingListSrcs::~RankingListSrcs() {
+RufListSrcs::~RufListSrcs() {
     this->listSrcs.clear();
 }
-RankingNRTS::RankingNRTS(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t dst_id) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
-    this->type = RANKING_NRTS;
+RufNRTS::RufNRTS(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t dst_id) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+    this->type = RUF_NRTS;
     this->src_id = src_id;
     this->dst_id = dst_id;
 }
 
-RankingGoSrc::RankingGoSrc(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t max_tokens) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
-    this->type = RANKING_GOSRC;
+RufGoSrc::RufGoSrc(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t max_tokens) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+    this->type = RUF_GOSRC;
     this->src_id = src_id;
     this->max_tokens = max_tokens;
 }
 
-RankingToken::RankingToken(Flow *flow, Host *src, Host *dst, double ttl, int remaining, int token_seq_num, int data_seq_num) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
-    this->type = RANKING_TOKEN;
+RufToken::RufToken(Flow *flow, Host *src, Host *dst, double ttl, int remaining, int token_seq_num, int data_seq_num) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+    this->type = RUF_TOKEN;
     this->ttl = ttl;
     this->remaining_sz = remaining;
     this->token_seq_num = token_seq_num;

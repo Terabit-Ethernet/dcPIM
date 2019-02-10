@@ -23,11 +23,11 @@ FatTreeTopology::FatTreeTopology(
     for (uint32_t i = 0; i < this->num_hosts; i++) {
         hosts.push_back(Factory::get_host(i, c, queue_type, params.host_type)); 
     }
-    if(params.host_type == RANKING_HOST) {
-    	this->arbiter = new RankingArbiter(num_hosts, 100000000000.0, queue_type);
+    if(params.host_type == RUF_HOST) {
+    	this->arbiter = new RufArbiter(num_hosts, 100000000000.0, queue_type);
 	    // Create fake flow to communicate with the arbiter
 	    for (uint32_t i = 0; i < num_hosts; i++) {
-	        ((RankingHost*)hosts[i])->fake_flow = new RankingFlow(-1, -1, -1, hosts[i], arbiter);
+	        ((RufHost*)hosts[i])->fake_flow = new RufFlow(-1, -1, -1, hosts[i], arbiter);
 	    }  
     } else if(params.host_type == FASTPASS_HOST) {
     	this->arbiter = new FastpassArbiter(num_hosts, c, queue_type);
@@ -105,31 +105,31 @@ FatTreeTopology::FatTreeTopology(
         }
     }
     // Set arbiter
-    if(params.host_type == RANKING_HOST || params.host_type == FASTPASS_HOST) {
+    if(params.host_type == RUF_HOST || params.host_type == FASTPASS_HOST) {
 	    this->arbiter->queue->set_src_dst(arbiter, edge_switches[0]);
 	    this->edge_switches[0]->queue_to_arbiter->set_src_dst(edge_switches[0], arbiter);
     }
     set_up_parameter();
 }
 void FatTreeTopology::set_up_parameter() {
-    if(params.host_type == RANKING_HOST) {
+    if(params.host_type == RUF_HOST) {
         params.rtt = (6 * params.propagation_delay + (1500 * 8 / params.bandwidth) * 6) * 2;
         // params.ctrl_pkt_rtt = (4 * params.propagation_delay + (40 * 8 / params.bandwidth) * 2.5) * 2;
         params.BDP = ceil(params.rtt * params.bandwidth / 1500 / 8);
-        params.ranking_max_tokens = ceil(params.ranking_max_tokens * params.BDP);
-        params.ranking_min_tokens = ceil(params.ranking_min_tokens * params.BDP);
+        params.ruf_max_tokens = ceil(params.ruf_max_tokens * params.BDP);
+        params.ruf_min_tokens = ceil(params.ruf_min_tokens * params.BDP);
         params.token_window *= params.BDP;
         params.token_initial *= params.BDP;
         params.token_timeout *= params.get_full_pkt_tran_delay();
         params.token_resend_timeout *= params.BDP * params.get_full_pkt_tran_delay();
-        params.rankinghost_idle_timeout *= params.BDP * params.get_full_pkt_tran_delay();
+        params.rufhost_idle_timeout *= params.BDP * params.get_full_pkt_tran_delay();
         params.token_window_timeout *= params.BDP * params.get_full_pkt_tran_delay();
-        // params.ranking_reset_epoch *= params.BDP * params.get_full_pkt_tran_delay();
-        params.ranking_controller_epoch *= params.BDP * params.get_full_pkt_tran_delay();
+        // params.ruf_reset_epoch *= params.BDP * params.get_full_pkt_tran_delay();
+        params.ruf_controller_epoch *= params.BDP * params.get_full_pkt_tran_delay();
     }
 }
 bool FatTreeTopology::is_arbiter(Host* n) {
-	if(n->host_type == FASTPASS_ARBITER || n->host_type == RANKING_ARBITER)
+	if(n->host_type == FASTPASS_ARBITER || n->host_type == RUF_ARBITER)
 		return true;
 	return false;
 }

@@ -18,8 +18,8 @@
 
 #include "../ext/factory.h"
 //#include "../ext/fastpasshost.h"
-#include "../ext/rankinghost.h"
-#include "../ext/rankingTopology.h"
+#include "../ext/rufhost.h"
+#include "../ext/rufTopology.h"
 
 #include "../run/params.h"
 
@@ -115,7 +115,7 @@ void run_scenario() {
         }
         if(params.print_max_min_fairness && get_current_time() > 1.2) {
             for(int i = 0; i < topology->hosts.size(); i++) {
-                ((RankingHost*)topology->hosts[i])->print_max_min_fairness();
+                ((RufHost*)topology->hosts[i])->print_max_min_fairness();
             }
             assert(false);
         }
@@ -126,8 +126,8 @@ void run_scenario() {
                 if(params.topology == "FatTree") {
                     queue = dynamic_cast<FatTreeTopology*>(topology)->edge_switches[0]->queue_to_arbiter;
                 } else {
-                    RankingTopology* t = dynamic_cast<RankingTopology*>(topology);
-                    RankingAggSwitch* agg_switch = (RankingAggSwitch*)(t->agg_switches[0]);
+                    RufTopology* t = dynamic_cast<RufTopology*>(topology);
+                    RufAggSwitch* agg_switch = (RufAggSwitch*)(t->agg_switches[0]);
                     queue = agg_switch->queue_to_arbiter;
                 }
 
@@ -135,7 +135,7 @@ void run_scenario() {
                         std::cout << get_current_time() << " " << queue->bytes_in_queue << "\n";
                         // for(int i = 0; i < queue->packets.size(); i++) {
                         //     std::cout << queue->packets[i]->src->id << " " <<
-                        //      dynamic_cast<RankingListSrcs*> (queue->packets[i])->listSrcs.size() << std::endl;
+                        //      dynamic_cast<RufListSrcs*> (queue->packets[i])->listSrcs.size() << std::endl;
                         // }
                 // }
             }

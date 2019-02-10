@@ -1,6 +1,6 @@
 #!/bin/bash
 
-algos=(phost ranking pfabric fastpass)
+algos=(phost ruf pfabric fastpass)
 aids=()
 OUTPUT_FOLDER=../result/worst_case
 DATE=$1
