@@ -283,7 +283,8 @@ void RufFlow::receive(Packet *p) {
         add_to_event_queue(new FlowFinishedEvent(get_current_time(), this));
     } else if (p->type == RUF_NRTS) {
         if(p->dst->id == params.num_hosts) {
-            dynamic_cast<RufArbiter*>(topology->arbiter)->receive_nrts((RufNRTS*) p);
+            assert(false);
+            // dynamic_cast<RufArbiter*>(topology->arbiter)->receive_nrts((RufNRTS*) p);
         // } else {
         //     ((RufHost*) this->dst)->receive_nrts((RufNRTS*) p);
         // }

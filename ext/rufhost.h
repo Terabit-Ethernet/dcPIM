@@ -45,17 +45,6 @@ public:
     ~GoSRC() = default;
 };
 
-class ListSrcs //for extendability
-{
-public:
-    Host* dst;
-    std::list<uint32_t> listSrcs;
-    ListSrcs() = default;
-    ~ListSrcs() {
-        listSrcs.clear();
-    };
-};
-
 class PqElement {
 public:
     Host* dst;
@@ -64,7 +53,7 @@ public:
 };
 
 // used for host when forming new listSrc
-class ListSrcComparator {
+class ListSrcsComparator {
 public:
     bool operator()(const std::pair<int,int> &left, const std::pair<int,int> &right) {
         return left.first < right.first;
@@ -72,12 +61,20 @@ public:
 };
 
 // used for the arbiter
-class ListSrcsComparator {
-    public:
-        ListSrcsComparator();
-        std::vector<double> ruf;
-        bool operator() (ListSrcs* a, ListSrcs* b);
-        void reset_ruf();
+class HostState {
+public:
+    bool state;
+    int timeout; 
+    HostState() {
+        state = true;
+        timeout = -1;
+    }
+    void reset_state() {
+        state = false;
+    }
+    void reset_timeout() {
+        timeout = -1;
+    }
 };
 
 class PqElementComparator {
@@ -161,20 +158,18 @@ class RufArbiter : public Host {
         void schedule_proc_evt(double time);
         void schedule_epoch();
         void receive_listsrcs(RufListSrcs* pkt);
-        void receive_nrts(RufNRTS* pkt);
+        // void receive_nrts(RufNRTS* pkt);
         void reset_ruf();
-        void rtt_schedule();
         void ruf_schedule();
         void send_gosrc();
         
         std::queue<std::pair<RufHost*, uint32_t>> gosrc_queue;
-        std::vector<bool> src_state;
-        std::vector<bool> dst_state;
+        std::vector<HostState> src_state;
+        std::vector<HostState> dst_state;
         RufArbiterProcessingEvent* arbiter_proc_evt;
         RufGoSrcQueuingEvent* gosrc_queue_evt;
         // double last_reset_ruf_time;
-        CustomPriorityQueue<ListSrcs*, std::vector<ListSrcs*>, ListSrcsComparator> ruf_q;
-        CustomPriorityQueue<PqElement*, std::vector<PqElement*>, PqElementComparator> rtt_q;
+        CustomPriorityQueue<PqElement*, std::vector<PqElement*>, PqElementComparator> ruf_q;
 };
 
 #define RUF_ARBITER_PROCESSING 17
