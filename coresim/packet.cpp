@@ -24,7 +24,6 @@ Packet::Packet(
     this->type = NORMAL_PACKET;
     this->unique_id = Packet::instance_count++;
     this->total_queuing_delay = 0;
-    this->ruf_round = -1;
 }
 
 PlainAck::PlainAck(Flow *flow, uint32_t seq_no_acked, uint32_t size, Host* src, Host *dst) : Packet(0, flow, seq_no_acked, 0, size, src, dst) {

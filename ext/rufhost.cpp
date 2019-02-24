@@ -185,7 +185,6 @@ void RufHost::receive_token(RufToken* pkt) {
     t->timeout = get_current_time() + pkt->ttl;
     t->seq_num = pkt->token_seq_num;
     t->data_seq_num = pkt->data_seq_num;
-    t->ruf_round = pkt->ruf_round;
     f->tokens.push_back(t);
     f->remaining_pkts_at_sender = pkt->remaining_sz;
     if(this->host_proc_event == NULL) {
@@ -323,40 +322,11 @@ void RufHost::flow_finish_at_receiver(Packet* pkt) {
     if(debug_host(this->id)) {
         std::cout << get_current_time () << " flow finish at receiver " <<  pkt->flow->id << std::endl;
     }
-
     if (((RufFlow*)pkt->flow)->finished_at_receiver)
         return;
-    
     ((RufFlow*)pkt->flow)->finished_at_receiver = true;
-
-    if(pkt->flow->size_in_pkt <= params.token_initial) {
-        return;
-    }
-    if(this->gosrc_info.round == pkt->ruf_round) {
-        // assert(this->wakeup_evt != NULL);
-        // assert(this->gosrc_info.src != NULL);
-        // if(!this->src_to_flows.empty()) {
-        //     assert(this->wakeup_evt != NULL);
-        // }
-        // this->gosrc_info.reset();
-    } else if (this->gosrc_info.src == (RufHost*)pkt->flow->src) {
-        auto best_large_flow = this->get_top_unfinish_flow(pkt->flow->src->id);
-        if(best_large_flow == NULL) {
-            // if(this->gosrc_info.send_nrts == false) {
-            //     // (this->fake_flow)->sending_nrts_to_arbiter(pkt->flow->src->id, pkt->flow->dst->id);
-            //     assert(this->wakeup_evt == NULL);
-            //     //std::cout << pkt->flow->id << " "  << pkt->flow->src->id << " " << pkt->flow->dst->id << std::endl;
-            //     //assert(false);
-            //     this->debug_send_flow_finish++;
-            //     this->send_listSrcs(pkt->flow->src->id, this->gosrc_info.control_round);
-            //     this->schedule_wakeup_event();
-            // }
-
-            // this->gosrc_info.reset();
-        }
-    }
 }
-void RufHost::send_listSrcs(int nrts_src_id, int control_round) {
+void RufHost::send_listSrcs(int nrts_src_id, int round) {
     std::vector<std::pair<int, int>> vect1;
     std::vector<std::pair<int, int>> vect2;
 
@@ -440,7 +410,7 @@ void RufHost::send_listSrcs(int nrts_src_id, int control_round) {
         listSrcs->has_nrts = true;
         listSrcs->nrts_src_id = nrts_src_id;
         listSrcs->nrts_dst_id = this->id;
-        listSrcs->round = control_round;
+        listSrcs->round = round;
         // listSrcs->pf_priority = 0;
         this->gosrc_info.send_nrts = true;
     }
@@ -602,7 +572,7 @@ void RufHost::send_token() {
                 // this->gosrc_info.send_nrts = true;
                 assert(this->wakeup_evt == NULL);
                 this->debug_use_all_tokens++;
-                this->send_listSrcs(f->src->id, this->gosrc_info.control_round);
+                this->send_listSrcs(f->src->id, this->gosrc_info.round);
                 this->schedule_wakeup_event();
             } 
         }
@@ -625,7 +595,7 @@ void RufHost::send_token() {
         //do nothing, no unfinished flow
         if(this->gosrc_info.src != NULL) {
             if(!this->gosrc_info.send_nrts){
-                this->send_listSrcs(this->gosrc_info.src->id, this->gosrc_info.control_round);
+                this->send_listSrcs(this->gosrc_info.src->id, this->gosrc_info.round);
                 assert(this->wakeup_evt == NULL);
                 this->schedule_wakeup_event();
             }
@@ -663,8 +633,7 @@ void RufHost::receive_gosrc(RufGoSrc* pkt) {
     this->gosrc_info.src = (RufHost*)this->src_to_flows[pkt->src_id].top()->src;
     this->gosrc_info.max_tokens = pkt->max_tokens;
     this->gosrc_info.remain_tokens = pkt->max_tokens;
-    this->gosrc_info.round += 1;
-    this->gosrc_info.control_round = pkt->round;
+    this->gosrc_info.round = pkt->round;
     this->gosrc_info.send_nrts = false;
     //cancel wake up event
     if(this->wakeup_evt != NULL) {

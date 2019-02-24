@@ -58,8 +58,6 @@ class Packet {
         double last_enque_time;
 
         int capa_data_seq;
-        // round of ruf
-        int ruf_round;
         int hop;
 };
 

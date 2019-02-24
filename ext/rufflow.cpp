@@ -57,12 +57,6 @@ void RufFlow::sending_rts() {
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), rts, src->queue));
 }
 
-void RufFlow::sending_nrts(int round) {
-    RufNRTS* nrts = new RufNRTS(this, this->src, this->dst, this->src->id, this->dst->id);
-    nrts->ruf_round = round;
-    add_to_event_queue(new PacketQueuingEvent(get_current_time(), nrts, src->queue));
-}
-
 void RufFlow::sending_nrts_to_arbiter(uint32_t src_id, uint32_t dst_id) {
     RufNRTS* nrts = new RufNRTS(this, this->src, topology->arbiter, src_id, dst_id);
     if(debug_host(dst_id)) {
@@ -87,9 +81,8 @@ void RufFlow::sending_gosrc(uint32_t src_id, int round) {
 
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), gosrc, topology->arbiter->queue));
 }
-void RufFlow::sending_ack(int round) {
+void RufFlow::sending_ack() {
     Packet *ack = new PlainAck(this, 0, hdr_size, dst, src);
-    ack->ruf_round = round;
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), ack, dst->queue));
 }
 // sender side
@@ -105,7 +98,6 @@ void RufFlow::assign_init_token(){
         c->timeout = get_current_time() + 100000000.0;
         c->seq_num = i;
         c->data_seq_num = i;
-        c->ruf_round = -1;
         this->tokens.push_back(c);
     }
 }
@@ -147,15 +139,14 @@ void RufFlow::send_pending_data()
     auto token = this->use_token();
     int token_data_seq = token->data_seq_num;
     int token_seq = token->seq_num;
-    int ruf_round = token->ruf_round;
     delete token;
 
     Packet *p;
     if (next_seq_no + mss <= this->size) {
-        p = this->send(next_seq_no, token_seq, token_data_seq, params.packet_priority(this->size_in_pkt, params.token_initial), ruf_round);
+        p = this->send(next_seq_no, token_seq, token_data_seq, params.packet_priority(this->size_in_pkt, params.token_initial));
         next_seq_no += mss;
     } else {
-        p = this->send(next_seq_no, token_seq, token_data_seq, params.packet_priority(this->size_in_pkt, params.token_initial), ruf_round);
+        p = this->send(next_seq_no, token_seq, token_data_seq, params.packet_priority(this->size_in_pkt, params.token_initial));
         next_seq_no = this->size;
     }
 
@@ -169,7 +160,7 @@ void RufFlow::send_pending_data()
     add_to_event_queue(((SchedulingHost*) src)->host_proc_event);
 }
 
-Packet* RufFlow::send(uint32_t seq, int token_seq, int data_seq, int priority, int ruf_round)
+Packet* RufFlow::send(uint32_t seq, int token_seq, int data_seq, int priority)
 {
     // fairness testing
     if(params.print_max_min_fairness) {
@@ -187,7 +178,6 @@ Packet* RufFlow::send(uint32_t seq, int token_seq, int data_seq, int priority, i
     Packet *p = new Packet(get_current_time(), this, seq, priority, pkt_size, src, dst);
     p->capability_seq_num_in_data = token_seq;
     p->capa_data_seq = data_seq;
-    p->ruf_round = ruf_round;
     total_pkt_sent++;
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), p, src->queue));
     return p;
@@ -247,7 +237,7 @@ void RufFlow::receive(Packet *p) {
 //        if(debug_flow(this->id))
 //            std::cout << get_current_time() << " flow " << this->id << " received pkt " << received_count << "\n";
         if (received_count >= goal) {
-            sending_ack(p->ruf_round);
+            sending_ack();
             ((RufHost*)p->dst)->flow_finish_at_receiver(p);
             if(debug_flow(this->id))
                 std::cout << get_current_time() << " flow " << this->id << " send ACK" << std::endl;
@@ -279,7 +269,6 @@ void RufFlow::receive(Packet *p) {
         this->packets_received.clear();
         this->clear_token();
         // ((RufHost*)(this->src))->active_sending_flow = NULL;
-        //sending_nrts(p->ruf_round);
         add_to_event_queue(new FlowFinishedEvent(get_current_time(), this));
     } else if (p->type == RUF_NRTS) {
         if(p->dst->id == params.num_hosts) {
@@ -382,15 +371,6 @@ void RufFlow::send_token_pkt(){
     } 
     last_token_data_seq_num_sent = data_seq_num;
     RufToken* cp = new RufToken(this, this->dst, this->src, params.token_timeout, this->remaining_pkts(), this->token_count, data_seq_num);
-    // set ruf round of the tokens
-    if(this->size_in_pkt > params.token_initial) {
-        assert(this->src == ((RufHost*)this->dst)->gosrc_info.src);
-        assert(((RufHost*)this->dst)->gosrc_info.remain_tokens > 0);
-        cp->ruf_round = ((RufHost*)this->dst)->gosrc_info.round;
-    } else {
-        cp->ruf_round = -1;
-    }
-
     this->token_count++;
     this->token_packet_sent_count++;
     this->latest_token_sent_time = get_current_time();

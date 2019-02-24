@@ -16,7 +16,6 @@ public:
     int seq_num;
     int data_seq_num;
     int create_time;
-    int ruf_round;
 };
 
 class RufFlow : public FountainFlow {
@@ -30,15 +29,14 @@ public:
     double calc_oct_time_ratio();
     // send control signals
     void sending_rts();
-    void sending_nrts(int round);
     void sending_nrts_to_arbiter(uint32_t src_id, uint32_t dst_id);
     void sending_gosrc(uint32_t src_id, int round);
-    void sending_ack(int round);
+    void sending_ack();
     // sender side
     void clear_token();
     Token* use_token();
     bool has_token();
-    Packet* send(uint32_t seq, int token_seq, int data_seq, int priority, int ruf_round);
+    Packet* send(uint32_t seq, int token_seq, int data_seq, int priority);
     void assign_init_token();
     std::list<Token*> tokens;
    

@@ -28,21 +28,19 @@ public:
     int max_tokens;
     int remain_tokens;
     int round;
-    int control_round;
     RufHost* src; 
     bool send_nrts;   
     GoSRC() {
         max_tokens = -1;
         remain_tokens = -1;
-        round = 0;
-        control_round = -1;
+        round = -1;
         src = NULL;
         send_nrts = false;
     };
     void reset() {
         max_tokens = -1;
         remain_tokens = -1;
-        control_round = -1;
+        round = -1;
         src = NULL;
     };
     ~GoSRC() = default;
@@ -128,7 +126,7 @@ class RufHost : public SchedulingHost {
         bool flow_compare(RufFlow* long_flow, RufFlow* short_flow);
         //void receive_nrts(RufNRTS* pkt);
         void receive_gosrc(RufGoSrc* pkt);
-        void send_listSrcs(int src_id = -1, int control_round = -1);
+        void send_listSrcs(int src_id = -1, int round = -1);
         void send_token();
         void schedule_wakeup_event();
         void schedule_token_proc_evt(double time, bool is_timeout);
