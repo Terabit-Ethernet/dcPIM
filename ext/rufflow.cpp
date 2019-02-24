@@ -72,7 +72,7 @@ void RufFlow::sending_nrts_to_arbiter(uint32_t src_id, uint32_t dst_id) {
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), nrts, src->queue));
 }
 
-void RufFlow::sending_gosrc(uint32_t src_id) {
+void RufFlow::sending_gosrc(uint32_t src_id, int round) {
     if(debug_host(this->src->id)) {
         std::cout << get_current_time () << " sending gosrc to host " << this->src->id << std::endl;
     }
@@ -83,7 +83,7 @@ void RufFlow::sending_gosrc(uint32_t src_id) {
         max_token =  rand()%(int(params.ruf_max_tokens - params.ruf_min_tokens)) + params.ruf_min_tokens;
     }
     // uint32_t max_token = params.ruf_max_tokens;
-    RufGoSrc* gosrc = new RufGoSrc(this, topology->arbiter, this->src, src_id, max_token);
+    RufGoSrc* gosrc = new RufGoSrc(this, topology->arbiter, this->src, src_id, max_token, round);
 
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), gosrc, topology->arbiter->queue));
 }

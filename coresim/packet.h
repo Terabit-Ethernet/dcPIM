@@ -199,6 +199,7 @@ class RufListSrcs : public Packet
         bool has_nrts;
         int nrts_src_id;
         int nrts_dst_id;
+        int round;
 };
 
 class RufNRTS : public Packet
@@ -213,9 +214,10 @@ class RufNRTS : public Packet
 class RufGoSrc : public Packet
 {
     public:
-        RufGoSrc(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t max_tokens);
+        RufGoSrc(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t max_tokens, int round);
         uint32_t src_id;
         uint32_t max_tokens;
+        int round;
 };
 
 class RufToken : public Packet

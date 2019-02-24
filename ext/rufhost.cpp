@@ -334,26 +334,29 @@ void RufHost::flow_finish_at_receiver(Packet* pkt) {
     }
     if(this->gosrc_info.round == pkt->ruf_round) {
         // assert(this->wakeup_evt != NULL);
-        this->gosrc_info.reset();
-
+        // assert(this->gosrc_info.src != NULL);
+        // if(!this->src_to_flows.empty()) {
+        //     assert(this->wakeup_evt != NULL);
+        // }
+        // this->gosrc_info.reset();
     } else if (this->gosrc_info.src == (RufHost*)pkt->flow->src) {
         auto best_large_flow = this->get_top_unfinish_flow(pkt->flow->src->id);
         if(best_large_flow == NULL) {
-            if(this->gosrc_info.send_nrts == false) {
-                // (this->fake_flow)->sending_nrts_to_arbiter(pkt->flow->src->id, pkt->flow->dst->id);
-                assert(this->wakeup_evt == NULL);
-                //std::cout << pkt->flow->id << " "  << pkt->flow->src->id << " " << pkt->flow->dst->id << std::endl;
-                //assert(false);
-                this->debug_send_flow_finish++;
-                this->send_listSrcs(pkt->flow->src->id);
-                this->schedule_wakeup_event();
-            }
+            // if(this->gosrc_info.send_nrts == false) {
+            //     // (this->fake_flow)->sending_nrts_to_arbiter(pkt->flow->src->id, pkt->flow->dst->id);
+            //     assert(this->wakeup_evt == NULL);
+            //     //std::cout << pkt->flow->id << " "  << pkt->flow->src->id << " " << pkt->flow->dst->id << std::endl;
+            //     //assert(false);
+            //     this->debug_send_flow_finish++;
+            //     this->send_listSrcs(pkt->flow->src->id, this->gosrc_info.control_round);
+            //     this->schedule_wakeup_event();
+            // }
 
-            this->gosrc_info.reset();
+            // this->gosrc_info.reset();
         }
     }
 }
-void RufHost::send_listSrcs(int nrts_src_id) {
+void RufHost::send_listSrcs(int nrts_src_id, int control_round) {
     std::vector<std::pair<int, int>> vect1;
     std::vector<std::pair<int, int>> vect2;
 
@@ -437,6 +440,7 @@ void RufHost::send_listSrcs(int nrts_src_id) {
         listSrcs->has_nrts = true;
         listSrcs->nrts_src_id = nrts_src_id;
         listSrcs->nrts_dst_id = this->id;
+        listSrcs->round = control_round;
         // listSrcs->pf_priority = 0;
         this->gosrc_info.send_nrts = true;
     }
@@ -598,7 +602,7 @@ void RufHost::send_token() {
                 // this->gosrc_info.send_nrts = true;
                 assert(this->wakeup_evt == NULL);
                 this->debug_use_all_tokens++;
-                this->send_listSrcs(f->src->id);
+                this->send_listSrcs(f->src->id, this->gosrc_info.control_round);
                 this->schedule_wakeup_event();
             } 
         }
@@ -619,6 +623,15 @@ void RufHost::send_token() {
     }
     else{
         //do nothing, no unfinished flow
+        if(this->gosrc_info.src != NULL) {
+            if(!this->gosrc_info.send_nrts){
+                this->send_listSrcs(this->gosrc_info.src->id, this->gosrc_info.control_round);
+                assert(this->wakeup_evt == NULL);
+                this->schedule_wakeup_event();
+            }
+            this->gosrc_info.reset();
+            // assert(false);
+        }
     }
 
 
@@ -633,7 +646,7 @@ void RufHost::receive_gosrc(RufGoSrc* pkt) {
     if(best_large_flow == NULL) {
         // this->fake_flow->sending_nrts_to_arbiter(pkt->src_id, this->id);
         this->debug_send_go_src++;
-        this->send_listSrcs(pkt->src_id);
+        this->send_listSrcs(pkt->src_id, pkt->round);
         // if(!this->src_to_flows.empty()) {
         //     assert(this->wakeup_evt != NULL);
         // }
@@ -651,6 +664,7 @@ void RufHost::receive_gosrc(RufGoSrc* pkt) {
     this->gosrc_info.max_tokens = pkt->max_tokens;
     this->gosrc_info.remain_tokens = pkt->max_tokens;
     this->gosrc_info.round += 1;
+    this->gosrc_info.control_round = pkt->round;
     this->gosrc_info.send_nrts = false;
     //cancel wake up event
     if(this->wakeup_evt != NULL) {
@@ -674,6 +688,7 @@ RufArbiter::RufArbiter(uint32_t id, double rate, uint32_t queue_type) : Host(id,
     this->dst_state = std::vector<HostState>(params.num_hosts, HostState());
     this->arbiter_proc_evt = NULL;
     this->gosrc_queue_evt = NULL;
+    this->round = 0;
     // this->last_reset_ruf_time = 0;
 }
 
@@ -695,7 +710,7 @@ void RufArbiter::send_gosrc() {
     uint32_t max_go_src = (this->queue->limit_bytes - this->queue->bytes_in_queue) / gosrc_size;
     while(this->gosrc_queue.size() > 0) {
         auto request = this->gosrc_queue.front();
-        request.first->fake_flow->sending_gosrc(request.second);
+        request.first->fake_flow->sending_gosrc(request.second, this->src_state[request.second].round);
         max_go_src--;
         if(max_go_src == 0)
             break;
@@ -720,14 +735,45 @@ void RufArbiter::ruf_schedule() {
             std::cout << get_current_time() << " schedule epoch for dst " << request->dst->id << std::endl;
             std::cout << get_current_time() << " src " << (request->src_id) << "state " << this->src_state[request->src_id].state << " flow size:" << request->flow_size << std::endl;
         }
-        if(this->dst_state[request->dst->id].state == false || this->src_state[request->src_id].state == false) {
+        bool dst_state = true;
+        bool src_state = true;
+        // reset the dst state if the timeout happens;
+        if(this->dst_state[request->dst->id].state == false) {
+            if(this->dst_state[request->dst->id].timeout >= get_current_time()) {
+                dst_state = false;
+            } else {
+                this->dst_state[request->dst->id].reset();
+                assert(false);
+            }
+        } 
+        // reset the src state if timeout happens;
+        if(this->src_state[request->src_id].state == false) {
+            if(this->src_state[request->src_id].timeout >= get_current_time()) {
+                src_state = false;
+            } else {
+                this->src_state[request->src_id].reset();
+                assert(false);
+            }
+
+        }
+
+        if(!src_state || !dst_state) {
             delete request;
             continue;
         }
         this->src_state[request->src_id].state = false;
+        // set the timeout of the src state
+        this->src_state[request->src_id].timeout = get_current_time() +
+             topology->get_control_pkt_rtt(request->src_id) + 5 * params.ruf_max_tokens * params.get_full_pkt_tran_delay();
+        this->src_state[request->src_id].round = this->round;
+        
         this->dst_state[request->dst->id].state = false;
+        // set the timeout of the dst state
+        this->dst_state[request->dst->id].timeout = get_current_time() + 
+             topology->get_control_pkt_rtt(request->dst->id) + 5 * params.ruf_max_tokens * params.get_full_pkt_tran_delay();
+        this->dst_state[request->dst->id].round = this->round;
         if(max_go_src > 0){
-            ((RufHost*)(request->dst))->fake_flow->sending_gosrc(request->src_id);
+            ((RufHost*)(request->dst))->fake_flow->sending_gosrc(request->src_id, this->round);
             max_go_src--;
         } else {
             this->gosrc_queue.push(std::make_pair((RufHost*)request->dst, request->src_id));
@@ -744,6 +790,7 @@ void RufArbiter::schedule_epoch() {
         return;
     this->ruf_schedule();
     //schedule next arbiter proc evt
+    this->round = (this->round + 1) % 65536;
     this->schedule_proc_evt(get_current_time() + params.ruf_controller_epoch);
 }
 
@@ -751,8 +798,25 @@ void RufArbiter::receive_listsrcs(RufListSrcs* pkt) {
     if(debug_host(pkt->rts_dst->id))
         std::cout << get_current_time() << " Arbiter: receive listsrcs " << pkt->rts_dst->id << " queue delay:" << pkt->total_queuing_delay << std::endl;
     if(pkt->has_nrts) {
-        this->src_state[pkt->nrts_src_id].state = true;
-        this->dst_state[pkt->nrts_dst_id].state = true;
+        // To DO: check the round number;
+        if(pkt->round == this->src_state[pkt->nrts_src_id].round) {
+            this->src_state[pkt->nrts_src_id].reset();
+        } else {
+            // std::cout << get_current_time() << " src id: " << pkt->nrts_src_id << std::endl;
+            // std::cout << get_current_time() << " pkt round: " << pkt->round << 
+            //     " current src round: " <<  this->src_state[pkt->nrts_src_id].round << std::endl;
+            // std::cout << get_current_time() << "pkt total queue delay: " << pkt->total_queuing_delay << std::endl;
+            // assert(false);
+        }
+        if(pkt->round == this->dst_state[pkt->nrts_dst_id].round) {
+            this->dst_state[pkt->nrts_dst_id].reset();
+        } else {
+            // std::cout << get_current_time() << " dst id: " << pkt->nrts_dst_id << std::endl;
+            // std::cout << get_current_time() << " pkt round: " << pkt->round << 
+            //     " current dst round: " <<  this->dst_state[pkt->nrts_dst_id].round << std::endl;
+            // std::cout << get_current_time() << "pkt total queue delay: " << pkt->total_queuing_delay << std::endl;
+            // assert(false);
+        }
     }
     if(this->dst_state[pkt->rts_dst->id].state){
         auto i = pkt->listSrcs.begin();

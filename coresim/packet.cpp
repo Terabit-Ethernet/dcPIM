@@ -148,10 +148,11 @@ RufNRTS::RufNRTS(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t dst
     this->dst_id = dst_id;
 }
 
-RufGoSrc::RufGoSrc(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t max_tokens) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+RufGoSrc::RufGoSrc(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t max_tokens, int round) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = RUF_GOSRC;
     this->src_id = src_id;
     this->max_tokens = max_tokens;
+    this->round = round;
 }
 
 RufToken::RufToken(Flow *flow, Host *src, Host *dst, double ttl, int remaining, int token_seq_num, int data_seq_num) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {

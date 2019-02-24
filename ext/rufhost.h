@@ -28,18 +28,21 @@ public:
     int max_tokens;
     int remain_tokens;
     int round;
+    int control_round;
     RufHost* src; 
     bool send_nrts;   
     GoSRC() {
         max_tokens = -1;
         remain_tokens = -1;
         round = 0;
+        control_round = -1;
         src = NULL;
         send_nrts = false;
     };
     void reset() {
         max_tokens = -1;
         remain_tokens = -1;
+        control_round = -1;
         src = NULL;
     };
     ~GoSRC() = default;
@@ -64,16 +67,26 @@ public:
 class HostState {
 public:
     bool state;
-    int timeout; 
+    double timeout;
+    int round; 
     HostState() {
         state = true;
         timeout = -1;
+        round = -1;
     }
     void reset_state() {
-        state = false;
+        state = true;
     }
     void reset_timeout() {
         timeout = -1;
+    }
+    void reset_round() {
+        round = -1;
+    }
+    void reset() {
+        this->reset_state();
+        this->reset_timeout();
+        this->reset_round(); 
     }
 };
 
@@ -115,7 +128,7 @@ class RufHost : public SchedulingHost {
         bool flow_compare(RufFlow* long_flow, RufFlow* short_flow);
         //void receive_nrts(RufNRTS* pkt);
         void receive_gosrc(RufGoSrc* pkt);
-        void send_listSrcs(int src_id = -1);
+        void send_listSrcs(int src_id = -1, int control_round = -1);
         void send_token();
         void schedule_wakeup_event();
         void schedule_token_proc_evt(double time, bool is_timeout);
@@ -163,6 +176,7 @@ class RufArbiter : public Host {
         void ruf_schedule();
         void send_gosrc();
         
+        int round;
         std::queue<std::pair<RufHost*, uint32_t>> gosrc_queue;
         std::vector<HostState> src_state;
         std::vector<HostState> dst_state;

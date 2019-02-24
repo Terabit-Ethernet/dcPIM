@@ -32,7 +32,7 @@ public:
     void sending_rts();
     void sending_nrts(int round);
     void sending_nrts_to_arbiter(uint32_t src_id, uint32_t dst_id);
-    void sending_gosrc(uint32_t src_id);
+    void sending_gosrc(uint32_t src_id, int round);
     void sending_ack(int round);
     // sender side
     void clear_token();
