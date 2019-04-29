@@ -77,6 +77,18 @@ PFabricTopology::PFabricTopology(
             //std::cout << "Linking Core " << i << " to Agg" << j << "\n";
         }
     }
+    set_up_parameter();
+}
+
+void PFabricTopology::set_up_parameter() {
+    params.rtt = (4 * params.propagation_delay + (1500 * 8 / params.bandwidth) * 2.5) * 2;
+    params.BDP = ceil(params.rtt * params.bandwidth / 1500 / 8);
+    if(params.host_type == PIM_HOST) {
+        params.pim_resend_timeout *= params.BDP * params.get_full_pkt_tran_delay();
+        params.pim_epoch *= params.BDP * params.get_full_pkt_tran_delay();
+        params.pim_window_size *= params.BDP;
+        params.pim_small_flow *= params.BDP;
+    }
 }
 
 

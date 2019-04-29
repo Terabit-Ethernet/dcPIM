@@ -278,16 +278,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         params.param_str.append(line);
         params.param_str.append(", ");
     }
-    // params.ruf_max_src_num = (params.bandwidth / 8 * (params.ruf_max_tokens * params.get_full_pkt_tran_delay()) / params.num_hosts - params.hdr_size) / 2;
 
-    // multi-round protocol
-    // params.pim_iter_limit = 4;
-    // params.pim_epoch = params.iter_limit * params.ctrl_pkt_rtt * 2 + 5;
-    // params.pim_window_timeout = 1.0 / 1000000;
-    // params.pim_resend_timeout *= params.BDP * params.get_full_pkt_tran_delay();
-    // params.pim_epoch *= params.BDP * params.get_full_pkt_tran_delay();
-    // params.pim_window_size *= params.BDP;
-    // params.pim_small_flow *= params.BDP;
     // std::cout << params.pim_resend_timeout << " " << params.pim_epoch << " " << params.pim_iter_limit << std::endl;
     //std::cout << params.token_initial << " " << params.token_window << " " << params.token_timeout << " " << params.token_window_timeout  << " " << params.token_resend_timeout << " " << params.ruf_max_tokens << " " << params.ruf_reset_epoch << " " << params.ruf_controller_epoch << " " << params.rufhost_idle_timeout << std::endl;
     // assert(false);

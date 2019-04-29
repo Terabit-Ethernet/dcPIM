@@ -40,7 +40,8 @@ class PFabricTopology : public Topology {
         virtual Queue* get_next_hop(Packet *p, Queue *q);
         virtual double get_oracle_fct(Flow* f);
         virtual double get_control_pkt_rtt(int host_id);
-        uint32_t num_agg_switches;
+        void set_up_parameter();
+       	uint32_t num_agg_switches;
         uint32_t num_core_switches;
 
         std::vector<AggSwitch*> agg_switches;

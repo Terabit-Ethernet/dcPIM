@@ -112,10 +112,10 @@ FatTreeTopology::FatTreeTopology(
     set_up_parameter();
 }
 void FatTreeTopology::set_up_parameter() {
+    params.rtt = (6 * params.propagation_delay + (1500 * 8 / params.bandwidth) * 6) * 2;
+    // params.ctrl_pkt_rtt = (4 * params.propagation_delay + (40 * 8 / params.bandwidth) * 2.5) * 2;
+    params.BDP = ceil(params.rtt * params.bandwidth / 1500 / 8);
     if(params.host_type == RUF_HOST) {
-        params.rtt = (6 * params.propagation_delay + (1500 * 8 / params.bandwidth) * 6) * 2;
-        // params.ctrl_pkt_rtt = (4 * params.propagation_delay + (40 * 8 / params.bandwidth) * 2.5) * 2;
-        params.BDP = ceil(params.rtt * params.bandwidth / 1500 / 8);
         params.ruf_max_tokens = ceil(params.ruf_max_tokens * params.BDP);
         params.ruf_min_tokens = ceil(params.ruf_min_tokens * params.BDP);
         params.token_window *= params.BDP;
@@ -126,6 +126,11 @@ void FatTreeTopology::set_up_parameter() {
         params.token_window_timeout *= params.BDP * params.get_full_pkt_tran_delay();
         // params.ruf_reset_epoch *= params.BDP * params.get_full_pkt_tran_delay();
         params.ruf_controller_epoch *= params.BDP * params.get_full_pkt_tran_delay();
+    } else if(params.host_type == PIM_HOST) {
+        params.pim_resend_timeout *= params.BDP * params.get_full_pkt_tran_delay();
+        params.pim_epoch *= params.BDP * params.get_full_pkt_tran_delay();
+        params.pim_window_size *= params.BDP;
+        params.pim_small_flow *= params.BDP;
     }
 }
 bool FatTreeTopology::is_arbiter(Host* n) {

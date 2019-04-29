@@ -446,7 +446,7 @@ IncastTM::IncastTM(uint32_t num_flows, Topology *topo, std::string filename, uin
 }
 
 void IncastTM::make_flows() {
-    srand(time(0));
+    srand(0);
     // 100 MB
     double data = 100 * 1024 * 1024;
     // EmpiricalRandomVariable *nv_bytes;

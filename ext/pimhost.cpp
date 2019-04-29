@@ -159,12 +159,15 @@ void PimEpoch::receive_accept_pkt(AcceptPkt *p) {
             std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " match src " << p->flow->src->id << "dst:" << this->host->id  << " q delay:" << p->total_queuing_delay << std::endl; 
         }
         assert(this->match_sender == NULL);
+        // for non-pipeline
         this->match_sender = (PimHost*)p->flow->src;
-        this->host->sender = this->match_sender;
-        // if(this->iter > params.pim_iter_limit && this->host->cur_epoch == this->epoch) {
-        //     // corner case
-        //     this->host->sender = this->match_sender;
-        // }
+        // this->host->sender = this->match_sender;
+
+        // for pipeline
+        if(this->iter > params.pim_iter_limit && this->host->cur_epoch == this->epoch) {
+            // corner case
+            this->host->sender = this->match_sender;
+        }
     }
     // if(this->proc_accept_evt == NULL) {
     //     this->proc_accept_evt = new ProcssAcceptEvent(get_current_time() + params.ctrl_pkt_rtt / 4, this->host);
@@ -177,6 +180,8 @@ void PimEpoch::receive_rts(PIMRTS *p) {
     assert(p->iter == this->iter);
     if(debug_host(this->host->id)) {
         std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " receive rts for src " << p->flow->src->id << " dst:" << this->host->id << std::endl; 
+        std::cout << "queue delay:" << p->total_queuing_delay << std::endl;
+
     }
     // if(this->match_sender != NULL) {
     //     ((PimFlow*)(p->flow))->send_offer_pkt(this->iter, this->epoch, false);
@@ -233,8 +238,8 @@ void PimEpoch::handle_all_rts() {
     for(uint32_t i = 0; i < this->rts_q.size(); i++) {
         if (i == index && this->match_sender == NULL) {
             // send Grants
-            this->rts_q[i].f->send_grants(this->iter, this->epoch, false);
-            // this->rts_q[i].f->send_grants(this->iter, this->epoch, this->epoch - 1 == this->host->cur_epoch && this->host->sender == NULL);
+            // this->rts_q[i].f->send_grants(this->iter, this->epoch, false);
+            this->rts_q[i].f->send_grants(this->iter, this->epoch, this->epoch - 1 == this->host->cur_epoch && this->host->sender == NULL);
         } else {
             // send offerPkt
             // this->rts_q[i].f->send_offer_pkt(this->iter, this->epoch, this->match_sender == NULL);
@@ -274,26 +279,31 @@ void PimEpoch::handle_all_grants() {
                 std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " src " << this->host->id << " accept " << this->grants_q[i].f->dst->id << std::endl;
             }
             this->match_receiver = (PimHost*)(this->grants_q[i].f->dst);
-            this->host->receiver = this->match_receiver;
-            if(this->host->host_proc_event != NULL && this->host->host_proc_event->is_timeout) {
-                this->host->host_proc_event->cancelled = true;
-                this->host->host_proc_event = NULL;
-            }
-            if(this->host->host_proc_event == NULL) {
-                this->host->schedule_host_proc_evt();
-            }
-            // this->receiver_state[this->grants_q[i].f->dst->id] = false;
-            // if(this->grants_q[i].prompt && this->host->receiver == NULL) {
-            //     assert(this->host->cur_epoch == this->epoch - 1);
-            //     this->host->receiver = this->match_receiver;
-            //     if(this->host->host_proc_event != NULL && this->host->host_proc_event->is_timeout) {
-            //         this->host->host_proc_event->cancelled = true;
-            //         this->host->host_proc_event = NULL;
-            //     }
-            //     if(this->host->host_proc_event == NULL) {
-            //         this->host->schedule_host_proc_evt();
-            //     }
+
+            // non-pipeline
+            // this->host->receiver = this->match_receiver;
+            // if(this->host->host_proc_event != NULL && this->host->host_proc_event->is_timeout) {
+            //     this->host->host_proc_event->cancelled = true;
+            //     this->host->host_proc_event = NULL;
             // }
+            // if(this->host->host_proc_event == NULL) {
+            //     this->host->schedule_host_proc_evt();
+            // }
+
+
+            // Optimization
+            // this->receiver_state[this->grants_q[i].f->dst->id] = false;
+            if(this->grants_q[i].prompt && this->host->receiver == NULL) {
+                assert(this->host->cur_epoch == this->epoch - 1);
+                this->host->receiver = this->match_receiver;
+                if(this->host->host_proc_event != NULL && this->host->host_proc_event->is_timeout) {
+                    this->host->host_proc_event->cancelled = true;
+                    this->host->host_proc_event = NULL;
+                }
+                if(this->host->host_proc_event == NULL) {
+                    this->host->schedule_host_proc_evt();
+                }
+            }
 
         } else {
             // send accept_pkt false
@@ -309,22 +319,25 @@ void PimEpoch::schedule_sender_iter_evt() {
         std::cout << get_current_time() << "new iter " << this->iter << std::endl;
     }
     if(this->iter > params.pim_iter_limit) {
-        // if(debug_host(this->host->id)) {
-        //     std::cout << get_current_time() << " new epoch start sending packets: " << this->epoch  << std::endl;
-        // }
-        // this->host->receiver = this->match_receiver;
-        // senders starts to send packets at this epoch
-        // this->host->cur_epoch = this->epoch;
-        // if(this->host->epochs.count(this->epoch - 1) > 0){
-        //     this->host->epochs.erase(this->epoch - 1);
-        // }
-        // if(this->host->host_proc_event != NULL && this->host->host_proc_event->is_timeout) {
-        //     this->host->host_proc_event->cancelled = true;
-        //     this->host->host_proc_event = NULL;
-        // }
-        // if(this->host->host_proc_event == NULL) {
-        //     this->host->schedule_host_proc_evt();
-        // }
+        if(debug_host(this->host->id)) {
+            std::cout << get_current_time() << " new epoch start sending packets: " << this->epoch  << std::endl;
+        }
+
+        // pipeline code
+        this->host->receiver = this->match_receiver;
+        this->host->sender = this->match_sender;
+        //senders starts to send packets at this epoch
+        this->host->cur_epoch = this->epoch;
+        if(this->host->epochs.count(this->epoch - 1) > 0){
+            this->host->epochs.erase(this->epoch - 1);
+        }
+        if(this->host->host_proc_event != NULL && this->host->host_proc_event->is_timeout) {
+            this->host->host_proc_event->cancelled = true;
+            this->host->host_proc_event = NULL;
+        }
+        if(this->host->host_proc_event == NULL) {
+            this->host->schedule_host_proc_evt();
+        }
         return;
     }
     this->send_all_rts();
@@ -358,7 +371,6 @@ PimHost::PimHost(uint32_t id, double rate, uint32_t queue_type) : SchedulingHost
     this->sender = NULL;
     this->receiver = NULL;
     this->new_epoch_evt = NULL;
-    this->iter_epoch = 2 * (topology->get_control_pkt_rtt(143) / 2 + 0.5 /1000000); // assuming 500ns queuing delay; can do better;
     // for(uint32_t i = 0; i < params.num_hosts; i++) {
     //     this->receiver_state.push_back(true);
     // }
@@ -368,23 +380,26 @@ PimHost::PimHost(uint32_t id, double rate, uint32_t queue_type) : SchedulingHost
 
 void PimHost::start_new_epoch(double time, int epoch) {
     assert(this->epochs.count(epoch) == 0);
+    this->iter_epoch = 2 * (topology->get_control_pkt_rtt(143) / 2 + 1.5 /1000000); // assuming 500ns queuing delay; can do better;
     if (total_finished_flows >= params.num_flows_to_run)
         return;
-    this->receiver = NULL;
-    this->sender = NULL;
-    this->cur_epoch = epoch;
+    // this->receiver = NULL;
+    // this->sender = NULL;
+    // this->cur_epoch = epoch;
     this->epochs[epoch].epoch = epoch;
     this->epochs[epoch].iter = 0;
     this->epochs[epoch].host = this;
     this->epochs[epoch].proc_receiver_iter_evt = new ProcessReceiverIterEvent(time + this->iter_epoch / 2, &this->epochs[epoch]);
     this->epochs[epoch].proc_sender_iter_evt = new ProcessSenderIterEvent(time, &this->epochs[epoch]);
-    // this->new_epoch_evt = new NewEpochEvent(time + params.pim_epoch - this->iter_epoch * params.pim_iter_limit, epoch + 1 , this);
-    this->new_epoch_evt = new NewEpochEvent(time + params.pim_epoch, epoch + 1 , this);
+    // pipeline
+    this->new_epoch_evt = new NewEpochEvent(time + params.pim_epoch - this->iter_epoch * params.pim_iter_limit, epoch + 1 , this);
+    // non-pipeline
+    // this->new_epoch_evt = new NewEpochEvent(time + params.pim_epoch, epoch + 1 , this);
     add_to_event_queue(this->epochs[epoch].proc_receiver_iter_evt);
     add_to_event_queue(this->epochs[epoch].proc_sender_iter_evt);
     add_to_event_queue(this->new_epoch_evt);
     if(debug_host(this->id)){
-        std::cout << get_current_time() << "new epoch start " << epoch << std::endl;
+        std::cout << time << "new epoch start " << epoch << std::endl;
     }
     if(this->epochs.count(this->cur_epoch - 1) > 0){
         this->epochs.erase(this->cur_epoch - 1);

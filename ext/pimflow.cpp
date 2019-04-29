@@ -186,6 +186,7 @@ void PimFlow::receive_ack(PIMAck* p) {
 }
 
 void PimFlow::receive(Packet *p) {
+
     if(this->finished) {
         delete p;
         return;
@@ -193,10 +194,11 @@ void PimFlow::receive(Packet *p) {
     if(p->type == PIM_RTS_PACKET) {
         auto d = (PimHost*)dst;
         int epoch = ((PIMRTS*)p)->epoch;
-        if(d->cur_epoch == epoch) {
-            assert(d->epochs.count(epoch) > 0);
-            d->epochs[epoch].receive_rts((PIMRTS*)p);
-        }
+
+        // if(d->cur_epoch == epoch) {
+        assert(d->epochs.count(epoch) > 0);
+        d->epochs[epoch].receive_rts((PIMRTS*)p);
+        // }
     } else if (p->type == OFFER_PACKET) {
         assert(false);
         // auto s = (PimHost*)src;
@@ -208,24 +210,24 @@ void PimFlow::receive(Packet *p) {
     } else if (p->type == PIM_GRANTS_PACKET) {
         auto s = (PimHost*)src;
         int epoch  = ((PIMGrants*)p)->epoch;
-        if(s->cur_epoch == epoch) {
+        // if(s->cur_epoch == epoch) {
             assert(s->epochs.count(epoch) > 0);
             s->epochs[epoch].receive_grants((PIMGrants*)p);
-        }
+        // }
     } else if (p->type == ACCEPT_PACKET) {
         auto d = (PimHost*)dst;
         int epoch = ((AcceptPkt*)p)->epoch;
-        if(d->cur_epoch == epoch) {
+        // if(d->cur_epoch == epoch) {
             assert(d->epochs.count(epoch) > 0);
             d->epochs[epoch].receive_accept_pkt((AcceptPkt*)p);
-        }
+        // }
     } else if(p->type == GRANTSR_PACKET) {
         auto s = (PimHost*)src;
         int epoch = ((GrantsR*)p)->epoch;
-        if(s->cur_epoch == epoch) {
+        // if(s->cur_epoch == epoch) {
             assert(s->epochs.count(epoch) > 0);
             s->epochs[epoch].receive_grantsr((GrantsR*)p);
-        }
+        // }
     } else if (p->type == NORMAL_PACKET) {
         if (this->first_byte_receive_time == -1) {
             this->first_byte_receive_time = get_current_time();
