@@ -113,9 +113,10 @@ class CTS : public Packet{
 // For Multi-Round algorithm (PIM)
 class PIMRTS : public Packet{
     public:
-        PIMRTS(Flow *flow, Host *src, Host *dst, int iter, int epoch);
+        PIMRTS(Flow *flow, Host *src, Host *dst, int iter, int epoch, int remaining);
         int iter;
         int epoch;
+        int remaining_sz;
 };
 
 class GrantsR : public Packet{

@@ -87,6 +87,7 @@ PimEpoch::PimEpoch(){
     this->proc_sender_iter_evt = NULL;
     this->proc_receiver_iter_evt = NULL;
     this->host = NULL;
+    this->min_rts = PIM_RTS();
     // for(uint32_t i = 0; i < params.num_hosts; i++) {
     //     this->receiver_state.push_back(true);
     // }
@@ -121,6 +122,7 @@ void PimEpoch::advance_iter() {
     this->iter++;
     this->rts_q.clear();
     this->grants_q.clear();
+    this->min_rts = PIM_RTS();
 }
 // void PimEpoch::receive_offer_packet(OfferPkt *p) {
 //     // assert(p->iter == this->iter);
@@ -189,7 +191,13 @@ void PimEpoch::receive_rts(PIMRTS *p) {
     PIM_RTS rts;
     rts.iter = p->iter;
     rts.f = (PimFlow*)p->flow;
+    rts.remaining_sz = p->remaining_sz;
     this->rts_q.push_back(rts);
+    if(this->min_rts.f == NULL || this->min_rts.remaining_sz > rts.remaining_sz) {
+        this->min_rts.f = rts.f;
+        this->min_rts.remaining_sz = rts.remaining_sz;
+        this->min_rts.iter = rts.iter;
+    }
     // schduling handle all rtses
 }
 void PimEpoch::send_all_rts() {
@@ -226,23 +234,31 @@ void PimEpoch::handle_all_rts() {
     if(debug_host(this->host->id)) {
         std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " handle of all rts dst:" << this->host->id << std::endl; 
     }
-    while(!this->rts_q.empty()) {
-        index = rand() % this->rts_q.size();
-        if(this->rts_q[index].iter != this->iter) {
-            assert(this->rts_q[index].iter < this->iter);
-            this->rts_q.erase(this->rts_q.begin() + index);
-        } else {
-            break;
+    if(params.pim_select_min_iters > 0 && this->iter <= params.pim_select_min_iters) {
+        if(this->min_rts.f != NULL) {
+            assert(min_rts.f != NULL);
+            min_rts.f->send_grants(this->iter, this->epoch, this->epoch - 1 == this->host->cur_epoch && this->host->sender == NULL);
         }
     }
-    for(uint32_t i = 0; i < this->rts_q.size(); i++) {
-        if (i == index && this->match_sender == NULL) {
-            // send Grants
-            // this->rts_q[i].f->send_grants(this->iter, this->epoch, false);
-            this->rts_q[i].f->send_grants(this->iter, this->epoch, this->epoch - 1 == this->host->cur_epoch && this->host->sender == NULL);
-        } else {
-            // send offerPkt
-            // this->rts_q[i].f->send_offer_pkt(this->iter, this->epoch, this->match_sender == NULL);
+    else {
+        while(!this->rts_q.empty()) {
+            index = rand() % this->rts_q.size();
+            if(this->rts_q[index].iter != this->iter) {
+                assert(this->rts_q[index].iter < this->iter);
+                this->rts_q.erase(this->rts_q.begin() + index);
+            } else {
+                break;
+            }
+        }
+        for(uint32_t i = 0; i < this->rts_q.size(); i++) {
+            if (i == index && this->match_sender == NULL) {
+                // send Grants
+                // this->rts_q[i].f->send_grants(this->iter, this->epoch, false);
+                this->rts_q[i].f->send_grants(this->iter, this->epoch, this->epoch - 1 == this->host->cur_epoch && this->host->sender == NULL);
+            } else {
+                // send offerPkt
+                // this->rts_q[i].f->send_offer_pkt(this->iter, this->epoch, this->match_sender == NULL);
+            }
         }
     }
 }
@@ -255,21 +271,24 @@ void PimEpoch::handle_all_grants() {
         return;
     int min_size = INT_MAX;
     uint32_t index = 0;
-    while(!this->grants_q.empty()) {
-        index = rand() % this->grants_q.size();
-        if(this->grants_q[index].iter != this->iter) {
-            assert(this->grants_q[index].iter < this->iter);
-            this->grants_q.erase(this->grants_q.begin() + index);
-        } else {
-            break;
+    if(params.pim_select_min_iters > 0 && this->iter <= params.pim_select_min_iters) {
+        for(uint32_t i = 0; i < this->grants_q.size(); i++) { 
+            if(min_size > this->grants_q[i].f->size_in_pkt && this->iter == this->grants_q[index].iter) {
+                min_size = this->grants_q[i].f->size_in_pkt;
+                index = i;
+            }
+        }
+    } else {
+        while(!this->grants_q.empty()) {
+            index = rand() % this->grants_q.size();
+            if(this->grants_q[index].iter != this->iter) {
+                assert(this->grants_q[index].iter < this->iter);
+                this->grants_q.erase(this->grants_q.begin() + index);
+            } else {
+                break;
+            }
         }
     }
-    // for(uint32_t i = 0; i < this->grants_q.size(); i++) { 
-    //     if(min_size > this->grants_q[i].f->size_in_pkt && this->iter == this->grants_q[index].iter) {
-    //         min_size = this->grants_q[i].f->size_in_pkt;
-    //         index = i;
-    //     }
-    // }
     for(uint32_t i = 0; i < this->grants_q.size(); i++) {
         if (i == index && this->match_receiver == NULL) {
             // send accept_pkt true

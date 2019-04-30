@@ -50,7 +50,9 @@ bool PimFlow::is_small_flow() {
     return this->size_in_pkt <= params.pim_small_flow;
 }
 void PimFlow::send_grants(int iter, int epoch, bool prompt) {
+
     if(debug_flow(id) || debug_host(this->dst->id)) {
+        std::cout << this->dst->id << std::endl;
         std::cout << get_current_time() << " iter " << iter << "send grants for flow " << id  << " to src:" << this->src->id << std::endl; 
     }
     PIMGrants* grants = new PIMGrants(this, this->dst, this->src, iter, epoch, prompt);
@@ -69,7 +71,7 @@ void PimFlow::send_rts(int iter, int epoch) {
     if(debug_flow(id)) {
         std::cout << get_current_time() << "send rts for flow " << id << " to dst:" << this->dst->id << std::endl; 
     }
-    PIMRTS* rts = new PIMRTS(this, this->src, this->dst, iter, epoch);
+    PIMRTS* rts = new PIMRTS(this, this->src, this->dst, iter, epoch, this->remaining_pkts_at_sender);
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), rts, src->queue));
 }
 

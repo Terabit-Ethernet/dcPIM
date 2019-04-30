@@ -10,8 +10,11 @@
 #include "../coresim/topology.h"
 
 #include "schedulinghost.h"
+#include <climits>
+
 #include "custompriorityqueue.h"
 #include "pimflow.h"
+
 class ProcessReceiverIterEvent;
 class ProcessSenderIterEvent;
 class NewEpochEvent;
@@ -20,6 +23,13 @@ class PimHost;
 struct PIM_RTS {
     int iter;
     PimFlow *f;
+    int remaining_sz;
+
+    PIM_RTS() {
+        iter = 0;
+        f = NULL;
+        remaining_sz = INT_MAX;
+    }
 };
 struct PIM_Grants {
     bool prompt;
@@ -38,6 +48,8 @@ public:
     ProcessReceiverIterEvent* proc_receiver_iter_evt;
     std::vector<PIM_Grants> grants_q;
     std::vector<PIM_RTS> rts_q;
+    PIM_RTS min_rts;
+
     // std::vector<bool> receiver_state;
     PimEpoch();
     ~PimEpoch();

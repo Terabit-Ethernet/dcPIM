@@ -196,6 +196,9 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         }
         else if (key == "pim_low_priority") {
             lineStream >> params.pim_low_priority;
+        } 
+        else if (key == "pim_select_min_iters") {
+            lineStream >> params.pim_select_min_iters;
         }
         // -----------------
         else if (key == "ddc") {

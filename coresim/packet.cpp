@@ -88,10 +88,11 @@ PIMGrants::PIMGrants(Flow *flow, Host *src, Host *dst, int iter, int epoch, bool
     this->prompt = prompt;
 }
 
-PIMRTS::PIMRTS(Flow *flow, Host *src, Host *dst, int iter, int epoch) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+PIMRTS::PIMRTS(Flow *flow, Host *src, Host *dst, int iter, int epoch, int remaining) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = PIM_RTS_PACKET;
     this->iter = iter;
     this->epoch = epoch;
+    this->remaining_sz = remaining;
 }
 
 PIMAck::PIMAck(Flow *flow, uint32_t seq_no_acked, uint32_t data_seq_no_acked, uint32_t size, Host* src, Host *dst) : Packet(0, flow, seq_no_acked, 0, size, src, dst) {

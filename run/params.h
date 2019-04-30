@@ -119,6 +119,7 @@ class DCExpParams {
         double pim_window_timeout;
         double pim_resend_timeout;
         int pim_low_priority;
+        int pim_select_min_iters;
 
         double get_full_pkt_tran_delay(uint32_t size_in_byte = 1500)
         {

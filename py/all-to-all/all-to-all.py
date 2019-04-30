@@ -254,10 +254,11 @@ burst_at_beginning: 0
 pim_iter_limit: 4
 pim_epoch: 6
 pim_window_size: 1
-pim_small_flow: 0
+pim_small_flow: 1
 pim_window_timeout: 1e-0.6
 pim_resend_timeout: 1
 pim_low_priority: 0
+pim_select_min_iters: 1
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33
