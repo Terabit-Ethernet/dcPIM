@@ -116,9 +116,11 @@ void LeafSpineTopology::set_up_parameter() {
         params.ruf_controller_epoch *= params.BDP * params.get_full_pkt_tran_delay();
     } else if (params.host_type == PIM_HOST) {
         params.pim_resend_timeout *= params.BDP * params.get_full_pkt_tran_delay();
-        params.pim_epoch *= params.BDP * params.get_full_pkt_tran_delay();
+        // params.pim_epoch *= params.BDP * params.get_full_pkt_tran_delay();
         params.pim_window_size *= params.BDP;
         params.pim_small_flow *= params.BDP;
+        params.pim_iter_epoch = 2 * (this->get_control_pkt_rtt(143) / 2 + 1.5 /1000000);
+        params.pim_epoch = params.pim_iter_limit * params.pim_iter_epoch * 2;
     }
 }
 

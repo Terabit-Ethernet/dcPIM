@@ -360,7 +360,7 @@ void PimEpoch::schedule_sender_iter_evt() {
         return;
     }
     this->send_all_rts();
-    this->proc_sender_iter_evt = new ProcessSenderIterEvent(get_current_time() + this->host->iter_epoch, this);
+    this->proc_sender_iter_evt = new ProcessSenderIterEvent(get_current_time() + params.pim_iter_epoch, this);
     add_to_event_queue(this->proc_sender_iter_evt);
 }
 
@@ -371,7 +371,7 @@ void PimEpoch::schedule_receiver_iter_evt() {
         return;
     }
     this->handle_all_rts();
-    this->proc_receiver_iter_evt = new ProcessReceiverIterEvent(get_current_time() + this->host->iter_epoch, this);
+    this->proc_receiver_iter_evt = new ProcessReceiverIterEvent(get_current_time() + params.pim_iter_epoch, this);
     add_to_event_queue(this->proc_receiver_iter_evt);
 
 }
@@ -399,7 +399,7 @@ PimHost::PimHost(uint32_t id, double rate, uint32_t queue_type) : SchedulingHost
 
 void PimHost::start_new_epoch(double time, int epoch) {
     assert(this->epochs.count(epoch) == 0);
-    this->iter_epoch = 2 * (topology->get_control_pkt_rtt(143) / 2 + 1.5 /1000000); // assuming 500ns queuing delay; can do better;
+    // this->iter_epoch = 2 * (topology->get_control_pkt_rtt(143) / 2 + 1.5 /1000000); // assuming 500ns queuing delay; can do better;
     if (total_finished_flows >= params.num_flows_to_run)
         return;
     // this->receiver = NULL;
@@ -408,10 +408,10 @@ void PimHost::start_new_epoch(double time, int epoch) {
     this->epochs[epoch].epoch = epoch;
     this->epochs[epoch].iter = 0;
     this->epochs[epoch].host = this;
-    this->epochs[epoch].proc_receiver_iter_evt = new ProcessReceiverIterEvent(time + this->iter_epoch / 2, &this->epochs[epoch]);
+    this->epochs[epoch].proc_receiver_iter_evt = new ProcessReceiverIterEvent(time + params.pim_iter_epoch / 2, &this->epochs[epoch]);
     this->epochs[epoch].proc_sender_iter_evt = new ProcessSenderIterEvent(time, &this->epochs[epoch]);
     // pipeline
-    this->new_epoch_evt = new NewEpochEvent(time + params.pim_epoch - this->iter_epoch * params.pim_iter_limit, epoch + 1 , this);
+    this->new_epoch_evt = new NewEpochEvent(time + params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit, epoch + 1 , this);
     // non-pipeline
     // this->new_epoch_evt = new NewEpochEvent(time + params.pim_epoch, epoch + 1 , this);
     add_to_event_queue(this->epochs[epoch].proc_receiver_iter_evt);
