@@ -17,14 +17,15 @@
 #include "../coresim/event.h"
 #include "../coresim/topology.h"
 #include "../coresim/fatTreeTopology.h"
+#include "../coresim/leafSpineTopology.h"
 #include "../coresim/queue.h"
 #include "../coresim/random_variable.h"
 
 #include "../ext/factory.h"
 #include "../ext/fountainflow.h"
 #include "../ext/capabilityflow.h"
-#include "../ext/fastpassTopology.h"
-#include "../ext/rufTopology.h"
+// #include "../ext/fastpassTopology.h"
+// #include "../ext/rufTopology.h"
 #include "../ext/pimhost.h"
 
 #include "flow_generator.h"
@@ -169,17 +170,17 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
         params.num_hosts = 144;
         params.num_agg_switches = 9;
         params.num_core_switches = 4;
-        if (params.flow_type == FASTPASS_FLOW) {
-            topology = new FastpassTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
-        } 
-        else if (params.flow_type == RUF_FLOW) {
-            topology = new RufTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
-        }
-        else if (params.big_switch) {
+        // if (params.flow_type == FASTPASS_FLOW) {
+        //     topology = new FastpassTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
+        // } 
+        // else if (params.flow_type == RUF_FLOW) {
+        //     topology = new RufTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
+        // }
+        if (params.big_switch) {
             topology = new BigSwitchTopology(params.num_hosts, params.bandwidth, params.queue_type);
         } 
         else {
-            topology = new PFabricTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
+            topology = new LeafSpineTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
         }
     }
     uint32_t num_flows = params.num_flows_to_run;

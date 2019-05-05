@@ -33,6 +33,8 @@ Switch::Switch(uint32_t id, uint32_t switch_type) : Node(id, SWITCH) {
     this->switch_type = switch_type;
 }
 
+
+// Leaf Spine Switches
 CoreSwitch::CoreSwitch(uint32_t id, uint32_t nq, double rate, uint32_t type) : Switch(id, CORE_SWITCH) {
     for (uint32_t i = 0; i < nq; i++) {
         queues.push_back(Factory::get_queue(i, rate, params.queue_size, type, 0, 2));
@@ -48,6 +50,7 @@ AggSwitch::AggSwitch(
         double r2, 
         uint32_t type
         ) : Switch(id, AGG_SWITCH) {
+    this->queue_to_arbiter = NULL;
     for (uint32_t i = 0; i < nq1; i++) {
         queues.push_back(Factory::get_queue(i, r1, params.queue_size, type, 0, 3));
     }
@@ -56,6 +59,8 @@ AggSwitch::AggSwitch(
     }
 }
 
+
+// Fat Tree Switches
 FatTreeSwitch::FatTreeSwitch(uint32_t id, uint32_t nq, double rate, uint32_t queue_type, uint32_t switch_type) : Switch(id, switch_type) {
     this->queue_to_arbiter = NULL;
     for (uint32_t i = 0; i < nq; i++) {

@@ -13,6 +13,7 @@ simulator_SOURCES = 				 		 	 \
 					coresim/flow.cpp 			 \
 					coresim/random_variable.cpp  \
 					coresim/fatTreeTopology.cpp  \
+					coresim/leafSpineTopology.cpp \
 					ext/factory.cpp 		 	 \
 					ext/pfabricqueue.cpp         \
 					ext/pfabricflow.cpp          \
