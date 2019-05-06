@@ -200,6 +200,12 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         else if (key == "pim_select_min_iters") {
             lineStream >> params.pim_select_min_iters;
         }
+        else if (key == "pim_alpha") {
+            lineStream >> params.pim_alpha;
+        }
+        else if (key == "pim_beta") {
+            lineStream >> params.pim_beta;
+        }
         // -----------------
         else if (key == "ddc") {
             lineStream >> params.ddc;

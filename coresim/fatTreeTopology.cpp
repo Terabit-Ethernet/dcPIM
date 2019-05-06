@@ -131,8 +131,9 @@ void FatTreeTopology::set_up_parameter() {
         // params.pim_epoch *= params.BDP * params.get_full_pkt_tran_delay();
         params.pim_window_size *= params.BDP;
         params.pim_small_flow *= params.BDP;
-        params.pim_iter_epoch = 2 * (this->get_control_pkt_rtt(143) / 2 + 1.5 /1000000);
-        params.pim_epoch = params.pim_iter_limit * params.pim_iter_epoch * 2;
+        params.pim_iter_epoch = params.pim_beta * (this->get_control_pkt_rtt(143));
+        params.pim_epoch = params.pim_iter_limit * params.pim_iter_epoch * (1 + params.pim_alpha);
+
     }
 }
 bool FatTreeTopology::is_arbiter(Host* n) {

@@ -30,6 +30,8 @@ pim_window_timeout: 1e-0.6
 pim_resend_timeout: 1
 pim_low_priority: 0
 pim_select_min_iters: 1
+pim_alpha: 2
+pim_beta: 3
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33
