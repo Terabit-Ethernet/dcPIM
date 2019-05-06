@@ -420,9 +420,9 @@ void PimHost::start_new_epoch(double time, int epoch) {
     if(debug_host(this->id)){
         std::cout << time << "new epoch start " << epoch << std::endl;
     }
-    if(this->epochs.count(this->cur_epoch - 1) > 0){
-        this->epochs.erase(this->cur_epoch - 1);
-    }
+    // if(this->epochs.count(this->cur_epoch - 1) > 0){
+    //     this->epochs.erase(this->cur_epoch - 1);
+    // }
 }
 bool PimHost::flow_compare(PimFlow* long_flow, PimFlow* short_flow) {
     if(long_flow == NULL)

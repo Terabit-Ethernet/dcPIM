@@ -196,7 +196,9 @@ void PimFlow::receive(Packet *p) {
     if(p->type == PIM_RTS_PACKET) {
         auto d = (PimHost*)dst;
         int epoch = ((PIMRTS*)p)->epoch;
-
+        if(d->epochs.count(epoch) <= 0) {
+            return;
+        }
         // if(d->cur_epoch == epoch) {
         assert(d->epochs.count(epoch) > 0);
         d->epochs[epoch].receive_rts((PIMRTS*)p);
@@ -212,6 +214,9 @@ void PimFlow::receive(Packet *p) {
     } else if (p->type == PIM_GRANTS_PACKET) {
         auto s = (PimHost*)src;
         int epoch  = ((PIMGrants*)p)->epoch;
+        if(s->epochs.count(epoch) <= 0) {
+            return;
+        }
         // if(s->cur_epoch == epoch) {
             assert(s->epochs.count(epoch) > 0);
             s->epochs[epoch].receive_grants((PIMGrants*)p);
@@ -220,12 +225,18 @@ void PimFlow::receive(Packet *p) {
         auto d = (PimHost*)dst;
         int epoch = ((AcceptPkt*)p)->epoch;
         // if(d->cur_epoch == epoch) {
+        if(d->epochs.count(epoch) <= 0) {
+            return;
+        }
             assert(d->epochs.count(epoch) > 0);
             d->epochs[epoch].receive_accept_pkt((AcceptPkt*)p);
         // }
     } else if(p->type == GRANTSR_PACKET) {
         auto s = (PimHost*)src;
         int epoch = ((GrantsR*)p)->epoch;
+        if(s->epochs.count(epoch) <= 0) {
+            return;
+        }
         // if(s->cur_epoch == epoch) {
             assert(s->epochs.count(epoch) > 0);
             s->epochs[epoch].receive_grantsr((GrantsR*)p);

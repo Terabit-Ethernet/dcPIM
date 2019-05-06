@@ -58,7 +58,6 @@ void PoissonFlowGenerator::make_flows() {
         nv_bytes = new CDFRandomVariable(filename);
 
     params.mean_flow_size = nv_bytes->mean_flow_size;
-    std::cout << params.mean_flow_size << std::endl;
     double lambda = params.bandwidth * params.load / (params.mean_flow_size * 8.0 / 1460 * 1500);
     double lambda_per_host = lambda / (topo->hosts.size() - 1);
     //std::cout << "Lambda: " << lambda_per_host << std::endl;
