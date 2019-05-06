@@ -5,7 +5,7 @@ algos=(pim)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()
 
-OUTPUT_FOLDER=../result/pim_alpha
+OUTPUT_FOLDER=../result/pim_beta
 DATE=$1
 TRACE=$2
 mkdir -p $OUTPUT_FOLDER
