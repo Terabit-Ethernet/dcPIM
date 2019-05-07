@@ -163,7 +163,7 @@ void FlowArrivalEvent::process_event() {
         }
         std::cout << "## " << current_time << " NumPacketOutstanding " << num_outstanding_packets
             << " NumUnfinishedFlows " << num_unfinished_flows << " StartedFlows " << flow_arrival_count
-            << " StartedPkts " << arrival_packets_count << "\n";
+            << " StartedPkts " << arrival_packets_count << std::endl;
     }
 }
 
