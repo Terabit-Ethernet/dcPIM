@@ -1,6 +1,6 @@
 #!/bin/bash
 
-iters=(1 2 3 4 5 6 7 8 9 10)
+iters=(2)
 algos=(pim)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()

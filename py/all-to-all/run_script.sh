@@ -1,6 +1,6 @@
 #!/bin/bash
 
-algos=(fastpass pfabric ruf phost)
+algos=(pim)
 aids=()
 OUTPUT_FOLDER=../result/all-to-all
 DATE=$1
