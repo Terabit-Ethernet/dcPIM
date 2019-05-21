@@ -47,9 +47,9 @@
 #include "ds.h"
 #include "header.h"
 #include "flow.h"
-#include "ruf_flow.h"
-#include "ruf_host.h"
-#include "ruf_pacer.h"
+#include "pim_flow.h"
+#include "pim_host.h"
+#include "pim_pacer.h"
 
 #define TIMER_RESOLUTION_CYCLES 4500UL /* around 10ms at 2 Ghz */
 
@@ -96,10 +96,10 @@ static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
 /*mbuf pool*/
 struct rte_mempool * pktmbuf_pool = NULL;
 
-struct ruf_sender sender;
-struct ruf_receiver receiver; 
-struct ruf_pacer pacer;
-struct ruf_controller controller;
+struct pim_sender sender;
+struct pim_receiver receiver; 
+struct pim_pacer pacer;
+struct pim_controller controller;
 
 static volatile bool force_quit;
 
@@ -138,7 +138,7 @@ static void host_main_loop(void) {
 			for (j = 0; j < nb_rx; j++) {
 				p = pkts_burst[j];
 				// rte_vlan_strip(p);
-				ruf_rx_packets(&receiver, &sender, &pacer, p);
+				pim_rx_packets(&receiver, &sender, &pacer, p);
 			}
 		}
 		cur_tsc = rte_rdtsc();
@@ -153,10 +153,10 @@ static void host_main_loop(void) {
 static void pacer_main_loop(void) {
 	printf("pacer core:%u\n", rte_lcore_id());
 	rte_timer_reset(&pacer.token_timer, 0, SINGLE,
-        rte_lcore_id(), &ruf_pacer_send_token_handler, (void *)pacer.send_token_timeout_params);
+        rte_lcore_id(), &pim_pacer_send_token_handler, (void *)pacer.send_token_timeout_params);
 
 	rte_timer_reset(&pacer.data_timer, 0, SINGLE,
-    	rte_lcore_id(), &ruf_pacer_send_data_pkt_handler, (void *)pacer.send_data_timeout_params);
+    	rte_lcore_id(), &pim_pacer_send_data_pkt_handler, (void *)pacer.send_data_timeout_params);
 
 	// uint64_t cycles[16];
 	// bool rts_sent = false;
@@ -165,9 +165,9 @@ static void pacer_main_loop(void) {
 		while(!rte_ring_empty(pacer.ctrl_q)) {
 			struct rte_mbuf* p = (struct rte_mbuf*)dequeue_ring(pacer.ctrl_q);
 			struct ipv4_hdr* ipv4_hdr;
-			struct ruf_hdr *ruf_hdr = rte_pktmbuf_mtod_offset(p, struct ruf_hdr*, 
+			struct pim_hdr *pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
 				sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
-			// printf("timer cycles %"PRIu64": send control packets:%u \n",rte_get_timer_cycles(), ruf_hdr->type);
+			// printf("timer cycles %"PRIu64": send control packets:%u \n",rte_get_timer_cycles(), pim_hdr->type);
 			ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr *, sizeof(struct ether_hdr));
 			pacer.remaining_bytes += rte_be_to_cpu_16(ipv4_hdr->total_length) + sizeof(struct ether_hdr);
 			uint32_t dst_addr = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
@@ -175,11 +175,11 @@ static void pacer_main_loop(void) {
 			// use tos in ipheader instead;
 			ipv4_hdr->type_of_service = TOS_7;
 			// p->vlan_tci = TCI_7;
-			if(ruf_hdr->type == RTP_LISTSRCS) {
-				struct ruf_listsrc_hdr *ruf_listsrc_hdr = rte_pktmbuf_mtod_offset(p, struct ruf_listsrc_hdr*, 
-					sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct ruf_hdr));
-				if(debug_flow(ruf_listsrc_hdr->has_nrts)) {
-					printf("send nrts for %u\n", ruf_listsrc_hdr->num_srcs);
+			if(pim_hdr->type == PIM_LISTSRCS) {
+				struct pim_listsrc_hdr *pim_listsrc_hdr = rte_pktmbuf_mtod_offset(p, struct pim_listsrc_hdr*, 
+					sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
+				if(debug_flow(pim_listsrc_hdr->has_nrts)) {
+					printf("send nrts for %u\n", pim_listsrc_hdr->num_srcs);
 				}
 			}
 			// rte_vlan_insert(&p); 
@@ -248,7 +248,7 @@ static void controller_main_loop(void) {
 			for (j = 0; j < nb_rx; j++) {
 				p = pkts_burst[j];
 				// rte_vlan_strip(p);
-				ruf_receive_listsrc(&controller, p);
+				pim_receive_listsrc(&controller, p);
 			}
 		}
 		rte_timer_manage();
@@ -267,7 +267,7 @@ static void flow_generate_loop(void) {
          	if(i == 0) {
 			 	receiver.start_cycle = rte_get_tsc_cycles();
          	}
-			 ruf_new_flow_comes(&sender, & pacer, i, params.dst_ip, 1460 * 1000);
+			 pim_new_flow_comes(&sender, & pacer, i, params.dst_ip, 1460 * 1000);
          	i++;
              prev_tsc = cur_tsc;
          }
@@ -406,7 +406,7 @@ signal_handler(int signum)
 			uint32_t* flow_id = 0;
 			int32_t position = 0;
 			uint32_t next = 0;
-			struct ruf_flow* flow;
+			struct pim_flow* flow;
 			uint32_t finished_flow = 0;
 			while(1) {
 				position = rte_hash_iterate(sender.tx_flow_table, (const void**) &flow_id, (void**)&flow, &next);
@@ -420,7 +420,7 @@ signal_handler(int signum)
 				// 	continue;
 				// }
 				finished_flow += 1;
-				ruf_flow_dump(flow);
+				pim_flow_dump(flow);
 			}
 			printf("Finished flow:%u \n", finished_flow);    
 			host_dump(&sender, &receiver, &pacer);
@@ -486,7 +486,7 @@ main(int argc, char **argv)
 	pktmbuf_pool = rte_pktmbuf_pool_create("mbuf_pool", nb_mbufs,
 		MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
 		1);
-	printf("RTE_MBUF_DEFAULT_BUF_SIZE:%lu\n", sizeof(struct ruf_flow));
+	printf("RTE_MBUF_DEFAULT_BUF_SIZE:%lu\n", sizeof(struct pim_flow));
 	printf("nb_mbufs:%d\n", nb_mbufs);
 	printf("default timer cycles:%"PRIu64"\n", rte_get_timer_hz());
 	printf("tsc timer cycles:%"PRIu64"\n", rte_get_tsc_hz());

@@ -1,5 +1,5 @@
-#ifndef RUF_FLOW_H
-#define RUF_FLOW_H
+#ifndef PIM_FLOW_H
+#define PIM_FLOW_H
 
 #include <stdbool.h>
 #include <rte_mbuf.h>
@@ -10,16 +10,16 @@
 #include "debug.h"
 #include "flow.h"
 #include "pq.h"
-#include "ruf_host.h"
+#include "pim_host.h"
 typedef struct //for extendability
 {
     double timeout;
     int seq_num;
     int data_seq_num;
     int round;
-} ruf_token;
+} pim_token;
 
-struct ruf_flow{
+struct pim_flow{
 	struct flow _f;
     struct rte_mbuf* buf;
     bool rts_received;
@@ -45,52 +45,52 @@ struct ruf_flow{
 };
 
 struct rd_ctrl_timeout_params {
-    struct ruf_receiver* receiver;
-    struct ruf_flow* flow;
+    struct pim_receiver* receiver;
+    struct pim_flow* flow;
 };
 
 struct finish_timeout_params {
-    struct ruf_receiver* receiver;
+    struct pim_receiver* receiver;
     uint32_t flow_id;
 };
 
-void ruf_flow_dump(struct ruf_flow* f);
-struct ruf_flow* ruf_flow_new(struct rte_mempool* pool);
-void init_ruf_flow(struct ruf_flow* ruf_f, uint32_t id, uint32_t size, uint32_t src_addr, uint32_t dst_addr, double start_time, int receiver_side);
+void pim_flow_dump(struct pim_flow* f);
+struct pim_flow* pim_flow_new(struct rte_mempool* pool);
+void init_pim_flow(struct pim_flow* pim_f, uint32_t id, uint32_t size, uint32_t src_addr, uint32_t dst_addr, double start_time, int receiver_side);
 
-// void ruf_flow_free(struct rte_mempool* pool);
+// void pim_flow_free(struct rte_mempool* pool);
 
-bool ruf_flow_compare(const void *a, const void* b);
-// ruf_flow* ruf_flow_free(ruf_flow* ruf_f);
-int ruf_init_token_size(struct ruf_flow* ruf_f);
+bool pim_flow_compare(const void *a, const void* b);
+// pim_flow* pim_flow_free(pim_flow* pim_f);
+int pim_init_token_size(struct pim_flow* pim_f);
 
 void rd_ctrl_timeout_handler(__rte_unused struct rte_timer *timer, void* arg);
 void finish_timeout_handler(__rte_unused struct rte_timer *timer, void* arg);
 
-void reset_rd_ctrl_timeout(struct ruf_receiver* receiver, struct ruf_flow* flow, double time);
+void reset_rd_ctrl_timeout(struct pim_receiver* receiver, struct pim_flow* flow, double time);
 
-// double ruf_calc_oct_time_ratio();
+// double pim_calc_oct_time_ratio();
 // // send control signals
-// void ruf_sending_rts(ruf_flow* ruf_f);
-// void ruf_sending_nrts(ruf_flow* ruf_f, int round);
-// void ruf_sending_nrts_to_arbiter(ruf_flow* ruf_f, uint32_t src_id, uint32_t dst_id);
-// void ruf_sending_gosrc(ruf_flow* ruf_f, uint32_t src_id);
-// void ruf_sending_ack(ruf_flow* ruf_f, int round);
+// void pim_sending_rts(pim_flow* pim_f);
+// void pim_sending_nrts(pim_flow* pim_f, int round);
+// void pim_sending_nrts_to_arbiter(pim_flow* pim_f, uint32_t src_id, uint32_t dst_id);
+// void pim_sending_gosrc(pim_flow* pim_f, uint32_t src_id);
+// void pim_sending_ack(pim_flow* pim_f, int round);
 // // sender side
-// void ruf_clear_token(ruf_flow* ruf_f);
-// ruf_token* ruf_use_token(ruf_flow* ruf_f);
-// bool ruf_has_token(ruf_flow* ruf_f);
-// struct rte_mbuf* ruf_send(ruf_flow* ruf_f, uint32_t seq, int token_seq, int data_seq, int priority, int ranking_round);
-// void ruf_assign_init_token(ruf_flow* ruf_f);
+// void pim_clear_token(pim_flow* pim_f);
+// pim_token* pim_use_token(pim_flow* pim_f);
+// bool pim_has_token(pim_flow* pim_f);
+// struct rte_mbuf* pim_send(pim_flow* pim_f, uint32_t seq, int token_seq, int data_seq, int priority, int ranking_round);
+// void pim_assign_init_token(pim_flow* pim_f);
 // // receiver side
-int ruf_remaining_pkts(struct ruf_flow* ruf_f);
-int ruf_token_gap(struct ruf_flow* ruf_f);
-// void ruf_relax_token_gap(ruf_flow* ruf_f);
-int ruf_get_next_token_seq_num(struct ruf_flow* ruf_f);
-void ruf_get_token_pkt(struct ruf_flow* ruf_f, struct rte_mbuf* p, uint32_t round, int data_seq);
-void ruf_get_ack_pkt(struct rte_mbuf* p, struct ruf_flow* flow);
-// void ruf_receive_short_flow(ruf_flow* ruf_f);
-struct ruf_flow* get_src_smallest_unfinished_flow(Pq* pq);
+int pim_remaining_pkts(struct pim_flow* pim_f);
+int pim_token_gap(struct pim_flow* pim_f);
+// void pim_relax_token_gap(pim_flow* pim_f);
+int pim_get_next_token_seq_num(struct pim_flow* pim_f);
+void pim_get_token_pkt(struct pim_flow* pim_f, struct rte_mbuf* p, uint32_t round, int data_seq);
+void pim_get_ack_pkt(struct rte_mbuf* p, struct pim_flow* flow);
+// void pim_receive_short_flow(pim_flow* pim_f);
+struct pim_flow* get_src_smallest_unfinished_flow(Pq* pq);
 
 
 

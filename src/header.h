@@ -8,48 +8,48 @@
 #include <rte_ip.h>
 // RANKING
 #define DATA 0
-#define RTP_RTS 1
-#define RTP_LISTSRCS 2
-#define RTP_GOSRC 3
-#define RTP_TOKEN 4 
-#define RTP_ACK 5
+#define PIM_RTS 1
+#define PIM_LISTSRCS 2
+#define PIM_GOSRC 3
+#define PIM_TOKEN 4 
+#define PIM_ACK 5
 
 #define MSS 1460
 
-// ------- RTP -----
-// RTP header format: ethernet | IPv4 header | ruf_hdr| (rts, gosrc, listsrc, token, data)
+// ------- PIM -----
+// PIM header format: ethernet | IPv4 header | pim_hdr| (rts, gosrc, listsrc, token, data)
 // If it is listsrc: listsrc | nrts_hdr (optional) | list of (src_addr, flow_size) pairs
-struct ruf_hdr{
+struct pim_hdr{
 	uint8_t type;
 };
 
-struct ruf_rts_hdr {
+struct pim_rts_hdr {
 	uint32_t flow_id;
 	uint32_t flow_size;
 	uint64_t start_time;
 };
 
-struct ruf_gosrc_hdr {
+struct pim_gosrc_hdr {
 	uint32_t target_src_addr;
 	uint32_t max_tokens;
 };
 
-struct ruf_listsrc_hdr {
+struct pim_listsrc_hdr {
 	uint8_t has_nrts;
 	uint32_t num_srcs; 
 };
 
-struct ruf_nrts_hdr {
+struct pim_nrts_hdr {
 	uint32_t nrts_src_addr;
 	uint32_t nrts_dst_addr;
 };
 
-struct ruf_src_size_pair {
+struct pim_src_size_pair {
 	uint32_t src_addr;
 	uint32_t flow_size;
 };
 
-struct ruf_token_hdr {
+struct pim_token_hdr {
 	uint8_t priority;
 	// uint8_t ttl;
 	uint32_t flow_id;
@@ -59,7 +59,7 @@ struct ruf_token_hdr {
 	uint32_t remaining_size;
 }; 
 
-struct ruf_data_hdr{
+struct pim_data_hdr{
 	uint8_t priority;
 	uint32_t flow_id;
 	uint32_t round;
@@ -67,21 +67,21 @@ struct ruf_data_hdr{
 	uint32_t seq_num;
 };
 
-struct ruf_ack_hdr {
+struct pim_ack_hdr {
 	uint32_t flow_id;
 };
 
-void parse_header(struct rte_mbuf* p, struct ipv4_hdr** ipv4_hdr, struct ruf_hdr** ruf_hdr);
+void parse_header(struct rte_mbuf* p, struct ipv4_hdr** ipv4_hdr, struct pim_hdr** pim_hdr);
 void add_ether_hdr(struct rte_mbuf* p);
 void add_ip_hdr(struct rte_mbuf* p, struct ipv4_hdr* ipv4_hdr);
-void add_ruf_hdr(struct rte_mbuf* p, struct ruf_hdr* ruf_hdr);
-void add_ruf_rts_hdr(struct rte_mbuf *p, struct ruf_rts_hdr* ruf_rts_hdr);
-void add_ruf_gosrc_hdr(struct rte_mbuf *p, struct ruf_gosrc_hdr* ruf_gosrc_hdr);
-void add_ruf_listsrc_hdr(struct rte_mbuf *p, struct ruf_listsrc_hdr* ruf_listsrc_hdr);
-void add_ruf_nrts_hdr(struct rte_mbuf *p, struct ruf_nrts_hdr* ruf_nrts_hdr);
-void add_ruf_token_hdr(struct rte_mbuf *p, struct ruf_token_hdr* ruf_token_hdr);
-void add_ruf_data_hdr(struct rte_mbuf *p, struct ruf_data_hdr* ruf_data_hdr);
-void add_ruf_ack_hdr(struct rte_mbuf *p, struct ruf_ack_hdr* ruf_ack_hdr);
+void add_pim_hdr(struct rte_mbuf* p, struct pim_hdr* pim_hdr);
+void add_pim_rts_hdr(struct rte_mbuf *p, struct pim_rts_hdr* pim_rts_hdr);
+void add_pim_gosrc_hdr(struct rte_mbuf *p, struct pim_gosrc_hdr* pim_gosrc_hdr);
+void add_pim_listsrc_hdr(struct rte_mbuf *p, struct pim_listsrc_hdr* pim_listsrc_hdr);
+void add_pim_nrts_hdr(struct rte_mbuf *p, struct pim_nrts_hdr* pim_nrts_hdr);
+void add_pim_token_hdr(struct rte_mbuf *p, struct pim_token_hdr* pim_token_hdr);
+void add_pim_data_hdr(struct rte_mbuf *p, struct pim_data_hdr* pim_data_hdr);
+void add_pim_ack_hdr(struct rte_mbuf *p, struct pim_ack_hdr* pim_ack_hdr);
 
 #endif
 
