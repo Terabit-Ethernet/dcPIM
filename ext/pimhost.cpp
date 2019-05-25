@@ -273,8 +273,8 @@ void PimEpoch::handle_all_grants() {
     uint32_t index = 0;
     if(params.pim_select_min_iters > 0 && this->iter <= params.pim_select_min_iters) {
         for(uint32_t i = 0; i < this->grants_q.size(); i++) { 
-            if(min_size > this->grants_q[i].f->size_in_pkt && this->iter == this->grants_q[index].iter) {
-                min_size = this->grants_q[i].f->size_in_pkt;
+            if(min_size > this->grants_q[i].f->remaining_pkts_at_sender && this->iter == this->grants_q[index].iter) {
+                min_size = this->grants_q[i].f->remaining_pkts_at_sender;
                 index = i;
             }
         }
