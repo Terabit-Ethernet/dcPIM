@@ -82,6 +82,7 @@ void ProcessSenderIterEvent::process_event() {
 PimEpoch::PimEpoch(){
     this->epoch = -1;
     this->iter = 0;
+    this->prompt = false;
     this->match_receiver = NULL;
     this->match_sender = NULL;
     this->proc_sender_iter_evt = NULL;
@@ -140,7 +141,11 @@ void PimEpoch::receive_grantsr(GrantsR *p) {
     }
     assert(this->match_receiver == p->flow->dst);
     this->match_receiver = NULL;
-    this->host->receiver = this->match_receiver;
+    if(this->host->cur_epoch == this->epoch || this->prompt) {
+    	this->host->receiver = this->match_receiver;
+	this->prompt = false;
+    }
+    // this->host->receiver = this->match_receiver;
     // if(this->proc_accept_evt == NULL) {
     //     this->proc_accept_evt = new ProcssAcceptEvent(get_current_time() + params.ctrl_pkt_rtt / 4, this->host);
     // }
@@ -315,6 +320,7 @@ void PimEpoch::handle_all_grants() {
             if(this->grants_q[i].prompt && this->host->receiver == NULL) {
                 assert(this->host->cur_epoch == this->epoch - 1);
                 this->host->receiver = this->match_receiver;
+		this->prompt = true;
                 if(this->host->host_proc_event != NULL && this->host->host_proc_event->is_timeout) {
                     this->host->host_proc_event->cancelled = true;
                     this->host->host_proc_event = NULL;

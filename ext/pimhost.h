@@ -41,6 +41,7 @@ class PimEpoch {
 public:
     int epoch;
     int iter;
+    bool prompt;
     PimHost* host;
     PimHost* match_receiver;
     PimHost* match_sender;
