@@ -27,21 +27,19 @@ char *link_correspondence[] = {link_correspondence0, link_correspondence1, link_
 
 struct Params params = {
 	.BDP = 7,
-	.small_flow_thre = 14,
+	.small_flow_thre = 7,
 	.mss = 1460,
 	.priority_limit = 6,
 	.bandwidth = 10000000000,
-	.idle_timeout = 5.5,
-	.min_tokens = 5,
-	.max_tokens = 10,
 	.ip = 24,
-	.controller_ip = 24,
 	.dst_ip = 20,
 	.batch_tokens = 7,
-	.control_epoch = 1,
-	.token_resend_timeout = 1.1,
+	.pim_beta = 5,
+	.pim_alpha = 1,
+	.pim_iter_limit = 5,
 	.propagation_delay = 0.0000002,
-	.send_port = 0
+	.send_port = 0,
+	.pim_select_min_iters = 1
 };
 double get_transmission_delay(double bytes) {
 	return bytes * 8 / params.bandwidth;

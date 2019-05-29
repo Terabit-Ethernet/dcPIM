@@ -62,17 +62,15 @@ struct Params {
 	double small_flow_thre;
 	uint32_t mss;
 	uint32_t priority_limit;
-	double min_tokens;
-	double max_tokens;
-	double control_epoch;
 	uint64_t bandwidth;
-	double idle_timeout;
 	uint32_t ip;
-	uint32_t controller_ip;
+	uint32_t pim_select_min_iters;
+	double pim_iter_epoch;
+	uint32_t pim_alpha;
+	uint32_t pim_beta;
+	uint32_t pim_iter_limit;
 	// debug purpose
 	uint32_t dst_ip;
-	double batch_tokens;
-	double token_resend_timeout;
 	double propagation_delay;
 	uint32_t send_port;
 };

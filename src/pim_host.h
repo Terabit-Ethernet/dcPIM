@@ -12,6 +12,7 @@
 #include <rte_mempool.h>
 #include <rte_malloc.h>
 #include <rte_ring.h>
+#include <rte_rwlock.h>
 #include <rte_timer.h>
 
 #include "debug.h"
@@ -22,30 +23,33 @@
 
 struct pim_flow;
 
-struct gosrc_info {
-	uint32_t src_addr;
-	struct pim_flow* current_flow;
-    int max_tokens;
-    int remain_tokens;
-    int round;
-    bool has_gosrc;
-    bool send_nrts;   
+struct pim_rts {
+    uint8_t iter;
+    uint32_t src_addr;
+    int remaining_sz;
+};
+struct pim_grant {
+    bool prompt;
+    uint32_t dst_addr;
+    int remaining_sz;
 };
 
-struct idle_timeout_params {
-	struct pim_pacer* pacer;
-	struct pim_receiver* receiver;
-};
-
-struct send_token_evt_params {
-	struct pim_pacer* pacer;
-	struct pim_receiver* receiver;
-};
-
-struct send_listsrc_params {
-	struct pim_pacer *pacer;
-	struct pim_receiver *receiver;
-	int nrts_src_addr; 
+struct pim_epoch {
+	rte_rwlock_t rw_lock;
+	uint32_t epoch;
+	uint32_t iter;
+	bool prompt;
+	uint32_t match_src_addr;
+	uint32_t match_dst_addr;
+	struct pim_grants grants_q[16];
+	struct pim_rts rts_q[16];
+	uint32_t grant_size;
+	uint32_t rts_size;
+	struct pim_rts* min_rts;
+	struct pim_grant* min_grant;
+	struct rte_timer epoch_timer;
+	struct rte_timer sender_iter_timer;
+	struct rte_timer receiver_iter_timer;
 };
 
 struct event_params {
@@ -53,110 +57,74 @@ struct event_params {
 	void* params;
 };
 
-struct src_dst_pair {
-	uint32_t src;
-	uint32_t dst;
-	uint32_t flow_size;
-};
+struct pim_host{
+	uint32_t cur_epoch;
+	// sender
 
-struct pim_sender{
-	
+	uint32_t cur_match_dst_addr;
 	struct rte_mempool *tx_flow_pool;
-	struct rte_ring *short_flow_token_q;
-	struct rte_ring *long_flow_token_q;
+	struct rte_hash *dst_minflow_table;
 	// struct rte_ring * control_message_q;
 	struct rte_hash * tx_flow_table;
 	uint32_t finished_flow;
 	uint32_t sent_bytes;
-
-};
-
-struct pim_receiver{
+	Pq active_short_flows;
+	// receiver
+	uint32_t cur_match_src_addr;
 	struct rte_mempool *rx_flow_pool;
 	struct rte_hash *rx_flow_table;
 	// min large flow
-	struct rte_hash *src_minflow_table;
-	struct rte_ring *long_flow_token_q;
-	struct rte_ring *short_flow_token_q;
 	struct rte_ring *temp_pkt_buffer;
 	// struct rte_ring * control_message_q;
-	struct rte_timer idle_timeout;
-	struct idle_timeout_params* idle_timeout_params;
-	struct gosrc_info gosrc_info;
-	struct rte_timer send_token_evt_timer;
-	struct send_token_evt_params* send_token_evt_params;
 
 	struct rte_ring *event_q;
-    // struct rte_timer send_listsrc_timer;
-    // struct send_listsrc_params* send_listsrc_params;
 	uint32_t received_bytes;
 	uint64_t start_cycle;
 	uint64_t end_cycle;
-	uint32_t num_token_sent;
-	uint32_t idle_timeout_times;
-	uint32_t invoke_sent_nrts_num;
-	uint32_t sent_nrts_num;
 };
-
-struct pim_controller{
-	// struct rte_mempool* node_pool;
-	// struct rte_mempool* element_pool;
-	struct rte_hash* sender_state;
-	struct rte_hash* receiver_state;
-	struct rte_timer handle_rq_timer;
-	Pq pq;
-	// Node* head;
-};
+bool pim_pflow_compare(const void *a, const void* b);
 
 void pim_new_flow_comes(struct pim_sender * sender, struct pim_pacer* pacer, 
 	uint32_t flow_id, uint32_t dst_addr, uint32_t flow_size);
-// set gosrc
-void init_gosrc(struct gosrc_info *gosrc);
-void reset_gosrc(struct gosrc_info *gosrc);
-// receiver logic
-void idle_timeout_handler(__rte_unused struct rte_timer *timer, void* arg);
-void send_token_evt_handler(__rte_unused struct rte_timer *timer, void* arg);
 
-void reset_idle_timeout(struct pim_receiver *receiver, struct pim_pacer *pacer);
-void reset_send_tokens_evt(struct pim_receiver *receiver, struct pim_pacer* pacer, int sent_token);
+// set epoch function 
+void pim_init_epoch(struct pim_epoch *pim_epoch);
+void pim_start_new_epoch(struct pim_epoch *pim_epoch, double time, int epoch);
+void pim_advance_iter(struct pim_epoch *pim_epoch);
 
-void pim_rx_packets(struct pim_receiver* receiver, struct pim_sender* sender, struct pim_pacer* pacer,
- struct rte_mbuf* p);
-void pim_receive_rts(struct pim_receiver* receiver, struct pim_pacer *pacer, 
+void pim_host_dump(struct pim_host* host, struct pim_pacer* pacer);
+
+// PIM matching logic
+void pim_get_grantr_pkt(struct pim_host* pim_host, struct ipv4_hdr ipv4_hdr, int iter, int epoch);
+void pim_get_grant_pkt(struct pim_rts* pim_rts, struct pim_host* pim_host, struct ipv4_hdr ipv4_hdr, int iter, int epoch, bool prompt);
+void pim_get_accept_pkt(struct pim_grant* pim_grant, struct pim_host* pim_host, int iter, int epoch);
+void pim_get_rts_pkt(struct pim_flow* flow, int iter, int epoch);
+
+void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer);
+void pim_handle_all_grant(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer);
+void pim_handle_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer);
+void pim_receive_rts(struct pim_epoch* epoch, 
 	struct ipv4_hdr* ipv4_hdr, struct pim_rts_hdr* pim_rts_hdr);
-void pim_receive_gosrc(struct pim_receiver *receiver, struct pim_pacer *pacer,
- struct pim_gosrc_hdr *pim_gosrc_hdr);
-void pim_receive_data(struct pim_receiver *receiver, struct pim_pacer* pacer,
+void pim_receive_accept(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer,
+ struct ipv4_hdr* ipv4_hdr, struct pim_accept_hdr* pim_accept_hdr);
+void pim_receive_data(struct pim_host *host, struct pim_pacer* pacer,
  struct pim_data_hdr * pim_data_hdr, struct rte_mbuf *p);
-
-void host_dump(struct pim_sender* sender, struct pim_receiver *receiver, struct pim_pacer* pacer);
-
-void send_listsrc(void* arg);
-void invoke_send_listsrc(struct pim_receiver* receiver, struct pim_pacer *pacer, int nrts_src_addr);
-
+void pim_receive_grant(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, struct pim_grant_hdr* pim_grant_hdr);
+void pim_receive_grantr(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_grantr_hdr* pim_grantr_hdr);
+// host logic 
+void pim_init_host(struct pim_host *host, uint32_t socket_id);
+void pim_rx_packets(struct pim_host* host, struct pim_pacer* pacer,
+ struct rte_mbuf* p);
 void pim_flow_finish_at_receiver(struct pim_receiver *receiver, struct pim_flow * f);
+
 // sender logic
-void pim_receive_token(struct pim_sender *sender, struct pim_token_hdr *pim_token_hdr, struct rte_mbuf* p);
 void pim_receive_ack(struct pim_sender *sender, struct pim_ack_hdr * pim_ack_hdr);
 // void enqueue();
 // void dequeue();
 
-void pim_new_flow(
- struct pim_pacer* pacer, uint32_t flow_id, uint32_t dst_addr, uint32_t flow_size);
+void pim_new_flow(struct pim_pacer* pacer,
+ uint32_t flow_id, uint32_t dst_addr, uint32_t flow_size);
+struct pim_flow* get_smallest_unfinished_flow(Pq* pq);
 
-// controller logic 
 
-void pim_receive_listsrc(struct pim_controller *controller, struct rte_mbuf *p);
-void handle_requests(__rte_unused struct rte_timer *timer, void* arg);
-
-void init_sender(struct pim_sender *pim_sender, uint32_t socket_id);
-void init_receiver(struct pim_receiver *pim_receiver, uint32_t socket_id);
-void init_controller(struct pim_controller* controller, uint32_t socket_id);
-
-bool src_dst_compare(const void* a, const void* b);
-// helper function
-void send_rts(struct pim_sender* sender, struct pim_pacer* pacer, struct pim_flow* flow);
-void iterate_temp_pkt_buf(struct pim_receiver* receiver, struct pim_pacer* pacer, uint32_t flow_id);
-void get_gosrc_pkt(struct rte_mbuf* p, uint32_t src_addr,
- uint32_t dst_addr, uint32_t token_num);
 #endif
