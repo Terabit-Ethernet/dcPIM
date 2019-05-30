@@ -65,10 +65,11 @@ struct Params {
 	uint64_t bandwidth;
 	uint32_t ip;
 	uint32_t pim_select_min_iters;
-	double pim_iter_epoch;
 	uint32_t pim_alpha;
 	uint32_t pim_beta;
 	uint32_t pim_iter_limit;
+	double pim_iter_epoch;
+	double pim_epoch;
 	// debug purpose
 	uint32_t dst_ip;
 	double propagation_delay;

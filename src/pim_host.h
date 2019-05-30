@@ -34,6 +34,12 @@ struct pim_grant {
     int remaining_sz;
 };
 
+struct pim_timer_params {
+	struct pim_host* pim_host;
+	struct pim_epoch* pim_epoch;
+	struct pim_pacer* pim_pacer;
+};
+
 struct pim_epoch {
 	rte_rwlock_t rw_lock;
 	uint32_t epoch;
@@ -41,7 +47,7 @@ struct pim_epoch {
 	bool prompt;
 	uint32_t match_src_addr;
 	uint32_t match_dst_addr;
-	struct pim_grants grants_q[16];
+	struct pim_grant grants_q[16];
 	struct pim_rts rts_q[16];
 	uint32_t grant_size;
 	uint32_t rts_size;
@@ -50,6 +56,8 @@ struct pim_epoch {
 	struct rte_timer epoch_timer;
 	struct rte_timer sender_iter_timer;
 	struct rte_timer receiver_iter_timer;
+	struct pim_timer_params pim_timer_params;
+
 };
 
 struct event_params {
@@ -60,7 +68,7 @@ struct event_params {
 struct pim_host{
 	uint32_t cur_epoch;
 	// sender
-
+	struct rte_timer pim_send_data_timer;
 	uint32_t cur_match_dst_addr;
 	struct rte_mempool *tx_flow_pool;
 	struct rte_hash *dst_minflow_table;
@@ -84,21 +92,22 @@ struct pim_host{
 };
 bool pim_pflow_compare(const void *a, const void* b);
 
-void pim_new_flow_comes(struct pim_sender * sender, struct pim_pacer* pacer, 
+void pim_new_flow_comes(struct pim_host * host, struct pim_pacer* pacer, 
 	uint32_t flow_id, uint32_t dst_addr, uint32_t flow_size);
 
 // set epoch function 
-void pim_init_epoch(struct pim_epoch *pim_epoch);
-void pim_start_new_epoch(struct pim_epoch *pim_epoch, double time, int epoch);
+void pim_init_epoch(struct pim_epoch* pim_epoch, struct pim_host* pim_host, struct pim_pacer* pim_pacer);
+void pim_start_new_epoch(__rte_unused struct rte_timer *timer, void* arg);
 void pim_advance_iter(struct pim_epoch *pim_epoch);
-
+void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* arg);
+void pim_schedule_receiver_iter_evt(__rte_unused struct rte_timer *timer, void* arg);
 void pim_host_dump(struct pim_host* host, struct pim_pacer* pacer);
 
 // PIM matching logic
-void pim_get_grantr_pkt(struct pim_host* pim_host, struct ipv4_hdr ipv4_hdr, int iter, int epoch);
-void pim_get_grant_pkt(struct pim_rts* pim_rts, struct pim_host* pim_host, struct ipv4_hdr ipv4_hdr, int iter, int epoch, bool prompt);
-void pim_get_accept_pkt(struct pim_grant* pim_grant, struct pim_host* pim_host, int iter, int epoch);
-void pim_get_rts_pkt(struct pim_flow* flow, int iter, int epoch);
+struct rte_mbuf* pim_get_grantr_pkt(struct ipv4_hdr* ipv4_hdr, int iter, int epoch);
+struct rte_mbuf* pim_get_grant_pkt(struct pim_rts* pim_rts, int iter, int epoch, bool prompt);
+struct rte_mbuf* pim_get_accept_pkt(struct pim_grant* pim_grant, int iter, int epoch);
+struct rte_mbuf* pim_get_rts_pkt(struct pim_flow* flow, int iter, int epoch);
 
 void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer);
 void pim_handle_all_grant(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer);
@@ -113,14 +122,17 @@ void pim_receive_grant(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, s
 void pim_receive_grantr(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_grantr_hdr* pim_grantr_hdr);
 // host logic 
 void pim_init_host(struct pim_host *host, uint32_t socket_id);
-void pim_rx_packets(struct pim_host* host, struct pim_pacer* pacer,
- struct rte_mbuf* p);
-void pim_flow_finish_at_receiver(struct pim_receiver *receiver, struct pim_flow * f);
-
+void pim_rx_packets(struct pim_epoch* epoch, struct pim_host* host, struct pim_pacer* pacer,
+struct rte_mbuf* p);
+void send_flow_sync(struct pim_host* host, struct pim_pacer* pacer, struct pim_flow* flow);
+void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer, 
+	struct ipv4_hdr* ipv4_hdr, struct pim_flow_sync_hdr* pim_flow_sync_hdr);
+// void pim_flow_finish_at_receiver(struct pim_receiver *receiver, struct pim_flow * f);
+void iterate_temp_pkt_buf(struct pim_host* host, struct pim_pacer* pacer,
+ uint32_t flow_id);
 // sender logic
-void pim_receive_ack(struct pim_sender *sender, struct pim_ack_hdr * pim_ack_hdr);
-// void enqueue();
-// void dequeue();
+void pim_receive_ack(struct pim_host *pim_host, struct pim_ack_hdr * pim_ack_hdr);
+void pim_send_data_evt_handler(__rte_unused struct rte_timer *timer, void* arg);
 
 void pim_new_flow(struct pim_pacer* pacer,
  uint32_t flow_id, uint32_t dst_addr, uint32_t flow_size);

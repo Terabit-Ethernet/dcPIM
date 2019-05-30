@@ -73,11 +73,11 @@ void add_ether_hdr(struct rte_mbuf* p);
 void add_ip_hdr(struct rte_mbuf* p, struct ipv4_hdr* ipv4_hdr);
 void add_pim_hdr(struct rte_mbuf* p, struct pim_hdr* pim_hdr);
 void add_pim_rts_hdr(struct rte_mbuf *p, struct pim_rts_hdr* pim_rts_hdr);
-void add_pim_grant_hdr(struct rte_mbuf *p, struct pim_gosrc_hdr* pim_grant_hdr);
-void add_pim_grantr_hdr(struct rte_mbuf *p, struct pim_listsrc_hdr* pim_grantr_hdr);
-void add_pim_accept_hdr(struct rte_mbuf *p, struct pim_nrts_hdr* pim_accept_hdr);
-void add_pim_ack_hdr(struct rte_mbuf *p, struct pim_token_hdr* pim_ack_hdr);
+void add_pim_grant_hdr(struct rte_mbuf *p, struct pim_grant_hdr* pim_grant_hdr);
+void add_pim_grantr_hdr(struct rte_mbuf *p, struct pim_grantr_hdr* pim_grantr_hdr);
+void add_pim_accept_hdr(struct rte_mbuf *p, struct pim_accept_hdr* pim_accept_hdr);
+void add_pim_ack_hdr(struct rte_mbuf *p, struct pim_ack_hdr* pim_ack_hdr);
 void add_pim_data_hdr(struct rte_mbuf *p, struct pim_data_hdr* pim_data_hdr);
-
+void add_pim_flow_sync_hdr(struct rte_mbuf *p, struct pim_flow_sync_hdr* pim_flow_sync_hdr);
 #endif
 

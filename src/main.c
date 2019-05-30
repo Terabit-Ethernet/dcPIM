@@ -95,11 +95,9 @@ static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
 
 /*mbuf pool*/
 struct rte_mempool * pktmbuf_pool = NULL;
-
-struct pim_sender sender;
-struct pim_receiver receiver; 
+struct pim_epoch epoch;
+struct pim_host host;
 struct pim_pacer pacer;
-struct pim_controller controller;
 
 static volatile bool force_quit;
 
@@ -129,7 +127,9 @@ static void host_main_loop(void) {
 
 	qconf = &lcore_queue_conf[lcore_id];
 	bool print = false;
-
+	params.pim_iter_epoch = params.pim_beta * get_rtt(params.propagation_delay, 3, 40);
+	params.pim_epoch = params.pim_iter_limit * params.pim_iter_epoch * (1 + params.pim_alpha);
+	
 	while(!force_quit) {
 		for (i = 0; i < qconf->n_rx_port; i++) {
 			portid = qconf->rx_port_list[i];
@@ -138,7 +138,7 @@ static void host_main_loop(void) {
 			for (j = 0; j < nb_rx; j++) {
 				p = pkts_burst[j];
 				// rte_vlan_strip(p);
-				pim_rx_packets(&receiver, &sender, &pacer, p);
+			pim_rx_packets(epoch, host, pacer, p);
 			}
 		}
 		cur_tsc = rte_rdtsc();
@@ -152,8 +152,6 @@ static void host_main_loop(void) {
 
 static void pacer_main_loop(void) {
 	printf("pacer core:%u\n", rte_lcore_id());
-	rte_timer_reset(&pacer.token_timer, 0, SINGLE,
-        rte_lcore_id(), &pim_pacer_send_token_handler, (void *)pacer.send_token_timeout_params);
 
 	rte_timer_reset(&pacer.data_timer, 0, SINGLE,
     	rte_lcore_id(), &pim_pacer_send_data_pkt_handler, (void *)pacer.send_data_timeout_params);
@@ -175,13 +173,6 @@ static void pacer_main_loop(void) {
 			// use tos in ipheader instead;
 			ipv4_hdr->type_of_service = TOS_7;
 			// p->vlan_tci = TCI_7;
-			if(pim_hdr->type == PIM_LISTSRCS) {
-				struct pim_listsrc_hdr *pim_listsrc_hdr = rte_pktmbuf_mtod_offset(p, struct pim_listsrc_hdr*, 
-					sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
-				if(debug_flow(pim_listsrc_hdr->has_nrts)) {
-					printf("send nrts for %u\n", pim_listsrc_hdr->num_srcs);
-				}
-			}
 			// rte_vlan_insert(&p); 
 			// send packets; hard code the port;
 			// cycles[0] = rte_get_timer_cycles();
@@ -209,7 +200,8 @@ static void temp_main_loop(void) {
 
 	lcore_id = rte_lcore_id();
     uint64_t prev_tsc = 0, cur_tsc, diff_tsc;
-
+    rte_timer_reset(&epoch->epoch_timer, 0,
+	 SINGLE, rte_lcore_id(), &pim_start_new_epoch, (void *)(epoch->pim_timer_params));
 	while(!force_quit) {
 		cur_tsc = rte_get_tsc_cycles();
 		diff_tsc = cur_tsc - prev_tsc;
@@ -581,16 +573,13 @@ main(int argc, char **argv)
 	if(mode == 1) {
 		// allocate all data structure on socket 1(Numa node 1) because
 		// NIC is connected to node 1.
-	    init_receiver(&receiver, 1);
-	    init_sender(&sender, 1);
-	    init_pacer(&pacer, &receiver, &sender, 1);
+	    init_host(&host, 1);
+	    init_pacer(&pacer, &host, 1);
+	    init_epoch(&epoch, &host, &pacer);
 		rte_eal_remote_launch(launch_host_lcore, NULL, 1);
 		rte_eal_remote_launch(launch_pacer_lcore, NULL, 3);
 		rte_eal_remote_launch(launch_temp_lcore, NULL, 5);
 		rte_eal_remote_launch(launch_flowgen_lcore, NULL, 7);
-	} else if(mode == 2){
-		init_controller(& controller, 1);
-		rte_eal_remote_launch(launch_controller_lcore, NULL, 17);
 	}
 
 	while(!force_quit){

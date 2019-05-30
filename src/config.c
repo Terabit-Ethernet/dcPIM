@@ -33,7 +33,6 @@ struct Params params = {
 	.bandwidth = 10000000000,
 	.ip = 24,
 	.dst_ip = 20,
-	.batch_tokens = 7,
 	.pim_beta = 5,
 	.pim_alpha = 1,
 	.pim_iter_limit = 5,
@@ -41,6 +40,7 @@ struct Params params = {
 	.send_port = 0,
 	.pim_select_min_iters = 1
 };
+
 double get_transmission_delay(double bytes) {
 	return bytes * 8 / params.bandwidth;
 }

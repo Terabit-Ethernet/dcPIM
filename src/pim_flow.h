@@ -11,15 +11,9 @@
 #include "flow.h"
 #include "pq.h"
 #include "pim_host.h"
-typedef struct //for extendability
-{
-    double timeout;
-    int seq_num;
-    int data_seq_num;
-    int round;
-} pim_token;
 
-struct pim_flow{
+
+struct pim_flow {
 	struct flow _f;
     struct rte_mbuf* buf;
     bool flow_sync_received;
@@ -52,25 +46,28 @@ struct finish_timeout_params {
 };
 
 void pflow_dump(struct pim_flow* f);
-struct pim_flow* pim_flow_new(struct rte_mempool* pool);
+struct pim_flow* pflow_new(struct rte_mempool* pool);
 void pflow_init(struct pim_flow* pim_f, uint32_t id, uint32_t size, uint32_t src_addr, uint32_t dst_addr, double start_time, int receiver_side);
 
 // void pim_flow_free(struct rte_mempool* pool);
 bool pflow_is_small_flow(struct pim_flow* pim_flow);
+int pflow_gap(const struct pim_flow* f);
+int pflow_get_next_data_seq_num(struct pim_flow* f);
 // pim_flow* pim_flow_free(pim_flow* pim_f);
 bool pflow_is_rd_ctrl_timeout_params_null(struct pim_flow* flow);
 void pflow_set_rd_ctrl_timeout_params_null(struct pim_flow* flow);
 void pflow_rd_ctrl_timeout_handler(__rte_unused struct rte_timer *timer, void* arg);
 void pflow_finish_timeout_handler(__rte_unused struct rte_timer *timer, void* arg);
-
+void pflow_set_finish_timeout(struct pim_host* host, struct pim_flow* flow);
 void pflow_reset_rd_ctrl_timeout(struct pim_host* host, struct pim_flow* flow, double time);
 
 // // receiver side
-int pflow_remaining_pkts(struct pim_flow* pim_f);
+int pflow_remaining_pkts(const struct pim_flow* pim_f);
 // void pim_relax_token_gap(pim_flow* pim_f);
-void pflow_get_ack_pkt(struct rte_mbuf* p, struct pim_flow* flow);
+struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow);
+struct rte_mbuf* pflow_get_data_pkt(struct pim_flow* flow, int next_data_seq);
 // void pim_receive_short_flow(pim_flow* pim_f);
-
+void pflow_receive_ack(struct pim_host* host, struct pim_flow* flow, struct pim_ack_hdr* p);
 
 
 #endif
