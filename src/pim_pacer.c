@@ -13,7 +13,7 @@ extern volatile bool force_quit;
 extern struct rte_mempool* pktmbuf_pool;
 // uint64_t time_keep[100];
 // int timer_size = 0;
-void init_pacer(struct pim_pacer* pacer, struct pim_host* host, uint32_t socket_id) {
+void pim_init_pacer(struct pim_pacer* pacer, struct pim_host* host, uint32_t socket_id) {
 	pacer->last_update_time = rte_get_timer_cycles();
 	pacer->remaining_bytes = 0;
 	// pacer->data_q = create_ring("pacer_data_q", sizeof(1500), 256, RING_F_SC_DEQ | RING_F_SP_ENQ);
@@ -74,12 +74,14 @@ void pim_pacer_send_data_pkt_handler(__rte_unused struct rte_timer *timer, void*
 	if(p != NULL) {
 		// fetch token info and ip info
 		// flow->_f.sent_bytes += 1460;
-		sender->sent_bytes += 1500; 
+		struct ipv4_hdr* ipv4_hdr;
+	 	ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr *, sizeof(struct ether_hdr));
+		host->sent_bytes += 1500; 
 		// p->vlan_tci = get_tci(flow->_f.priority);
 		//rte_vlan_insert(&p);
 		data_sent = 1;
 
-		rte_eth_tx_burst(get_port_by_ip(rte_be_to_cpu_32(ipv4_hdr.dst_addr)) ,0, &p, 1);
+		rte_eth_tx_burst(get_port_by_ip(rte_be_to_cpu_32(ipv4_hdr->dst_addr)) ,0, &p, 1);
 		// uint64_t cycle = rte_get_timer_cycles();
 
 		// printf("timer cycle: %" PRIu64 ": send data packets %u for flow%u\n", 

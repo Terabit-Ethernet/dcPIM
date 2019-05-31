@@ -14,7 +14,7 @@
 #define PIM_GRANTR 4
 #define PIM_ACCEPT 5 
 #define PIM_ACK 6
-
+#define PIM_START 7
 
 #define MSS 1460
 
@@ -40,6 +40,7 @@ struct pim_rts_hdr {
 struct pim_grant_hdr {
 	uint32_t epoch;
 	uint8_t iter;
+	uint32_t remaining_sz;
 	uint8_t prompt;
 };
 

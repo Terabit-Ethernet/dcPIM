@@ -138,7 +138,7 @@ static void host_main_loop(void) {
 			for (j = 0; j < nb_rx; j++) {
 				p = pkts_burst[j];
 				// rte_vlan_strip(p);
-			pim_rx_packets(epoch, host, pacer, p);
+				pim_rx_packets(&epoch, &host, &pacer, p);
 			}
 		}
 		cur_tsc = rte_rdtsc();
@@ -195,56 +195,50 @@ static void pacer_main_loop(void) {
 	}
 
 }
-static void temp_main_loop(void) {
-	unsigned lcore_id;
+static void start_main_loop(void) {
+	// unsigned lcore_id;
+	int ips[2] = {20, 22};
+	int i = 0;
+	for (; i < 2; i++) {
+		 struct rte_mbuf* p = NULL;
+	    struct ipv4_hdr ipv4_hdr;
+	    struct pim_hdr pim_hdr;
+	    p = rte_pktmbuf_alloc(pktmbuf_pool);
+	    uint16_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
+	                sizeof(struct pim_hdr);
+	    rte_pktmbuf_append(p, size);
+	    add_ether_hdr(p);
+	    ipv4_hdr.src_addr = rte_cpu_to_be_32(24);
+	    ipv4_hdr.dst_addr = rte_cpu_to_be_32(ips[i]);
+	    ipv4_hdr.total_length = rte_cpu_to_be_16(size);
+	    add_ip_hdr(p, &ipv4_hdr);
 
-	lcore_id = rte_lcore_id();
-    uint64_t prev_tsc = 0, cur_tsc, diff_tsc;
-    rte_timer_reset(&epoch->epoch_timer, 0,
-	 SINGLE, rte_lcore_id(), &pim_start_new_epoch, (void *)(epoch->pim_timer_params));
-	while(!force_quit) {
-		cur_tsc = rte_get_tsc_cycles();
-		diff_tsc = cur_tsc - prev_tsc;
-        // if (diff_tsc > 1) {
-		while(!rte_ring_empty(receiver.event_q)) {
-			struct event_params* event_params = dequeue_ring(receiver.event_q);
-			if(event_params == NULL) {
-				rte_exit(EXIT_FAILURE, "Failure for NULL event");
-			}
-			event_params->func(event_params->params);
-			rte_free(event_params->params);
-			rte_free(event_params);
-		}
-                // rte_timer_manage();
-        //         prev_tsc = cur_tsc;
-        // }
+	    pim_hdr.type = PIM_START;
+	    add_pim_hdr(p, &pim_hdr);
+		rte_eth_tx_burst(get_port_by_ip(ips[i]) ,0, &p, 1);
 	}
-}
-static void controller_main_loop(void) {
-	struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
-	struct rte_mbuf *p;
-	unsigned lcore_id;
-	unsigned i, j, portid, nb_rx;
-	struct lcore_queue_conf *qconf;
-	lcore_id = rte_lcore_id();
-	qconf = &lcore_queue_conf[lcore_id];
-	printf("controller starts\n");
-	rte_timer_reset(&controller.handle_rq_timer, 
-	rte_get_timer_hz() * params.BDP * get_transmission_delay(1500) * params.control_epoch,
-	PERIODICAL, rte_lcore_id(), &handle_requests, (void*) &controller);
-	while(!force_quit) {
-		for (i = 0; i < qconf->n_rx_port; i++) {
-			portid = qconf->rx_port_list[i];
-			nb_rx = rte_eth_rx_burst(portid, 0,
-						 pkts_burst, MAX_PKT_BURST);
-			for (j = 0; j < nb_rx; j++) {
-				p = pkts_burst[j];
-				// rte_vlan_strip(p);
-				pim_receive_listsrc(&controller, p);
-			}
-		}
-		rte_timer_manage();
-	}
+
+	// lcore_id = rte_lcore_id();
+ //    uint64_t prev_tsc = 0, cur_tsc, diff_tsc;
+ //    rte_timer_reset(&epoch.epoch_timer, 0,
+	//  SINGLE, rte_lcore_id(), &pim_start_new_epoch, (void *)(epoch.pim_timer_params));
+	// while(!force_quit) {
+	// 	cur_tsc = rte_get_tsc_cycles();
+	// 	diff_tsc = cur_tsc - prev_tsc;
+ //        // if (diff_tsc > 1) {
+	// 	while(!rte_ring_empty(receiver.event_q)) {
+	// 		struct event_params* event_params = dequeue_ring(receiver.event_q);
+	// 		if(event_params == NULL) {
+	// 			rte_exit(EXIT_FAILURE, "Failure for NULL event");
+	// 		}
+	// 		event_params->func(event_params->params);
+	// 		rte_free(event_params->params);
+	// 		rte_free(event_params);
+	// 	}
+ //                // rte_timer_manage();
+ //        //         prev_tsc = cur_tsc;
+ //        // }
+	// }
 }
 
 static void flow_generate_loop(void) {
@@ -257,41 +251,32 @@ static void flow_generate_loop(void) {
         diff_tsc = cur_tsc - prev_tsc;
          if (diff_tsc > TIMER_RESOLUTION_CYCLES * 1200) {
          	if(i == 0) {
-			 	receiver.start_cycle = rte_get_tsc_cycles();
+			 	host.start_cycle = rte_get_tsc_cycles();
          	}
-			 pim_new_flow_comes(&sender, & pacer, i, params.dst_ip, 1460 * 1000);
+			 pim_new_flow_comes(&host, & pacer, i, params.dst_ip, 1460 * 1000);
          	i++;
              prev_tsc = cur_tsc;
          }
         if(cur_tsc - prev_tsc_2 > diff_tsc_2) {
-			receiver.end_cycle = rte_get_tsc_cycles();
-			double time = (double)(receiver.end_cycle - receiver.start_cycle) / (double)rte_get_tsc_hz();
-			uint32_t old_sentbytes = sender.sent_bytes;
-			uint32_t old_receivebytes = receiver.received_bytes;
-			uint32_t old_num_token_sent = receiver.num_token_sent;
-			uint32_t old_idle_timeout_times = receiver.idle_timeout_times;
+			host.end_cycle = rte_get_tsc_cycles();
+			double time = (double)(host.end_cycle - host.start_cycle) / (double)rte_get_tsc_hz();
+			uint32_t old_sentbytes = host.sent_bytes;
+			uint32_t old_receivebytes = host.received_bytes;
 			double sent_tpt = (double)(old_sentbytes) * 8 / time;
 			double receive_tpt = (double)(old_receivebytes) * 8 / time;
 			
-			receiver.start_cycle = receiver.end_cycle;
+			host.start_cycle = host.end_cycle;
 
 			printf("-------------------------------\n");
 			printf("sent throughput: %f\n", sent_tpt);
 			printf("received throughput: %f\n", receive_tpt); 
-			printf("idle timeout times:%u\n", receiver.idle_timeout_times);
-			printf("sent token: %u\n", receiver.num_token_sent);
-			printf("size of long flow token q: %u\n",rte_ring_count(sender.long_flow_token_q));
-			printf("size of short flow token q: %u\n",rte_ring_count(sender.short_flow_token_q));
-			printf("size of temp_pkt_buffer: %u\n",rte_ring_count(receiver.temp_pkt_buffer));
+			printf("size of temp_pkt_buffer: %u\n",rte_ring_count(host.temp_pkt_buffer));
 			printf("size of control q: %u\n", rte_ring_count(pacer.ctrl_q));
-			printf("number of unfinished flow: %u\n", rte_hash_count(receiver.rx_flow_table));
-			printf("size of event q: %u\n", rte_ring_count(receiver.event_q));
-			printf("send nrts: %u\n", receiver.sent_nrts_num);
+			printf("number of unfinished flow: %u\n", rte_hash_count(host.rx_flow_table));
+			printf("size of event q: %u\n", rte_ring_count(host.event_q));
 
-			sender.sent_bytes -= old_sentbytes;
-			receiver.received_bytes -= old_receivebytes;
-			receiver.num_token_sent -= old_num_token_sent;
-			receiver.idle_timeout_times -= old_idle_timeout_times;
+			host.sent_bytes -= old_sentbytes;
+			host.received_bytes -= old_receivebytes;
 			prev_tsc_2 = cur_tsc;
         }
         if(i == TARGET_NUM * 20) {
@@ -320,16 +305,11 @@ launch_pacer_lcore(__attribute__((unused)) void *dummy) {
 }
 
 static int
-launch_temp_lcore(__attribute__((unused)) void *dummy) {
-	temp_main_loop();
+launch_start_lcore(__attribute__((unused)) void *dummy) {
+	start_main_loop();
 	return 0;
 }
 
-static int
-launch_controller_lcore(__attribute__((unused)) void *dummy) {
-	controller_main_loop();
-	return 0;
-}
 
 /* Check the link status of all ports in up to 9s, and print them finally */
 static void
@@ -401,7 +381,7 @@ signal_handler(int signum)
 			struct pim_flow* flow;
 			uint32_t finished_flow = 0;
 			while(1) {
-				position = rte_hash_iterate(sender.tx_flow_table, (const void**) &flow_id, (void**)&flow, &next);
+				position = rte_hash_iterate(host.tx_flow_table, (const void**) &flow_id, (void**)&flow, &next);
 				if(position == -ENOENT) {
 					break;
 				}
@@ -412,10 +392,10 @@ signal_handler(int signum)
 				// 	continue;
 				// }
 				finished_flow += 1;
-				pim_flow_dump(flow);
+				pflow_dump(flow);
 			}
 			printf("Finished flow:%u \n", finished_flow);    
-			host_dump(&sender, &receiver, &pacer);
+			pim_host_dump(&host, &pacer);
 		}
 
 	}
@@ -446,7 +426,7 @@ main(int argc, char **argv)
 	/* parse command line opts */
 	if(argc >= 2 && !strcmp("send", argv[1])) {
 		mode = 1;	
-	} else if (argc >= 2 && !strcmp("control", argv[1])) {
+	} else if (argc >= 2 && !strcmp("start", argv[1])) {
 		mode = 2;
 	}
 
@@ -456,21 +436,12 @@ main(int argc, char **argv)
 		rte_exit(EXIT_FAILURE, "No Ethernet ports - bye\n");
 
 	/*initialize lcore 1 as RX for ports 0 and 1*/
-	if(mode == 1) {
-		qconf = &lcore_queue_conf[1];
-		qconf->rx_port_list[0] = 0;
-		qconf->n_rx_port++;
-		qconf->rx_port_list[1] = 1;
-		qconf->n_rx_port++;
-	} else if(mode == 2) {
-		/*initialize lcore 17 for controller as RX for ports 0 and 1*/
+	qconf = &lcore_queue_conf[1];
+	qconf->rx_port_list[0] = 0;
+	qconf->n_rx_port++;
+	qconf->rx_port_list[1] = 1;
+	qconf->n_rx_port++;
 
-		qconf = &lcore_queue_conf[17];
-		qconf->rx_port_list[0] = 0;
-		qconf->n_rx_port++;
-		qconf->rx_port_list[1] = 1;
-		qconf->n_rx_port++;
-	}
 
 	/* create the mbuf pool */
 	nb_mbufs = RTE_MAX(num_ports * (nb_rxd + nb_txd + MAX_PKT_BURST +
@@ -573,13 +544,15 @@ main(int argc, char **argv)
 	if(mode == 1) {
 		// allocate all data structure on socket 1(Numa node 1) because
 		// NIC is connected to node 1.
-	    init_host(&host, 1);
-	    init_pacer(&pacer, &host, 1);
-	    init_epoch(&epoch, &host, &pacer);
+	    pim_init_host(&host, 1);
+	    pim_init_pacer(&pacer, &host, 1);
+	    pim_init_epoch(&epoch, &host, &pacer);
 		rte_eal_remote_launch(launch_host_lcore, NULL, 1);
 		rte_eal_remote_launch(launch_pacer_lcore, NULL, 3);
-		rte_eal_remote_launch(launch_temp_lcore, NULL, 5);
-		rte_eal_remote_launch(launch_flowgen_lcore, NULL, 7);
+		rte_eal_remote_launch(launch_flowgen_lcore, NULL, 5);
+	} else {
+		rte_eal_remote_launch(launch_start_lcore, NULL, 1);
+
 	}
 
 	while(!force_quit){

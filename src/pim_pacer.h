@@ -26,7 +26,7 @@ struct pim_pacer {
 	struct send_data_timeout_params* send_data_timeout_params;
 };
 
-void init_pacer(struct pim_pacer* pacer, struct pim_host * host, uint32_t socket_id);
+void pim_init_pacer(struct pim_pacer* pacer, struct pim_host * host, uint32_t socket_id);
 void pim_pacer_send_data_pkt_handler(__rte_unused struct rte_timer *timer, void* arg);
 void pim_pacer_send_pkts(struct pim_pacer* pacer);
 void update_time_byte(struct pim_pacer* pacer);

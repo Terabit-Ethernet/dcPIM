@@ -149,6 +149,8 @@ struct rte_mbuf* p) {
 		host->received_bytes += 1500;
 		pim_receive_data(host, pacer, pim_data_hdr, p);
 		return;
+	} else if (pim_hdr->type == PIM_START) {
+		pim_receive_start(epoch, host, pacer);
 	}
 	else {
         printf("%d: receive unknown packets\n", __LINE__);
@@ -163,7 +165,7 @@ struct rte_mbuf* pim_get_grantr_pkt(struct ipv4_hdr* ipv4_hdr, int iter, int epo
 				sizeof(struct pim_hdr) + sizeof(struct pim_grantr_hdr);
 	if(p == NULL) {
 				printf("%s: Pktbuf pool full\n", __func__);
-				rte_exit(EXIT_FAILURE ,"");
+				rte_exit(EXIT_FAILURE ,"Pktbuf full");
 	}
 	rte_pktmbuf_append(p, size);
     add_ether_hdr(p);
@@ -190,7 +192,7 @@ struct rte_mbuf* pim_get_grant_pkt(struct pim_rts* pim_rts, int iter, int epoch,
 				sizeof(struct pim_hdr) + sizeof(struct pim_grant_hdr);
 	if(p == NULL) {
 		printf("%s: Pktbuf pool full\n", __func__);
-		rte_exit(EXIT_FAILURE ,"");
+		rte_exit(EXIT_FAILURE ,"Pktbuf full");
 	}
 	rte_pktmbuf_append(p, size);
     add_ether_hdr(p);
@@ -207,6 +209,7 @@ struct rte_mbuf* pim_get_grant_pkt(struct pim_rts* pim_rts, int iter, int epoch,
     pim_grant_hdr.epoch = epoch;
     pim_grant_hdr.iter = iter;
     pim_grant_hdr.prompt = prompt;
+    pim_grant_hdr.remaining_sz = pim_rts->remaining_sz;
     add_pim_grant_hdr(p, &pim_grant_hdr);
     return p;
 }
@@ -218,7 +221,7 @@ struct rte_mbuf* pim_get_accept_pkt(struct pim_grant* pim_grant, int iter, int e
 				sizeof(struct pim_hdr) + sizeof(struct pim_accept_hdr);
 	if(p == NULL) {
 		printf("%s: Pktbuf pool full\n", __func__);
-		rte_exit(EXIT_FAILURE ,"");
+		rte_exit(EXIT_FAILURE ,"Pktbuf full");
 	}
 	rte_pktmbuf_append(p, size);
     add_ether_hdr(p);
@@ -246,7 +249,7 @@ struct rte_mbuf* pim_get_rts_pkt(struct pim_flow* flow, int iter, int epoch) {
 				sizeof(struct pim_hdr) + sizeof(struct pim_rts_hdr);
 	if(p == NULL) {
 		printf("%s: Pktbuf pool full\n", __func__);
-		rte_exit(EXIT_FAILURE ,"");
+		rte_exit(EXIT_FAILURE ,"Pktbuf full");
 	}
 	rte_pktmbuf_append(p, size);
     add_ether_hdr(p);
@@ -279,25 +282,30 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, str
 	}
 } 
 void pim_receive_grant(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, struct pim_grant_hdr* pim_grant_hdr) {
-	if(pim_rts_hdr->iter == pim_epoch->iter && pim_rts_hdr->epoch == pim_epoch->epoch) {
-		struct pim_grant *pim_grant = &pim_epoch->grant_q[pim_epoch->grant_size];
+	if(pim_grant_hdr->iter == pim_epoch->iter && pim_grant_hdr->epoch == pim_epoch->epoch) {
+		struct pim_grant *pim_grant = &pim_epoch->grants_q[pim_epoch->grant_size];
 		pim_grant->dst_addr = rte_be_to_cpu_32(ipv4_hdr->src_addr);
 		pim_grant->remaining_sz = pim_grant_hdr->remaining_sz;
 		pim_grant->prompt = pim_grant_hdr->prompt;
-		grant_size++;
+		pim_epoch->grant_size++;
 		if(pim_epoch->min_grant == NULL || pim_epoch->min_grant->remaining_sz > pim_grant->remaining_sz) {
 			pim_epoch->min_grant = pim_grant;
 		}
 	}
 }
 void pim_receive_grantr(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_grantr_hdr* pim_grantr_hdr) {
-	if(pim_grant_hdr->epoch == pim_epoch->epoch) {
-		pim_epoch->match_dst_addr = NULL;
+	if(pim_grantr_hdr->epoch == pim_epoch->epoch) {
+		pim_epoch->match_dst_addr = 0;
 		if(host->cur_epoch == pim_epoch->epoch || pim_epoch->prompt) {
 			pim_epoch->prompt = false;
-			host->cur_match_dst_addr = NULL;
+			host->cur_match_dst_addr = 0;
 		}
 	}
+}
+void pim_receive_start(struct pim_epoch* pim_epoch, struct pim_host* pim_host, struct pim_pacer* pim_pacer) {
+	pim_init_epoch(pim_epoch, pim_host, pim_pacer);
+	rte_timer_reset(&pim_epoch->epoch_timer, 0,
+	 SINGLE, rte_lcore_id(), &pim_start_new_epoch, (void *)(&pim_epoch->pim_timer_params));
 }
 
 void pim_receive_accept(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer, struct ipv4_hdr* ipv4_hdr, struct pim_accept_hdr* pim_accept_hdr) {
@@ -324,13 +332,13 @@ void pim_handle_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, stru
     else {
         if(pim_epoch->rts_size > 0) {
             index =  (uint32_t)(rte_rand() % pim_epoch->rts_size);
-        	struct rte_mbuf *p = pim_get_grant_pkt(pim_epoch->rts_q[index], pim_epoch->iter, pim_epoch->epoch, pim_epoch->epoch - 1 == host->cur_epoch && host->cur_match_src_addr == 0);
+        	struct rte_mbuf *p = pim_get_grant_pkt(&pim_epoch->rts_q[index], pim_epoch->iter, pim_epoch->epoch, pim_epoch->epoch - 1 == host->cur_epoch && host->cur_match_src_addr == 0);
         	enqueue_ring(pacer->ctrl_q, p);
         }
     }
 }
 
-void pim_handle_all_grant(struct pim_epoch* pim_epoch, struct pim_pacer* pacer) {
+void pim_handle_all_grant(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer) {
 	uint32_t index = 0;
 	struct pim_grant* grant = NULL;
 	if (params.pim_select_min_iters > 0 && pim_epoch->iter <= params.pim_select_min_iters) {
@@ -347,14 +355,14 @@ void pim_handle_all_grant(struct pim_epoch* pim_epoch, struct pim_pacer* pacer) 
 				index = (uint32_t)(rte_rand() % pim_epoch->grant_size);
 				grant = &pim_epoch->grants_q[index];
 				pim_epoch->match_dst_addr = grant->dst_addr;
-				struct rte_mbuf *p = pim_get_accept_pkt(pim_epoch->grant_q[index], pim_epoch->iter, pim_epoch->epoch);
+				struct rte_mbuf *p = pim_get_accept_pkt(&pim_epoch->grants_q[index], pim_epoch->iter, pim_epoch->epoch);
 				enqueue_ring(pacer->ctrl_q, p);
 			}
 		}
 	}
 	if(grant != NULL && grant->prompt) {
 		host->cur_match_dst_addr = pim_epoch->match_dst_addr;
-		epoch->prompt = true;
+		pim_epoch->prompt = true;
 	}
 }
 
@@ -428,17 +436,17 @@ void pim_start_new_epoch(__rte_unused struct rte_timer *timer, void* arg) {
 	pim_epoch->grant_size = 0;
 	
 	rte_timer_reset(&pim_epoch->sender_iter_timer, 0, SINGLE,
-        rte_lcore_id(), &pim_schedule_sender_iter_evt, (void *)(pim_epoch->pim_timer_params));
+        rte_lcore_id(), &pim_schedule_sender_iter_evt, (void *)(&pim_epoch->pim_timer_params));
 	rte_timer_reset(&pim_epoch->epoch_timer, rte_get_timer_hz() * (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit),
-	 SINGLE, rte_lcore_id(), &pim_start_new_epoch, (void *)(pim_epoch->pim_timer_params));
+	 SINGLE, rte_lcore_id(), &pim_start_new_epoch, (void *)(&pim_epoch->pim_timer_params));
 	rte_timer_reset(&pim_epoch->receiver_iter_timer, rte_get_timer_hz() * params.pim_iter_epoch / 2, SINGLE,
-        rte_lcore_id(), &pim_schedule_receiver_iter_evt, (void *)(pim_epoch->pim_timer_params));
+        rte_lcore_id(), &pim_schedule_receiver_iter_evt, (void *)(&pim_epoch->pim_timer_params));
 }
 void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer, 
 	struct ipv4_hdr* ipv4_hdr, struct pim_flow_sync_hdr* pim_flow_sync_hdr) {
 	struct pim_flow* exist_flow = lookup_table_entry(host->rx_flow_table, pim_flow_sync_hdr->flow_id);
 	if(exist_flow != NULL && exist_flow->_f.size_in_pkt > params.small_flow_thre) {
-		pim_flow_dump(exist_flow);
+		pflow_dump(exist_flow);
 		printf("long flow send twice RTS");
 		rte_exit(EXIT_FAILURE, "Twice RTS for long flow");
 	}
@@ -449,7 +457,7 @@ void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer,
 	uint32_t dst_addr = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
 	struct pim_flow* new_flow = pflow_new(host->rx_flow_pool);
 	new_flow->flow_sync_received = true;
-	init_pim_flow(new_flow, pim_flow_sync_hdr->flow_id, pim_flow_sync_hdr->flow_size, src_addr, dst_addr, pim_flow_sync_hdr->start_time, 1);
+	pflow_init(new_flow, pim_flow_sync_hdr->flow_id, pim_flow_sync_hdr->flow_size, src_addr, dst_addr, pim_flow_sync_hdr->start_time, 1);
 	// pim_flow_dump(new_flow);
 	// insert new flow to the table entry
 	insert_table_entry(host->rx_flow_table, new_flow->_f.id, new_flow);
@@ -472,7 +480,8 @@ void pim_receive_data(struct pim_host* host, struct pim_pacer* pacer,
         return;
         // rte_exit(EXIT_FAILURE, "fail");
 	}
-	pim_send_ack(host, pim_data_hdr);
+	struct rte_mbuf *ack_p =  pflow_get_ack_pkt(f);
+	enqueue_ring(pacer->ctrl_q, ack_p);
 	rte_pktmbuf_free(p);
 	// if(f == NULL) {
 	// 	// large flow should not hold, since the flow is finished and removed from the 
@@ -638,7 +647,7 @@ void pim_send_data_evt_handler(__rte_unused struct rte_timer *timer, void* arg) 
     // this->token_hist.push_back(this->recv_flow->id);
     if(next_data_seq >= pflow_get_next_data_seq_num(f)) {
     	// set redundancy timeout
-    	pflow_reset_rd_ctrl_timeout(pim_host, flow, params.BDP * get_transmission_delay(1500));
+    	pflow_reset_rd_ctrl_timeout(pim_host, f, params.BDP * get_transmission_delay(1500));
       	Pq *pq = lookup_table_entry(pim_host->dst_minflow_table, pim_host->cur_match_dst_addr);
         best_large_flow = get_smallest_unfinished_flow(pq);
 
