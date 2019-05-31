@@ -65,8 +65,8 @@ struct Params {
 	uint64_t bandwidth;
 	uint32_t ip;
 	uint32_t pim_select_min_iters;
-	uint32_t pim_alpha;
-	uint32_t pim_beta;
+	double pim_alpha;
+	double pim_beta;
 	uint32_t pim_iter_limit;
 	double pim_iter_epoch;
 	double pim_epoch;

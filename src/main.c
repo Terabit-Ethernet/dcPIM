@@ -143,7 +143,7 @@ static void host_main_loop(void) {
 		}
 		cur_tsc = rte_rdtsc();
         diff_tsc = cur_tsc - prev_tsc;
-        if (diff_tsc > TIMER_RESOLUTION_CYCLES) {
+        if (diff_tsc > 3000) {
                 rte_timer_manage();
                 prev_tsc = cur_tsc;
         }
