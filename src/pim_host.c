@@ -125,8 +125,7 @@ struct rte_mbuf* p) {
 	if(pim_hdr->type == PIM_FLOW_SYNC) {
 		struct pim_flow_sync_hdr *pim_flow_sync_hdr = rte_pktmbuf_mtod_offset(p, struct pim_flow_sync_hdr*, offset);
 		pim_receive_flow_sync(host, pacer, ipv4_hdr, pim_flow_sync_hdr);
-	}
-	if(pim_hdr->type == PIM_RTS) {
+	} else if(pim_hdr->type == PIM_RTS) {
 		struct pim_rts_hdr *pim_rts_hdr = rte_pktmbuf_mtod_offset(p, struct pim_rts_hdr*, offset);
 		pim_receive_rts(epoch, ipv4_hdr, pim_rts_hdr);
 	} else if (pim_hdr->type == PIM_GRANT) {
@@ -153,6 +152,7 @@ struct rte_mbuf* p) {
 		pim_receive_start(epoch, host, pacer);
 	}
 	else {
+		printf("%d\n", pim_hdr->type);
         printf("%d: receive unknown packets\n", __LINE__);
         rte_exit(EXIT_FAILURE, "receive unknown types");
 	}
