@@ -129,24 +129,29 @@ static void host_main_loop(void) {
 	bool print = false;
 	params.pim_iter_epoch = params.pim_beta * get_rtt(params.propagation_delay, 3, 40);
 	params.pim_epoch = params.pim_iter_limit * params.pim_iter_epoch * (1 + params.pim_alpha);
-	
+	printf("control packet rtt :%f\n", get_rtt(params.propagation_delay, 3, 40)* 1000000);
+	printf("iter size :%f\n",params.pim_iter_epoch * 1000000);
+	printf("epoch:%f\n", params.pim_epoch * 1000000);
+	printf("new epoch start:%f\n", 1000000 * (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit));
+	pim_init_epoch(&epoch, &host, &pacer);
+	pim_start_new_epoch(&epoch.epoch_timer, (void *)(&epoch.pim_timer_params));
 	while(!force_quit) {
-		for (i = 0; i < qconf->n_rx_port; i++) {
-			portid = qconf->rx_port_list[i];
-			nb_rx = rte_eth_rx_burst(portid, 0,
-						 pkts_burst, MAX_PKT_BURST);
-			for (j = 0; j < nb_rx; j++) {
-				p = pkts_burst[j];
-				// rte_vlan_strip(p);
-				pim_rx_packets(&epoch, &host, &pacer, p);
-			}
-		}
+		// for (i = 0; i < qconf->n_rx_port; i++) {
+		// 	portid = qconf->rx_port_list[i];
+		// 	nb_rx = rte_eth_rx_burst(portid, 0,
+		// 				 pkts_burst, MAX_PKT_BURST);
+		// 	for (j = 0; j < nb_rx; j++) {
+		// 		p = pkts_burst[j];
+		// 		// rte_vlan_strip(p);
+		// 		pim_rx_packets(&epoch, &host, &pacer, p);
+		// 	}
+		// }
 		cur_tsc = rte_rdtsc();
         diff_tsc = cur_tsc - prev_tsc;
-        if (diff_tsc > 3000) {
+         if (diff_tsc > 150) {
                 rte_timer_manage();
-                prev_tsc = cur_tsc;
-        }
+                 prev_tsc = cur_tsc;
+         }
 	}
 }
 
@@ -172,6 +177,7 @@ static void pacer_main_loop(void) {
 			// insert vlan header with highest priority;
 			// use tos in ipheader instead;
 			ipv4_hdr->type_of_service = TOS_7;
+
 			// p->vlan_tci = TCI_7;
 			// rte_vlan_insert(&p); 
 			// send packets; hard code the port;
