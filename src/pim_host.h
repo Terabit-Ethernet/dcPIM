@@ -57,6 +57,7 @@ struct pim_epoch {
 	struct rte_timer sender_iter_timer;
 	struct rte_timer receiver_iter_timer;
 	struct pim_timer_params pim_timer_params;
+	uint64_t start_cycle;
 
 };
 
