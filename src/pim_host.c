@@ -448,8 +448,9 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
 	struct pim_epoch* pim_epoch = pim_timer_params->pim_epoch;
 	struct pim_host* pim_host = pim_timer_params->pim_host;
 	struct pim_pacer* pim_pacer = pim_timer_params->pim_pacer;
-
-	pim_handle_all_grant(pim_epoch, pim_host, pim_pacer);
+	if(pim_epoch->iter > 0) {
+		pim_handle_all_grant(pim_epoch, pim_host, pim_pacer);
+	}
 	pim_advance_iter(pim_epoch);
 	// printf("%"PRIu64"sender iter: %d epoch: %d\n", rte_get_tsc_cycles(), pim_epoch->iter, pim_epoch->epoch);
 
@@ -510,9 +511,7 @@ void pim_start_new_epoch(__rte_unused struct rte_timer *timer, void* arg) {
 	int i = 0;
 	uint64_t time = 0;
 	for(; i < params.pim_iter_limit; i++) {
-		if(i == 0) {
-			pim_schedule_sender_iter_evt(&pim_epoch->sender_iter_timer, (void *)(&pim_epoch->pim_timer_params));
-		} else {
+		if(i != 0) {
 			rte_timer_reset(&pim_epoch->sender_iter_timer, time, SINGLE,
         		rte_lcore_id(), &pim_schedule_sender_iter_evt, (void *)(&pim_epoch->pim_timer_params));	
 		}
@@ -520,7 +519,6 @@ void pim_start_new_epoch(__rte_unused struct rte_timer *timer, void* arg) {
         	rte_lcore_id(), &pim_schedule_receiver_iter_evt, (void *)(&pim_epoch->pim_timer_params));
 		time += rte_get_timer_hz() * params.pim_iter_epoch;
 	}
-
 
 	// pim_epoch->min_rts = NULL;
 	// pim_epoch->min_grant = NULL;
@@ -530,10 +528,8 @@ void pim_start_new_epoch(__rte_unused struct rte_timer *timer, void* arg) {
 		double time = ((double)(rte_get_tsc_cycles() - pim_epoch->start_cycle)) / rte_get_timer_hz() * 1000000;
 		printf("%f start new epoch: %d\n", time, pim_epoch->epoch);
 	}
-	// printf("%"PRIu64" cycle difference new epoch\n", (uint64_t) (rte_get_timer_hz() * (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit)));
-	// printf("pim epoch: %f\n", params.pim_epoch);
-	// printf("pim iter epoch:%f\n", params.pim_iter_epoch);
-	// pim_schedule_sender_iter_evt(&pim_epoch->sender_iter_timer, (void *)(&pim_epoch->pim_timer_params));
+	// do the first iteration sender event here
+	pim_schedule_sender_iter_evt(&pim_epoch->sender_iter_timer, (void *)(&pim_epoch->pim_timer_params));
 }
 void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer, 
 	struct ipv4_hdr* ipv4_hdr, struct pim_flow_sync_hdr* pim_flow_sync_hdr) {
