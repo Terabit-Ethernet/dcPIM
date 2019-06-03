@@ -127,7 +127,7 @@ static void host_main_loop(void) {
 
 	qconf = &lcore_queue_conf[lcore_id];
 	bool print = false;
-	params.pim_iter_epoch = params.pim_beta * get_rtt(params.propagation_delay, 3, 40);
+	params.pim_iter_epoch = params.pim_beta * get_rtt(params.propagation_delay, 3, 40) + params.clock_bias;
 	params.pim_epoch = params.pim_iter_limit * params.pim_iter_epoch * (1 + params.pim_alpha);
 	printf("control packet rtt :%f\n", get_rtt(params.propagation_delay, 3, 40)* 1000000);
 	printf("iter size :%f\n",params.pim_iter_epoch * 1000000);

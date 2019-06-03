@@ -74,6 +74,7 @@ struct Params {
 	uint32_t dst_ip;
 	double propagation_delay;
 	uint32_t send_port;
+	double clock_bias;
 };
 
 extern struct Params params;

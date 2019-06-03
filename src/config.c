@@ -37,6 +37,7 @@ struct Params params = {
 	.pim_alpha = 1.6,
 	.pim_iter_limit = 5,
 	.propagation_delay = 0.0000002,
+	.clock_bias = 0.0000005,
 	.send_port = 0,
 	.pim_select_min_iters = 1
 };
