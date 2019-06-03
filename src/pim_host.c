@@ -310,12 +310,20 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, str
 	}
 } 
 void pim_receive_grant(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, struct pim_grant_hdr* pim_grant_hdr) {
+	if(pim_grant_hdr->iter != pim_epoch->iter) {
+		printf("rts iter:%d\n", pim_grant_hdr->iter);
+		printf("pim epoch iter:%d\n", pim_epoch->iter);
+		printf("rts epoch:%d\n", pim_grant_hdr->epoch);
+		printf("pim epoch:%d\n", pim_epoch->epoch);
+		rte_exit(EXIT_FAILURE, "Iter diff");
+	}
 	if(pim_grant_hdr->iter == pim_epoch->iter && pim_grant_hdr->epoch == pim_epoch->epoch) {
 		struct pim_grant *pim_grant = &pim_epoch->grants_q[pim_epoch->grant_size];
 		pim_grant->dst_addr = rte_be_to_cpu_32(ipv4_hdr->src_addr);
 		pim_grant->remaining_sz = pim_grant_hdr->remaining_sz;
 		pim_grant->prompt = pim_grant_hdr->prompt;
 		pim_epoch->grant_size++;
+		printf("receive grant");
 		if(pim_epoch->min_grant == NULL || pim_epoch->min_grant->remaining_sz > pim_grant->remaining_sz) {
 			pim_epoch->min_grant = pim_grant;
 		}
@@ -355,6 +363,7 @@ void pim_handle_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, stru
     if (params.pim_select_min_iters > 0 && pim_epoch->iter <= params.pim_select_min_iters) {
         if(pim_epoch->min_rts != NULL) {
             struct rte_mbuf *p = pim_get_grant_pkt(pim_epoch->min_rts, pim_epoch->iter, pim_epoch->epoch, pim_epoch->epoch - 1 == host->cur_epoch && host->cur_match_src_addr == 0);
+        	printf("enqueue ctrl q\n");
         	enqueue_ring(pacer->ctrl_q, p);
         }
     }
@@ -425,7 +434,7 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
 	struct pim_epoch* pim_epoch = pim_timer_params->pim_epoch;
 	struct pim_host* pim_host = pim_timer_params->pim_host;
 	struct pim_pacer* pim_pacer = pim_timer_params->pim_pacer;
-	
+
 	pim_handle_all_grant(pim_epoch, pim_host, pim_pacer);
 	pim_advance_iter(pim_epoch);
 	// printf("%"PRIu64"sender iter: %d epoch: %d\n", rte_get_tsc_cycles(), pim_epoch->iter, pim_epoch->epoch);
@@ -501,7 +510,7 @@ void pim_start_new_epoch(__rte_unused struct rte_timer *timer, void* arg) {
 	// pim_epoch->grant_size = 0;
 	if((pim_epoch->epoch - 1) % 200 == 0) {
 		double time = ((double)(rte_get_tsc_cycles() - pim_epoch->start_cycle)) / rte_get_timer_hz() * 1000000;
-		printf("%f start new epoch: %d\n", time, pim_epoch->epoch);
+		// printf("%f start new epoch: %d\n", time, pim_epoch->epoch);
 	}
 	// printf("%"PRIu64" cycle difference new epoch\n", (uint64_t) (rte_get_timer_hz() * (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit)));
 	// printf("pim epoch: %f\n", params.pim_epoch);
