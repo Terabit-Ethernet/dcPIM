@@ -277,7 +277,7 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, str
 		}
 		if(pim_epoch->iter >= pim_rts_hdr->iter + 1 || pim_epoch->iter + 1 < pim_rts_hdr->iter) {
 			double epoch_size = (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit);
-			double precise_epoch = (double)(rte_get_tsc_cycles() - pim_epoch->start_cycle) / rte_get_timer_hz() / epoch_size * 1000000;
+			double precise_epoch = (double)(rte_get_tsc_cycles() - pim_epoch->start_cycle) / rte_get_timer_hz() / epoch_size;
 			printf("rts iter:%d\n", pim_rts_hdr->iter);
 			printf("pim epoch iter:%d\n", pim_epoch->iter);
 			printf("rts epoch:%d\n", pim_rts_hdr->epoch);
@@ -289,7 +289,7 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, str
 	if(pim_rts_hdr->epoch == pim_epoch->epoch + 1) {
 		if(pim_epoch->iter != params.pim_iter_limit + 1) {
 			double epoch_size = (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit);
-			double precise_epoch = (double)(rte_get_tsc_cycles() - pim_epoch->start_cycle) / rte_get_timer_hz() / epoch_size * 1000000;	
+			double precise_epoch = (double)(rte_get_tsc_cycles() - pim_epoch->start_cycle) / rte_get_timer_hz() / epoch_size;	
 			printf("rts iter:%d\n", pim_rts_hdr->iter);
 			printf("pim epoch iter:%d\n", pim_epoch->iter);
 			printf("rts epoch:%d\n", pim_rts_hdr->epoch);
@@ -301,7 +301,7 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, str
 	}
 	if(pim_rts_hdr->epoch + 1 == pim_epoch->epoch) {
 		double epoch_size = (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit);
-		double precise_epoch = (double)(rte_get_tsc_cycles() - pim_epoch->start_cycle) / rte_get_timer_hz() / epoch_size * 1000000;
+		double precise_epoch = (double)(rte_get_tsc_cycles() - pim_epoch->start_cycle) / rte_get_timer_hz() / epoch_size;
 
 		printf("rts iter:%d\n", pim_rts_hdr->iter);
 		printf("pim epoch iter:%d\n", pim_epoch->iter);
@@ -733,7 +733,6 @@ void pim_send_data_evt_handler(__rte_unused struct rte_timer *timer, void* arg) 
     int next_data_seq = pflow_get_next_data_seq_num(f);
     struct rte_mbuf* p = pflow_get_data_pkt(f, next_data_seq);
     enqueue_ring(pim_pacer->data_q, p);
-    printf("send data packet\n");
     // this->token_hist.push_back(this->recv_flow->id);
     if(next_data_seq >= pflow_get_next_data_seq_num(f)) {
     	// set redundancy timeout
