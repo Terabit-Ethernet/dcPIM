@@ -276,33 +276,38 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, str
 			return;
 		}
 		if(pim_epoch->iter >= pim_rts_hdr->iter + 1 || pim_epoch->iter + 1 < pim_rts_hdr->iter) {
+			double epoch_size = (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit);
+			double precise_epoch = (double)(rte_get_tsc_cycles() - pim_epoch->start_cycle) / rte_get_timer_hz() / epoch_size * 1000000;
 			printf("rts iter:%d\n", pim_rts_hdr->iter);
 			printf("pim epoch iter:%d\n", pim_epoch->iter);
 			printf("rts epoch:%d\n", pim_rts_hdr->epoch);
 			printf("pim epoch:%d\n", pim_epoch->epoch);
-			uint64_t precise_epoch = (rte_get_tsc_cycles() - pim_epoch->start_cycle) / rte_get_timer_hz() / params.pim_epoch - 1;
-			printf("precise epoch:%"PRIu64"\n", precise_epoch);
+			printf("precise epoch:%f\n", precise_epoch);
 			rte_exit(EXIT_FAILURE, "Iter diff");
 		}
 	}
 	if(pim_rts_hdr->epoch == pim_epoch->epoch + 1) {
 		if(pim_epoch->iter != params.pim_iter_limit + 1) {
+			double epoch_size = (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit);
+			double precise_epoch = (double)(rte_get_tsc_cycles() - pim_epoch->start_cycle) / rte_get_timer_hz() / epoch_size * 1000000;	
 			printf("rts iter:%d\n", pim_rts_hdr->iter);
 			printf("pim epoch iter:%d\n", pim_epoch->iter);
 			printf("rts epoch:%d\n", pim_rts_hdr->epoch);
 			printf("pim epoch:%d\n", pim_epoch->epoch);
-			uint64_t precise_epoch = (rte_get_tsc_cycles() - pim_epoch->start_cycle) / rte_get_timer_hz() / params.pim_epoch - 1;
-			printf("precise epoch:%"PRIu64"\n", precise_epoch);
+			printf("precise epoch:%f\n", precise_epoch);
+
 			rte_exit(EXIT_FAILURE, "Iter diff");
 		}
 	}
 	if(pim_rts_hdr->epoch + 1 == pim_epoch->epoch) {
+		double epoch_size = (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit);
+		double precise_epoch = (double)(rte_get_tsc_cycles() - pim_epoch->start_cycle) / rte_get_timer_hz() / epoch_size * 1000000;
+
 		printf("rts iter:%d\n", pim_rts_hdr->iter);
 		printf("pim epoch iter:%d\n", pim_epoch->iter);
 		printf("rts epoch:%d\n", pim_rts_hdr->epoch);
 		printf("pim epoch:%d\n", pim_epoch->epoch);
-			uint64_t precise_epoch = (rte_get_tsc_cycles() - pim_epoch->start_cycle) / rte_get_timer_hz() / params.pim_epoch - 1;
-			printf("precise epoch:%"PRIu64"\n", precise_epoch);
+		printf("precise epoch:%f\n", precise_epoch);
 		rte_exit(EXIT_FAILURE, "Iter diff");
 	}
 	if(pim_rts_hdr->iter == pim_epoch->iter && pim_rts_hdr->epoch == pim_epoch->epoch) {
@@ -317,13 +322,14 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, str
 } 
 void pim_receive_grant(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, struct pim_grant_hdr* pim_grant_hdr) {
 	if(pim_grant_hdr->iter != pim_epoch->iter || pim_grant_hdr->epoch != pim_epoch->epoch) {
+		double epoch_size = (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit);
+		double precise_epoch = (double)(rte_get_tsc_cycles() - pim_epoch->start_cycle) / rte_get_timer_hz() / epoch_size;
 		printf("grant iter:%d\n", pim_grant_hdr->iter);
 		printf("pim epoch iter:%d\n", pim_epoch->iter);
 		printf("grant epoch:%d\n", pim_grant_hdr->epoch);
 		printf("pim epoch:%d\n", pim_epoch->epoch);
-		double precise_epoch = (double)(rte_get_tsc_cycles() - pim_epoch->start_cycle) / rte_get_timer_hz() / 55.68 * 1000000;
 		printf("precise epoch:%f\n", precise_epoch);
-			printf("diff time:%"PRIu64"\n", rte_get_tsc_cycles() - pim_epoch->start_cycle);
+		printf("diff time:%"PRIu64"\n", rte_get_tsc_cycles() - pim_epoch->start_cycle);
 
 		rte_exit(EXIT_FAILURE, "Iter diff");
 	}
@@ -496,22 +502,26 @@ void pim_start_new_epoch(__rte_unused struct rte_timer *timer, void* arg) {
 	}
 	rte_timer_reset(&pim_epoch->epoch_timer, rte_get_timer_hz() * (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit) - correction,
 	 SINGLE, rte_lcore_id(), &pim_start_new_epoch, (void *)(&pim_epoch->pim_timer_params));
+	pim_epoch->epoch += 1;
+	pim_epoch->iter = 0;
+	pim_epoch->match_dst_addr = 0;
+	pim_epoch->match_src_addr = 0;
+	pim_epoch->prompt = false;
 	int i = 0;
 	uint64_t time = 0;
 	for(; i < params.pim_iter_limit; i++) {
-		rte_timer_reset(&pim_epoch->sender_iter_timer, time, SINGLE,
-        	rte_lcore_id(), &pim_schedule_sender_iter_evt, (void *)(&pim_epoch->pim_timer_params));	
+		if(i == 0) {
+			pim_schedule_sender_iter_evt(&pim_epoch->sender_iter_timer, (void *)(&pim_epoch->pim_timer_params));
+		} else {
+			rte_timer_reset(&pim_epoch->sender_iter_timer, time, SINGLE,
+        		rte_lcore_id(), &pim_schedule_sender_iter_evt, (void *)(&pim_epoch->pim_timer_params));	
+		}
 		rte_timer_reset(&pim_epoch->receiver_iter_timer, time + rte_get_timer_hz() * params.pim_iter_epoch / 2, SINGLE,
         	rte_lcore_id(), &pim_schedule_receiver_iter_evt, (void *)(&pim_epoch->pim_timer_params));
 		time += rte_get_timer_hz() * params.pim_iter_epoch;
 	}
 
 
-	pim_epoch->epoch += 1;
-	pim_epoch->iter = 0;
-	pim_epoch->match_dst_addr = 0;
-	pim_epoch->match_src_addr = 0;
-	pim_epoch->prompt = false;
 	// pim_epoch->min_rts = NULL;
 	// pim_epoch->min_grant = NULL;
 	// pim_epoch->rts_size = 0;
