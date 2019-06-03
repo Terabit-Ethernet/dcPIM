@@ -135,6 +135,8 @@ static void host_main_loop(void) {
 	printf("new epoch start:%f\n", 1000000 * (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit));
 	// pim_init_epoch(&epoch, &host, &pacer);
 	// pim_start_new_epoch(&epoch.epoch_timer, (void *)(&epoch.pim_timer_params));
+	rte_timer_reset(&host.pim_send_data_timer, rte_get_timer_hz() * get_transmission_delay(1500),
+	 	SINGLE, rte_lcore_id(), &pim_send_data_evt_handler, (void *)&epoch.pim_timer_params);
 	while(!force_quit) {
 		for (i = 0; i < qconf->n_rx_port; i++) {
 			portid = qconf->rx_port_list[i];
@@ -173,6 +175,7 @@ static void pacer_main_loop(void) {
 			// printf("timer cycles %"PRIu64": send control packets:%u \n",rte_get_timer_cycles(), pim_hdr->type);
 			ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr *, sizeof(struct ether_hdr));
 			pacer.remaining_bytes += rte_be_to_cpu_16(ipv4_hdr->total_length) + sizeof(struct ether_hdr);
+			
 			uint32_t dst_addr = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
 			// insert vlan header with highest priority;
 			// use tos in ipheader instead;

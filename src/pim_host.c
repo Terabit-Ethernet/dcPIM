@@ -310,8 +310,8 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, str
 	}
 } 
 void pim_receive_grant(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, struct pim_grant_hdr* pim_grant_hdr) {
-	if(pim_grant_hdr->iter != pim_epoch->iter) {
-		printf("rts iter:%d\n", pim_grant_hdr->iter);
+	if(pim_grant_hdr->iter != pim_epoch->iter || pim_grant_hdr->epoch != pim_epoch->epoch) {
+		printf("grant iter:%d\n", pim_grant_hdr->iter);
 		printf("pim epoch iter:%d\n", pim_epoch->iter);
 		printf("rts epoch:%d\n", pim_grant_hdr->epoch);
 		printf("pim epoch:%d\n", pim_epoch->epoch);
@@ -323,7 +323,6 @@ void pim_receive_grant(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, s
 		pim_grant->remaining_sz = pim_grant_hdr->remaining_sz;
 		pim_grant->prompt = pim_grant_hdr->prompt;
 		pim_epoch->grant_size++;
-		printf("receive grant");
 		if(pim_epoch->min_grant == NULL || pim_epoch->min_grant->remaining_sz > pim_grant->remaining_sz) {
 			pim_epoch->min_grant = pim_grant;
 		}
@@ -363,7 +362,6 @@ void pim_handle_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, stru
     if (params.pim_select_min_iters > 0 && pim_epoch->iter <= params.pim_select_min_iters) {
         if(pim_epoch->min_rts != NULL) {
             struct rte_mbuf *p = pim_get_grant_pkt(pim_epoch->min_rts, pim_epoch->iter, pim_epoch->epoch, pim_epoch->epoch - 1 == host->cur_epoch && host->cur_match_src_addr == 0);
-        	printf("enqueue ctrl q\n");
         	enqueue_ring(pacer->ctrl_q, p);
         }
     }
@@ -719,6 +717,7 @@ void pim_send_data_evt_handler(__rte_unused struct rte_timer *timer, void* arg) 
     int next_data_seq = pflow_get_next_data_seq_num(f);
     struct rte_mbuf* p = pflow_get_data_pkt(f, next_data_seq);
     enqueue_ring(pim_pacer->data_q, p);
+    printf("send data packet\n");
     // this->token_hist.push_back(this->recv_flow->id);
     if(next_data_seq >= pflow_get_next_data_seq_num(f)) {
     	// set redundancy timeout
