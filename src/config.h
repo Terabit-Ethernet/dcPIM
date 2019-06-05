@@ -70,6 +70,7 @@ struct Params {
 	uint32_t pim_iter_limit;
 	double pim_iter_epoch;
 	double pim_epoch;
+	double pipe_epoch;
 	// debug purpose
 	uint32_t dst_ip;
 	double propagation_delay;

@@ -54,8 +54,8 @@ struct pim_epoch {
 	struct pim_rts* min_rts;
 	struct pim_grant* min_grant;
 	struct rte_timer epoch_timer;
-	struct rte_timer sender_iter_timer;
-	struct rte_timer receiver_iter_timer;
+	struct rte_timer sender_iter_timers[10];
+	struct rte_timer receiver_iter_timers[10];
 	struct pim_timer_params pim_timer_params;
 	uint64_t start_cycle;
 

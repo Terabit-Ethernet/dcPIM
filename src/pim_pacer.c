@@ -17,8 +17,8 @@ void pim_init_pacer(struct pim_pacer* pacer, struct pim_host* host, uint32_t soc
 	pacer->last_update_time = rte_get_timer_cycles();
 	pacer->remaining_bytes = 0;
 	// pacer->data_q = create_ring("pacer_data_q", sizeof(1500), 256, RING_F_SC_DEQ | RING_F_SP_ENQ);
-	pacer->ctrl_q = create_ring("pacer_ctl_q", 200, 256, RING_F_SC_DEQ, socket_id);
-	pacer->data_q = create_ring("pacer_data_q", 200, 256, RING_F_SC_DEQ, socket_id);
+	pacer->ctrl_q = create_ring("pacer_ctl_q", 200, 256, RING_F_SC_DEQ | RING_F_SP_ENQ, socket_id);
+	pacer->data_q = create_ring("pacer_data_q", 200, 256, RING_F_SC_DEQ | RING_F_SP_ENQ, socket_id);
 
 	rte_timer_init(&pacer->data_timer);
 
@@ -82,6 +82,7 @@ void pim_pacer_send_data_pkt_handler(__rte_unused struct rte_timer *timer, void*
 		data_sent = 1;
 
 		rte_eth_tx_burst(get_port_by_ip(rte_be_to_cpu_32(ipv4_hdr->dst_addr)) ,0, &p, 1);
+
 		// uint64_t cycle = rte_get_timer_cycles();
 
 		// printf("timer cycle: %" PRIu64 ": send data packets %u for flow%u\n", 
