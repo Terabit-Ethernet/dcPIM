@@ -232,7 +232,7 @@ num_host_types: 13
 permutation_tm: 1
 '''
 
-conf_str_multiround = '''init_cwnd: 2
+conf_str_pim = '''init_cwnd: 2
 max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
@@ -256,12 +256,15 @@ magic_delay_scheduling: 1
 use_flow_trace: 0
 smooth_cdf: 1
 burst_at_beginning: 0
-mr_iter_limit: 4
-mr_epoch: 10
-mr_window_size: 1
-mr_small_flow: 1
-mr_window_timeout: 1e-0.6
-mr_resend_timeout: 1
+pim_iter_limit: 5
+pim_beta: 4
+pim_alpha: 1
+pim_window_size: 1
+pim_small_flow: 1
+pim_window_timeout: 1e-0.6
+pim_resend_timeout: 1
+pim_low_priority: 0
+pim_select_min_iters: 1
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33
@@ -274,10 +277,10 @@ avg_deadline: 0.0001
 magic_inflate: 1
 interarrival_cdf: none
 num_host_types: 13
-permutation_tm: 1
 '''
 
-runs = ['pfabric', 'phost', 'fastpass', 'random', 'ruf']
+
+runs = ['pfabric', 'phost', 'fastpass', 'random', 'ruf', 'pim']
 workloads = ['aditya', 'dctcp', 'datamining', 'constant']
 #incasts = [1,143]
 for r in runs:
@@ -293,8 +296,8 @@ for r in runs:
             conf_str = conf_str_random.format(w)
         elif r == 'ruf':
             conf_str = conf_str_ruf.format(w)
-        elif r == 'multi_round':
-            conf_str = conf_str_multiround.format(w)
+        elif r == 'pim':
+            conf_str = conf_str_pim.format(w)
         confFile = "conf_{0}_{1}.txt".format(r, w)
         with open(confFile, 'w') as f:
             print confFile
