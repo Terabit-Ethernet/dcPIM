@@ -528,6 +528,10 @@ void pim_schedule_receiver_iter_evt(__rte_unused struct rte_timer *timer, void* 
 	if(pim_epoch->iter > params.pim_iter_limit) {
 		return;
 	}
+	// if(pim_epoch->epoch % 1000 == 0 && pim_epoch->iter == 5) {
+	// 	uint64_t step = rte_get_tsc_cycles();
+	// 	printf("%"PRIu64" sender iter %d event\n", step, pim_epoch->iter);
+	// } 
 	pim_handle_all_rts(pim_epoch, pim_host, pim_pacer);
 	// rte_timer_reset(&pim_epoch->receiver_iter_timer, rte_get_timer_hz() * params.pim_iter_epoch,
 	//  SINGLE, rte_lcore_id(), &pim_schedule_receiver_iter_evt, (void *)pim_timer_params);

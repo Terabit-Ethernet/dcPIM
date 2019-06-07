@@ -134,9 +134,14 @@ static void host_main_loop(void) {
 	printf("epoch:%f\n", params.pim_epoch * 1000000);
 	printf("new epoch start:%f\n", 1000000 * (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit));
 	// pim_init_epoch(&epoch, &host, &pacer);
+	// pim_receive_start(&epoch, &host, &pacer);
 	// pim_start_new_epoch(&epoch.epoch_timer, (void *)(&epoch.pim_timer_params));
-	rte_timer_reset(&host.pim_send_data_timer, rte_get_timer_hz() * get_transmission_delay(1500),
-	 	SINGLE, rte_lcore_id(), &pim_send_data_evt_handler, (void *)&epoch.pim_timer_params);
+	// rte_timer_reset(&host.pim_send_data_timer, rte_get_timer_hz() * get_transmission_delay(1500),
+	//  	SINGLE, rte_lcore_id(), &pim_send_data_evt_handler, (void *)&epoch.pim_timer_params);
+
+	// rte_timer_reset(&epoch.epoch_timer, rte_get_timer_hz() * (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit),
+	//  PERIODICAL, 1, &pim_start_new_epoch, (void *)(&epoch.pim_timer_params));
+
 	while(!force_quit) {
 		for (i = 0; i < qconf->n_rx_port; i++) {
 			portid = qconf->rx_port_list[i];
@@ -186,6 +191,7 @@ static void pacer_main_loop(void) {
 			// send packets; hard code the port;
 			// cycles[0] = rte_get_timer_cycles();
 			rte_eth_tx_burst(get_port_by_ip(dst_addr) ,0, &p, 1);
+		   			uint64_t end_cycle = rte_get_tsc_cycles();
 			// cycles[1] = rte_get_timer_cycles();
 			// rts_sent = true;
 
@@ -558,7 +564,7 @@ main(int argc, char **argv)
 	    pim_init_epoch(&epoch, &host, &pacer);
 		rte_eal_remote_launch(launch_host_lcore, NULL, 1);
 		rte_eal_remote_launch(launch_pacer_lcore, NULL, 3);
-		rte_eal_remote_launch(launch_flowgen_lcore, NULL, 5);
+	    rte_eal_remote_launch(launch_flowgen_lcore, NULL, 5);
 	} else {
 		rte_eal_remote_launch(launch_start_lcore, NULL, 1);
 
