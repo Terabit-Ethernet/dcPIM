@@ -127,10 +127,12 @@ void FatTreeTopology::set_up_parameter() {
         // params.ruf_reset_epoch *= params.BDP * params.get_full_pkt_tran_delay();
         params.ruf_controller_epoch *= params.BDP * params.get_full_pkt_tran_delay();
     } else if(params.host_type == PIM_HOST) {
-        params.pim_resend_timeout *= params.BDP * params.get_full_pkt_tran_delay();
         // params.pim_epoch *= params.BDP * params.get_full_pkt_tran_delay();
-        params.pim_window_size *= params.BDP;
-        params.pim_small_flow *= params.BDP;
+        params.token_window_timeout *= params.BDP * params.get_full_pkt_tran_delay();
+        params.token_resend_timeout *= params.BDP * params.get_full_pkt_tran_delay();
+        params.token_initial *= params.BDP;
+        params.token_window *= params.BDP;
+        
         params.pim_iter_epoch = params.pim_beta * (this->get_control_pkt_rtt(143));
         params.pim_epoch = params.pim_iter_limit * params.pim_iter_epoch * (1 + params.pim_alpha);
 

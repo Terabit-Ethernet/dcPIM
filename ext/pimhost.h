@@ -19,13 +19,14 @@ class ProcessReceiverIterEvent;
 class ProcessSenderIterEvent;
 class NewEpochEvent;
 class PimHost;
+class PimTokenProcessingEvent;
 
-struct PIM_RTS {
+struct PIM_REQ {
     int iter;
     PimFlow *f;
     int remaining_sz;
 
-    PIM_RTS() {
+    PIM_REQ() {
         iter = 0;
         f = NULL;
         remaining_sz = INT_MAX;
@@ -48,8 +49,8 @@ public:
     ProcessSenderIterEvent* proc_sender_iter_evt;
     ProcessReceiverIterEvent* proc_receiver_iter_evt;
     std::vector<PIM_Grants> grants_q;
-    std::vector<PIM_RTS> rts_q;
-    PIM_RTS min_rts;
+    std::vector<PIM_REQ> req_q;
+    PIM_REQ min_req;
 
     // std::vector<bool> receiver_state;
     PimEpoch();
@@ -59,10 +60,10 @@ public:
     // void receive_offer_packet(OfferPkt *p); 
     void receive_accept_pkt(AcceptPkt *p);
     void receive_grantsr(GrantsR* p);
-    void receive_rts(PIMRTS *p); 
-    void send_all_rts();
+    void receive_req(PIMREQ *p); 
+    void send_all_req();
     void handle_all_grants();
-    void handle_all_rts();
+    void handle_all_req();
     void schedule_receiver_iter_evt();
     void schedule_sender_iter_evt();
 };
@@ -89,16 +90,25 @@ class PimHost : public SchedulingHost {
         void start_host();
         //void send();
         void send();
-
+        void send_token();
+        void receive_rts(FlowRTS* pkt);
         void start_new_epoch(double time, int epoch);
         void advance_iter();
         void schedule_host_proc_evt();
-        PimFlow* get_top_unfinish_flow(uint32_t dst_id);
+        void schedule_token_proc_evt(double time, bool is_timeout);
+        void receive_token(PIMToken* pkt);
+        void flow_finish_at_receiver(Packet* pkt);
+        PimFlow* get_top_unfinish_flow(uint32_t src_id);
         bool flow_compare(PimFlow* long_flow, PimFlow* short_flow);
+
         NewEpochEvent* new_epoch_evt;
+        PimTokenProcessingEvent *token_send_evt;
+
         // std::vector<bool> receiver_state;
+        std::unordered_map<uint32_t, CustomPriorityQueue<PimFlow*, std::vector<PimFlow*>, PimFlowComparator>> src_to_flows;
+        CustomPriorityQueue<PimFlow*, std::vector<PimFlow*>, PimFlowComparator> active_sending_flows;
         std::unordered_map<uint32_t, CustomPriorityQueue<PimFlow*, std::vector<PimFlow*>, PimFlowComparator>> dst_to_flows;
-        CustomPriorityQueue<PimFlow*, std::vector<PimFlow*>, PimFlowComparator> active_short_flows;
+
         std::unordered_map<int, PimEpoch> epochs;
         // std::vector<PIM_Grants> grants_q;
         // std::vector<PIM_RTS> rts_q;
@@ -112,6 +122,9 @@ class PimHost : public SchedulingHost {
         // uint32_t iter;
         double iter_epoch;
         int cur_epoch;
+        int hold_on;
+        int total_token_schd_evt_count;
+
         //std::priority_queue<CapabilityFlow*, std::vector<CapabilityFlow*>, CapabilityFlowComparator> active_sending_flows;
         // CustomPriorityQueue<CapabilityFlow*, std::vector<CapabilityFlow*>, CapabilityFlowComparator> active_sending_flows;
         // int epoch;
@@ -132,7 +145,7 @@ class PimHost : public SchedulingHost {
         // int could_better_schd_count;
 };
 
-#define PROCESS_RECEIVER_ITER_REQUEST 20
+#define PROCESS_RECEIVER_ITER_REQUEST 21
 class ProcessReceiverIterEvent : public Event {
     public:
         ProcessReceiverIterEvent(double time, PimEpoch *epoch);
@@ -141,7 +154,7 @@ class ProcessReceiverIterEvent : public Event {
         PimEpoch *epoch;
 };
 
-#define PROCESS_SENDER_ITER_REQUEST 21
+#define PROCESS_SENDER_ITER_REQUEST 22
 class ProcessSenderIterEvent : public Event {
     public:
         ProcessSenderIterEvent(double time, PimEpoch *epoch);
@@ -150,7 +163,7 @@ class ProcessSenderIterEvent : public Event {
         PimEpoch *epoch;
 };
 
-#define NEW_EPOCH_PROCESSING 22
+#define NEW_EPOCH_PROCESSING 23
 class NewEpochEvent : public Event {
     public:
         NewEpochEvent(double time, int epoch, PimHost *host);
@@ -160,4 +173,13 @@ class NewEpochEvent : public Event {
         int epoch;
 };
 
+#define PIM_TOKEN_PROCESSING 24
+class PimTokenProcessingEvent : public Event {
+    public:
+        PimTokenProcessingEvent(double time, PimHost *host, bool is_timeout);
+        ~PimTokenProcessingEvent();
+        void process_event();
+        PimHost *host;
+        bool is_timeout_evt;
+};
 #endif

@@ -30,8 +30,10 @@
 #define PIM_GRANTS_PACKET 16
 #define PIM_ACK 17
 #define GRANTSR_PACKET 18
-#define PIM_RTS_PACKET 19
+#define PIM_REQ_PACKET 19
 #define ACCEPT_PACKET 20
+#define FLOW_RTS 21
+#define PIM_TOKEN 22
 
 class FastpassEpochSchedule;
 
@@ -111,9 +113,16 @@ class CTS : public Packet{
 };
 
 // For Multi-Round algorithm (PIM)
-class PIMRTS : public Packet{
+class FlowRTS : public Packet
+{
     public:
-        PIMRTS(Flow *flow, Host *src, Host *dst, int iter, int epoch, int remaining);
+        FlowRTS(Flow *flow, Host *src, Host *dst, int size_in_pkt);
+        int size_in_pkt;
+};
+
+class PIMREQ : public Packet{
+    public:
+        PIMREQ(Flow *flow, Host *src, Host *dst, int iter, int epoch, int remaining);
         int iter;
         int epoch;
         int remaining_sz;
@@ -128,15 +137,15 @@ class GrantsR : public Packet{
 
 class AcceptPkt : public Packet{
     public:
-        AcceptPkt(Flow *flow, Host *src, Host *dst, bool accept, int iter, int epoch);
-        bool accept;
+        AcceptPkt(Flow *flow, Host *src, Host *dst, bool prompt, int iter, int epoch);
+        bool prompt;
         int iter;
         int epoch;
 };
 
 class PIMGrants : public Packet{
     public:
-        PIMGrants(Flow *flow, Host *src, Host *dst, int iter, int epoch, bool prompt);
+        PIMGrants(Flow *flow, Host *src, Host *dst, int iter, int epoch);
         int iter;
         int epoch;
         bool prompt;
@@ -148,6 +157,15 @@ class PIMAck : public Packet {
         uint32_t data_seq_no_acked;
 };
 
+class PIMToken : public Packet
+{
+    public:
+        PIMToken(Flow *flow, Host *src, Host *dst, double ttl, int remaining, int token_seq_num, int data_seq_num);
+        double ttl;
+        int remaining_sz;
+        int token_seq_num;
+        int data_seq_num;
+};
 
 class CapabilityPkt : public Packet{
     public:

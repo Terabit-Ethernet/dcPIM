@@ -18,6 +18,23 @@ extern DCExpParams params;
 extern uint32_t total_finished_flows;
 extern Topology *topology;
 
+PimTokenProcessingEvent::PimTokenProcessingEvent(double time, PimHost *h, bool is_timeout)
+    : Event(PIM_TOKEN_PROCESSING, time) {
+        this->host = h;
+        this->is_timeout_evt = is_timeout;
+    }
+
+PimTokenProcessingEvent::~PimTokenProcessingEvent() {
+    if (host->token_send_evt == this) {
+        host->token_send_evt = NULL;
+    }
+}
+
+void PimTokenProcessingEvent::process_event() {
+    this->host->token_send_evt = NULL;
+    this->host->send_token();
+}
+
 bool PimFlowComparator::operator() (PimFlow* a, PimFlow* b){
     if (a->remaining_pkts_at_sender > b->remaining_pkts_at_sender)
         return true;
@@ -88,14 +105,14 @@ PimEpoch::PimEpoch(){
     this->proc_sender_iter_evt = NULL;
     this->proc_receiver_iter_evt = NULL;
     this->host = NULL;
-    this->min_rts = PIM_RTS();
+    this->min_req = PIM_REQ();
     // for(uint32_t i = 0; i < params.num_hosts; i++) {
     //     this->receiver_state.push_back(true);
     // }
 }
 PimEpoch::~PimEpoch() {
     grants_q.clear();
-    rts_q.clear();
+    req_q.clear();
     // receiver_state.clear();
 }
 
@@ -107,7 +124,6 @@ void PimEpoch::receive_grants(PIMGrants *p) {
     PIM_Grants grants;
     grants.iter = p->iter;
     grants.f = (PimFlow*)p->flow;
-    grants.prompt = p->prompt;
     // may need to check epoch number
     // TO DO: trigger random dicision process
     if(debug_flow(p->flow->id)) {
@@ -121,9 +137,9 @@ void PimEpoch::receive_grants(PIMGrants *p) {
 }
 void PimEpoch::advance_iter() {
     this->iter++;
-    this->rts_q.clear();
+    this->req_q.clear();
     this->grants_q.clear();
-    this->min_rts = PIM_RTS();
+    this->min_req = PIM_REQ();
 }
 // void PimEpoch::receive_offer_packet(OfferPkt *p) {
 //     // assert(p->iter == this->iter);
@@ -141,10 +157,10 @@ void PimEpoch::receive_grantsr(GrantsR *p) {
     }
     assert(this->match_receiver == p->flow->dst);
     this->match_receiver = NULL;
-    if(this->host->cur_epoch == this->epoch || this->prompt) {
-    	this->host->receiver = this->match_receiver;
-	this->prompt = false;
-    }
+ //    if(this->host->cur_epoch == this->epoch || this->prompt) {
+ //    	this->host->receiver = this->match_receiver;
+	// this->prompt = false;
+ //    }
     // this->host->receiver = this->match_receiver;
     // if(this->proc_accept_evt == NULL) {
     //     this->proc_accept_evt = new ProcssAcceptEvent(get_current_time() + params.ctrl_pkt_rtt / 4, this->host);
@@ -157,30 +173,47 @@ void PimEpoch::receive_accept_pkt(AcceptPkt *p) {
     // }
     // assert(this->iter == p->iter + 1);
     assert(p->epoch == this->epoch);
-    if(p->accept) {
-        if(this->match_sender != NULL){
-            ((PimFlow*)p->flow)->send_grantsr(this->iter, this->epoch);
-            return;
+    // if(p->accept) {
+    if(this->match_sender != NULL){
+        ((PimFlow*)p->flow)->send_grantsr(this->iter, this->epoch);
+        return;
+    }
+    if(debug_host(this->host->id)) {
+        std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " match src " << p->flow->src->id << "dst:" << this->host->id  << " q delay:" << p->total_queuing_delay << std::endl; 
+    }
+    assert(this->match_sender == NULL);
+    // for non-pipeline
+    this->match_sender = (PimHost*)p->flow->src;
+    // this->host->sender = this->match_sender;
+    if(p->prompt && this->host->sender == NULL && this->host->cur_epoch == this->epoch - 1) {
+        this->host->sender = this->match_sender;
+        this->prompt = true;
+        if(this->host->token_send_evt != NULL && this->host->token_send_evt->is_timeout_evt) {
+            this->host->token_send_evt->cancelled = true;
+            this->host->token_send_evt = NULL;
         }
-        if(debug_host(this->host->id)) {
-            std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " match src " << p->flow->src->id << "dst:" << this->host->id  << " q delay:" << p->total_queuing_delay << std::endl; 
-        }
-        assert(this->match_sender == NULL);
-        // for non-pipeline
-        this->match_sender = (PimHost*)p->flow->src;
-        // this->host->sender = this->match_sender;
-
-        // for pipeline
-        if(this->iter > params.pim_iter_limit && this->host->cur_epoch == this->epoch) {
-            // corner case
-            this->host->sender = this->match_sender;
+        if(this->host->token_send_evt == NULL) {
+            this->host->schedule_token_proc_evt(0, false);
         }
     }
+    // for pipeline
+    if(this->iter > params.pim_iter_limit && this->host->cur_epoch == this->epoch) {
+        // corner case
+        this->host->sender = this->match_sender;
+        if(this->host->token_send_evt != NULL && this->host->token_send_evt->is_timeout_evt) {
+            this->host->token_send_evt->cancelled = true;
+            this->host->token_send_evt = NULL;
+        }
+        if(this->host->token_send_evt == NULL) {
+            this->host->schedule_token_proc_evt(0, false);
+        }
+    }
+    // }
     // if(this->proc_accept_evt == NULL) {
     //     this->proc_accept_evt = new ProcssAcceptEvent(get_current_time() + params.ctrl_pkt_rtt / 4, this->host);
     // }
 }
-void PimEpoch::receive_rts(PIMRTS *p) {
+void PimEpoch::receive_req(PIMREQ *p) {
     if(p->iter < this->iter)
         return;
     assert(p->epoch == this->epoch);
@@ -193,19 +226,23 @@ void PimEpoch::receive_rts(PIMRTS *p) {
     // if(this->match_sender != NULL) {
     //     ((PimFlow*)(p->flow))->send_offer_pkt(this->iter, this->epoch, false);
     // }
-    PIM_RTS rts;
-    rts.iter = p->iter;
-    rts.f = (PimFlow*)p->flow;
-    rts.remaining_sz = p->remaining_sz;
-    this->rts_q.push_back(rts);
-    if(this->min_rts.f == NULL || this->min_rts.remaining_sz > rts.remaining_sz) {
-        this->min_rts.f = rts.f;
-        this->min_rts.remaining_sz = rts.remaining_sz;
-        this->min_rts.iter = rts.iter;
+    PIM_REQ req;
+    uint32_t src_addr = ((PimFlow*)p->flow)->src->id;
+    req.f = this->host->get_top_unfinish_flow(src_addr);
+    if(req.f == NULL) {
+        return;
+    }
+    req.iter = p->iter;
+    req.remaining_sz = req.f->remaining_pkts();
+    this->req_q.push_back(req);
+    if(this->min_req.f == NULL || this->min_req.remaining_sz > req.remaining_sz) {
+        this->min_req.f = req.f;
+        this->min_req.remaining_sz = req.remaining_sz;
+        this->min_req.iter = req.iter;
     }
     // schduling handle all rtses
 }
-void PimEpoch::send_all_rts() {
+void PimEpoch::send_all_req() {
     if(this->match_receiver != NULL)
         return;
     for(auto i = this->host->dst_to_flows.begin(); i != this->host->dst_to_flows.end();) {
@@ -220,7 +257,7 @@ void PimEpoch::send_all_rts() {
                 if(debug_flow(i->second.top()->id) || debug_host(this->host->id)) {
                     std::cout << "flow " << i->second.top()->id << " src " << this->host->id << " send_rts" << std::endl;
                 }
-                i->second.top()->send_rts(this->iter, this->epoch);
+                i->second.top()->send_req(this->iter, this->epoch);
                 break;
             }
         }
@@ -231,7 +268,7 @@ void PimEpoch::send_all_rts() {
         }
     }
 }
-void PimEpoch::handle_all_rts() {
+void PimEpoch::handle_all_req() {
     if(this->match_sender != NULL)
         return;
     assert(this->match_sender == NULL);
@@ -240,26 +277,26 @@ void PimEpoch::handle_all_rts() {
         std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " handle of all rts dst:" << this->host->id << std::endl; 
     }
     if(params.pim_select_min_iters > 0 && this->iter <= params.pim_select_min_iters) {
-        if(this->min_rts.f != NULL) {
-            assert(min_rts.f != NULL);
-            min_rts.f->send_grants(this->iter, this->epoch, this->epoch - 1 == this->host->cur_epoch && this->host->sender == NULL);
+        if(this->min_req.f != NULL) {
+            assert(min_req.f != NULL);
+            min_req.f->send_grants(this->iter, this->epoch);
         }
     }
     else {
-        while(!this->rts_q.empty()) {
-            index = rand() % this->rts_q.size();
-            if(this->rts_q[index].iter != this->iter) {
-                assert(this->rts_q[index].iter < this->iter);
-                this->rts_q.erase(this->rts_q.begin() + index);
+        while(!this->req_q.empty()) {
+            index = rand() % this->req_q.size();
+            if(this->req_q[index].iter != this->iter) {
+                assert(this->req_q[index].iter < this->iter);
+                this->req_q.erase(this->req_q.begin() + index);
             } else {
                 break;
             }
         }
-        for(uint32_t i = 0; i < this->rts_q.size(); i++) {
+        for(uint32_t i = 0; i < this->req_q.size(); i++) {
             if (i == index && this->match_sender == NULL) {
                 // send Grants
                 // this->rts_q[i].f->send_grants(this->iter, this->epoch, false);
-                this->rts_q[i].f->send_grants(this->iter, this->epoch, this->epoch - 1 == this->host->cur_epoch && this->host->sender == NULL);
+                this->req_q[i].f->send_grants(this->iter, this->epoch);
             } else {
                 // send offerPkt
                 // this->rts_q[i].f->send_offer_pkt(this->iter, this->epoch, this->match_sender == NULL);
@@ -298,7 +335,7 @@ void PimEpoch::handle_all_grants() {
         if (i == index && this->match_receiver == NULL) {
             // send accept_pkt true
             this->grants_q[i].f->send_accept_pkt(this->
-                iter, this->epoch, true);
+                iter, this->epoch, this->host->receiver == NULL);
             if(debug_host(this->grants_q[i].f->dst->id)) {
                 std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " src " << this->host->id << " accept " << this->grants_q[i].f->dst->id << std::endl;
             }
@@ -313,22 +350,6 @@ void PimEpoch::handle_all_grants() {
             // if(this->host->host_proc_event == NULL) {
             //     this->host->schedule_host_proc_evt();
             // }
-
-
-            // Optimization
-            // this->receiver_state[this->grants_q[i].f->dst->id] = false;
-            if(this->grants_q[i].prompt && this->host->receiver == NULL) {
-                assert(this->host->cur_epoch == this->epoch - 1);
-                this->host->receiver = this->match_receiver;
-		this->prompt = true;
-                if(this->host->host_proc_event != NULL && this->host->host_proc_event->is_timeout) {
-                    this->host->host_proc_event->cancelled = true;
-                    this->host->host_proc_event = NULL;
-                }
-                if(this->host->host_proc_event == NULL) {
-                    this->host->schedule_host_proc_evt();
-                }
-            }
 
         } else {
             // send accept_pkt false
@@ -356,19 +377,21 @@ void PimEpoch::schedule_sender_iter_evt() {
         if(this->host->epochs.count(this->epoch - 1) > 0){
             this->host->epochs.erase(this->epoch - 1);
         }
-        if(this->host->host_proc_event != NULL && this->host->host_proc_event->is_timeout) {
-            this->host->host_proc_event->cancelled = true;
-            this->host->host_proc_event = NULL;
+        if(this->host->token_send_evt != NULL && this->host->token_send_evt->is_timeout_evt) {
+            this->host->token_send_evt->cancelled = true;
+            this->host->token_send_evt = NULL;
         }
-        if(this->host->host_proc_event == NULL) {
-            this->host->schedule_host_proc_evt();
+        if(this->host->token_send_evt == NULL) {
+            this->host->schedule_token_proc_evt(0, false);
         }
         return;
     }
-    this->send_all_rts();
+    this->send_all_req();
     this->proc_sender_iter_evt = new ProcessSenderIterEvent(get_current_time() + params.pim_iter_epoch, this);
     add_to_event_queue(this->proc_sender_iter_evt);
 }
+
+
 
 void PimEpoch::schedule_receiver_iter_evt() {
     assert(this->proc_receiver_iter_evt == NULL);
@@ -376,7 +399,7 @@ void PimEpoch::schedule_receiver_iter_evt() {
         // this->host->sender = this->match_sender;
         return;
     }
-    this->handle_all_rts();
+    this->handle_all_req();
     this->proc_receiver_iter_evt = new ProcessReceiverIterEvent(get_current_time() + params.pim_iter_epoch, this);
     add_to_event_queue(this->proc_receiver_iter_evt);
 
@@ -396,11 +419,21 @@ PimHost::PimHost(uint32_t id, double rate, uint32_t queue_type) : SchedulingHost
     this->sender = NULL;
     this->receiver = NULL;
     this->new_epoch_evt = NULL;
+    this->token_send_evt = NULL;
     // for(uint32_t i = 0; i < params.num_hosts; i++) {
     //     this->receiver_state.push_back(true);
     // }
     this->cur_epoch = -1;
+    this->hold_on = 0;
+    this->token_send_evt = NULL;
+    total_token_schd_evt_count = 0;
 
+}
+void PimHost::schedule_token_proc_evt(double time, bool is_timeout)
+{
+    assert(this->token_send_evt == NULL);
+    this->token_send_evt = new PimTokenProcessingEvent(get_current_time() + time + INFINITESIMAL_TIME, this, is_timeout);
+    add_to_event_queue(this->token_send_evt);
 }
 
 void PimHost::start_new_epoch(double time, int epoch) {
@@ -446,31 +479,32 @@ bool PimHost::flow_compare(PimFlow* long_flow, PimFlow* short_flow) {
         return false;
 }
 
-PimFlow* PimHost::get_top_unfinish_flow(uint32_t dst_id) {
-    PimFlow* best_large_flow = NULL;
+PimFlow* PimHost::get_top_unfinish_flow(uint32_t src_id) {
+    PimFlow* best_flow = NULL;
     std::queue<PimFlow*> flows_tried;
-    if(this->dst_to_flows.find(dst_id) == this->dst_to_flows.end())
-        return best_large_flow;
-    while (!this->dst_to_flows[dst_id].empty()) {
-        best_large_flow = this->dst_to_flows[dst_id].top();
-        if(best_large_flow->finished) {
-            best_large_flow = NULL;
-            this->dst_to_flows[dst_id].pop();
-        } else if (best_large_flow->redundancy_ctrl_timeout > get_current_time()) {
-            flows_tried.push(best_large_flow);
-            this->dst_to_flows[dst_id].pop();
+    if(this->src_to_flows.find(src_id) == this->src_to_flows.end())
+        return best_flow;
+    while (!this->src_to_flows[src_id].empty()) {
+        best_flow =  this->src_to_flows[src_id].top();
+        if(best_flow->finished_at_receiver) {
+            best_flow = NULL;
+            this->src_to_flows[src_id].pop();
+        } else if (best_flow->redundancy_ctrl_timeout > get_current_time()) {
+            flows_tried.push(best_flow);
+            this->src_to_flows[src_id].pop();
+            best_flow = NULL;
         } else {
             break;
         }
     }
     while(!flows_tried.empty()) {
-        this->dst_to_flows[dst_id].push(flows_tried.front());
+        this->src_to_flows[src_id].push(flows_tried.front());
         flows_tried.pop();
     }
-    if(this->dst_to_flows[dst_id].empty()){
-        this->dst_to_flows.erase(dst_id);
+    if(this->src_to_flows[src_id].empty()){
+        this->src_to_flows.erase(src_id);
     }
-    return best_large_flow;
+    return best_flow;
 }
 
 void PimHost::start_flow(PimFlow* f) {
@@ -481,20 +515,50 @@ void PimHost::start_flow(PimFlow* f) {
             << " src " << this->id
              <<"\n";
     }
-    if(f->is_small_flow()) {
-        this->active_short_flows.push(f);
-    } else {
-        this->dst_to_flows[f->dst->id].push(f);
+    f->assign_init_token();
+    this->active_sending_flows.push(f);
+    if(!f->tokens.empty()) {
+        if (((SchedulingHost*) this)->host_proc_event == NULL) {
+            this->schedule_host_proc_evt();
+        }
     }
-    if(this->host_proc_event != NULL && this->host_proc_event->is_timeout) {
-        this->host_proc_event->cancelled = true;
-        this->host_proc_event = NULL;
+    f->sending_rts();
+    if(!f->tokens.empty()) {
+        if(this->host_proc_event != NULL && this->host_proc_event->is_timeout) {
+            this->host_proc_event->cancelled = true;
+            this->host_proc_event = NULL;
+        }
+        if(this->host_proc_event == NULL) {
+            this->schedule_host_proc_evt();
+        }
     }
-    if(this->host_proc_event == NULL) {
-        this->schedule_host_proc_evt();
-    }
+    this->dst_to_flows[f->dst->id].push(f);
 }
 
+void PimHost::receive_rts(FlowRTS* pkt) {
+    if(debug_flow(pkt->flow->id))
+            std::cout << get_current_time() << " flow " << pkt->flow->id << " "<< pkt->size_in_pkt <<  " received rts\n";
+    ((PimFlow*)pkt->flow)->rts_received = true;
+    this->src_to_flows[pkt->flow->src->id].push((PimFlow*)pkt->flow);
+    if(pkt->size_in_pkt > params.token_initial) {
+        // if(debug_host(id)) {
+        //     std::cout << "push flow " << pkt->flow->id << std::endl;
+        // }
+        if(this->sender != NULL && 
+            this->sender->id == pkt->flow->src->id && 
+            this->src_to_flows[pkt->flow->src->id].top()->id == pkt->flow->id) {
+            if (this->token_send_evt != NULL && this->token_send_evt->is_timeout_evt) {
+                this->token_send_evt->cancelled = true;
+                this->token_send_evt = NULL;
+            }
+            if(this->token_send_evt == NULL){
+                this->schedule_token_proc_evt(0, false);
+            }
+        }
+    } else {
+        ((PimFlow*)pkt->flow)->receive_short_flow();
+    }
+}
 // void PimHost::schedule_update_epoch_evt() {
 //     if (total_finished_flows >= params.num_flows_to_run)
 //         return;
@@ -517,6 +581,26 @@ void PimHost::start_flow(PimFlow* f) {
 //     add_to_event_queue(this->proc_sender_iter_evt);
 //     add_to_event_queue(this->update_epoch_evt);
 // }
+void PimHost::receive_token(PIMToken* pkt) {
+    // To Do: need a queue to maintain current active sending flows;
+    if(debug_flow(pkt->flow->id)) {
+        std::cout << get_current_time() << " receive token " << pkt->data_seq_num << " timeout: " << get_current_time() + pkt->ttl  << " queue delay:" << pkt->total_queuing_delay<< std::endl;
+    }
+    auto f = (PimFlow*)pkt->flow;
+    Pim_Token* t = new Pim_Token();
+    // if(!f->tokens.empty()) {
+    //     t->timeout = fto->back().timeout + get_full_pkt_tran_delay(1500) - pkt->ttl;
+    // }
+    // token is never expired
+    t->timeout = get_current_time() + 1000000.0;
+    t->seq_num = pkt->token_seq_num;
+    t->data_seq_num = pkt->data_seq_num;
+    f->tokens.push_back(t);
+    f->remaining_pkts_at_sender = pkt->remaining_sz;
+    if(this->host_proc_event == NULL) {
+        this->schedule_host_proc_evt();
+    }
+}
 
 void PimHost::schedule_host_proc_evt() {
     assert(this->host_proc_event == NULL);
@@ -540,154 +624,158 @@ void PimHost::schedule_host_proc_evt() {
 //should only be called in HostProcessingEvent::process()
 void PimHost::send(){
     assert(this->host_proc_event == NULL);
-    double closet_timeout = 999999;
     if(this->queue->busy)
     {
         schedule_host_proc_evt();
     }
     else
     {
-        bool pkt_sent = false;
         std::queue<PimFlow*> flows_tried;
-        PimFlow* best_short_flow = NULL;
-        PimFlow* best_large_flow = NULL;
-        if(this->receiver!= NULL) {
-            best_large_flow = this->get_top_unfinish_flow(this->receiver->id);
-        }
-        while(!pkt_sent) {
-            if (this->active_short_flows.empty() && best_large_flow == NULL) {
-                break;
-            }
-            PimFlow* f;
-            if(!this->active_short_flows.empty()) {
-                best_short_flow = this->active_short_flows.top();
-            }
-            if(flow_compare(best_large_flow, best_short_flow)) {
-                f = this->active_short_flows.top();
-                this->active_short_flows.pop();
-                best_short_flow = NULL;
-            } else {
-                f = best_large_flow;
-                best_large_flow = NULL;
-            }
-            if(f->finished) {
+        while(!this->active_sending_flows.empty()) {
+            auto flow = this->active_sending_flows.top();
+            this->active_sending_flows.pop();
+            if(flow->finished) {
                 continue;
             }
-            // can do better to find the best case
-            if(f->is_small_flow()) {
-                flows_tried.push(f);
-            }
-            if(f->redundancy_ctrl_timeout > get_current_time()) {
-                if(debug_flow(f->id)) {
-                    std::cout << get_current_time() << " redundancy_ctrl_timeout has not met " << f->id  << "\n";
-                }
-                if(f->redundancy_ctrl_timeout < closet_timeout)
-                {
-                    closet_timeout = f->redundancy_ctrl_timeout;
-                }
-            }
-            else {
-                //just timeout, reset timeout state
-                if(f->redundancy_ctrl_timeout > 0)
-                {
-                    f->redundancy_ctrl_timeout = -1;
-                    // f->token_goal += f->remaining_pkts();
-                    if(debug_flow(f->id)) {
-                        std::cout << get_current_time() << " redundancy_ctrl_timeout met" << f->id  << "\n";
-                    }
-                }
-                if(f->gap() > params.pim_window_size) {
-                    if(get_current_time() >= f->latest_data_pkt_send_time + params.pim_window_timeout) {
-                        f->relax_gap();
-                        if(debug_host(this->id)) {
-                            std::cout << get_current_time() << " host " << this->id << " relax token gap for flow " << f->id << std::endl;
-                        }
-                    }
-                    else{
-                        if(f->latest_data_pkt_send_time + params.pim_window_timeout < closet_timeout)
-                        {
-                            closet_timeout = f->latest_data_pkt_send_time + params.pim_window_timeout;
-                            if(debug_host(this->id)) {
-                                std::cout << get_current_time() << " host " << this->id << " token_window full wait for timeout for flow " << f->id << std::endl;
-                            }
-                        }
-                    }
-
-                }
-                if(f->gap() <= params.pim_window_size) {
-                    auto next_data_seq = f->get_next_data_seq_num();
-                    f->send_pending_data();
-                    if(debug_host(id)) {
-                            std::cout << get_current_time() << " sending data for flow " << f->id << std::endl;   
-                    }
-                    pkt_sent = true;
-                    // this->token_hist.push_back(this->recv_flow->id);
-                    if(next_data_seq >= f->get_next_data_seq_num()) {
-                        // if(!f->first_loop) {
-                        //     f->first_loop = true;
-                        // } else {
-                            f->redundancy_ctrl_timeout = get_current_time() + params.pim_resend_timeout;
-                            if(debug_flow(f->id)) {
-                                std::cout << get_current_time() << " redundancy_ctrl_timeout set up " << f->id << " timeout value: " << f->redundancy_ctrl_timeout << "\n";
-                            }
-                        // }
-                    }
-                }
+            flows_tried.push(flow);
+            if(flow->has_token()) {
+                flow->send_pending_data();
+                break;
             }
         }
-        // if(!pkt_sent && params.pim_low_priority) {
-        //     int min = INT_MAX;
-        //     PimFlow* f_low = NULL;
-        //     for(auto i = this->dst_to_flows.begin(); i != this->dst_to_flows.end(); i++) {
-        //         std::queue<PimFlow*> flows_low_tried;
-        //         if(this->receiver != NULL && i->first == this->receiver->id) {
-        //             continue;
-        //         }
-        //         while(1) {
-        //             if(i->second.empty()) {
-        //                 break;
-        //             }
-        //             if(i->second.top()->redundancy_ctrl_timeout > get_current_time()) {
-        //                 flows_low_tried.push(i->second.top());
-        //                 i->second.pop();
-        //                 continue;
-        //             } else if(i->second.top()->gap() > params.pim_window_size 
-        //                 && get_current_time() < i->second.top()->latest_data_pkt_send_time + params.pim_window_timeout) {
-        //                 flows_low_tried.push(i->second.top());
-        //                 i->second.pop();
-        //                 continue;                
-        //             }
-        //             if(min > i->second.top()->size_in_pkt) {
-        //                 min = i->second.top()->size_in_pkt;
-        //                 f_low = i->second.top();
-        //             }
-        //             break;
-        //         }
-        //         while(!flows_low_tried.empty()) {
-        //             i->second.push(flows_low_tried.front());
-        //             flows_low_tried.pop();
-        //         }
-        //     }
-        //     if(f_low != NULL) {
-        //         f_low->send_pending_data_low_priority();
-        //         pkt_sent = true;
-        //     }
-        // }
-
         while(!flows_tried.empty()) {
-            PimFlow* f = flows_tried.front();
+            this->active_sending_flows.push(flows_tried.front());
             flows_tried.pop();
-            this->active_short_flows.push(f);
-        }
-        if(closet_timeout < 999999 && !pkt_sent) {
-            assert(closet_timeout > get_current_time());
-            assert(((SchedulingHost*) this)->host_proc_event == NULL);
-            if(debug_host(id)) {
-                std::cout << get_current_time() << " set up timeout event " << std::endl;   
-            }
-            ((SchedulingHost*) this)->host_proc_event = new HostProcessingEvent(closet_timeout, (SchedulingHost*) this);
-            ((SchedulingHost*) this)->host_proc_event->is_timeout = true;
-            add_to_event_queue(((SchedulingHost*) this)->host_proc_event);
         }
     }
+}
+
+void PimHost::send_token() {
+    assert(this->token_send_evt == NULL);
+    bool token_sent = false;
+    this->total_token_schd_evt_count++;
+    double closet_timeout = 999999;
+    std::queue<PimFlow*> flows_tried;
+    if(TOKEN_HOLD && this->hold_on > 0){
+        hold_on--;
+        token_sent = true;
+    }
+    PimFlow* f = NULL;
+    if(this->sender!= NULL) {
+        f = this->get_top_unfinish_flow(this->sender->id);
+    }
+    if(f != NULL) {
+        // PimFlow* best_short_flow = NULL;
+        // if(!this->active_short_flows.empty()) {
+        //     best_short_flow = this->active_short_flows.top();
+        // }
+        // if(flow_compare(best_large_flow, best_short_flow)) {
+        //     f = this->active_short_flows.top();
+        //     this->active_short_flows.pop();
+        //     // if(debug_flow(f->id)) {
+        //     //     std::cout << get_current_time() << " pop flow " << f->id  << "\n";
+        //     // }
+        // } else {
+        //     f = best_large_flow;
+        //     best_large_flow = NULL;
+        // }
+        // if(debug_host(this->id)) {
+        //     std::cout << "try to send token" << std::endl;
+        // }
+        // probably can do better here
+        // if(f->finished_at_receiver) {
+        //     continue;
+        // }
+        // if(f->is_small_flow()) {
+        //     flows_tried.push(f);
+        // }
+        //not yet timed out, shouldn't send
+        // if(f->redundancy_ctrl_timeout > get_current_time()){
+        //     if(debug_flow(f->id)) {
+        //         std::cout << get_current_time() << " redundancy_ctrl_timeout has not met " << f->id  << "\n";
+        //     }
+        //     if(f->redundancy_ctrl_timeout < closet_timeout)
+        //     {
+        //         closet_timeout = f->redundancy_ctrl_timeout;
+        //     }
+        // }
+        //ok to send
+        // else
+        // {
+            //just timeout, reset timeout state
+            if(f->redundancy_ctrl_timeout > 0)
+            {
+                if(debug_flow(f->id)) {
+                    std::cout << get_current_time() << " redundancy_ctrl_timeout met" << f->id  << "\n";
+                }
+                f->redundancy_ctrl_timeout = -1;
+                f->token_goal += f->remaining_pkts();
+            }
+
+            if(f->token_gap() > params.token_window)
+            {
+                if(get_current_time() >= f->latest_token_sent_time + params.token_window_timeout) {
+                    if(debug_host(this->id)) {
+                        std::cout << get_current_time() << " host " << this->id << " relax token gap for flow " << f->id << std::endl;
+                    }
+                    f->relax_token_gap();
+                }
+                else{
+                    if(f->latest_token_sent_time + params.token_window_timeout < closet_timeout)
+                    {
+                        if(debug_host(this->id)) {
+                            std::cout << get_current_time() << " host " << this->id << " token_window full wait for timeout for flow " << f->id << std::endl;
+                        }
+                        closet_timeout = f->latest_token_sent_time + params.token_window_timeout;
+                    }
+                }
+
+            }
+            if(f->token_gap() <= params.token_window)
+            {
+                if(debug_host(id)) {
+                        std::cout << get_current_time() << " sending tokens for flow " << f->id << std::endl;   
+                }
+                auto next_data_seq = f->get_next_token_seq_num();
+                f->send_token_pkt();
+                token_sent = true;
+                // this->token_hist.push_back(this->recv_flow->id);
+                if(next_data_seq >= f->get_next_token_seq_num()) {
+                    // if(!f->first_loop) {
+                    //     f->first_loop = true;
+                    // } else {
+                        if(debug_flow(f->id)) {
+                            std::cout << get_current_time() << " redundancy_ctrl_timeout set up " << f->id << " timeout value: " << f->redundancy_ctrl_timeout << "\n";
+                        }
+                        f->redundancy_ctrl_timeout = get_current_time() + params.token_resend_timeout;
+                    // }
+                }
+            }
+    }
+    // }
+
+    // while(!flows_tried.empty()) {
+    //     this->active_short_flows.push(flows_tried.front());
+    //     flows_tried.pop();
+    // }
+
+    if(token_sent)// pkt sent
+    {
+        this->schedule_token_proc_evt(params.get_full_pkt_tran_delay(1500/* + 40*/), false);
+    }
+    else if(closet_timeout < 999999) //has unsend flow, but its within timeout
+    {
+        assert(closet_timeout > get_current_time());
+        this->schedule_token_proc_evt(closet_timeout - get_current_time(), true);
+    }
+
+}
+
+void PimHost::flow_finish_at_receiver(Packet* pkt) {
+    if(debug_host(this->id)) {
+        std::cout << get_current_time () << " flow finish at receiver " <<  pkt->flow->id << std::endl;
+    }
+    if (((PimFlow*)pkt->flow)->finished_at_receiver)
+        return;
+    ((PimFlow*)pkt->flow)->finished_at_receiver = true;
 }

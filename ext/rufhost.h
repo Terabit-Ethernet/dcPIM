@@ -213,7 +213,7 @@ class RufHostWakeupProcessingEvent : public Event {
         RufHost *host;
 };
 
-#define RUF_GOSRC_QUEUING 23
+#define RUF_GOSRC_QUEUING 20
 class RufGoSrcQueuingEvent : public Event {
     public:
         RufGoSrcQueuingEvent(double time, RufArbiter *host);
