@@ -276,6 +276,7 @@ avg_deadline: 0.0001
 magic_inflate: 1
 interarrival_cdf: none
 num_host_types: 13
+permutation_tm: 1
 '''
 
 
