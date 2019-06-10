@@ -384,12 +384,12 @@ void pim_receive_start(struct pim_epoch* pim_epoch, struct pim_host* pim_host, s
 	int i = 0;
 	for(; i < params.pim_iter_limit; i++) {
 		rte_timer_reset(&pim_epoch->sender_iter_timers[i], epoch_size, PERIODICAL,
-    		rte_lcore_id(), &pim_schedule_sender_iter_evt, (void *)(&pim_epoch->pim_timer_params));		
+    		rte_lcore_id(), &pim_schedule_sender_iter_evt, (void *)(&pim_epoch->pim_timer_params));	
+ 		if (i == params.pim_iter_limit - 1)
+			break;	
 		rte_delay_us_block(params.pim_iter_epoch / 2 * 1000000);
 		rte_timer_reset(&pim_epoch->receiver_iter_timers[i], epoch_size, PERIODICAL,
         	rte_lcore_id(), &pim_schedule_receiver_iter_evt, (void *)(&pim_epoch->pim_timer_params));	
-		if (i == params.pim_iter_limit - 1)
-			break;
 		rte_delay_us_block(params.pim_iter_epoch / 2 * 1000000);
 	}
 	// rte_timer_reset(&pim_epoch->epoch_timer, 0,
