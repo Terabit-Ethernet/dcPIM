@@ -122,9 +122,9 @@ struct rte_mbuf* p) {
 	struct ipv4_hdr *ipv4_hdr;
 	uint32_t offset = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr);
 	// get ip header
-	ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr *, sizeof(struct ether_hdr));
+	ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, sizeof(struct ether_hdr));
 	// get pim header
-	pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr *, offset);
+	pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, offset);
 	offset += sizeof(struct pim_hdr);
 	// parse packet
 	if(pim_hdr->type == PIM_FLOW_SYNC) {
@@ -179,7 +179,7 @@ struct rte_mbuf* pim_get_grantr_pkt(struct ipv4_hdr* ipv4_hdr, int iter, int epo
     struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
 				sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
     struct pim_grantr_hdr* pim_grantr_hdr = rte_pktmbuf_mtod_offset(p, struct pim_grantr_hdr*, 
-				sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(pim_hdr));
+				sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
     ipv4_hdr2->src_addr = rte_cpu_to_be_32(params.ip);
     ipv4_hdr2->dst_addr = ipv4_hdr->src_addr;
     ipv4_hdr2->total_length = rte_cpu_to_be_16(size);
@@ -209,7 +209,7 @@ struct rte_mbuf* pim_get_grant_pkt(struct pim_rts* pim_rts, int iter, int epoch,
     struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
 				sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
     struct pim_grant_hdr* pim_grant_hdr = rte_pktmbuf_mtod_offset(p, struct pim_grant_hdr*, 
-				sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(pim_hdr));
+				sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
     ipv4_hdr->src_addr = rte_cpu_to_be_32(params.ip);
     ipv4_hdr->dst_addr = rte_cpu_to_be_32(pim_rts->src_addr);
     ipv4_hdr->total_length = rte_cpu_to_be_16(size);
@@ -241,7 +241,7 @@ struct rte_mbuf* pim_get_accept_pkt(struct pim_grant* pim_grant, int iter, int e
     struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
 				sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
     struct pim_accept_hdr* pim_accept_hdr = rte_pktmbuf_mtod_offset(p, struct pim_accept_hdr*, 
-				sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(pim_hdr));
+				sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
     ipv4_hdr->src_addr = rte_cpu_to_be_32(params.ip);
     ipv4_hdr->dst_addr = rte_cpu_to_be_32(pim_grant->dst_addr);
     ipv4_hdr->total_length = rte_cpu_to_be_16(size);
@@ -272,7 +272,7 @@ struct rte_mbuf* pim_get_rts_pkt(struct pim_flow* flow, int iter, int epoch) {
     struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
 				sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
     struct pim_rts_hdr* pim_rts_hdr = rte_pktmbuf_mtod_offset(p, struct pim_rts_hdr*, 
-				sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(pim_hdr));
+				sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
     ipv4_hdr->src_addr = rte_cpu_to_be_32(params.ip);
     ipv4_hdr->dst_addr = rte_cpu_to_be_32(flow->_f.dst_addr);
     ipv4_hdr->total_length = rte_cpu_to_be_16(size);
@@ -327,7 +327,11 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, str
 		printf("precise epoch:%f\n", precise_epoch);
 		rte_exit(EXIT_FAILURE, "Iter diff");
 	}
+	printf("receive rts%u\n", pim_rts_hdr->epoch);
+	printf("pim epoch %d\n", pim_epoch->epoch);
+
 	if(pim_rts_hdr->iter == pim_epoch->iter && pim_rts_hdr->epoch == pim_epoch->epoch) {
+
 		struct pim_rts *pim_rts = &pim_epoch->rts_q[pim_epoch->rts_size];
 		pim_rts->src_addr = rte_be_to_cpu_32(ipv4_hdr->src_addr);
 		pim_rts->remaining_sz = pim_rts_hdr->remaining_sz;
@@ -351,6 +355,7 @@ void pim_receive_grant(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, s
 		rte_exit(EXIT_FAILURE, "Iter diff");
 	}
 	if(pim_grant_hdr->iter == pim_epoch->iter && pim_grant_hdr->epoch == pim_epoch->epoch) {
+		printf("receive grant");
 		struct pim_grant *pim_grant = &pim_epoch->grants_q[pim_epoch->grant_size];
 		pim_grant->dst_addr = rte_be_to_cpu_32(ipv4_hdr->src_addr);
 		pim_grant->remaining_sz = pim_grant_hdr->remaining_sz;
@@ -383,6 +388,8 @@ void pim_receive_start(struct pim_epoch* pim_epoch, struct pim_host* pim_host, s
 		rte_delay_us_block(params.pim_iter_epoch / 2 * 1000000);
 		rte_timer_reset(&pim_epoch->receiver_iter_timers[i], epoch_size, PERIODICAL,
         	rte_lcore_id(), &pim_schedule_receiver_iter_evt, (void *)(&pim_epoch->pim_timer_params));	
+		if (i == params.pim_iter_limit - 1)
+			break;
 		rte_delay_us_block(params.pim_iter_epoch / 2 * 1000000);
 	}
 	// rte_timer_reset(&pim_epoch->epoch_timer, 0,
@@ -478,7 +485,6 @@ void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct
 		struct pim_flow* smallest_flow = get_smallest_unfinished_flow(pq);
 
 		if(smallest_flow != NULL) {
-
             struct rte_mbuf *p = pim_get_rts_pkt(smallest_flow, pim_epoch->iter, pim_epoch->epoch);
         	rte_eth_tx_burst(get_port_by_ip(smallest_flow->_f.dst_addr) ,0, &p, 1);
 
@@ -543,9 +549,9 @@ void pim_start_new_epoch(__rte_unused struct rte_timer *timer, void* arg) {
 	// struct pim_host* pim_host = pim_timer_params->pim_host;
 	// struct pim_pacer* pim_pacer = pim_timer_params->pim_pacer;
 
-	// if(pim_epoch->epoch == 0) {
-	// 	pim_epoch->start_cycle = rte_get_tsc_cycles();
-	// }
+	if(pim_epoch->epoch == 0) {
+		pim_epoch->start_cycle = rte_get_tsc_cycles();
+	}
 	// uint64_t correction = 0;
 	// if((pim_epoch->epoch) % 5 == 0) {
 	// 	uint64_t precise_time = rte_get_timer_hz() * (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit) * (pim_epoch->epoch);
@@ -577,10 +583,10 @@ void pim_start_new_epoch(__rte_unused struct rte_timer *timer, void* arg) {
 	// pim_epoch->min_grant = NULL;
 	// pim_epoch->rts_size = 0;
 	// pim_epoch->grant_size = 0;
-	// if((pim_epoch->epoch - 1) % 100 == 0) {
-	// 	double time = ((double)(rte_get_tsc_cycles() - pim_epoch->start_cycle)) / rte_get_timer_hz() * 1000000;
-	// 	printf("%f start new epoch: %d\n", time, pim_epoch->epoch);
-	// }
+	if((pim_epoch->epoch - 1) % 100 == 0) {
+		double time = ((double)(rte_get_tsc_cycles() - pim_epoch->start_cycle)) / rte_get_timer_hz() * 1000000;
+		printf("%f start new epoch: %d\n", time, pim_epoch->epoch);
+	}
 	// do the first iteration sender event here
 	// pim_schedule_sender_iter_evt(&pim_epoch->sender_iter_timer, (void *)(&pim_epoch->pim_timer_params));
 }
