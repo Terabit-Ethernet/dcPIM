@@ -1,14 +1,14 @@
 #!/bin/bash
 
 incasts=(5 10 15 20 25 30 35 40 45 50)
-algos=(phost pfabric fastpass ranking)
+algos=(phost)
 pids=()
 OUTPUT_FOLDER=../../result/incast/constant
 DATE=$1
 TRACE=$2
-mkdir $OUTPUT_FOLDER
-mkdir $OUTPUT_FOLDER/"$DATE"
-for j in `seq 1 10000`;
+mkdir -p $OUTPUT_FOLDER
+mkdir -p $OUTPUT_FOLDER/"$DATE"
+for j in `seq 1 10`;
 do
 	for i in ${!algos[*]}
 	do 
