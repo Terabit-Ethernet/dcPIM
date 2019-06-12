@@ -254,7 +254,7 @@ use_flow_trace: 0
 smooth_cdf: 1
 burst_at_beginning: 0
 pim_iter_limit: 5
-pim_beta: 4
+pim_beta: {2}
 pim_alpha: 1
 pim_window_size: 1
 pim_small_flow: 1
@@ -296,7 +296,8 @@ for r in runs:
 	        elif r == 'ruf':
 	        	conf_str = conf_str_ruf.format(w, b * 1000000000)
         	elif r == 'pim':
-	        	conf_str = conf_str_pim.format(w, b * 1000000000)
+	        	beta = 1 + 30.0 / b
+			conf_str = conf_str_pim.format(w, b * 1000000000, beta)
 	        confFile = "conf_{0}_{1}_{2}.txt".format(r, w, int(b))
 	        with open(confFile, 'w') as f:
 	            print confFile
