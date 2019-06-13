@@ -239,7 +239,7 @@ propagation_delay: 0.0000002
 bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 116
-num_flow: 1000000
+num_flow: {0}
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
 mean_flow_size: 0
@@ -278,7 +278,7 @@ num_host_types: 13
 incast_tm: {0}
 '''
 
-runs = ['pfabric', 'phost', 'fastpass', 'random', 'ruf']
+runs = ['pfabric', 'phost', 'fastpass', 'random', 'ruf', "pim"]
 workloads = ['aditya', 'dctcp', 'datamining', 'constant']
 incasts = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
 size = 100 #MB
