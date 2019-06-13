@@ -304,7 +304,9 @@ for r in runs:
 	            conf_str = conf_str_random.format(incast, w)
 	        elif r == 'ruf':
 	        	conf_str = conf_str_ruf.format(incast, w)
-	        confFile = w + "/conf_{0}_{1}_{2}.txt".format(r, w, incast)
+	        elif r == 'pim':
+			conf_str = conf_str_pim.format(incast, w)
+		confFile = w + "/conf_{0}_{1}_{2}.txt".format(r, w, incast)
 	        with open(confFile, 'w') as f:
                     print confFile
 	            f.write(conf_str)
