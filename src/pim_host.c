@@ -327,8 +327,6 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, str
 		printf("precise epoch:%f\n", precise_epoch);
 		rte_exit(EXIT_FAILURE, "Iter diff");
 	}
-	printf("receive rts%u\n", pim_rts_hdr->epoch);
-	printf("pim epoch %d\n", pim_epoch->epoch);
 
 	if(pim_rts_hdr->iter == pim_epoch->iter && pim_rts_hdr->epoch == pim_epoch->epoch) {
 
@@ -549,9 +547,9 @@ void pim_start_new_epoch(__rte_unused struct rte_timer *timer, void* arg) {
 	// struct pim_host* pim_host = pim_timer_params->pim_host;
 	// struct pim_pacer* pim_pacer = pim_timer_params->pim_pacer;
 
-	if(pim_epoch->epoch == 0) {
-		pim_epoch->start_cycle = rte_get_tsc_cycles();
-	}
+	// if(pim_epoch->epoch == 0) {
+	// 	pim_epoch->start_cycle = rte_get_tsc_cycles();
+	// }
 	// uint64_t correction = 0;
 	// if((pim_epoch->epoch) % 5 == 0) {
 	// 	uint64_t precise_time = rte_get_timer_hz() * (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit) * (pim_epoch->epoch);
@@ -583,10 +581,10 @@ void pim_start_new_epoch(__rte_unused struct rte_timer *timer, void* arg) {
 	// pim_epoch->min_grant = NULL;
 	// pim_epoch->rts_size = 0;
 	// pim_epoch->grant_size = 0;
-	if((pim_epoch->epoch - 1) % 100 == 0) {
-		double time = ((double)(rte_get_tsc_cycles() - pim_epoch->start_cycle)) / rte_get_timer_hz() * 1000000;
-		printf("%f start new epoch: %d\n", time, pim_epoch->epoch);
-	}
+	// if((pim_epoch->epoch - 1) % 100 == 0) {
+	// 	double time = ((double)(rte_get_tsc_cycles() - pim_epoch->start_cycle)) / rte_get_timer_hz() * 1000000;
+	// 	printf("%f start new epoch: %d\n", time, pim_epoch->epoch);
+	// }
 	// do the first iteration sender event here
 	// pim_schedule_sender_iter_evt(&pim_epoch->sender_iter_timer, (void *)(&pim_epoch->pim_timer_params));
 }
