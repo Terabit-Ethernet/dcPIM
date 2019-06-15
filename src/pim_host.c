@@ -501,7 +501,7 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
 		pim_handle_all_grant(pim_epoch, pim_host, pim_pacer);
 	}
 	pim_advance_iter(pim_epoch);
-	printf("%"PRIu64"sender iter: %d epoch: %d\n", rte_get_tsc_cycles(), pim_epoch->iter, pim_epoch->epoch);
+	// printf("%"PRIu64"sender iter: %d epoch: %d\n", rte_get_tsc_cycles(), pim_epoch->iter, pim_epoch->epoch);
 
 	if(pim_epoch->iter > params.pim_iter_limit) {
 		pim_host->cur_match_src_addr = pim_epoch->match_src_addr;
