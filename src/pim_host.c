@@ -625,7 +625,7 @@ void pim_receive_data(struct pim_host* host, struct pim_pacer* pacer,
         return;
         // rte_exit(EXIT_FAILURE, "fail");
 	}
-	struct rte_mbuf *ack_p =  pflow_get_ack_pkt(f);
+	struct rte_mbuf *ack_p =  pflow_get_ack_pkt(f, pim_data_hdr->seq_num);
 	enqueue_ring(pacer->ctrl_q, ack_p);
 	rte_pktmbuf_free(p);
 	// if(f == NULL) {

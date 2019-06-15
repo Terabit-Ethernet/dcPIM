@@ -116,7 +116,7 @@ void pflow_set_rd_ctrl_timeout_params_null(struct pim_flow* flow) {
     }
     flow->rd_ctrl_timeout_params = NULL;
 }
-struct rte_mbuf* pflow_get_data_pkt(struct pim_flow* flow, int next_data_seq) {
+struct rte_mbuf* pflow_get_data_pkt(struct pim_flow* flow, uint32_t next_data_seq) {
     struct rte_mbuf* p = NULL;
     struct ipv4_hdr ipv4_hdr;
     struct pim_hdr pim_hdr;
@@ -138,7 +138,7 @@ struct rte_mbuf* pflow_get_data_pkt(struct pim_flow* flow, int next_data_seq) {
     return p;
 }
 
-struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow) {
+struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow, uint32_t data_seq) {
     struct rte_mbuf* p = NULL;
     struct ipv4_hdr ipv4_hdr;
     struct pim_hdr pim_hdr;
@@ -156,6 +156,7 @@ struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow) {
     pim_hdr.type = PIM_ACK;
     add_pim_hdr(p, &pim_hdr);
     pim_ack_hdr.flow_id = flow->_f.id;
+    pim_ack_hdr.data_seq_no_acked = data_seq;
     add_pim_ack_hdr(p, & pim_ack_hdr);
     return p;
 }
