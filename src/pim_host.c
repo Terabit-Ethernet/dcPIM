@@ -379,10 +379,10 @@ void pim_receive_start(struct pim_epoch* pim_epoch, struct pim_host* pim_host, s
 	PERIODICAL, rte_lcore_id(), &pim_start_new_epoch, (void *)(&pim_epoch->pim_timer_params));
 	uint64_t time = 0;
 	int i = 0;
-	for(; i < params.pim_iter_limit; i++) {
+	for(; i <= params.pim_iter_limit; i++) {
 		rte_timer_reset(&pim_epoch->sender_iter_timers[i], epoch_size, PERIODICAL,
     		rte_lcore_id(), &pim_schedule_sender_iter_evt, (void *)(&pim_epoch->pim_timer_params));	
- 		if (i == params.pim_iter_limit - 1)
+ 		if (i == params.pim_iter_limit)
 			break;	
 		rte_delay_us_block(params.pim_iter_epoch / 2 * 1000000);
 		rte_timer_reset(&pim_epoch->receiver_iter_timers[i], epoch_size, PERIODICAL,
@@ -435,6 +435,7 @@ void pim_handle_all_grant(struct pim_epoch* pim_epoch, struct pim_host* host, st
 	struct pim_grant* grant = NULL;
 	if (params.pim_select_min_iters > 0 && pim_epoch->iter <= params.pim_select_min_iters) {
 		if(pim_epoch->min_grant != NULL) {
+
 			grant = pim_epoch->min_grant;
 			pim_epoch->match_dst_addr = grant->dst_addr;
 			struct rte_mbuf *p = pim_get_accept_pkt(pim_epoch->min_grant, pim_epoch->iter, pim_epoch->epoch);
@@ -500,10 +501,9 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
 		pim_handle_all_grant(pim_epoch, pim_host, pim_pacer);
 	}
 	pim_advance_iter(pim_epoch);
-	// printf("%"PRIu64"sender iter: %d epoch: %d\n", rte_get_tsc_cycles(), pim_epoch->iter, pim_epoch->epoch);
+	printf("%"PRIu64"sender iter: %d epoch: %d\n", rte_get_tsc_cycles(), pim_epoch->iter, pim_epoch->epoch);
 
 	if(pim_epoch->iter > params.pim_iter_limit) {
-		// printf("pim epoch iter > limit:%d\n", pim_epoch->iter);
 		pim_host->cur_match_src_addr = pim_epoch->match_src_addr;
 		pim_host->cur_match_dst_addr = pim_epoch->match_dst_addr;
 		pim_host->cur_epoch = pim_epoch->epoch;
@@ -798,7 +798,7 @@ void pim_send_data_evt_handler(__rte_unused struct rte_timer *timer, void* arg) 
 
         // }
     }
-
+    printf("try to send data\n");
 	rte_timer_reset(&pim_host->pim_send_data_timer, rte_get_timer_hz() * get_transmission_delay(1500),
 	 SINGLE, rte_lcore_id(), &pim_send_data_evt_handler, (void *)pim_timer_params);
 }
