@@ -69,6 +69,7 @@ int pflow_remaining_pkts(const struct pim_flow* f) {
 }
 int pflow_gap(const struct pim_flow* f) {
     if(f->next_seq_no - f->largest_seq_ack < 0) {
+        printf("next seq number: %d; largest seq ack: %d \n", f->next_seq_no, f->largest_seq_ack);
         rte_exit(EXIT_FAILURE ,"token gap less than 0");
     }
     return f->next_seq_no - f->largest_seq_ack - 1;
@@ -116,7 +117,7 @@ void pflow_set_rd_ctrl_timeout_params_null(struct pim_flow* flow) {
     }
     flow->rd_ctrl_timeout_params = NULL;
 }
-struct rte_mbuf* pflow_get_data_pkt(struct pim_flow* flow, uint32_t next_data_seq) {
+struct rte_mbuf* pflow_send_data_pkt(struct pim_flow* flow) {
     struct rte_mbuf* p = NULL;
     struct ipv4_hdr ipv4_hdr;
     struct pim_hdr pim_hdr;
@@ -132,13 +133,16 @@ struct rte_mbuf* pflow_get_data_pkt(struct pim_flow* flow, uint32_t next_data_se
     pim_hdr.type = DATA;
     add_pim_hdr(p, &pim_hdr);
     pim_data_hdr.flow_id = flow->_f.id;
-    pim_data_hdr.seq_num = next_data_seq;
+    pim_data_hdr.seq_no = flow->next_seq_no;
+    pim_data_hdr.data_seq_no = pflow_get_next_data_seq_num(flow);
     pim_data_hdr.priority = flow->_f.priority;
     add_pim_data_hdr(p, &pim_data_hdr);
+    flow->next_seq_no += 1;
+    flow->last_data_seq_num_sent = pim_data_hdr.data_seq_no;
     return p;
 }
 
-struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow, uint32_t data_seq) {
+struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow, struct pim_data_hdr* pim_data_hdr) {
     struct rte_mbuf* p = NULL;
     struct ipv4_hdr ipv4_hdr;
     struct pim_hdr pim_hdr;
@@ -156,7 +160,8 @@ struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow, uint32_t data_seq) {
     pim_hdr.type = PIM_ACK;
     add_pim_hdr(p, &pim_hdr);
     pim_ack_hdr.flow_id = flow->_f.id;
-    pim_ack_hdr.data_seq_no_acked = data_seq;
+    pim_ack_hdr.data_seq_no_acked = pim_data_hdr->data_seq_no;
+    pim_ack_hdr.seq_no = pim_data_hdr->seq_no;
     add_pim_ack_hdr(p, & pim_ack_hdr);
     return p;
 }
@@ -198,8 +203,8 @@ void pflow_receive_ack(struct pim_host* host, struct pim_flow* flow, struct pim_
         }
         flow->remaining_pkts_at_sender--;
     }
-    if(flow->largest_seq_ack < (int)(p->data_seq_no_acked)) {
-        flow->largest_seq_ack = p->data_seq_no_acked;
+    if(flow->largest_seq_ack < (int)(p->seq_no)) {
+        flow->largest_seq_ack = p->seq_no;
     }
     if(flow->remaining_pkts_at_sender == 0) {
         if(!pflow_is_rd_ctrl_timeout_params_null(flow)){

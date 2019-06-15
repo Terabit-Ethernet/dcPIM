@@ -625,7 +625,7 @@ void pim_receive_data(struct pim_host* host, struct pim_pacer* pacer,
         return;
         // rte_exit(EXIT_FAILURE, "fail");
 	}
-	struct rte_mbuf *ack_p =  pflow_get_ack_pkt(f, pim_data_hdr->seq_num);
+	struct rte_mbuf *ack_p =  pflow_get_ack_pkt(f, pim_data_hdr);
 	enqueue_ring(pacer->ctrl_q, ack_p);
 	rte_pktmbuf_free(p);
 	// if(f == NULL) {
@@ -786,8 +786,8 @@ void pim_send_data_evt_handler(__rte_unused struct rte_timer *timer, void* arg) 
     if(f->_f.finished) {
 		rte_exit(EXIT_FAILURE, "Flow should not be finished");
     }
-    int next_data_seq = pflow_get_next_data_seq_num(f);
-    struct rte_mbuf* p = pflow_get_data_pkt(f, next_data_seq);
+    uint32_t next_data_seq = pflow_get_next_data_seq_num(f);
+    struct rte_mbuf* p = pflow_send_data_pkt(f);
     enqueue_ring(pim_pacer->data_q, p);
     // this->token_hist.push_back(this->recv_flow->id);
     if(next_data_seq >= pflow_get_next_data_seq_num(f)) {
@@ -798,7 +798,7 @@ void pim_send_data_evt_handler(__rte_unused struct rte_timer *timer, void* arg) 
 
         // }
     }
-    printf("try to send data\n");
+    // printf("try to send data\n");
 	rte_timer_reset(&pim_host->pim_send_data_timer, rte_get_timer_hz() * get_transmission_delay(1500),
 	 SINGLE, rte_lcore_id(), &pim_send_data_evt_handler, (void *)pim_timer_params);
 }

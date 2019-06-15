@@ -64,8 +64,8 @@ void pflow_reset_rd_ctrl_timeout(struct pim_host* host, struct pim_flow* flow, d
 // // receiver side
 int pflow_remaining_pkts(const struct pim_flow* pim_f);
 // void pim_relax_token_gap(pim_flow* pim_f);
-struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow, uint32_t data_seq);
-struct rte_mbuf* pflow_get_data_pkt(struct pim_flow* flow, uint32_t next_data_seq);
+struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow, struct pim_data_hdr* pim_data_hdr);
+struct rte_mbuf* pflow_send_data_pkt(struct pim_flow* flow);
 // void pim_receive_short_flow(pim_flow* pim_f);
 void pflow_receive_ack(struct pim_host* host, struct pim_flow* flow, struct pim_ack_hdr* p);
 

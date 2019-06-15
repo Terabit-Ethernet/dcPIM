@@ -59,13 +59,15 @@ struct pim_accept_hdr {
 struct pim_ack_hdr {
 	uint32_t flow_id;
 	uint32_t data_seq_no_acked;
+	uint32_t seq_no;
 };
 
 
 struct pim_data_hdr{
 	uint8_t priority;
 	uint32_t flow_id;
-	uint32_t seq_num;
+	uint32_t seq_no;
+	uint32_t data_seq_no;
 };
 
 
