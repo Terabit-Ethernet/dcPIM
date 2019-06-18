@@ -8,7 +8,7 @@
 #include "config.h"
 #include "flow.h"
 
-void init_flow(struct flow* f, uint32_t id, uint32_t size, uint32_t src_addr, uint32_t dst_addr, double start_time, int receiver_side){
+void init_flow(struct flow* f, uint32_t id, uint32_t size, uint32_t src_addr, uint32_t dst_addr, uint64_t start_time, int receiver_side){
 	f->id = id;
     f->start_time = start_time;
     f->size = size;

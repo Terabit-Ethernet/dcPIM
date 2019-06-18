@@ -94,6 +94,7 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
 		printf("flow is NULL");
 		rte_exit(EXIT_FAILURE, "flow is null");
 	}
+
 	pflow_init(new_flow, flow_id, flow_size, params.ip, dst_addr, rte_get_tsc_cycles(), 0);
 	insert_table_entry(host->tx_flow_table, new_flow->_f.id, new_flow);
 	// send rts
@@ -327,7 +328,10 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, str
 	// 	printf("precise epoch:%f\n", precise_epoch);
 	// 	rte_exit(EXIT_FAILURE, "Iter diff");
 	// }
-
+	if(pim_rts_hdr->epoch != pim_epoch->epoch) {
+		printf("rts packet epoch: %u; now epoch: %u\n", pim_rts_hdr->epoch, pim_epoch->epoch);
+		rte_exit(EXIT_FAILURE, "failure \n");
+	}
 	// if(pim_rts_hdr->iter == pim_epoch->iter && pim_rts_hdr->epoch == pim_epoch->epoch) {
 
 		struct pim_rts *pim_rts = &pim_epoch->rts_q[pim_epoch->rts_size];
@@ -435,7 +439,6 @@ void pim_handle_all_grant(struct pim_epoch* pim_epoch, struct pim_host* host, st
 	struct pim_grant* grant = NULL;
 	if (params.pim_select_min_iters > 0 && pim_epoch->iter <= params.pim_select_min_iters) {
 		if(pim_epoch->min_grant != NULL) {
-
 			grant = pim_epoch->min_grant;
 			pim_epoch->match_dst_addr = grant->dst_addr;
 			struct rte_mbuf *p = pim_get_accept_pkt(pim_epoch->min_grant, pim_epoch->iter, pim_epoch->epoch);
@@ -447,6 +450,7 @@ void pim_handle_all_grant(struct pim_epoch* pim_epoch, struct pim_host* host, st
 	else {
 		if(pim_epoch->grant_size > 0) {
 			if(pim_epoch->grant_size > 0) {
+
 				index = (uint32_t)(rte_rand() % pim_epoch->grant_size);
 				grant = &pim_epoch->grants_q[index];
 				pim_epoch->match_dst_addr = grant->dst_addr;
@@ -485,7 +489,6 @@ void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct
 		if(smallest_flow != NULL) {
             struct rte_mbuf *p = pim_get_rts_pkt(smallest_flow, pim_epoch->iter, pim_epoch->epoch);
         	rte_eth_tx_burst(get_port_by_ip(smallest_flow->_f.dst_addr) ,0, &p, 1);
-
 			//enqueue_ring(pacer->ctrl_q, p);
 		} 
     }
@@ -505,7 +508,7 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
 
 	if(pim_epoch->iter > params.pim_iter_limit) {
 		pim_host->cur_match_src_addr = pim_epoch->match_src_addr;
-		pim_host->cur_match_dst_addr = pim_epoch->match_dst_addr;
+		pim_host->cur_match_dst_addr = pim_epoch->match_dst_addr;;
 		pim_host->cur_epoch = pim_epoch->epoch;
 		pim_epoch->min_rts = NULL;
 		pim_epoch->min_grant = NULL;
@@ -767,13 +770,18 @@ void pim_send_data_evt_handler(__rte_unused struct rte_timer *timer, void* arg) 
     struct pim_flow* best_large_flow = NULL;
     if(pim_host->cur_match_dst_addr!= 0) {
       	Pq *pq = lookup_table_entry(pim_host->dst_minflow_table, pim_host->cur_match_dst_addr);
-        best_large_flow = get_smallest_unfinished_flow(pq);
+      	if(pq == NULL) {
+      		best_large_flow = NULL;
+      	} else {
+	        best_large_flow = get_smallest_unfinished_flow(pq);
+      	}
     }
     if (pq_isEmpty(&pim_host->active_short_flows) && best_large_flow == NULL) {
     	rte_timer_reset(&pim_host->pim_send_data_timer, rte_get_timer_hz() * get_transmission_delay(1500),
 	 	SINGLE, rte_lcore_id(), &pim_send_data_evt_handler, (void *)pim_timer_params);
 	 	return;
     }
+
     struct pim_flow* f;
     if(!pq_isEmpty(&pim_host->active_short_flows)) {
         best_short_flow = get_smallest_unfinished_flow(&pim_host->active_short_flows);
@@ -788,13 +796,22 @@ void pim_send_data_evt_handler(__rte_unused struct rte_timer *timer, void* arg) 
     }
     uint32_t next_data_seq = pflow_get_next_data_seq_num(f);
     struct rte_mbuf* p = pflow_send_data_pkt(f);
+   //  if(p == NULL) {
+   //  		printf("-------------------------------\n");
+   //  		rte_timer_stop_sync(&pim_pacer->data_timer);
+			// printf("size of temp_pkt_buffer: %u\n",rte_ring_count(pim_host->temp_pkt_buffer));
+			// printf("size of control q: %u\n", rte_ring_count(pim_pacer->ctrl_q));
+			// printf("size of data q: %u\n", rte_ring_count(pim_pacer->data_q));
+			// printf("number of unfinished flow: %u\n", rte_hash_count(pim_host->rx_flow_table));
+			// rte_exit(EXIT_FAILURE, "failure\n");
+   //  }
     enqueue_ring(pim_pacer->data_q, p);
     // this->token_hist.push_back(this->recv_flow->id);
     if(next_data_seq >= pflow_get_next_data_seq_num(f)) {
     	// set redundancy timeout
     	pflow_reset_rd_ctrl_timeout(pim_host, f, params.BDP * get_transmission_delay(1500));
-      	Pq *pq = lookup_table_entry(pim_host->dst_minflow_table, pim_host->cur_match_dst_addr);
-        best_large_flow = get_smallest_unfinished_flow(pq);
+      	// Pq *pq = lookup_table_entry(pim_host->dst_minflow_table, pim_host->cur_match_dst_addr);
+        // best_large_flow = get_smallest_unfinished_flow(pq);
 
         // }
     }

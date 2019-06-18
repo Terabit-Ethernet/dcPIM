@@ -118,11 +118,18 @@ void pflow_set_rd_ctrl_timeout_params_null(struct pim_flow* flow) {
     flow->rd_ctrl_timeout_params = NULL;
 }
 struct rte_mbuf* pflow_send_data_pkt(struct pim_flow* flow) {
+    if(flow == NULL) {
+        rte_exit(EXIT_FAILURE, "FLOW IS NULL");
+    }
     struct rte_mbuf* p = NULL;
     struct ipv4_hdr ipv4_hdr;
     struct pim_hdr pim_hdr;
     struct pim_data_hdr pim_data_hdr;
     p = rte_pktmbuf_alloc(pktmbuf_pool);
+    if (p == NULL) {
+        printf("%d: allocate flow fails\n", __LINE__);
+        rte_exit(EXIT_FAILURE, "fail");
+    }
     rte_pktmbuf_append(p, 1500);
     add_ether_hdr(p);
     ipv4_hdr.src_addr = rte_cpu_to_be_32(flow->_f.src_addr);
@@ -135,6 +142,7 @@ struct rte_mbuf* pflow_send_data_pkt(struct pim_flow* flow) {
     pim_data_hdr.flow_id = flow->_f.id;
     pim_data_hdr.seq_no = flow->next_seq_no;
     pim_data_hdr.data_seq_no = pflow_get_next_data_seq_num(flow);
+
     pim_data_hdr.priority = flow->_f.priority;
     add_pim_data_hdr(p, &pim_data_hdr);
     flow->next_seq_no += 1;
@@ -244,6 +252,7 @@ void pflow_set_finish_timeout(struct pim_host* host, struct pim_flow* flow) {
         printf("%d: no memory for timeout param \n", __LINE__);
         rte_exit(EXIT_FAILURE, "fail");
     }
+    flow->_f.finish_time = rte_get_tsc_cycles();
     flow->_f.finished = true;
     flow->finish_timeout_params->host = host;
     flow->finish_timeout_params->flow_id = flow->_f.id;

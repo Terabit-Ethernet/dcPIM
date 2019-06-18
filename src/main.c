@@ -135,7 +135,8 @@ static void host_main_loop(void) {
 	printf("new epoch start:%f\n", 1000000 * (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit));
 	// pim_init_epoch(&epoch, &host, &pacer);
 	// pim_receive_start(&epoch, &host, &pacer);
-	// pim_start_new_epoch(&epoch.epoch_timer, (void *)(&epoch.pim_timer_params));
+
+	// pim_receive_start(&epoch, &host, &pacer);
 	rte_timer_reset(&host.pim_send_data_timer, rte_get_timer_hz() * get_transmission_delay(1500),
 	 	SINGLE, rte_lcore_id(), &pim_send_data_evt_handler, (void *)&epoch.pim_timer_params);
 
@@ -173,7 +174,11 @@ static void pacer_main_loop(void) {
 	while(!force_quit){
 		update_time_byte(&pacer);
 		while(!rte_ring_empty(pacer.ctrl_q)) {
+
 			struct rte_mbuf* p = (struct rte_mbuf*)dequeue_ring(pacer.ctrl_q);
+			if(p == NULL){
+				rte_exit(EXIT_FAILURE, "deque ring\n");
+			}
 			struct ipv4_hdr* ipv4_hdr;
 			struct pim_hdr *pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
 				sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
@@ -190,8 +195,11 @@ static void pacer_main_loop(void) {
 			// rte_vlan_insert(&p); 
 			// send packets; hard code the port;
 			// cycles[0] = rte_get_timer_cycles();
-			rte_eth_tx_burst(get_port_by_ip(dst_addr) ,0, &p, 1);
+			int sent = rte_eth_tx_burst(get_port_by_ip(dst_addr) ,0, &p, 1);
 		   			uint64_t end_cycle = rte_get_tsc_cycles();
+		   	if(sent != 1) {
+        		printf("%d:sent fails\n", __LINE__);
+		   	}
 			// cycles[1] = rte_get_timer_cycles();
 			// rts_sent = true;
 
@@ -287,6 +295,7 @@ static void flow_generate_loop(void) {
 			printf("received throughput: %f\n", receive_tpt); 
 			printf("size of temp_pkt_buffer: %u\n",rte_ring_count(host.temp_pkt_buffer));
 			printf("size of control q: %u\n", rte_ring_count(pacer.ctrl_q));
+			printf("size of data q: %u\n", rte_ring_count(pacer.data_q));
 			printf("number of unfinished flow: %u\n", rte_hash_count(host.rx_flow_table));
 			printf("size of event q: %u\n", rte_ring_count(host.event_q));
 
