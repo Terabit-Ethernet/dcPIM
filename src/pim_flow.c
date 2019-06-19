@@ -156,6 +156,10 @@ struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow, struct pim_data_hdr* p
     struct pim_hdr pim_hdr;
     struct pim_ack_hdr pim_ack_hdr;
     p = rte_pktmbuf_alloc(pktmbuf_pool);
+    if (flow == NULL) {
+        printf("%d: flow is NULL\n", __LINE__);
+        rte_exit(EXIT_FAILURE, "fail");
+    }
     if (p == NULL) {
         printf("%d: allocate flow fails\n", __LINE__);
         rte_exit(EXIT_FAILURE, "fail");
