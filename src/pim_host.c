@@ -330,6 +330,8 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, str
 	// }
 	if(pim_rts_hdr->epoch != pim_epoch->epoch) {
 		printf("rts packet epoch: %u; now epoch: %u\n", pim_rts_hdr->epoch, pim_epoch->epoch);
+		printf("rts packet iter: %u; now iter: %u\n", pim_rts_hdr->iter, pim_epoch->iter);
+
 		rte_exit(EXIT_FAILURE, "failure \n");
 	}
 	// if(pim_rts_hdr->iter == pim_epoch->iter && pim_rts_hdr->epoch == pim_epoch->epoch) {
@@ -401,8 +403,8 @@ void pim_receive_accept(struct pim_epoch* pim_epoch, struct pim_host* host, stru
 	if(pim_epoch->epoch == pim_accept_hdr->epoch) {
 		if(pim_epoch->match_src_addr != 0) {
 			struct rte_mbuf *p = pim_get_grantr_pkt(ipv4_hdr, pim_epoch->iter, pim_epoch->epoch);
-			rte_eth_tx_burst(get_port_by_ip(rte_be_to_cpu_32(ipv4_hdr->src_addr)) ,0, &p, 1);
-			// enqueue_ring(pacer->ctrl_q, p);
+			//rte_eth_tx_burst(get_port_by_ip(rte_be_to_cpu_32(ipv4_hdr->src_addr)) ,0, &p, 1);
+			enqueue_ring(pacer->ctrl_q, p);
 		} else {
 			pim_epoch->match_src_addr = rte_be_to_cpu_32(ipv4_hdr->src_addr);
 		}
@@ -416,16 +418,16 @@ void pim_handle_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, stru
     if (params.pim_select_min_iters > 0 && pim_epoch->iter <= params.pim_select_min_iters) {
         if(pim_epoch->min_rts != NULL) {
             struct rte_mbuf *p = pim_get_grant_pkt(pim_epoch->min_rts, pim_epoch->iter, pim_epoch->epoch, pim_epoch->epoch - 1 == host->cur_epoch && host->cur_match_src_addr == 0);
-        	// enqueue_ring(pacer->ctrl_q, p);
-        	rte_eth_tx_burst(get_port_by_ip(pim_epoch->min_rts->src_addr) ,0, &p, 1);
+        	enqueue_ring(pacer->ctrl_q, p);
+        	//rte_eth_tx_burst(get_port_by_ip(pim_epoch->min_rts->src_addr) ,0, &p, 1);
         }
     }
     else {
         if(pim_epoch->rts_size > 0) {
             index =  (uint32_t)(rte_rand() % pim_epoch->rts_size);
         	struct rte_mbuf *p = pim_get_grant_pkt(&pim_epoch->rts_q[index], pim_epoch->iter, pim_epoch->epoch, pim_epoch->epoch - 1 == host->cur_epoch && host->cur_match_src_addr == 0);
-        	// enqueue_ring(pacer->ctrl_q, p);
-        	rte_eth_tx_burst(get_port_by_ip(pim_epoch->rts_q[index].src_addr) ,0, &p, 1);
+        	enqueue_ring(pacer->ctrl_q, p);
+        	// rte_eth_tx_burst(get_port_by_ip(pim_epoch->rts_q[index].src_addr) ,0, &p, 1);
 
         }
     }
@@ -442,8 +444,8 @@ void pim_handle_all_grant(struct pim_epoch* pim_epoch, struct pim_host* host, st
 			grant = pim_epoch->min_grant;
 			pim_epoch->match_dst_addr = grant->dst_addr;
 			struct rte_mbuf *p = pim_get_accept_pkt(pim_epoch->min_grant, pim_epoch->iter, pim_epoch->epoch);
-			// enqueue_ring(pacer->ctrl_q, p);
-        	rte_eth_tx_burst(get_port_by_ip(grant->dst_addr) ,0, &p, 1);
+			enqueue_ring(pacer->ctrl_q, p);
+        	// rte_eth_tx_burst(get_port_by_ip(grant->dst_addr) ,0, &p, 1);
 
 		}
 	}
@@ -455,8 +457,8 @@ void pim_handle_all_grant(struct pim_epoch* pim_epoch, struct pim_host* host, st
 				grant = &pim_epoch->grants_q[index];
 				pim_epoch->match_dst_addr = grant->dst_addr;
 				struct rte_mbuf *p = pim_get_accept_pkt(&pim_epoch->grants_q[index], pim_epoch->iter, pim_epoch->epoch);
-				// enqueue_ring(pacer->ctrl_q, p);
-	        	rte_eth_tx_burst(get_port_by_ip(grant->dst_addr) ,0, &p, 1);
+				enqueue_ring(pacer->ctrl_q, p);
+	        	// rte_eth_tx_burst(get_port_by_ip(grant->dst_addr) ,0, &p, 1);
 
 			}
 		}
@@ -488,8 +490,8 @@ void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct
 
 		if(smallest_flow != NULL) {
             struct rte_mbuf *p = pim_get_rts_pkt(smallest_flow, pim_epoch->iter, pim_epoch->epoch);
-        	rte_eth_tx_burst(get_port_by_ip(smallest_flow->_f.dst_addr) ,0, &p, 1);
-			//enqueue_ring(pacer->ctrl_q, p);
+        	// rte_eth_tx_burst(get_port_by_ip(smallest_flow->_f.dst_addr) ,0, &p, 1);
+			enqueue_ring(pacer->ctrl_q, p);
 		} 
     }
 }
