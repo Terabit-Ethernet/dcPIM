@@ -122,9 +122,6 @@ struct rte_mbuf* pflow_send_data_pkt(struct pim_flow* flow) {
         rte_exit(EXIT_FAILURE, "FLOW IS NULL");
     }
     struct rte_mbuf* p = NULL;
-    struct ipv4_hdr ipv4_hdr;
-    struct pim_hdr pim_hdr;
-    struct pim_data_hdr pim_data_hdr;
     p = rte_pktmbuf_alloc(pktmbuf_pool);
     if (p == NULL) {
         printf("%d: allocate flow fails\n", __LINE__);
@@ -132,29 +129,29 @@ struct rte_mbuf* pflow_send_data_pkt(struct pim_flow* flow) {
     }
     rte_pktmbuf_append(p, 1500);
     add_ether_hdr(p);
-    ipv4_hdr.src_addr = rte_cpu_to_be_32(flow->_f.src_addr);
-    ipv4_hdr.dst_addr = rte_cpu_to_be_32(flow->_f.dst_addr);
-    ipv4_hdr.total_length = rte_cpu_to_be_16(1500);
-    add_ip_hdr(p, &ipv4_hdr);
+    struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, 
+                sizeof(struct ether_hdr));
+    struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
+                sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
+    struct pim_data_hdr* pim_data_hdr = rte_pktmbuf_mtod_offset(p, struct pim_data_hdr*, 
+                sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
+    ipv4_hdr->src_addr = rte_cpu_to_be_32(flow->_f.src_addr);
+    ipv4_hdr->dst_addr = rte_cpu_to_be_32(flow->_f.dst_addr);
+    ipv4_hdr->total_length = rte_cpu_to_be_16(1500);
 
-    pim_hdr.type = DATA;
-    add_pim_hdr(p, &pim_hdr);
-    pim_data_hdr.flow_id = flow->_f.id;
-    pim_data_hdr.seq_no = flow->next_seq_no;
-    pim_data_hdr.data_seq_no = pflow_get_next_data_seq_num(flow);
+    pim_hdr->type = DATA;
+    pim_data_hdr->flow_id = flow->_f.id;
+    pim_data_hdr->seq_no = flow->next_seq_no;
+    pim_data_hdr->data_seq_no = pflow_get_next_data_seq_num(flow);
+    pim_data_hdr->priority = flow->_f.priority;
 
-    pim_data_hdr.priority = flow->_f.priority;
-    add_pim_data_hdr(p, &pim_data_hdr);
     flow->next_seq_no += 1;
-    flow->last_data_seq_num_sent = pim_data_hdr.data_seq_no;
+    flow->last_data_seq_num_sent = pim_data_hdr->data_seq_no;
     return p;
 }
 
 struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow, struct pim_data_hdr* pim_data_hdr) {
     struct rte_mbuf* p = NULL;
-    struct ipv4_hdr ipv4_hdr;
-    struct pim_hdr pim_hdr;
-    struct pim_ack_hdr pim_ack_hdr;
     p = rte_pktmbuf_alloc(pktmbuf_pool);
     if (flow == NULL) {
         printf("%d: flow is NULL\n", __LINE__);
@@ -168,17 +165,22 @@ struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow, struct pim_data_hdr* p
                 sizeof(struct pim_hdr) + sizeof(struct pim_ack_hdr);
     rte_pktmbuf_append(p, size);
     add_ether_hdr(p);
-    ipv4_hdr.src_addr = rte_cpu_to_be_32(flow->_f.dst_addr);
-    ipv4_hdr.dst_addr = rte_cpu_to_be_32(flow->_f.src_addr);
-    ipv4_hdr.total_length = rte_cpu_to_be_16(size);
-    add_ip_hdr(p, &ipv4_hdr);
+    struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, 
+                sizeof(struct ether_hdr));
+    struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
+                sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
+    struct pim_ack_hdr* pim_ack_hdr = rte_pktmbuf_mtod_offset(p, struct pim_ack_hdr*, 
+                sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
+    ipv4_hdr->src_addr = rte_cpu_to_be_32(flow->_f.dst_addr);
+    ipv4_hdr->dst_addr = rte_cpu_to_be_32(flow->_f.src_addr);
+    ipv4_hdr->total_length = rte_cpu_to_be_16(size);
 
-    pim_hdr.type = PIM_ACK;
-    add_pim_hdr(p, &pim_hdr);
-    pim_ack_hdr.flow_id = flow->_f.id;
-    pim_ack_hdr.data_seq_no_acked = pim_data_hdr->data_seq_no;
-    pim_ack_hdr.seq_no = pim_data_hdr->seq_no;
-    add_pim_ack_hdr(p, & pim_ack_hdr);
+    pim_hdr->type = PIM_ACK;
+
+    pim_ack_hdr->flow_id = flow->_f.id;
+    pim_ack_hdr->data_seq_no_acked = pim_data_hdr->data_seq_no;
+    pim_ack_hdr->seq_no = pim_data_hdr->seq_no;
+
     return p;
 }
 
