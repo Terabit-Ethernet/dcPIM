@@ -328,12 +328,12 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, str
 	// 	printf("precise epoch:%f\n", precise_epoch);
 	// 	rte_exit(EXIT_FAILURE, "Iter diff");
 	// }
-	if(pim_rts_hdr->epoch != pim_epoch->epoch) {
-		printf("rts packet epoch: %u; now epoch: %u\n", pim_rts_hdr->epoch, pim_epoch->epoch);
-		printf("rts packet iter: %u; now iter: %u\n", pim_rts_hdr->iter, pim_epoch->iter);
+	// if(pim_rts_hdr->epoch != pim_epoch->epoch) {
+	// 	printf("rts packet epoch: %u; now epoch: %u\n", pim_rts_hdr->epoch, pim_epoch->epoch);
+	// 	printf("rts packet iter: %u; now iter: %u\n", pim_rts_hdr->iter, pim_epoch->iter);
 
-		rte_exit(EXIT_FAILURE, "failure \n");
-	}
+	// 	rte_exit(EXIT_FAILURE, "failure \n");
+	// }
 	// if(pim_rts_hdr->iter == pim_epoch->iter && pim_rts_hdr->epoch == pim_epoch->epoch) {
 
 		struct pim_rts *pim_rts = &pim_epoch->rts_q[pim_epoch->rts_size];
