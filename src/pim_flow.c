@@ -140,7 +140,7 @@ struct rte_mbuf* pflow_get_token_pkt(struct pim_flow* flow, uint32_t data_seq) {
     struct rte_mbuf* p = NULL;
     p = rte_pktmbuf_alloc(pktmbuf_pool);
     if (p == NULL) {
-        printf("%d: allocate flow fails\n", __LINE__);
+        printf("%d: allocate packet fails\n", __LINE__);
         rte_exit(EXIT_FAILURE, "fail");
     }
     uint32_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
