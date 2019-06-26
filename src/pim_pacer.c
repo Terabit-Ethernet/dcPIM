@@ -188,8 +188,7 @@ void pim_pacer_send_data_pkt_handler(__rte_unused struct rte_timer *timer, void*
 void pim_pacer_send_token_handler(__rte_unused struct rte_timer *timer, void* arg) {
 
 	struct send_token_timeout_params* timeout_params = (struct send_token_timeout_params*) arg;
-	struct rte_ring* short_flow_token_q = timeout_params->host->short_flow_token_q;
-	struct rte_ring* long_flow_token_q = timeout_params->host->long_flow_token_q;
+	struct rte_ring* send_token_q = timeout_params->host->send_token_q;
 	struct pim_pacer* pacer = timeout_params->pacer;
 	struct pim_host* host = timeout_params->host;
 	int token_sent = 0;
@@ -199,8 +198,8 @@ void pim_pacer_send_token_handler(__rte_unused struct rte_timer *timer, void* ar
 	struct ipv4_hdr* ipv4_hdr = NULL;
 
 	// update_time_byte(pacer);
-	while(!rte_ring_empty(short_flow_token_q)) {
-		p = (struct rte_mbuf*)dequeue_ring(short_flow_token_q);
+	while(!rte_ring_empty(send_token_q)) {
+		p = (struct rte_mbuf*)dequeue_ring(send_token_q);
 		struct pim_token_hdr* pim_token_hdr = rte_pktmbuf_mtod_offset(p, struct pim_token_hdr *, sizeof(struct ether_hdr) + 
 				sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
 		flow = lookup_table_entry(host->rx_flow_table, pim_token_hdr->flow_id);
@@ -209,20 +208,6 @@ void pim_pacer_send_token_handler(__rte_unused struct rte_timer *timer, void* ar
 			p = NULL;
 		} else {
 			break;
-		}
-	}
-	if(p == NULL) {
-		while(!rte_ring_empty(long_flow_token_q)) {
-			p = (struct rte_mbuf*)dequeue_ring(long_flow_token_q);
-			struct pim_token_hdr* pim_token_hdr = rte_pktmbuf_mtod_offset(p, struct pim_token_hdr *, sizeof(struct ether_hdr) + 
-				sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
-			flow = lookup_table_entry(host->rx_flow_table, pim_token_hdr->flow_id);
-			if(flow == NULL || flow->finished_at_receiver) {
-				rte_pktmbuf_free(p);
-				p = NULL;
-			} else {
-				break;
-			}
 		}
 	}
 	if(p != NULL) {

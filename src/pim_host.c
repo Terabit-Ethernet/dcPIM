@@ -768,6 +768,8 @@ void pim_send_token_evt_handler(__rte_unused struct rte_timer *timer, void* arg)
 	 	struct rte_mbuf* p = pflow_get_token_pkt(pim_flow, data_seq);
 		pflow_get_token_pkt(pim_flow, data_seq);
 		
+		// printf("size of token q: %u\n", rte_ring_count(pim_host->send_token_q));
+
 		enqueue_ring(pim_host->send_token_q, p);
 
 		sent_token += 1;
