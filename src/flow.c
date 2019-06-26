@@ -29,8 +29,6 @@ void init_flow(struct flow* f, uint32_t id, uint32_t size, uint32_t src_addr, ui
     // }
 
     if(receiver_side == 1) {
-        f->bmp = NULL;
-    } else {
         uint32_t bmp_size = rte_bitmap_get_memory_footprint(size_in_pkt);
         void *mem = rte_zmalloc("bit map", bmp_size, 0);
         if (mem == NULL) {
@@ -38,6 +36,8 @@ void init_flow(struct flow* f, uint32_t id, uint32_t size, uint32_t src_addr, ui
            rte_exit(EXIT_FAILURE, "Failed to allocate memory for bitmap\n");
        }
        f->bmp = rte_bitmap_init(size_in_pkt, mem, bmp_size);
+    } else {
+        f->bmp = NULL;
     }
 } 
 

@@ -15,6 +15,7 @@
 #define PIM_ACCEPT 5 
 #define PIM_ACK 6
 #define PIM_START 7
+#define PIM_TOKEN 8
 
 #define MSS 1460
 
@@ -58,8 +59,6 @@ struct pim_accept_hdr {
 
 struct pim_ack_hdr {
 	uint32_t flow_id;
-	uint32_t data_seq_no_acked;
-	uint32_t seq_no;
 };
 
 
@@ -70,17 +69,24 @@ struct pim_data_hdr{
 	uint32_t data_seq_no;
 };
 
+struct pim_token_hdr{
+	uint8_t priority;
+	uint32_t flow_id;
+	uint32_t seq_no;
+	uint32_t data_seq_no;
+	uint32_t remaining_size;
+};
 
 void parse_header(struct rte_mbuf* p, struct ipv4_hdr** ipv4_hdr, struct pim_hdr** pim_hdr);
 void add_ether_hdr(struct rte_mbuf* p);
-void add_ip_hdr(struct rte_mbuf* p, struct ipv4_hdr* ipv4_hdr);
-void add_pim_hdr(struct rte_mbuf* p, struct pim_hdr* pim_hdr);
-void add_pim_rts_hdr(struct rte_mbuf *p, struct pim_rts_hdr* pim_rts_hdr);
-void add_pim_grant_hdr(struct rte_mbuf *p, struct pim_grant_hdr* pim_grant_hdr);
-void add_pim_grantr_hdr(struct rte_mbuf *p, struct pim_grantr_hdr* pim_grantr_hdr);
-void add_pim_accept_hdr(struct rte_mbuf *p, struct pim_accept_hdr* pim_accept_hdr);
-void add_pim_ack_hdr(struct rte_mbuf *p, struct pim_ack_hdr* pim_ack_hdr);
-void add_pim_data_hdr(struct rte_mbuf *p, struct pim_data_hdr* pim_data_hdr);
-void add_pim_flow_sync_hdr(struct rte_mbuf *p, struct pim_flow_sync_hdr* pim_flow_sync_hdr);
+// void add_ip_hdr(struct rte_mbuf* p, struct ipv4_hdr* ipv4_hdr);
+// void add_pim_hdr(struct rte_mbuf* p, struct pim_hdr* pim_hdr);
+// void add_pim_rts_hdr(struct rte_mbuf *p, struct pim_rts_hdr* pim_rts_hdr);
+// void add_pim_grant_hdr(struct rte_mbuf *p, struct pim_grant_hdr* pim_grant_hdr);
+// void add_pim_grantr_hdr(struct rte_mbuf *p, struct pim_grantr_hdr* pim_grantr_hdr);
+// void add_pim_accept_hdr(struct rte_mbuf *p, struct pim_accept_hdr* pim_accept_hdr);
+// void add_pim_ack_hdr(struct rte_mbuf *p, struct pim_ack_hdr* pim_ack_hdr);
+// void add_pim_data_hdr(struct rte_mbuf *p, struct pim_data_hdr* pim_data_hdr);
+// void add_pim_flow_sync_hdr(struct rte_mbuf *p, struct pim_flow_sync_hdr* pim_flow_sync_hdr);
 #endif
 

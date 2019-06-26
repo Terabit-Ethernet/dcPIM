@@ -39,7 +39,8 @@ struct Params params = {
 	.propagation_delay = 0.0000002,
 	.clock_bias = 0.0000005,
 	.send_port = 0,
-	.pim_select_min_iters = 1
+	.pim_select_min_iters = 1,
+	.batch_tokens = 7
 };
 
 double get_transmission_delay(double bytes) {

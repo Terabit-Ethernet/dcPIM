@@ -137,8 +137,8 @@ static void host_main_loop(void) {
 	// pim_receive_start(&epoch, &host, &pacer);
 
 	// pim_receive_start(&epoch, &host, &pacer);
-	rte_timer_reset(&host.pim_send_data_timer, rte_get_timer_hz() * get_transmission_delay(1500),
-	 	SINGLE, rte_lcore_id(), &pim_send_data_evt_handler, (void *)&epoch.pim_timer_params);
+	rte_timer_reset(&host.pim_send_token_timer, rte_get_timer_hz() * get_transmission_delay(1500),
+	 	SINGLE, rte_lcore_id(), &pim_send_token_evt_handler, (void *)&epoch.pim_timer_params);
 
 	// rte_timer_reset(&epoch.epoch_timer, rte_get_timer_hz() * (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit),
 	//  PERIODICAL, 1, &pim_start_new_epoch, (void *)(&epoch.pim_timer_params));
@@ -165,7 +165,8 @@ static void host_main_loop(void) {
 
 static void pacer_main_loop(void) {
 	printf("pacer core:%u\n", rte_lcore_id());
-
+	rte_timer_reset(&pacer.token_timer, 0, SINGLE,
+        rte_lcore_id(), &pim_pacer_send_token_handler, (void *)pacer.send_token_timeout_params);
 	rte_timer_reset(&pacer.data_timer, 0, SINGLE,
     	rte_lcore_id(), &pim_pacer_send_data_pkt_handler, (void *)pacer.send_data_timeout_params);
 
@@ -179,11 +180,7 @@ static void pacer_main_loop(void) {
 			if(p == NULL){
 				rte_exit(EXIT_FAILURE, "deque ring\n");
 			}
-			struct ipv4_hdr* ipv4_hdr;
-			struct pim_hdr *pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
-				sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
-			// printf("timer cycles %"PRIu64": send control packets:%u \n",rte_get_timer_cycles(), pim_hdr->type);
-			ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr *, sizeof(struct ether_hdr));
+			struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, sizeof(struct ether_hdr));
 			pacer.remaining_bytes += rte_be_to_cpu_16(ipv4_hdr->total_length) + sizeof(struct ether_hdr);
 			
 			uint32_t dst_addr = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
@@ -224,20 +221,20 @@ static void start_main_loop(void) {
 	int i = 0;
 	for (; i < 2; i++) {
 		 struct rte_mbuf* p = NULL;
-	    struct ipv4_hdr ipv4_hdr;
-	    struct pim_hdr pim_hdr;
 	    p = rte_pktmbuf_alloc(pktmbuf_pool);
 	    uint16_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
 	                sizeof(struct pim_hdr);
 	    rte_pktmbuf_append(p, size);
 	    add_ether_hdr(p);
-	    ipv4_hdr.src_addr = rte_cpu_to_be_32(24);
-	    ipv4_hdr.dst_addr = rte_cpu_to_be_32(ips[i]);
-	    ipv4_hdr.total_length = rte_cpu_to_be_16(size);
-	    add_ip_hdr(p, &ipv4_hdr);
+	    struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, 
+	    	struct ipv4_hdr*, sizeof(struct ether_hdr));
+	    struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
+	    	sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
+	    ipv4_hdr->src_addr = rte_cpu_to_be_32(24);
+	    ipv4_hdr->dst_addr = rte_cpu_to_be_32(ips[i]);
+	    ipv4_hdr->total_length = rte_cpu_to_be_16(size);
 
-	    pim_hdr.type = PIM_START;
-	    add_pim_hdr(p, &pim_hdr);
+	    pim_hdr->type = PIM_START;
 		rte_eth_tx_burst(get_port_by_ip(ips[i]) ,0, &p, 1);
 	}
 

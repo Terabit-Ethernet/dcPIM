@@ -69,10 +69,12 @@ struct event_params {
 struct pim_host{
 	uint32_t cur_epoch;
 	// sender
-	struct rte_timer pim_send_data_timer;
+	struct rte_timer pim_send_token_timer;
 	uint32_t cur_match_dst_addr;
 	struct rte_mempool *tx_flow_pool;
 	struct rte_hash *dst_minflow_table;
+	struct rte_hash *src_minflow_table;
+
 	// struct rte_ring * control_message_q;
 	struct rte_hash * tx_flow_table;
 	uint32_t finished_flow;
@@ -82,9 +84,13 @@ struct pim_host{
 	uint32_t cur_match_src_addr;
 	struct rte_mempool *rx_flow_pool;
 	struct rte_hash *rx_flow_table;
+	uint32_t num_token_sent;
 	// min large flow
 	struct rte_ring *temp_pkt_buffer;
 	// struct rte_ring * control_message_q;
+	struct rte_ring *short_flow_token_q;
+	struct rte_ring *long_flow_token_q;
+	struct rte_ring *send_token_q;
 
 	struct rte_ring *event_q;
 	uint32_t received_bytes;
@@ -126,15 +132,15 @@ void pim_receive_start(struct pim_epoch* pim_epoch, struct pim_host* pim_host, s
 void pim_init_host(struct pim_host *host, uint32_t socket_id);
 void pim_rx_packets(struct pim_epoch* epoch, struct pim_host* host, struct pim_pacer* pacer,
 struct rte_mbuf* p);
-void send_flow_sync(struct pim_host* host, struct pim_pacer* pacer, struct pim_flow* flow);
+void pim_send_flow_sync(struct pim_pacer* pacer, struct pim_flow* flow);
 void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer, 
 	struct ipv4_hdr* ipv4_hdr, struct pim_flow_sync_hdr* pim_flow_sync_hdr);
 // void pim_flow_finish_at_receiver(struct pim_receiver *receiver, struct pim_flow * f);
-void iterate_temp_pkt_buf(struct pim_host* host, struct pim_pacer* pacer,
+void pim_iterate_temp_pkt_buf(struct pim_host* host, struct pim_pacer* pacer,
  uint32_t flow_id);
 // sender logic
-void pim_receive_ack(struct pim_host *pim_host, struct pim_ack_hdr * pim_ack_hdr);
-void pim_send_data_evt_handler(__rte_unused struct rte_timer *timer, void* arg);
+void pim_receive_token(struct pim_host *pim_host, struct pim_token_hdr * pim_token_hdr, struct rte_mbuf *p);
+void pim_send_token_evt_handler(__rte_unused struct rte_timer *timer, void* arg);
 
 void pim_new_flow(struct pim_pacer* pacer,
  uint32_t flow_id, uint32_t dst_addr, uint32_t flow_size);

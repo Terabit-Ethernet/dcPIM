@@ -11,22 +11,26 @@
 #include "flow.h"
 #include "pq.h"
 #include "pim_host.h"
+#include "pim_pacer.h"
 
-
+struct pim_pacer;
 struct pim_flow {
-	struct flow _f;
+    struct flow _f;
     struct rte_mbuf* buf;
     bool flow_sync_received;
     bool finished_at_receiver;
-    int largest_seq_ack;
-    int last_data_seq_num_sent;
-    int next_seq_no;
+    int last_token_data_seq_num_sent;
+    int received_until;
+    int token_count;
+    int token_packet_sent_count;
+    int token_waste_count;
+    int token_goal;
     int remaining_pkts_at_sender;
-    double redundancy_ctrl_timeout;
-    double latest_data_pkt_send_time;
-    bool first_loop;
-    int ack_until;
-    int ack_count;
+    int largest_token_seq_received;
+    int largest_token_data_seq_received;
+    double latest_token_sent_time;
+    double latest_data_pkt_sent_time;
+    
     struct rte_timer rd_ctrl_timeout;
     int rd_ctrl_timeout_times;
     struct rd_ctrl_timeout_params* rd_ctrl_timeout_params;
@@ -51,8 +55,9 @@ void pflow_init(struct pim_flow* pim_f, uint32_t id, uint32_t size, uint32_t src
 
 // void pim_flow_free(struct rte_mempool* pool);
 bool pflow_is_small_flow(struct pim_flow* pim_flow);
-int pflow_gap(const struct pim_flow* f);
-int pflow_get_next_data_seq_num(struct pim_flow* f);
+int pflow_init_token_size(struct pim_flow* pim_flow);
+int pflow_token_gap(const struct pim_flow* f);
+int pflow_get_next_token_seq_num(struct pim_flow* f);
 // pim_flow* pim_flow_free(pim_flow* pim_f);
 bool pflow_is_rd_ctrl_timeout_params_null(struct pim_flow* flow);
 void pflow_set_rd_ctrl_timeout_params_null(struct pim_flow* flow);
@@ -60,14 +65,19 @@ void pflow_rd_ctrl_timeout_handler(__rte_unused struct rte_timer *timer, void* a
 void pflow_finish_timeout_handler(__rte_unused struct rte_timer *timer, void* arg);
 void pflow_set_finish_timeout(struct pim_host* host, struct pim_flow* flow);
 void pflow_reset_rd_ctrl_timeout(struct pim_host* host, struct pim_flow* flow, double time);
+void pflow_set_finish_at_receiver(struct pim_flow* flow);
+bool pflow_get_finish(struct pim_flow* flow);
+bool pflow_get_finish_at_receiver(struct pim_flow* flow);
+void pflow_set_finish(struct pim_flow* flow);
 
 // // receiver side
 int pflow_remaining_pkts(const struct pim_flow* pim_f);
 // void pim_relax_token_gap(pim_flow* pim_f);
-struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow, struct pim_data_hdr* pim_data_hdr);
-struct rte_mbuf* pflow_send_data_pkt(struct pim_flow* flow);
+struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow);
+struct rte_mbuf* pflow_get_token_pkt(struct pim_flow* flow, uint32_t data_seq);
+// struct rte_mbuf* pflow_send_data_pkt(struct pim_flow* flow);
 // void pim_receive_short_flow(pim_flow* pim_f);
 void pflow_receive_ack(struct pim_host* host, struct pim_flow* flow, struct pim_ack_hdr* p);
-
+void pflow_receive_data(struct pim_host* host,  struct pim_pacer* pacer, struct pim_flow* f, struct pim_data_hdr* pim_data_hdr);
 
 #endif

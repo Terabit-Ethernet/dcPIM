@@ -40,24 +40,25 @@ struct pim_flow* pflow_new(struct rte_mempool* pool) {
 }
 void pflow_init(struct pim_flow* pim_f, uint32_t id, uint32_t size, uint32_t src_addr, uint32_t dst_addr, double start_time, int receiver_side) {
 	init_flow(&(pim_f->_f), id, size, src_addr, dst_addr, start_time, receiver_side);
-
-    pim_f->remaining_pkts_at_sender = pim_f->_f.size_in_pkt;
-    pim_f->rd_ctrl_timeout_times = 0;
-    pim_f->ack_until = 0;
-    pim_f->ack_count = 0;
-    pim_f->largest_seq_ack = -1;
-    pim_f->last_data_seq_num_sent = -1;
-    pim_f->latest_data_pkt_send_time = -1;
-    pim_f->first_loop = false;
-    pim_f->next_seq_no = 0;
     pim_f->flow_sync_received = false;
-	rte_timer_init(&pim_f->rd_ctrl_timeout);
+    pim_f->token_goal = (int)(ceil(pim_f->_f.size_in_pkt * 1.00));
+    pim_f->remaining_pkts_at_sender = pim_f->_f.size_in_pkt;
+    pim_f->largest_token_seq_received = -1;
+    pim_f->largest_token_data_seq_received = -1;
+    pim_f->latest_token_sent_time = -1;
+    pim_f->latest_data_pkt_sent_time = -1;
+    pim_f->last_token_data_seq_num_sent = -1;
+    pim_f->rd_ctrl_timeout_times = 0;
+    rte_timer_init(&pim_f->rd_ctrl_timeout);
     rte_timer_init(&pim_f->finish_timeout);
     pim_f->rd_ctrl_timeout_params = NULL;
     pim_f->finish_timeout_params = NULL;
 }
 
 // void pim_flow_free(struct rte_mempool* pool){}
+int pflow_init_token_size(struct pim_flow* pim_flow) {
+    return pim_flow->_f.size_in_pkt <= params.small_flow_thre? pim_flow->_f.size_in_pkt : 0;
+}
 
 bool pflow_is_small_flow(struct pim_flow* pim_flow) {
     return pim_flow->_f.size_in_pkt <= params.small_flow_thre;
@@ -65,21 +66,36 @@ bool pflow_is_small_flow(struct pim_flow* pim_flow) {
 
 // // receiver side
 int pflow_remaining_pkts(const struct pim_flow* f) {
-    return 0 > ((int)f->_f.size_in_pkt - (int)f->ack_count)? 0 : (f->_f.size_in_pkt - f->ack_count);
+    return 0 > ((int)f->_f.size_in_pkt - (int)f->_f.received_count)? 0 : (f->_f.size_in_pkt - f->_f.received_count);
 }
-int pflow_gap(const struct pim_flow* f) {
-    if(f->next_seq_no - f->largest_seq_ack < 0) {
-        printf("next seq number: %d; largest seq ack: %d \n", f->next_seq_no, f->largest_seq_ack);
+int pflow_token_gap(const struct pim_flow* f) {
+    if(f->token_count - f->largest_token_seq_received < 0) {
         rte_exit(EXIT_FAILURE ,"token gap less than 0");
     }
-    return f->next_seq_no - f->largest_seq_ack - 1;
+    return f->token_count - f->largest_token_seq_received - 1;
+}
+
+bool pflow_get_finish_at_receiver(struct pim_flow* flow) {
+    return flow->finished_at_receiver;
+}
+
+bool pflow_get_finish(struct pim_flow* flow) {
+    return flow->_f.finished;
+}
+
+void pflow_set_finish_at_receiver(struct pim_flow* flow) {
+    flow->finished_at_receiver = true;
+}
+void pflow_set_finish(struct pim_flow* flow) {
+    flow->_f.finished = true;
+    flow->_f.finish_time = rte_get_tsc_cycles();
 }
 // void pim_relax_token_gap(pim_flow* f) {
 
 // }
-int pflow_get_next_data_seq_num(struct pim_flow* f) {
+int pflow_get_next_token_seq_num(struct pim_flow* f) {
     uint32_t count = 0;
-    uint32_t data_seq = (f->last_data_seq_num_sent + 1) % f->_f.size_in_pkt;
+    uint32_t data_seq = (f->last_token_data_seq_num_sent + 1) % f->_f.size_in_pkt;
     struct rte_bitmap* bmp = f->_f.bmp;
     while(count < f->_f.size_in_pkt)
     {
@@ -96,7 +112,7 @@ int pflow_get_next_data_seq_num(struct pim_flow* f) {
             data_seq++;
             if(data_seq >= f->_f.size_in_pkt)
             {
-                data_seq = f->ack_until;
+                data_seq = f->received_until;
             }
 
         }
@@ -117,7 +133,7 @@ void pflow_set_rd_ctrl_timeout_params_null(struct pim_flow* flow) {
     }
     flow->rd_ctrl_timeout_params = NULL;
 }
-struct rte_mbuf* pflow_send_data_pkt(struct pim_flow* flow) {
+struct rte_mbuf* pflow_get_token_pkt(struct pim_flow* flow, uint32_t data_seq) {
     if(flow == NULL) {
         rte_exit(EXIT_FAILURE, "FLOW IS NULL");
     }
@@ -127,30 +143,35 @@ struct rte_mbuf* pflow_send_data_pkt(struct pim_flow* flow) {
         printf("%d: allocate flow fails\n", __LINE__);
         rte_exit(EXIT_FAILURE, "fail");
     }
-    rte_pktmbuf_append(p, 1500);
+    uint32_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
+        sizeof(struct pim_hdr) + sizeof(struct pim_token_hdr);
+    rte_pktmbuf_append(p, size);
     add_ether_hdr(p);
     struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, 
                 sizeof(struct ether_hdr));
     struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
                 sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
-    struct pim_data_hdr* pim_data_hdr = rte_pktmbuf_mtod_offset(p, struct pim_data_hdr*, 
+    struct pim_token_hdr* pim_token_hdr = rte_pktmbuf_mtod_offset(p, struct pim_token_hdr*, 
                 sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
-    ipv4_hdr->src_addr = rte_cpu_to_be_32(flow->_f.src_addr);
-    ipv4_hdr->dst_addr = rte_cpu_to_be_32(flow->_f.dst_addr);
-    ipv4_hdr->total_length = rte_cpu_to_be_16(1500);
+    ipv4_hdr->src_addr = rte_cpu_to_be_32(flow->_f.dst_addr);
+    ipv4_hdr->dst_addr = rte_cpu_to_be_32(flow->_f.src_addr);
+    ipv4_hdr->total_length = rte_cpu_to_be_16(size - sizeof(struct ether_hdr));
 
-    pim_hdr->type = DATA;
-    pim_data_hdr->flow_id = flow->_f.id;
-    pim_data_hdr->seq_no = flow->next_seq_no;
-    pim_data_hdr->data_seq_no = pflow_get_next_data_seq_num(flow);
-    pim_data_hdr->priority = flow->_f.priority;
-
-    flow->next_seq_no += 1;
-    flow->last_data_seq_num_sent = pim_data_hdr->data_seq_no;
+    pim_hdr->type = PIM_TOKEN;
+    pim_token_hdr->flow_id = flow->_f.id;
+    pim_token_hdr->seq_no = flow->token_count;
+    pim_token_hdr->data_seq_no = data_seq;
+    pim_token_hdr->priority = flow->_f.priority;
+    pim_token_hdr->remaining_size = pflow_remaining_pkts(flow);
+    
+    flow->token_count++;
+    flow->token_packet_sent_count++;
+    // flow->next_seq_no += 1;
+    // flow->last_data_seq_num_sent = pim_token_hdr->data_seq_no;
     return p;
 }
 
-struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow, struct pim_data_hdr* pim_data_hdr) {
+struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow) {
     struct rte_mbuf* p = NULL;
     p = rte_pktmbuf_alloc(pktmbuf_pool);
     if (flow == NULL) {
@@ -173,13 +194,13 @@ struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow, struct pim_data_hdr* p
                 sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
     ipv4_hdr->src_addr = rte_cpu_to_be_32(flow->_f.dst_addr);
     ipv4_hdr->dst_addr = rte_cpu_to_be_32(flow->_f.src_addr);
-    ipv4_hdr->total_length = rte_cpu_to_be_16(size);
+    ipv4_hdr->total_length = rte_cpu_to_be_16(size - sizeof(struct ether_hdr));
 
     pim_hdr->type = PIM_ACK;
 
     pim_ack_hdr->flow_id = flow->_f.id;
-    pim_ack_hdr->data_seq_no_acked = pim_data_hdr->data_seq_no;
-    pim_ack_hdr->seq_no = pim_data_hdr->seq_no;
+    // pim_ack_hdr->data_seq_no_acked = pim_data_hdr->data_seq_no;
+    // pim_ack_hdr->seq_no = pim_data_hdr->seq_no;
 
     return p;
 }
@@ -192,9 +213,6 @@ void pflow_reset_rd_ctrl_timeout(struct pim_host* host, struct pim_flow* flow, d
         flow->rd_ctrl_timeout_params->host = host;
         flow->rd_ctrl_timeout_params->flow = flow;
     }
-    if(debug_flow(flow->_f.id)) {
-        printf("flow %u: flow received count: %u\n", flow->_f.id, flow->ack_count);
-    }
     flow->rd_ctrl_timeout_times++;
     int ret = rte_timer_reset(&flow->rd_ctrl_timeout, rte_get_timer_hz() * time, SINGLE,
                     rte_lcore_id(), &pflow_rd_ctrl_timeout_handler, (void*)flow->rd_ctrl_timeout_params);
@@ -204,33 +222,44 @@ void pflow_reset_rd_ctrl_timeout(struct pim_host* host, struct pim_flow* flow, d
     }
 }
 
-void pflow_receive_ack(struct pim_host* host, struct pim_flow* flow, struct pim_ack_hdr* p) {
+void pflow_receive_data(struct pim_host* host, struct pim_pacer* pacer, struct pim_flow* f, struct pim_data_hdr* pim_data_hdr) {
     // Determing which ack to send
     // auto sack_list = p->sack_list;
     // if(this->next_seq_no < p->seq_no_acked)
     //     this->next_seq_no = p->seq_no_acked;
-    uint32_t data_seq = p->data_seq_no_acked;
-    struct rte_bitmap* bmp = flow->_f.bmp;
-    if(flow->_f.finished)
+    struct rte_bitmap* bmp = f->_f.bmp;
+    if(f->finished_at_receiver) {
         return;
-    if(rte_bitmap_get(bmp, data_seq) == 0) {
-        rte_bitmap_set(bmp, data_seq);
-        flow->ack_count += 1;
-        while(flow->ack_until < (int)flow->_f.size_in_pkt && rte_bitmap_get(bmp, flow->ack_until) != 0) {
-            flow->ack_until++;
-        }
-        flow->remaining_pkts_at_sender--;
     }
-    if(flow->largest_seq_ack < (int)(p->seq_no)) {
-        flow->largest_seq_ack = p->seq_no;
-    }
-    if(flow->remaining_pkts_at_sender == 0) {
-        if(!pflow_is_rd_ctrl_timeout_params_null(flow)){
-            pflow_set_rd_ctrl_timeout_params_null(flow); 
+    if(rte_bitmap_get(bmp, pim_data_hdr->data_seq_no) == 0) {
+        rte_bitmap_set(bmp, pim_data_hdr->data_seq_no);
+        f->_f.received_count++;
+        while(f->received_until < (int)f->_f.size_in_pkt && rte_bitmap_get(bmp, f->received_until) != 0) {
+            f->received_until++;
         }
-        pflow_set_finish_timeout(host, flow);
+        // if(num_outstanding_packets >= ((p->size - hdr_size) / (mss)))
+        //     num_outstanding_packets -= ((p->size - hdr_size) / (mss));
+        // else
+        //     num_outstanding_packets = 0;
+        if(f->largest_token_data_seq_received < (int)pim_data_hdr->data_seq_no) {
+            f->largest_token_data_seq_received =  (int)pim_data_hdr->data_seq_no;
+        }
+    }
+    // hard code part
+    f->_f.received_bytes += 1460;
 
-        return;
+    if((int)pim_data_hdr->seq_no > f->largest_token_seq_received)
+        f->largest_token_seq_received = (int)pim_data_hdr->seq_no;
+    if (f->_f.received_count >= f->_f.size_in_pkt) {
+        struct rte_mbuf* p = pflow_get_ack_pkt(f);
+        enqueue_ring(pacer->ctrl_q, p);
+        // sending_ack(p->ranking_round);
+        pflow_set_finish_at_receiver(f);
+        // clean up memory and timer;
+        if(!pflow_is_rd_ctrl_timeout_params_null(f)){
+            pflow_set_rd_ctrl_timeout_params_null(f); 
+        }
+        pflow_set_finish_timeout(host, f);
     }
 }
 
@@ -246,13 +275,10 @@ void pflow_rd_ctrl_timeout_handler(__rte_unused struct rte_timer *timer, void* a
     if(flow->_f.finished) {
         return;
     }
-    // if flow is short then has to send tokens; otherwise treats the same as new large flow;
-    if(flow->_f.size_in_pkt < params.small_flow_thre) {
-        pq_push(&host->active_short_flows, flow);
-    } else { 
-        Pq* pq = lookup_table_entry(host->dst_minflow_table, flow->_f.dst_addr);
-        pq_push(pq, flow);
-    }
+    // failed short flows will be treated as long flows
+    Pq* pq = lookup_table_entry(host->src_minflow_table, flow->_f.src_addr);
+    pq_push(pq, flow);
+    
 }
 
 void pflow_set_finish_timeout(struct pim_host* host, struct pim_flow* flow) {
@@ -262,8 +288,8 @@ void pflow_set_finish_timeout(struct pim_host* host, struct pim_flow* flow) {
         printf("%d: no memory for timeout param \n", __LINE__);
         rte_exit(EXIT_FAILURE, "fail");
     }
-    flow->_f.finish_time = rte_get_tsc_cycles();
-    flow->_f.finished = true;
+    // flow->_f.finish_time = rte_get_tsc_cycles();
+    // flow->_f.finished = true;
     flow->finish_timeout_params->host = host;
     flow->finish_timeout_params->flow_id = flow->_f.id;
     int ret = rte_timer_reset(&flow->finish_timeout, rte_get_timer_hz() * 2 * get_rtt(params.propagation_delay, 3, 1500), SINGLE,
@@ -277,16 +303,16 @@ void pflow_set_finish_timeout(struct pim_host* host, struct pim_flow* flow) {
 void pflow_finish_timeout_handler(__rte_unused struct rte_timer *timer, void* arg) {
     struct finish_timeout_params* timeout_params = (struct finish_timeout_params*) arg;
     struct pim_host* host = timeout_params->host;
-    struct pim_flow* flow = lookup_table_entry(host->tx_flow_table, timeout_params->flow_id);
+    struct pim_flow* flow = lookup_table_entry(host->rx_flow_table, timeout_params->flow_id);
     flow->finish_timeout_params = NULL;
-    Pq* pq = lookup_table_entry(host->dst_minflow_table, flow->_f.dst_addr);
+    Pq* pq = lookup_table_entry(host->src_minflow_table, flow->_f.src_addr);
     get_smallest_unfinished_flow(pq);
     // printf("finish timeout handler for flow %u\n", flow->_f.id);
-    // delete_table_entry(host->tx_flow_table, timeout_params->flow_id);
+    delete_table_entry(host->rx_flow_table, timeout_params->flow_id);
     rte_free(flow->_f.bmp);
     // rte_bitmap_free(flow->_f.bmp);
-    // if(flow->rd_ctrl_timeout_params == NULL) {
-    //     rte_pktmbuf_free(flow->buf);
-    // }
+    if(flow->rd_ctrl_timeout_params == NULL) {
+        rte_pktmbuf_free(flow->buf);
+    }
     rte_free(timeout_params);
 }

@@ -73,6 +73,7 @@ struct Params {
 	double pipe_epoch;
 	// debug purpose
 	uint32_t dst_ip;
+	uint32_t batch_tokens;
 	double propagation_delay;
 	uint32_t send_port;
 	double clock_bias;
