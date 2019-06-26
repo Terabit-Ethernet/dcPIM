@@ -115,24 +115,24 @@ void pim_pacer_send_data_pkt_handler(__rte_unused struct rte_timer *timer, void*
 	if(p != NULL) {
 		// fetch token info and ip info
 		// construct new packet
-
+		struct pim_token_hdr* pim_token_hdr =  rte_pktmbuf_mtod_offset(p, struct pim_token_hdr *, sizeof(struct ether_hdr) 
+			+ sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
+		struct ipv4_hdr* token_ip_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr *, sizeof(struct ether_hdr));
+		
 		sent_p = rte_pktmbuf_alloc(pktmbuf_pool);
-		void* data = rte_pktmbuf_append(p, 1500);
+		void* data = rte_pktmbuf_append(sent_p, 1500);
 		if(data == NULL) {
 			rte_exit(EXIT_FAILURE, "Fail to append data");
 		}
 		add_ether_hdr(sent_p);
 
-		struct pim_token_hdr* pim_token_hdr;
-		struct ipv4_hdr* token_ip_hdr;
 		struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(sent_p, struct ipv4_hdr *, sizeof(struct ether_hdr));
 		struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(sent_p, struct pim_hdr *, sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
 		struct pim_data_hdr* pim_data_hdr = rte_pktmbuf_mtod_offset(sent_p, struct pim_data_hdr *, 
 			sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_data_hdr));
 
-		token_ip_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr *, sizeof(struct ether_hdr));
-		pim_token_hdr = rte_pktmbuf_mtod_offset(p, struct pim_token_hdr *, sizeof(struct ether_hdr) 
-			+ sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
+
+
 		ipv4_hdr->src_addr = token_ip_hdr->dst_addr;
 		ipv4_hdr->dst_addr = token_ip_hdr->src_addr;
 		ipv4_hdr->total_length = rte_cpu_to_be_16(1500);
