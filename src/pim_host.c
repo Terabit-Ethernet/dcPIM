@@ -720,7 +720,7 @@ void pim_send_flow_sync(struct pim_pacer* pacer, struct pim_flow* flow) {
 	struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
                 sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
 	struct pim_flow_sync_hdr* pim_flow_sync_hdr = rte_pktmbuf_mtod_offset(p, struct pim_flow_sync_hdr*, 
-                sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_flow_sync_hdr));
+                sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
 	add_ether_hdr(p);
 	ipv4_hdr->src_addr = rte_cpu_to_be_32(flow->_f.src_addr);
 
