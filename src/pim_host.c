@@ -746,6 +746,8 @@ void pim_send_token_evt_handler(__rte_unused struct rte_timer *timer, void* arg)
 	int sent_token = 0;
 
     Pq *pq = lookup_table_entry(pim_host->src_minflow_table, pim_host->cur_match_src_addr);
+    if(pq == NULL)
+    	return;
     struct pim_flow* pim_flow = get_smallest_unfinished_flow(pq);
     	//pq_pop(pq);
  
