@@ -191,6 +191,7 @@ void pim_pacer_send_token_handler(__rte_unused struct rte_timer *timer, void* ar
 	struct rte_ring* send_token_q = timeout_params->host->send_token_q;
 	struct pim_pacer* pacer = timeout_params->pacer;
 	struct pim_host* host = timeout_params->host;
+	// static int i = 0;
 	int token_sent = 0;
 
 	struct rte_mbuf* p = NULL;
@@ -219,6 +220,12 @@ void pim_pacer_send_token_handler(__rte_unused struct rte_timer *timer, void* ar
 		// p->vlan_tci = TCI_7;
 		// rte_vlan_insert(&p); 
 		// send packets; hard code the port;
+		// if(i % 100 == 0) {
+		// 	printf("%d\n",i);
+		// 	printf("%"PRIu64" send token\n",rte_get_timer_cycles());
+		// }
+		// i++;
+
 		rte_eth_tx_burst(get_port_by_ip(dst_addr), 0, &p, 1);
 		token_sent = 1;
 	}
@@ -227,8 +234,8 @@ void pim_pacer_send_token_handler(__rte_unused struct rte_timer *timer, void* ar
 		pacer->remaining_bytes += rte_be_to_cpu_16(ipv4_hdr->total_length) + sizeof(struct ether_hdr);
 		// return;
 	}
-	rte_timer_reset(timer, rte_get_timer_hz() * get_transmission_delay(1500), SINGLE,
-        rte_lcore_id(), &pim_pacer_send_token_handler, (void *)timeout_params);
+	// rte_timer_reset(timer, rte_get_timer_hz() * get_transmission_delay(1500), SINGLE,
+ //        rte_lcore_id(), &pim_pacer_send_token_handler, (void *)timeout_params);
 	// rte_free(timeout_params);
 
 }

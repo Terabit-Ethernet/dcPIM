@@ -165,7 +165,7 @@ static void host_main_loop(void) {
 
 static void pacer_main_loop(void) {
 	printf("pacer core:%u\n", rte_lcore_id());
-	rte_timer_reset(&pacer.token_timer, 0, SINGLE,
+	rte_timer_reset(&pacer.token_timer, get_transmission_delay(1500) * rte_get_timer_hz(), PERIODICAL,
         rte_lcore_id(), &pim_pacer_send_token_handler, (void *)pacer.send_token_timeout_params);
 	rte_timer_reset(&pacer.data_timer, 0, SINGLE,
     	rte_lcore_id(), &pim_pacer_send_data_pkt_handler, (void *)pacer.send_data_timeout_params);
@@ -273,7 +273,7 @@ static void flow_generate_loop(void) {
          	if(i == 0) {
 			 	host.start_cycle = rte_get_tsc_cycles();
          	}
-			 pim_new_flow_comes(&host, & pacer, i, params.dst_ip, 1460 * 1000);
+			 // pim_new_flow_comes(&host, & pacer, i, params.dst_ip, 1460 * 1000);
          	i++;
              prev_tsc = cur_tsc;
          }
