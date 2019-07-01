@@ -140,6 +140,7 @@ struct rte_mbuf* pflow_get_token_pkt(struct pim_flow* flow, uint32_t data_seq) {
     struct rte_mbuf* p = NULL;
     p = rte_pktmbuf_alloc(pktmbuf_pool);
     if (p == NULL) {
+        return NULL;
         printf("%d: allocate packet fails\n", __LINE__);
         rte_exit(EXIT_FAILURE, "fail");
     }
@@ -166,6 +167,7 @@ struct rte_mbuf* pflow_get_token_pkt(struct pim_flow* flow, uint32_t data_seq) {
     
     flow->token_count++;
     flow->token_packet_sent_count++;
+    flow->last_token_data_seq_num_sent = data_seq;
     // flow->next_seq_no += 1;
     // flow->last_data_seq_num_sent = pim_token_hdr->data_seq_no;
     return p;
