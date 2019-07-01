@@ -139,10 +139,7 @@ struct rte_mbuf* p) {
 	// get pim header
 	pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, offset);
 	offset += sizeof(struct pim_hdr);
-		if(rte_be_to_cpu_32(ipv4_hdr->src_addr) == 22) {
-        rte_exit(EXIT_FAILURE, "receive src address 22");
 
-		}
 	// parse packet
 	if(pim_hdr->type == PIM_FLOW_SYNC) {
 		struct pim_flow_sync_hdr *pim_flow_sync_hdr = rte_pktmbuf_mtod_offset(p, struct pim_flow_sync_hdr*, offset);
