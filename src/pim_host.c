@@ -78,9 +78,9 @@ void pim_init_host(struct pim_host* host, uint32_t socket_id) {
 	host->temp_pkt_buffer = create_ring("temp_pkt_buffer", 1500, 256, RING_F_SC_DEQ | RING_F_SP_ENQ, socket_id);	
 	host->rx_flow_pool = create_mempool("rx_flow_pool", sizeof(struct pim_flow) + RTE_PKTMBUF_HEADROOM, 65536, socket_id);
 	host->event_q = create_ring("event queue", sizeof(struct event_params), 1024, RING_F_SC_DEQ | RING_F_SP_ENQ, socket_id);
-	host->short_flow_token_q = create_ring("tx_short_flow_token_q", sizeof(struct pim_token_hdr), 256, RING_F_SC_DEQ | RING_F_SP_ENQ, socket_id);
-	host->long_flow_token_q = create_ring("tx_long_flow_token_q", sizeof(struct pim_token_hdr), 256, RING_F_SC_DEQ | RING_F_SP_ENQ, socket_id);
-	host->send_token_q = create_ring("send_token_q", sizeof(struct pim_token_hdr), 256, RING_F_SC_DEQ | RING_F_SP_ENQ, socket_id);
+	host->short_flow_token_q = create_ring("tx_short_flow_token_q", 1500, 256, RING_F_SC_DEQ | RING_F_SP_ENQ, socket_id);
+	host->long_flow_token_q = create_ring("tx_long_flow_token_q", 1500, 256, RING_F_SC_DEQ | RING_F_SP_ENQ, socket_id);
+	host->send_token_q = create_ring("send_token_q", 1500, 256, RING_F_SC_DEQ | RING_F_SP_ENQ, socket_id);
 
 	// printf("pim_flow_size:%u\n", sizeof(pim_flow) + RTE_PKTMBUF_HEADROOM);
 }
@@ -139,6 +139,10 @@ struct rte_mbuf* p) {
 	// get pim header
 	pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, offset);
 	offset += sizeof(struct pim_hdr);
+		if(rte_be_to_cpu_32(ipv4_hdr->src_addr) == 22) {
+        rte_exit(EXIT_FAILURE, "receive src address 22");
+
+		}
 	// parse packet
 	if(pim_hdr->type == PIM_FLOW_SYNC) {
 		struct pim_flow_sync_hdr *pim_flow_sync_hdr = rte_pktmbuf_mtod_offset(p, struct pim_flow_sync_hdr*, offset);
@@ -742,6 +746,7 @@ void pim_send_flow_sync(struct pim_pacer* pacer, struct pim_flow* flow) {
 void pim_send_token_evt_handler(__rte_unused struct rte_timer *timer, void* arg) {
 	struct pim_timer_params* pim_timer_params = (struct pim_timer_params*)arg;
 	struct pim_host* pim_host = pim_timer_params->pim_host;
+	struct pim_pacer* pim_pacer  = pim_timer_params->pim_pacer;
 
 	int sent_token = 0;
 
@@ -766,7 +771,11 @@ void pim_send_token_evt_handler(__rte_unused struct rte_timer *timer, void* arg)
     	int data_seq = pflow_get_next_token_seq_num(pim_flow);
     	// allocate new packet
 	 	struct rte_mbuf* p = pflow_get_token_pkt(pim_flow, data_seq);
-		
+		if(p == NULL) {
+			printf("size of token q: %u\n", rte_ring_count(pim_host->send_token_q));
+			rte_exit(EXIT_FAILURE, "NULL packet");
+
+		}
 		// printf("size of token q: %u\n", rte_ring_count(pim_host->send_token_q));
 
 		enqueue_ring(pim_host->send_token_q, p);
