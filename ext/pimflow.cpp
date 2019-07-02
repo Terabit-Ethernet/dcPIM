@@ -349,12 +349,12 @@ void PimFlow::clear_token(){
 }
 
 bool PimFlow::has_token(){
-    if(!this->tokens.empty()){
+    while(!this->tokens.empty()){
         //expired token
         if(this->tokens.front()->timeout < get_current_time())
         {
             if(debug_flow(this->id)) {
-                std::cout << get_current_time() << "token timeout " << this->tokens.front()->timeout << std::endl;
+                std::cout << get_current_time() << " token timeout " << this->tokens.front()->timeout << " data seq num:" <<  this->tokens.front()->data_seq_num << std::endl;
             }
             delete this->tokens.front();
             this->tokens.pop_front();
@@ -423,6 +423,7 @@ void PimFlow::send_token_pkt(){
         std::cout << get_current_time() << " flow " << this->id << " send token " << this->token_count << "data seq number:" << data_seq_num << "\n";
     } 
     last_token_data_seq_num_sent = data_seq_num;
+
     auto cp = new PIMToken(this, this->dst, this->src, params.token_timeout, this->remaining_pkts(), this->token_count, data_seq_num);
     this->token_count++;
     this->token_packet_sent_count++;

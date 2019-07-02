@@ -182,21 +182,21 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         else if (key == "pim_epoch") {
             lineStream >> params.pim_epoch;
         }
-        else if (key == "pim_window_timeout") {
-            lineStream >> params.pim_window_timeout;
-        }
-        else if (key == "pim_resend_timeout") {
-            lineStream >> params.pim_resend_timeout;
-        }
-        else if (key == "pim_window_size") {
-            lineStream >> params.pim_window_size;
-        }
-        else if (key == "pim_small_flow") {
-            lineStream >> params.pim_small_flow;
-        }
-        else if (key == "pim_low_priority") {
-            lineStream >> params.pim_low_priority;
-        } 
+        // else if (key == "pim_window_timeout") {
+        //     lineStream >> params.pim_window_timeout;
+        // }
+        // else if (key == "pim_resend_timeout") {
+        //     lineStream >> params.pim_resend_timeout;
+        // }
+        // else if (key == "pim_window_size") {
+        //     lineStream >> params.pim_window_size;
+        // }
+        // else if (key == "pim_small_flow") {
+        //     lineStream >> params.pim_small_flow;
+        // }
+        // else if (key == "pim_low_priority") {
+        //     lineStream >> params.pim_low_priority;
+        // } 
         else if (key == "pim_select_min_iters") {
             lineStream >> params.pim_select_min_iters;
         }

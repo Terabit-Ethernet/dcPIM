@@ -592,7 +592,7 @@ void PimHost::receive_token(PIMToken* pkt) {
     //     t->timeout = fto->back().timeout + get_full_pkt_tran_delay(1500) - pkt->ttl;
     // }
     // token is never expired
-    t->timeout = get_current_time() + 1000000.0;
+    t->timeout = get_current_time() + pkt->ttl;
     t->seq_num = pkt->token_seq_num;
     t->data_seq_num = pkt->data_seq_num;
     f->tokens.push_back(t);
@@ -638,6 +638,9 @@ void PimHost::send(){
                 continue;
             }
             flows_tried.push(flow);
+            if(debug_flow(flow->id)) {
+                std::cout << get_current_time() << " try to send data "<< std::endl;
+            }
             if(flow->has_token()) {
                 flow->send_pending_data();
                 break;
