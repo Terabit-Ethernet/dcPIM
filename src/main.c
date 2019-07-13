@@ -467,7 +467,7 @@ main(int argc, char **argv)
 	// }
 	// qconf->n_rx_port++;
 
-	qconf->rx_port_list[0] = 1;
+	qconf->rx_port_list[0] = 0;
 	qconf->n_rx_port++;
 	qconf->rx_port_list[1] = 1;
 	qconf->n_rx_port++;
