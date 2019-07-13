@@ -132,7 +132,7 @@ void pim_receive_start(struct pim_epoch* pim_epoch, struct pim_host* pim_host, s
 void pim_init_host(struct pim_host *host, uint32_t socket_id);
 void pim_rx_packets(struct pim_epoch* epoch, struct pim_host* host, struct pim_pacer* pacer,
 struct rte_mbuf* p);
-void pim_send_flow_sync(struct pim_pacer* pacer, struct pim_flow* flow);
+void pim_send_flow_sync(struct pim_pacer* pacer, struct pim_host* host, struct pim_flow* flow);
 void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer, 
 	struct ipv4_hdr* ipv4_hdr, struct pim_flow_sync_hdr* pim_flow_sync_hdr);
 // void pim_flow_finish_at_receiver(struct pim_receiver *receiver, struct pim_flow * f);

@@ -61,7 +61,7 @@ void pim_advance_iter(struct pim_epoch* pim_epoch) {
 void pim_init_host(struct pim_host* host, uint32_t socket_id) {
 	host->cur_epoch = 0;
 	// sender
-	host->cur_match_dst_addr = 0;
+	host->cur_match_dst_addr = 24;
 	host->finished_flow = 0;
 	host->sent_bytes = 0;
 	host->tx_flow_pool = create_mempool("tx_flow_pool", sizeof(struct pim_flow) + RTE_PKTMBUF_HEADROOM, 131072, socket_id);
@@ -107,7 +107,7 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
 	if(debug_flow(flow_id)) {
 		printf("%"PRIu64" new flow arrives:%u; size: %u\n", rte_get_tsc_cycles(), flow_id, flow_size);
 	}
-	pim_send_flow_sync(pacer, new_flow);
+	pim_send_flow_sync(pacer, host, new_flow);
 	// push all tokens
 	if(new_flow->_f.size_in_pkt <= params.small_flow_thre) {
 		uint32_t i = 0;	
@@ -698,22 +698,25 @@ void pim_receive_data(struct pim_host* host, struct pim_pacer* pacer,
 // }
 // sender logic
 
-void pim_send_flow_sync(struct pim_pacer* pacer, struct pim_flow* flow) {
+void pim_send_flow_sync(struct pim_pacer* pacer, struct pim_host* host, struct pim_flow* flow) {
 	struct rte_mbuf* p = NULL;
 	p = rte_pktmbuf_alloc(pktmbuf_pool);
 	uint16_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
 		sizeof(struct pim_hdr) + sizeof(struct pim_flow_sync_hdr);
 	if(p == NULL) {
 		printf("new flow comes:%u\n", flow->_f.id);
-		printf("size of sender control q: %u\n", rte_ring_count(pacer->ctrl_q));
+		printf("size of long flow token q: %u\n",rte_ring_count(host->long_flow_token_q));
+		printf("size of short flow token q: %u\n",rte_ring_count(host->short_flow_token_q));
+		printf("size of temp_pkt_buffer: %u\n",rte_ring_count(host->temp_pkt_buffer));
+		printf("size of control q: %u\n", rte_ring_count(pacer->ctrl_q));		
 		rte_exit(EXIT_FAILURE, "%s: pkt buffer is FULL\n", __func__);
 	}
 	rte_pktmbuf_append(p, size);
 	if(p == NULL) {
-		// printf("size of long flow token q: %u\n",rte_ring_count(receiver->long_flow_token_q));
-		// printf("size of short flow token q: %u\n",rte_ring_count(receiver->short_flow_token_q));
-		// printf("size of temp_pkt_buffer: %u\n",rte_ring_count(receiver->temp_pkt_buffer));
-		// printf("size of control q: %u\n", rte_ring_count(pacer->ctrl_q));
+		printf("size of long flow token q: %u\n",rte_ring_count(host->long_flow_token_q));
+		printf("size of short flow token q: %u\n",rte_ring_count(host->short_flow_token_q));
+		printf("size of temp_pkt_buffer: %u\n",rte_ring_count(host->temp_pkt_buffer));
+		printf("size of control q: %u\n", rte_ring_count(pacer->ctrl_q));
 		rte_exit(EXIT_FAILURE, "%s: pkt buffer is FULL\n", __func__);
 	}
 	struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, 

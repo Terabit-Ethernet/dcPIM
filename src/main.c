@@ -51,7 +51,7 @@
 #include "pim_host.h"
 #include "pim_pacer.h"
 
-#define TIMER_RESOLUTION_CYCLES 4500UL /* around 10ms at 2 Ghz */
+#define TIMER_RESOLUTION_CYCLES 3000UL /* around 10ms at 2 Ghz */
 
 int mode;
 /* Per-port statistics struct */
@@ -101,7 +101,7 @@ struct pim_pacer pacer;
 
 static volatile bool force_quit;
 
-#define TARGET_NUM 2000
+#define TARGET_NUM 5000
 
 static unsigned char
 outgoing_port(unsigned char id) {
@@ -142,12 +142,13 @@ static void host_main_loop(void) {
 
 	// rte_timer_reset(&epoch.epoch_timer, rte_get_timer_hz() * (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit),
 	//  PERIODICAL, 1, &pim_start_new_epoch, (void *)(&epoch.pim_timer_params));
-
 	while(!force_quit) {
 		for (i = 0; i < qconf->n_rx_port; i++) {
 			portid = qconf->rx_port_list[i];
+
 			nb_rx = rte_eth_rx_burst(portid, 0,
 						 pkts_burst, MAX_PKT_BURST);
+
 			for (j = 0; j < nb_rx; j++) {
 				p = pkts_burst[j];
 				// rte_vlan_strip(p);
@@ -167,7 +168,7 @@ static void pacer_main_loop(void) {
 	printf("pacer core:%u\n", rte_lcore_id());
 	rte_timer_reset(&pacer.token_timer, get_transmission_delay(1500) * rte_get_timer_hz(), PERIODICAL,
         rte_lcore_id(), &pim_pacer_send_token_handler, (void *)pacer.send_token_timeout_params);
-	rte_timer_reset(&pacer.data_timer, 0, SINGLE,
+	rte_timer_reset(&pacer.data_timer, get_transmission_delay(1500) * rte_get_timer_hz(), PERIODICAL,
     	rte_lcore_id(), &pim_pacer_send_data_pkt_handler, (void *)pacer.send_data_timeout_params);
 
 	// uint64_t cycles[16];
@@ -192,10 +193,11 @@ static void pacer_main_loop(void) {
 			// rte_vlan_insert(&p); 
 			// send packets; hard code the port;
 			// cycles[0] = rte_get_timer_cycles();
+
 			int sent = rte_eth_tx_burst(get_port_by_ip(dst_addr) ,0, &p, 1);
 		   			uint64_t end_cycle = rte_get_tsc_cycles();
 		   	if(sent != 1) {
-        		printf("%d:sent fails\n", __LINE__);
+        		printf("pacer main loop: %d:sent fails\n", __LINE__);
 		   	}
 			// cycles[1] = rte_get_timer_cycles();
 			// rts_sent = true;
@@ -269,11 +271,11 @@ static void flow_generate_loop(void) {
 	while(!force_quit) {
 		cur_tsc = rte_rdtsc();
         diff_tsc = cur_tsc - prev_tsc;
-         if (diff_tsc > TIMER_RESOLUTION_CYCLES * 1200) {
+         if (diff_tsc > TIMER_RESOLUTION_CYCLES * 1200 / 0.6) {
          	if(i == 0) {
 			 	host.start_cycle = rte_get_tsc_cycles();
          	}
-			 // pim_new_flow_comes(&host, & pacer, i, params.dst_ip, 1460 * 1000);
+			 pim_new_flow_comes(&host, & pacer, i, params.dst_ip, 1460 * 1000);
          	i++;
              prev_tsc = cur_tsc;
          }
@@ -300,7 +302,7 @@ static void flow_generate_loop(void) {
 			host.received_bytes -= old_receivebytes;
 			prev_tsc_2 = cur_tsc;
         }
-        if(i == TARGET_NUM * 20) {
+        if(i == TARGET_NUM) {
         	break;
         }
 	}
@@ -338,7 +340,7 @@ check_all_ports_link_status(void) {
 #define CHECK_INTERVAL 100 /* 100ms */
 #define MAX_CHECK_TIME 90 /* 9s (90 * 100ms) in total */
 	uint16_t portid;
-	uint8_t count, all_ports_up, print_flag = 0;
+	uint8_t count, all_ports_up, print_flag = 1;
 	struct rte_eth_link link;
 
 	printf("\nChecking link status... ");
@@ -458,7 +460,14 @@ main(int argc, char **argv)
 
 	/*initialize lcore 1 as RX for ports 0 and 1*/
 	qconf = &lcore_queue_conf[1];
-	qconf->rx_port_list[0] = 0;
+	// if(params.ip == 22) {
+	// 	qconf->rx_port_list[0] = 0;
+	// } else if (params.ip == 24) {
+	// 	qconf->rx_port_list[0] = 0;
+	// }
+	// qconf->n_rx_port++;
+
+	qconf->rx_port_list[0] = 1;
 	qconf->n_rx_port++;
 	qconf->rx_port_list[1] = 1;
 	qconf->n_rx_port++;

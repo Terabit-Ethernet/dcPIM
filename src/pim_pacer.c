@@ -65,56 +65,38 @@ void pim_pacer_send_data_pkt_handler(__rte_unused struct rte_timer *timer, void*
 	struct send_data_timeout_params* timeout_params = (struct send_data_timeout_params*) arg;
 	struct pim_pacer* pacer = timeout_params->pacer;
 	struct pim_host* host = timeout_params->host;
+	// uint64_t start_cycle = rte_get_timer_cycles();
 
 	struct rte_ring* short_flow_token_q = host->short_flow_token_q;
 	struct rte_ring* long_flow_token_q = host->long_flow_token_q;
 	int data_sent = 0;
 	// update time and bytes
-
 	update_time_byte(pacer);
-	if(pacer->remaining_bytes >= 3000) {
-		rte_timer_reset(timer, rte_get_timer_hz() * get_transmission_delay(pacer->remaining_bytes) + INFINITESIMAL_CYCLE
-			, SINGLE, rte_lcore_id(), &pim_pacer_send_data_pkt_handler, (void *)timeout_params);
-		// printf("remaining bytes > 0;\n");
-		return;
-	}
+	// if(pacer->remaining_bytes >= 3000) {
+	// 	// rte_timer_reset(timer, rte_get_timer_hz() * get_transmission_delay(pacer->remaining_bytes) + INFINITESIMAL_CYCLE
+	// 		// , SINGLE, rte_lcore_id(), &pim_pacer_send_data_pkt_handler, (void *)timeout_params);
+	// 	// printf("remaining bytes > 0;\n");
+	// 	return;
+	// }
 	// fetch non-finish flows tokens
 	struct rte_mbuf* p = NULL;
 	struct rte_mbuf* sent_p = NULL;
+
 	// struct ruf_flow* flow = NULL;
 	if(!rte_ring_empty(short_flow_token_q)) {
 		p = (struct rte_mbuf*)dequeue_ring(short_flow_token_q);
-		// struct ruf_token_hdr* ruf_token_hdr = rte_pktmbuf_mtod_offset(p, struct ruf_token_hdr *, sizeof(struct ether_hdr) + 
-		// 		sizeof(struct ipv4_hdr) + sizeof(struct ruf_hdr));
-		// flow = lookup_table_entry(timeout_params->sender->tx_flow_table, ruf_token_hdr->flow_id);
-		// if(flow == NULL || flow->_f.finished) {
-		// 	flow->_f.sent_bytes += 1460;
-		// 	rte_pktmbuf_free(p);
-		// 	p = NULL;
-
-		// } else {
-		// 	break;
-		// }
 	}
+
 	if(p == NULL) {
 		if(!rte_ring_empty(long_flow_token_q)) {
 			p = (struct rte_mbuf*)dequeue_ring(long_flow_token_q);
-			// struct ruf_token_hdr* ruf_token_hdr = rte_pktmbuf_mtod_offset(p, struct ruf_token_hdr *, sizeof(struct ether_hdr) + 
-			// 		sizeof(struct ipv4_hdr) + sizeof(struct ruf_hdr));
-			// flow = lookup_table_entry(timeout_params->sender->tx_flow_table, ruf_token_hdr->flow_id);
-			// if(flow == NULL || flow->_f.finished) {
-			// 	flow->_f.sent_bytes += 1460;
-
-			// 	rte_pktmbuf_free(p);
-			// 	p = NULL;
-			// } else {
-			// 	break;
-			// }
 		}
 	}
+
 	if(p != NULL) {
 		// fetch token info and ip info
 		// construct new packet
+
 		struct pim_token_hdr* pim_token_hdr =  rte_pktmbuf_mtod_offset(p, struct pim_token_hdr *, sizeof(struct ether_hdr) 
 			+ sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
 		struct ipv4_hdr* token_ip_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr *, sizeof(struct ether_hdr));
@@ -163,38 +145,10 @@ void pim_pacer_send_data_pkt_handler(__rte_unused struct rte_timer *timer, void*
 		//rte_vlan_insert(&p);
 		data_sent = 1;
 		int sent = rte_eth_tx_burst(get_port_by_ip(rte_be_to_cpu_32(ipv4_hdr->dst_addr)) ,0, &sent_p, 1);
-	   	if(sent != 1) {
-    		printf("%d:sent fails\n", __LINE__);
-	   	}
-		// uint64_t cycle = rte_get_timer_cycles();
-
-		// printf("timer cycle: %" PRIu64 ": send data packets %u for flow%u\n", 
-		// 	cycle, ruf_data_hdr.data_seq, ruf_data_hdr.flow_id);
 	}
 	if(data_sent) {
 		pacer->remaining_bytes += 1500;
-		// time_keep[timer_size] = rte_get_timer_cycles();
-		// timer_size++;
-		// if(timer_size == 8) {
-		// 	int i = 0;
-		// 	for (; i < timer_size; i++) {
-		// 		printf("next cycle:%"PRIu64 " \n", time_keep[i]);
-		// 	}
-		// 	timer_size = 0;
-		// 	rte_exit(EXIT_FAILURE, "ds");
-		// }
-		// uint64_t timer2 = rte_get_timer_cycles();
-		// printf("send packets: \n");
-		// printf("cycle_end:%"PRIu64 " \n", timer2);
 	}
-
-
-
-	// printf("remaining_bytes:%u \n", pacer->remaining_bytes);
-	rte_timer_reset(timer, rte_get_timer_hz() * get_transmission_delay(pacer->remaining_bytes) + INFINITESIMAL_CYCLE
-		, SINGLE, rte_lcore_id(), &pim_pacer_send_data_pkt_handler, (void *)timeout_params);
-
-	// rte_free(timeout_params);
 }
 void pim_pacer_send_token_handler(__rte_unused struct rte_timer *timer, void* arg) {
 
@@ -238,7 +192,10 @@ void pim_pacer_send_token_handler(__rte_unused struct rte_timer *timer, void* ar
 		// i++;
 
 
-		rte_eth_tx_burst(get_port_by_ip(dst_addr), 0, &p, 1);
+		int sent = rte_eth_tx_burst(get_port_by_ip(dst_addr), 0, &p, 1);
+	   	if(sent != 1) {
+    		printf("%d:sent fails\n", __LINE__);
+	   	}
 		token_sent = 1;
 	}
 	if(token_sent == 1) {
