@@ -26,6 +26,7 @@ pim_iter_limit: 5
 pim_beta: 4
 pim_alpha: 1
 token_initial: 1
+token_timeout: 2
 token_resend_timeout: 1
 token_window: 1
 token_window_timeout: 1.1
