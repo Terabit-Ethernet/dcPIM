@@ -46,38 +46,38 @@ void PimFlow::start_flow()
 bool PimFlow::is_small_flow() {
     return this->size_in_pkt <= params.pim_small_flow;
 }
-void PimFlow::send_grants(int iter, int epoch) {
+void PimFlow::send_grants(int iter, int epoch, int remaining_sz, bool prompt) {
 
     if(debug_flow(id) || debug_host(this->dst->id)) {
         std::cout << this->dst->id << std::endl;
-        std::cout << get_current_time() << " iter " << iter << "send grants for flow " << id  << " to src:" << this->src->id << std::endl; 
+        std::cout << get_current_time() << " iter " << iter << "send grants for flow " << id  << " to dst:" << this->dst->id << std::endl; 
     }
-    PIMGrants* grants = new PIMGrants(this, this->dst, this->src, iter, epoch);
-    add_to_event_queue(new PacketQueuingEvent(get_current_time(), grants, dst->queue));
+    PIMGrants* grants = new PIMGrants(this, this->src, this->dst, iter, epoch, remaining_sz, prompt);
+    add_to_event_queue(new PacketQueuingEvent(get_current_time(), grants, src->queue));
 }
 
 void PimFlow::send_grantsr(int iter, int epoch) {
     if(debug_flow(id)) {
-        std::cout << get_current_time() << " iter " << iter <<  " send grantsr for flow " << id  << " to src:" << this->src->id << std::endl; 
+        std::cout << get_current_time() << " iter " << iter <<  " send grantsr for flow " << id  << " to dst:" << this->dst->id << std::endl; 
     }
-    GrantsR* grantsr = new GrantsR(this, this->dst, this->src, iter, epoch);
-    add_to_event_queue(new PacketQueuingEvent(get_current_time(), grantsr, dst->queue));
+    GrantsR* grantsr = new GrantsR(this, this->src, this->dst, iter, epoch);
+    add_to_event_queue(new PacketQueuingEvent(get_current_time(), grantsr, src->queue));
 }
 
 void PimFlow::send_req(int iter, int epoch) {
     if(debug_flow(id)) {
-        std::cout << get_current_time() << "send req for flow " << id << " to dst:" << this->dst->id << std::endl; 
+        std::cout << get_current_time() << "send req for flow " << id << " to src:" << this->src->id << std::endl; 
     }
-    PIMREQ* req = new PIMREQ(this, this->src, this->dst, iter, epoch, this->remaining_pkts_at_sender);
-    add_to_event_queue(new PacketQueuingEvent(get_current_time(), req, src->queue));
+    PIMREQ* req = new PIMREQ(this, this->dst, this->src, iter, epoch, this->remaining_pkts());
+    add_to_event_queue(new PacketQueuingEvent(get_current_time(), req, dst->queue));
 }
 
-void PimFlow::send_accept_pkt(int iter, int epoch, bool prompt){
-    if(debug_flow(id) || debug_host(this->src->id)) {
-        std::cout << get_current_time() << " iter " << iter <<  " send prompt " << prompt <<  " for flow " << id  << " to dst:" << this->dst->id << std::endl; 
+void PimFlow::send_accept_pkt(int iter, int epoch){
+    if(debug_flow(id) || debug_host(this->dst->id)) {
+        std::cout << get_current_time() << " iter " << iter  <<  " send accept for flow " << id  << " to src:" << this->src->id << std::endl; 
     }
-    AcceptPkt* dpkt = new AcceptPkt(this, this->src, this->dst, prompt, iter, epoch);
-    add_to_event_queue(new PacketQueuingEvent(get_current_time(), dpkt, src->queue));
+    AcceptPkt* dpkt = new AcceptPkt(this, this->dst, this->src, iter, epoch);
+    add_to_event_queue(new PacketQueuingEvent(get_current_time(), dpkt, dst->queue));
 }
 // void PimFlow::send_offer_pkt(int iter, int epoch, bool is_free) {
 //     if(debug_flow(id)) {
@@ -173,44 +173,44 @@ void PimFlow::receive(Packet *p) {
             ((PimHost*) this->dst)->receive_rts((FlowRTS*) p);
         }
     } else if(p->type == PIM_REQ_PACKET) {
-        auto d = (PimHost*)dst;
+        auto s = (PimHost*)src;
         int epoch = ((PIMREQ*)p)->epoch;
-        if(d->epochs.count(epoch) <= 0) {
+        if(s->epochs.count(epoch) <= 0) {
             return;
         }
         // if(d->cur_epoch == epoch) {
-        assert(d->epochs.count(epoch) > 0);
-        d->epochs[epoch].receive_req((PIMREQ*)p);
+        assert(s->epochs.count(epoch) > 0);
+        s->epochs[epoch].receive_req((PIMREQ*)p);
         // }
     } else if (p->type == PIM_GRANTS_PACKET) {
-        auto s = (PimHost*)src;
-        int epoch  = ((PIMGrants*)p)->epoch;
-        if(s->epochs.count(epoch) <= 0) {
-            return;
-        }
-        // if(s->cur_epoch == epoch) {
-            assert(s->epochs.count(epoch) > 0);
-            s->epochs[epoch].receive_grants((PIMGrants*)p);
-        // }
-    } else if (p->type == ACCEPT_PACKET) {
         auto d = (PimHost*)dst;
-        int epoch = ((AcceptPkt*)p)->epoch;
-        // if(d->cur_epoch == epoch) {
+        int epoch  = ((PIMGrants*)p)->epoch;
         if(d->epochs.count(epoch) <= 0) {
             return;
         }
+        // if(s->cur_epoch == epoch) {
             assert(d->epochs.count(epoch) > 0);
-            d->epochs[epoch].receive_accept_pkt((AcceptPkt*)p);
+            d->epochs[epoch].receive_grants((PIMGrants*)p);
         // }
-    } else if(p->type == GRANTSR_PACKET) {
+    } else if (p->type == ACCEPT_PACKET) {
         auto s = (PimHost*)src;
-        int epoch = ((GrantsR*)p)->epoch;
+        int epoch = ((AcceptPkt*)p)->epoch;
+        // if(d->cur_epoch == epoch) {
         if(s->epochs.count(epoch) <= 0) {
             return;
         }
-        // if(s->cur_epoch == epoch) {
             assert(s->epochs.count(epoch) > 0);
-            s->epochs[epoch].receive_grantsr((GrantsR*)p);
+            s->epochs[epoch].receive_accept_pkt((AcceptPkt*)p);
+        // }
+    } else if(p->type == GRANTSR_PACKET) {
+        auto d = (PimHost*)dst;
+        int epoch = ((GrantsR*)p)->epoch;
+        if(d->epochs.count(epoch) <= 0) {
+            return;
+        }
+        // if(s->cur_epoch == epoch) {
+            assert(d->epochs.count(epoch) > 0);
+            d->epochs[epoch].receive_grantsr((GrantsR*)p);
         // }
     } else if (p->type == PIM_TOKEN) {
         ((PimHost*) this->src)->receive_token((PIMToken*) p);

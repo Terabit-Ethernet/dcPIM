@@ -106,6 +106,7 @@ PimEpoch::PimEpoch(){
     this->proc_receiver_iter_evt = NULL;
     this->host = NULL;
     this->min_req = PIM_REQ();
+    this->min_grant = PIM_Grants();
     // for(uint32_t i = 0; i < params.num_hosts; i++) {
     //     this->receiver_state.push_back(true);
     // }
@@ -117,29 +118,12 @@ PimEpoch::~PimEpoch() {
 }
 
 // sender logic
-void PimEpoch::receive_grants(PIMGrants *p) {
-    assert(p->epoch == this->epoch);
-    if(p->iter < this->iter)
-        return;
-    PIM_Grants grants;
-    grants.iter = p->iter;
-    grants.f = (PimFlow*)p->flow;
-    // may need to check epoch number
-    // TO DO: trigger random dicision process
-    if(debug_flow(p->flow->id)) {
-        std::cout << get_current_time() << " epoch " << this->epoch << "iter " << this->iter << " receive grants for flow " << p->flow->id << "host: " << this->host->id << std::endl; 
-    }
-    assert(this->iter == p->iter);
-    this->grants_q.push_back(grants);
-    // if(this->proc_grants_evt == NULL) {
-    //     this->proc_grants_evt = new ProcessGrantsEvent(get_current_time() + params.ctrl_pkt_rtt / 4, this->host);
-    // }
-}
 void PimEpoch::advance_iter() {
     this->iter++;
     this->req_q.clear();
     this->grants_q.clear();
     this->min_req = PIM_REQ();
+    this->min_grant = PIM_Grants();
 }
 // void PimEpoch::receive_offer_packet(OfferPkt *p) {
 //     // assert(p->iter == this->iter);
@@ -149,77 +133,13 @@ void PimEpoch::advance_iter() {
 //     assert(p->iter == this->iter);
 //     this->receiver_state[p->flow->dst->id] = p->is_free;
 // }
-void PimEpoch::receive_grantsr(GrantsR *p) {
-    // assert(this->iter == p->iter + 1);
-    assert(p->epoch == this->epoch);
-    if(debug_host(this->host->id)) {
-        std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " receive grantsr packet from dst " << p->flow->dst->id << " src:" << this->host->id  << " q delay:" << p->total_queuing_delay << std::endl; 
-    }
-    assert(this->match_receiver == p->flow->dst);
-    this->match_receiver = NULL;
- //    if(this->host->cur_epoch == this->epoch || this->prompt) {
- //    	this->host->receiver = this->match_receiver;
-	// this->prompt = false;
- //    }
-    // this->host->receiver = this->match_receiver;
-    // if(this->proc_accept_evt == NULL) {
-    //     this->proc_accept_evt = new ProcssAcceptEvent(get_current_time() + params.ctrl_pkt_rtt / 4, this->host);
-    // }
-}
-// receiver logic
-void PimEpoch::receive_accept_pkt(AcceptPkt *p) {
-    // if(this->iter != p->iter + 1) {
-    //     std::cout << get_current_time() << " " << this->iter << " " << p->iter + 1 << " flow id" << p->flow->id << " receiver:" << this->id << " q delay:" << p->total_queuing_delay << std::endl;
-    // }
-    // assert(this->iter == p->iter + 1);
-    assert(p->epoch == this->epoch);
-    // if(p->accept) {
-    if(this->match_sender != NULL){
-        ((PimFlow*)p->flow)->send_grantsr(this->iter, this->epoch);
-        return;
-    }
-    if(debug_host(this->host->id)) {
-        std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " match src " << p->flow->src->id << "dst:" << this->host->id  << " q delay:" << p->total_queuing_delay << std::endl; 
-    }
-    assert(this->match_sender == NULL);
-    // for non-pipeline
-    this->match_sender = (PimHost*)p->flow->src;
-    // this->host->sender = this->match_sender;
-    if(p->prompt && this->host->sender == NULL && this->host->cur_epoch == this->epoch - 1) {
-        this->host->sender = this->match_sender;
-        this->prompt = true;
-        if(this->host->token_send_evt != NULL && this->host->token_send_evt->is_timeout_evt) {
-            this->host->token_send_evt->cancelled = true;
-            this->host->token_send_evt = NULL;
-        }
-        if(this->host->token_send_evt == NULL) {
-            this->host->schedule_token_proc_evt(0, false);
-        }
-    }
-    // for pipeline
-    if(this->iter > params.pim_iter_limit && this->host->cur_epoch == this->epoch) {
-        // corner case
-        this->host->sender = this->match_sender;
-        if(this->host->token_send_evt != NULL && this->host->token_send_evt->is_timeout_evt) {
-            this->host->token_send_evt->cancelled = true;
-            this->host->token_send_evt = NULL;
-        }
-        if(this->host->token_send_evt == NULL) {
-            this->host->schedule_token_proc_evt(0, false);
-        }
-    }
-    // }
-    // if(this->proc_accept_evt == NULL) {
-    //     this->proc_accept_evt = new ProcssAcceptEvent(get_current_time() + params.ctrl_pkt_rtt / 4, this->host);
-    // }
-}
 void PimEpoch::receive_req(PIMREQ *p) {
     if(p->iter < this->iter)
         return;
     assert(p->epoch == this->epoch);
     assert(p->iter == this->iter);
     if(debug_host(this->host->id)) {
-        std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " receive rts for src " << p->flow->src->id << " dst:" << this->host->id << std::endl; 
+        std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " receive req for dst " << p->flow->dst->id << " src:" << this->host->id << std::endl; 
         std::cout << "queue delay:" << p->total_queuing_delay << std::endl;
 
     }
@@ -228,12 +148,12 @@ void PimEpoch::receive_req(PIMREQ *p) {
     // }
     PIM_REQ req;
     uint32_t src_addr = ((PimFlow*)p->flow)->src->id;
-    req.f = this->host->get_top_unfinish_flow(src_addr);
+    req.f = (PimFlow*)p->flow;
     if(req.f == NULL) {
         return;
     }
     req.iter = p->iter;
-    req.remaining_sz = req.f->remaining_pkts();
+    req.remaining_sz = p->remaining_sz;
     this->req_q.push_back(req);
     if(this->min_req.f == NULL || this->min_req.remaining_sz > req.remaining_sz) {
         this->min_req.f = req.f;
@@ -242,36 +162,121 @@ void PimEpoch::receive_req(PIMREQ *p) {
     }
     // schduling handle all rtses
 }
-void PimEpoch::send_all_req() {
-    if(this->match_receiver != NULL)
+
+void PimEpoch::receive_grantsr(GrantsR *p) {
+    // assert(this->iter == p->iter + 1);
+    assert(p->epoch == this->epoch);
+    if(debug_host(this->host->id)) {
+        std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " receive grantsr packet from src " << p->flow->src->id << " dst:" << this->host->id  << " q delay:" << p->total_queuing_delay << std::endl; 
+    }
+    assert(this->match_sender == p->flow->src);
+    this->match_sender = NULL;
+    if(this->host->cur_epoch == this->epoch || this->prompt) {
+    	this->host->sender = this->match_sender;
+	    this->prompt = false;
+    }
+    // this->host->receiver = this->match_receiver;
+    // if(this->proc_accept_evt == NULL) {
+    //     this->proc_accept_evt = new ProcssAcceptEvent(get_current_time() + params.ctrl_pkt_rtt / 4, this->host);
+    // }
+}
+// receiver logic
+
+void PimEpoch::receive_grants(PIMGrants *p) {
+    assert(p->epoch == this->epoch);
+    if(p->iter < this->iter)
         return;
-    for(auto i = this->host->dst_to_flows.begin(); i != this->host->dst_to_flows.end();) {
+    PIM_Grants grant;
+    grant.iter = p->iter;
+    grant.f = (PimFlow*)p->flow;
+    grant.remaining_sz = p->remaining_sz;
+    grant.prompt = p->prompt;
+    // may need to check epoch number
+    // TO DO: trigger random dicision process
+    if(debug_flow(p->flow->id)) {
+        std::cout << get_current_time() << " epoch " << this->epoch << "iter " << this->iter << " receive grants for flow " << p->flow->id << "host: " << this->host->id << std::endl; 
+    }
+    assert(this->iter == p->iter);
+    this->grants_q.push_back(grant);
+    if(this->min_grant.f == NULL || this->min_grant.remaining_sz > grant.remaining_sz) {
+        this->min_grant.f = grant.f;
+        this->min_grant.remaining_sz = grant.remaining_sz;
+        this->min_grant.iter = grant.iter;
+        this->min_grant.prompt = grant.prompt;
+    }
+    // if(this->proc_grants_evt == NULL) {
+    //     this->proc_grants_evt = new ProcessGrantsEvent(get_current_time() + params.ctrl_pkt_rtt / 4, this->host);
+    // }
+}
+
+void PimEpoch::receive_accept_pkt(AcceptPkt *p) {
+    // if(this->iter != p->iter + 1) {
+    //     std::cout << get_current_time() << " " << this->iter << " " << p->iter + 1 << " flow id" << p->flow->id << " receiver:" << this->id << " q delay:" << p->total_queuing_delay << std::endl;
+    // }
+    // assert(this->iter == p->iter + 1);
+    assert(p->epoch == this->epoch);
+    // if(p->accept) {
+    if(this->match_receiver != NULL){
+        ((PimFlow*)p->flow)->send_grantsr(this->iter, this->epoch);
+        return;
+    }
+    if(debug_host(this->host->id)) {
+        std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " match src " << p->flow->src->id << " to dst:" << p->flow->dst->id  << " q delay:" << p->total_queuing_delay << std::endl; 
+    }
+    assert(this->match_receiver == NULL);
+    // for non-pipeline
+    this->match_receiver = (PimHost*)p->flow->dst;
+    // this->host->sender = this->match_sender;
+    // }
+    // if(this->proc_accept_evt == NULL) {
+    //     this->proc_accept_evt = new ProcssAcceptEvent(get_current_time() + params.ctrl_pkt_rtt / 4, this->host);
+    // }
+}
+
+void PimEpoch::send_all_req() {
+    if(this->match_sender!= NULL)
+        return;
+    for(auto i = this->host->src_to_flows.begin(); i != this->host->src_to_flows.end();) {
         // if(this->receiver_state[i->first] == false) {  
         //     i++;
         //     continue;
         // }
+        PimFlow* best_flow = NULL;
+        std::queue<PimFlow*> flows_tried;
         while(!i->second.empty()) {
-            if(i->second.top()->finished == true) {
+            best_flow = i->second.top();
+            if(best_flow->finished_at_receiver) {
+                best_flow = NULL;
                 i->second.pop();
+            } else if (best_flow->redundancy_ctrl_timeout > get_current_time()) {
+                flows_tried.push(best_flow);
+                i->second.pop();
+                best_flow = NULL;
             } else {
-                if(debug_flow(i->second.top()->id) || debug_host(this->host->id)) {
-                    std::cout << "flow " << i->second.top()->id << " src " << this->host->id << " send_rts" << std::endl;
-                }
-                i->second.top()->send_req(this->iter, this->epoch);
                 break;
             }
         }
+        if(best_flow != NULL) {
+            if(debug_flow(best_flow->id) || debug_host(this->host->id)) {
+                std::cout << "flow " << best_flow->id << " dst " << this->host->id << " send_req" << std::endl;
+            }
+            best_flow->send_req(this->iter, this->epoch);
+        }
+        while(!flows_tried.empty()) {
+            i->second.push(flows_tried.front());
+            flows_tried.pop();
+        }
         if(i->second.empty()) {
-            i = this->host->dst_to_flows.erase(i);
+            i = this->host->src_to_flows.erase(i);
         } else {
             i++;
         }
     }
 }
 void PimEpoch::handle_all_req() {
-    if(this->match_sender != NULL)
+    if(this->match_receiver != NULL)
         return;
-    assert(this->match_sender == NULL);
+    assert(this->match_receiver == NULL);
     uint32_t index = 0;
     if(debug_host(this->host->id)) {
         std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " handle of all rts dst:" << this->host->id << std::endl; 
@@ -279,7 +284,7 @@ void PimEpoch::handle_all_req() {
     if(params.pim_select_min_iters > 0 && this->iter <= params.pim_select_min_iters) {
         if(this->min_req.f != NULL) {
             assert(min_req.f != NULL);
-            min_req.f->send_grants(this->iter, this->epoch);
+            min_req.f->send_grants(this->iter, this->epoch, min_req.remaining_sz, this->host->receiver == NULL);
         }
     }
     else {
@@ -293,10 +298,10 @@ void PimEpoch::handle_all_req() {
             }
         }
         for(uint32_t i = 0; i < this->req_q.size(); i++) {
-            if (i == index && this->match_sender == NULL) {
+            if (i == index && this->match_receiver == NULL) {
                 // send Grants
                 // this->rts_q[i].f->send_grants(this->iter, this->epoch, false);
-                this->req_q[i].f->send_grants(this->iter, this->epoch);
+                this->req_q[i].f->send_grants(this->iter, this->epoch, this->req_q[index].remaining_sz, this->host->receiver == NULL);
             } else {
                 // send offerPkt
                 // this->rts_q[i].f->send_offer_pkt(this->iter, this->epoch, this->match_sender == NULL);
@@ -305,42 +310,64 @@ void PimEpoch::handle_all_req() {
     }
 }
 void PimEpoch::handle_all_grants() {
-    if(this->match_receiver != NULL)
+    if(this->match_sender != NULL)
         return;
-    assert(this->match_receiver == NULL);
-    assert(this->proc_sender_iter_evt == NULL);
+    assert(this->match_sender == NULL);
+    assert(this->proc_receiver_iter_evt == NULL);
     if(this->grants_q.empty())
         return;
     int min_size = INT_MAX;
-    uint32_t index = 0;
+    PimFlow *f = NULL;
+    PIM_Grants *grant = NULL;
     if(params.pim_select_min_iters > 0 && this->iter <= params.pim_select_min_iters) {
-        for(uint32_t i = 0; i < this->grants_q.size(); i++) { 
-            if(min_size > this->grants_q[i].f->remaining_pkts_at_sender && this->iter == this->grants_q[index].iter) {
-                min_size = this->grants_q[i].f->remaining_pkts_at_sender;
-                index = i;
-            }
+        if(this->min_grant.f != NULL) {
+            f = this->min_grant.f;
+            grant = &(this->min_grant);
         }
     } else {
         while(!this->grants_q.empty()) {
-            index = rand() % this->grants_q.size();
+            int index = rand() % this->grants_q.size();
             if(this->grants_q[index].iter != this->iter) {
                 assert(this->grants_q[index].iter < this->iter);
                 this->grants_q.erase(this->grants_q.begin() + index);
             } else {
+                f = this->grants_q[index].f;
+                grant = &this->grants_q[index];
                 break;
             }
         }
     }
-    for(uint32_t i = 0; i < this->grants_q.size(); i++) {
-        if (i == index && this->match_receiver == NULL) {
-            // send accept_pkt true
-            this->grants_q[i].f->send_accept_pkt(this->
-                iter, this->epoch, this->host->receiver == NULL);
-            if(debug_host(this->grants_q[i].f->dst->id)) {
-                std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " src " << this->host->id << " accept " << this->grants_q[i].f->dst->id << std::endl;
+    if(f != NULL) {
+        f->send_accept_pkt(this->iter, this->epoch);
+        if(debug_host(f->dst->id)) {
+            std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " dst " << this->host->id << " accept " << f->src->id << std::endl;
+        }
+        this->match_sender = (PimHost*)(f->src);
+        if(grant->prompt && this->host->sender == NULL && this->host->cur_epoch == this->epoch - 1) {
+            this->host->sender = this->match_sender;
+            this->prompt = true;
+            if(this->host->token_send_evt != NULL && this->host->token_send_evt->is_timeout_evt) {
+                this->host->token_send_evt->cancelled = true;
+                this->host->token_send_evt = NULL;
             }
-            this->match_receiver = (PimHost*)(this->grants_q[i].f->dst);
+            if(this->host->token_send_evt == NULL) {
+                this->host->schedule_token_proc_evt(0, false);
+            }
+        }
+    }
 
+    // for pipeline
+    // if(this->iter > params.pim_iter_limit && this->host->cur_epoch == this->epoch) {
+    //     // corner case
+    //     this->host->sender = this->match_sender;
+    //     if(this->host->token_send_evt != NULL && this->host->token_send_evt->is_timeout_evt) {
+    //         this->host->token_send_evt->cancelled = true;
+    //         this->host->token_send_evt = NULL;
+    //     }
+    //     if(this->host->token_send_evt == NULL) {
+    //         this->host->schedule_token_proc_evt(0, false);
+    //     }
+    // }
             // non-pipeline
             // this->host->receiver = this->match_receiver;
             // if(this->host->host_proc_event != NULL && this->host->host_proc_event->is_timeout) {
@@ -351,14 +378,23 @@ void PimEpoch::handle_all_grants() {
             //     this->host->schedule_host_proc_evt();
             // }
 
-        } else {
-            // send accept_pkt false
-            // this->grants_q[i].f->send_accept_pkt(this->iter, this->epoch, false);
-        }
-    }
 }
 void PimEpoch::schedule_sender_iter_evt() {
     assert(this->proc_sender_iter_evt == NULL);
+    if(this->iter > params.pim_iter_limit) {
+        // this->host->sender = this->match_sender;
+        return;
+    }
+    this->handle_all_req();
+    this->proc_sender_iter_evt = new ProcessSenderIterEvent(get_current_time() + params.pim_iter_epoch, this);
+    add_to_event_queue(this->proc_sender_iter_evt);
+}
+
+
+
+void PimEpoch::schedule_receiver_iter_evt() {
+    assert(this->proc_receiver_iter_evt == NULL);
+
     this->handle_all_grants();
     this->advance_iter();
     if(debug_host(this->host->id)) {
@@ -381,25 +417,12 @@ void PimEpoch::schedule_sender_iter_evt() {
             this->host->token_send_evt->cancelled = true;
             this->host->token_send_evt = NULL;
         }
-        if(this->host->token_send_evt == NULL) {
+        if(this->host->sender != NULL && this->host->token_send_evt == NULL) {
             this->host->schedule_token_proc_evt(0, false);
         }
         return;
     }
     this->send_all_req();
-    this->proc_sender_iter_evt = new ProcessSenderIterEvent(get_current_time() + params.pim_iter_epoch, this);
-    add_to_event_queue(this->proc_sender_iter_evt);
-}
-
-
-
-void PimEpoch::schedule_receiver_iter_evt() {
-    assert(this->proc_receiver_iter_evt == NULL);
-    if(this->iter > params.pim_iter_limit) {
-        // this->host->sender = this->match_sender;
-        return;
-    }
-    this->handle_all_req();
     this->proc_receiver_iter_evt = new ProcessReceiverIterEvent(get_current_time() + params.pim_iter_epoch, this);
     add_to_event_queue(this->proc_receiver_iter_evt);
 
@@ -447,8 +470,8 @@ void PimHost::start_new_epoch(double time, int epoch) {
     this->epochs[epoch].epoch = epoch;
     this->epochs[epoch].iter = 0;
     this->epochs[epoch].host = this;
-    this->epochs[epoch].proc_receiver_iter_evt = new ProcessReceiverIterEvent(time + params.pim_iter_epoch / 2, &this->epochs[epoch]);
-    this->epochs[epoch].proc_sender_iter_evt = new ProcessSenderIterEvent(time, &this->epochs[epoch]);
+    this->epochs[epoch].proc_receiver_iter_evt = new ProcessReceiverIterEvent(time, &this->epochs[epoch]);
+    this->epochs[epoch].proc_sender_iter_evt = new ProcessSenderIterEvent(time + params.pim_iter_epoch / 2, &this->epochs[epoch]);
     // pipeline
     this->new_epoch_evt = new NewEpochEvent(time + params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit, epoch + 1 , this);
     // non-pipeline
@@ -532,7 +555,7 @@ void PimHost::start_flow(PimFlow* f) {
             this->schedule_host_proc_evt();
         }
     }
-    this->dst_to_flows[f->dst->id].push(f);
+    // this->dst_to_flows[f->dst->id].push(f);
 }
 
 void PimHost::receive_rts(FlowRTS* pkt) {

@@ -65,9 +65,8 @@ DecisionPkt::DecisionPkt(Flow *flow, Host *src, Host *dst, bool accept, int iter
     this->epoch = epoch;
 }
 
-AcceptPkt::AcceptPkt(Flow *flow, Host *src, Host *dst, bool prompt, int iter, int epoch) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+AcceptPkt::AcceptPkt(Flow *flow, Host *src, Host *dst, int iter, int epoch) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = ACCEPT_PACKET;
-    this->prompt = prompt;
     this->iter = iter;
     this->epoch = epoch;
 }
@@ -85,10 +84,12 @@ GrantsR::GrantsR(Flow *flow, Host *src, Host *dst, int iter, int epoch) : Packet
     this->iter = iter;
     this->epoch = epoch;
 }
-PIMGrants::PIMGrants(Flow *flow, Host *src, Host *dst, int iter, int epoch) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+PIMGrants::PIMGrants(Flow *flow, Host *src, Host *dst, int iter, int epoch, int remaining_sz, bool prompt) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = PIM_GRANTS_PACKET;
     this->iter = iter;
     this->epoch = epoch;
+    this->remaining_sz = remaining_sz;
+    this->prompt = prompt;
 }
 
 PIMREQ::PIMREQ(Flow *flow, Host *src, Host *dst, int iter, int epoch, int remaining) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {

@@ -36,6 +36,13 @@ struct PIM_Grants {
     bool prompt;
     int iter;
     PimFlow *f;
+    int remaining_sz;
+    PIM_Grants() {
+        prompt = false;
+        iter = 0;
+        f = NULL;
+        remaining_sz = INT_MAX;    
+    }
 };
 
 class PimEpoch {
@@ -51,7 +58,7 @@ public:
     std::vector<PIM_Grants> grants_q;
     std::vector<PIM_REQ> req_q;
     PIM_REQ min_req;
-
+    PIM_Grants min_grant;
     // std::vector<bool> receiver_state;
     PimEpoch();
     ~PimEpoch();
@@ -107,7 +114,7 @@ class PimHost : public SchedulingHost {
         // std::vector<bool> receiver_state;
         std::unordered_map<uint32_t, CustomPriorityQueue<PimFlow*, std::vector<PimFlow*>, PimFlowComparator>> src_to_flows;
         CustomPriorityQueue<PimFlow*, std::vector<PimFlow*>, PimFlowComparator> active_sending_flows;
-        std::unordered_map<uint32_t, CustomPriorityQueue<PimFlow*, std::vector<PimFlow*>, PimFlowComparator>> dst_to_flows;
+        // std::unordered_map<uint32_t, CustomPriorityQueue<PimFlow*, std::vector<PimFlow*>, PimFlowComparator>> dst_to_flows;
 
         std::unordered_map<int, PimEpoch> epochs;
         // std::vector<PIM_Grants> grants_q;

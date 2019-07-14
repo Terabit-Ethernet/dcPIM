@@ -137,17 +137,17 @@ class GrantsR : public Packet{
 
 class AcceptPkt : public Packet{
     public:
-        AcceptPkt(Flow *flow, Host *src, Host *dst, bool prompt, int iter, int epoch);
-        bool prompt;
+        AcceptPkt(Flow *flow, Host *src, Host *dst, int iter, int epoch);
         int iter;
         int epoch;
 };
 
 class PIMGrants : public Packet{
     public:
-        PIMGrants(Flow *flow, Host *src, Host *dst, int iter, int epoch);
+        PIMGrants(Flow *flow, Host *src, Host *dst, int iter, int epoch, int remaining_sz, bool prompt);
         int iter;
         int epoch;
+        int remaining_sz;
         bool prompt;
 };
 
