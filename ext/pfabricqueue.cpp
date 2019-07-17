@@ -53,13 +53,13 @@ Packet* PFabricQueue::deque() {
             }
         }
 
-        for (uint32_t i = 0; i < packets.size(); i++) {
-            Packet* curr_pkt = packets[i];
-            if (curr_pkt->flow->id == best_packet->flow->id) {
-                best_index = i;
-                break;
-            }
-        }
+        // for (uint32_t i = 0; i < packets.size(); i++) {
+        //     Packet* curr_pkt = packets[i];
+        //     if (curr_pkt->flow->id == best_packet->flow->id) {
+        //         best_index = i;
+        //         break;
+        //     }
+        // }
         Packet *p = packets[best_index];
         bytes_in_queue -= p->size;
         packets.erase(packets.begin() + best_index);
@@ -68,12 +68,12 @@ Packet* PFabricQueue::deque() {
         b_departures += p->size;
 
         p->total_queuing_delay += get_current_time() - p->last_enque_time;
-        // if(p->type == PIM_RTS_PACKET) {
-        //     if(debug_flow(p->flow->id)) {
-        //         std::cout << "delay:" << get_current_time() - p->last_enque_time << std::endl;
-        //         std::cout << " location: " << this->location << std::endl;
-        //     }
-        // }
+        if(p->type == PIM_GRANTS_PACKET) {
+            if(debug_host(p->flow->dst->id)) {
+                std::cout << "delay:" << get_current_time() - p->last_enque_time << std::endl;
+                std::cout << " location: " << this->location << std::endl;
+            }
+        }
         if(p->type ==  NORMAL_PACKET){
             if(p->flow->first_byte_send_time < 0)
                 p->flow->first_byte_send_time = get_current_time();
