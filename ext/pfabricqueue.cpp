@@ -52,14 +52,15 @@ Packet* PFabricQueue::deque() {
                 best_index = i;
             }
         }
-
-        // for (uint32_t i = 0; i < packets.size(); i++) {
-        //     Packet* curr_pkt = packets[i];
-        //     if (curr_pkt->flow->id == best_packet->flow->id) {
-        //         best_index = i;
-        //         break;
-        //     }
-        // }
+        if(params.host_type == NORMAL_HOST) {
+            for (uint32_t i = 0; i < packets.size(); i++) {
+                Packet* curr_pkt = packets[i];
+                if (curr_pkt->flow->id == best_packet->flow->id) {
+                    best_index = i;
+                    break;
+                }
+            }
+        }
         Packet *p = packets[best_index];
         bytes_in_queue -= p->size;
         packets.erase(packets.begin() + best_index);
