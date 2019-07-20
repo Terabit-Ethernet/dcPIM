@@ -309,14 +309,13 @@ void RufFlow::receive_short_flow() {
     //     std::cout << get_current_time() << " flow id " << this->id << " token_count: " << init_token <<" redundancy_ctrl_timeout:" << this->redundancy_ctrl_timeout << "\n";
     // }
     dstination->hold_on = init_token;
-    dstination->active_short_flows.push(this);
-    if (dstination->token_send_evt != NULL && dstination->token_send_evt->is_timeout_evt) {
-        dstination->token_send_evt->cancelled = true;
-        dstination->token_send_evt = NULL;
-    }
-    if(dstination->token_send_evt == NULL){
-        dstination->schedule_token_proc_evt(0, false);
-    }
+    // if (dstination->token_send_evt != NULL && dstination->token_send_evt->is_timeout_evt) {
+    //     dstination->token_send_evt->cancelled = true;
+    //     dstination->token_send_evt = NULL;
+    // }
+    // if(dstination->token_send_evt == NULL){
+    //     dstination->schedule_token_proc_evt(0, false);
+    // }
 }
 
 int RufFlow::remaining_pkts(){

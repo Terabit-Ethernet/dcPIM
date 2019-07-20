@@ -250,19 +250,19 @@ void RufHost::schedule_token_proc_evt(double time, bool is_timeout)
 }
 
 RufFlow* RufHost::get_top_unfinish_flow(uint32_t src_id) {
-    RufFlow* best_large_flow = NULL;
+    RufFlow* best_flow = NULL;
     std::queue<RufFlow*> flows_tried;
     if(this->src_to_flows.find(src_id) == this->src_to_flows.end())
-        return best_large_flow;
+        return best_flow;
     while (!this->src_to_flows[src_id].empty()) {
-        best_large_flow =  this->src_to_flows[src_id].top();
-        if(best_large_flow->finished_at_receiver) {
-            best_large_flow = NULL;
+        best_flow =  this->src_to_flows[src_id].top();
+        if(best_flow->finished_at_receiver) {
+            best_flow = NULL;
             this->src_to_flows[src_id].pop();
-        } else if (best_large_flow->redundancy_ctrl_timeout > get_current_time()) {
-            flows_tried.push(best_large_flow);
+        } else if (best_flow->redundancy_ctrl_timeout > get_current_time()) {
+            flows_tried.push(best_flow);
             this->src_to_flows[src_id].pop();
-            best_large_flow = NULL;
+            best_flow = NULL;
         } else {
             break;
         }
@@ -274,18 +274,18 @@ RufFlow* RufHost::get_top_unfinish_flow(uint32_t src_id) {
     if(this->src_to_flows[src_id].empty()){
         this->src_to_flows.erase(src_id);
     }
-    return best_large_flow;
+    return best_flow;
 }
 
 void RufHost::receive_rts(RufRTS* pkt) {
     if(debug_flow(pkt->flow->id))
             std::cout << get_current_time() << " flow " << pkt->flow->id << " "<< pkt->size_in_pkt <<  " received rts\n";
     ((RufFlow*)pkt->flow)->rts_received = true;
+    this->src_to_flows[pkt->flow->src->id].push((RufFlow*)pkt->flow);
     if(pkt->size_in_pkt > params.token_initial) {
         // if(debug_host(id)) {
         //     std::cout << "push flow " << pkt->flow->id << std::endl;
         // }
-        this->src_to_flows[pkt->flow->src->id].push((RufFlow*)pkt->flow);
         if(this->gosrc_info.src != NULL && 
             this->gosrc_info.src->id == pkt->flow->src->id && 
             this->src_to_flows[pkt->flow->src->id].top()->id == pkt->flow->id) {
@@ -315,6 +315,11 @@ void RufHost::receive_rts(RufRTS* pkt) {
         }
     } else {
         ((RufFlow*)pkt->flow)->receive_short_flow();
+        if(this->wakeup_evt == NULL) {
+            if(this->gosrc_info.src == NULL || this->gosrc_info.send_nrts) {
+                schedule_wakeup_event();
+            }
+        }
     }
 }
 
@@ -393,8 +398,8 @@ void RufHost::send_listSrcs(int nrts_src_id, int round) {
             i++;
         }
     }
-    std::random_shuffle(vect1.begin(), vect1.end());
-    std::sort(vect1.begin(), vect1.end(), ListSrcsComparator());
+    // std::random_shuffle(vect1.begin(), vect1.end());
+    // std::sort(vect1.begin(), vect1.end(), ListSrcsComparator());
     for(auto i = vect1.begin(); i != vect1.end(); i++) {
         flow_sizes.push_back(i->first);
         srcs.push_back(i->second);
@@ -447,139 +452,103 @@ void RufHost::send_token() {
         hold_on--;
         token_sent = true;
     }
-    RufFlow* best_large_flow = NULL;
-    if(this->gosrc_info.src!= NULL) {
-        best_large_flow = this->get_top_unfinish_flow(this->gosrc_info.src->id);
+    RufFlow* best_flow = NULL;
+    if(this->gosrc_info.src!= NULL && !token_sent) {
+        best_flow = this->get_top_unfinish_flow(this->gosrc_info.src->id);
     }
-    while(!token_sent) {
-        if (this->active_short_flows.empty() && best_large_flow == NULL) {
-            break;
-        }
-        RufFlow* f = NULL;
-        RufFlow* best_short_flow = NULL;
-        if(!this->active_short_flows.empty()) {
-            best_short_flow = this->active_short_flows.top();
-        }
-        if(flow_compare(best_large_flow, best_short_flow)) {
-            f = this->active_short_flows.top();
-            this->active_short_flows.pop();
-            // if(debug_flow(f->id)) {
-            //     std::cout << get_current_time() << " pop flow " << f->id  << "\n";
-            // }
-        } else {
-            f = best_large_flow;
-            best_large_flow = NULL;
-        }
+    if(best_flow != NULL) {
+        RufFlow* f = best_flow;
         // if(debug_host(this->id)) {
         //     std::cout << "try to send token" << std::endl;
         // }
         // probably can do better here
         if(f->finished_at_receiver) {
-            continue;
-        }
-        if(f->size_in_pkt <= params.token_initial) {
-            flows_tried.push(f);
+            assert(false);
         }
         //not yet timed out, shouldn't send
-        if(f->redundancy_ctrl_timeout > get_current_time()){
-            if(debug_flow(f->id)) {
-                std::cout << get_current_time() << " redundancy_ctrl_timeout has not met " << f->id  << "\n";
-            }
-            if(f->redundancy_ctrl_timeout < closet_timeout)
-            {
-                closet_timeout = f->redundancy_ctrl_timeout;
-            }
-        }
         //ok to send
-        else
+        
+        //just timeout, reset timeout state
+        if(f->redundancy_ctrl_timeout > 0)
         {
-            //just timeout, reset timeout state
-            if(f->redundancy_ctrl_timeout > 0)
-            {
-                if(debug_flow(f->id)) {
-                    std::cout << get_current_time() << " redundancy_ctrl_timeout met" << f->id  << "\n";
-                }
-                f->redundancy_ctrl_timeout = -1;
-                f->token_goal += f->remaining_pkts();
+            if(debug_flow(f->id)) {
+                std::cout << get_current_time() << " redundancy_ctrl_timeout met" << f->id  << "\n";
             }
+            f->redundancy_ctrl_timeout = -1;
+            f->token_goal += f->remaining_pkts();
+        }
 
-            if(f->token_gap() > params.token_window)
-            {
-                if(get_current_time() >= f->latest_token_sent_time + params.token_window_timeout) {
+        if(f->token_gap() > params.token_window)
+        {
+            if(get_current_time() >= f->latest_token_sent_time + params.token_window_timeout) {
+                if(debug_host(this->id)) {
+                    std::cout << get_current_time() << " host " << this->id << " relax token gap for flow " << f->id << std::endl;
+                }
+                f->relax_token_gap();
+            }
+            else{
+                if(f->latest_token_sent_time + params.token_window_timeout < closet_timeout)
+                {
                     if(debug_host(this->id)) {
-                        std::cout << get_current_time() << " host " << this->id << " relax token gap for flow " << f->id << std::endl;
+                        std::cout << get_current_time() << " host " << this->id << " token_window full wait for timeout for flow " << f->id << std::endl;
                     }
-                    f->relax_token_gap();
+                    closet_timeout = f->latest_token_sent_time + params.token_window_timeout;
                 }
-                else{
-                    if(f->latest_token_sent_time + params.token_window_timeout < closet_timeout)
-                    {
-                        if(debug_host(this->id)) {
-                            std::cout << get_current_time() << " host " << this->id << " token_window full wait for timeout for flow " << f->id << std::endl;
-                        }
-                        closet_timeout = f->latest_token_sent_time + params.token_window_timeout;
-                    }
-                }
+            }
 
-            }
-            if(f->token_gap() <= params.token_window)
-            {
-                if(debug_host(id)) {
-                        std::cout << get_current_time() << " sending tokens for flow " << f->id << std::endl;   
-                }
-                auto next_data_seq = f->get_next_token_seq_num();
-                f->send_token_pkt();
-                token_sent = true;
-                // this->token_hist.push_back(this->recv_flow->id);
-                if(next_data_seq >= f->get_next_token_seq_num()) {
-                    // if(!f->first_loop) {
-                    //     f->first_loop = true;
-                    // } else {
-                        if(debug_flow(f->id)) {
-                            std::cout << get_current_time() << " redundancy_ctrl_timeout set up " << f->id << " timeout value: " << f->redundancy_ctrl_timeout << "\n";
-                        }
-                        f->redundancy_ctrl_timeout = get_current_time() + params.token_resend_timeout;
-                    // }
-                }
-                // for P4 ruf algorithm
-                if(f->size_in_pkt > params.token_initial) {
-                    assert( this->gosrc_info.remain_tokens > 0);
-                    if(debug_host(id)) {
-                        std::cout << get_current_time() << " remain_tokens: " << this->gosrc_info.remain_tokens << std::endl;   
-                    }
-                    this->gosrc_info.remain_tokens--;
-                    if(this->gosrc_info.remain_tokens == 0) {
-                        this->gosrc_info.reset();
-                    }
-                }
-            }
         }
-        if(f->size_in_pkt > params.token_initial) {
-            auto gap = 0;
-            auto ctrl_pkt_rtt = topology->get_control_pkt_rtt(this->id);
-            if(this->gosrc_info.remain_tokens > f->remaining_pkts() - f->token_gap()) {
-                gap = f->remaining_pkts() - f->token_gap();
-            } else {
-                gap = this->gosrc_info.remain_tokens;
-            }
+        if(f->token_gap() <= params.token_window)
+        {
             if(debug_host(id)) {
-                std::cout << get_current_time() << " gap " << gap << " large or not " <<  (gap * params.get_full_pkt_tran_delay() <= ctrl_pkt_rtt + params.ruf_controller_epoch) << std::endl;
+                    std::cout << get_current_time() << " sending tokens for flow " << f->id << std::endl;   
             }
-            if ((f->redundancy_ctrl_timeout > get_current_time() || 
-                gap * params.get_full_pkt_tran_delay() <= ctrl_pkt_rtt + params.ruf_controller_epoch)
-             && this->gosrc_info.send_nrts == false) {
-                // this->fake_flow->sending_nrts_to_arbiter(f->src->id, f->dst->id);
-                // this->gosrc_info.send_nrts = true;
-                assert(this->wakeup_evt == NULL);
-                this->debug_use_all_tokens++;
-                this->send_listSrcs(f->src->id, this->gosrc_info.round);
-                this->schedule_wakeup_event();
-            } 
+            auto next_data_seq = f->get_next_token_seq_num();
+            f->send_token_pkt();
+            token_sent = true;
+            // this->token_hist.push_back(this->recv_flow->id);
+            if(next_data_seq >= f->get_next_token_seq_num()) {
+                // if(!f->first_loop) {
+                //     f->first_loop = true;
+                // } else {
+                    if(debug_flow(f->id)) {
+                        std::cout << get_current_time() << " redundancy_ctrl_timeout set up " << f->id << " timeout value: " << f->redundancy_ctrl_timeout << "\n";
+                    }
+                    f->redundancy_ctrl_timeout = get_current_time() + params.token_resend_timeout;
+                // }
+            }
+            // for P4 ruf algorithm
+
+            assert( this->gosrc_info.remain_tokens > 0);
+            if(debug_host(id)) {
+                std::cout << get_current_time() << " remain_tokens: " << this->gosrc_info.remain_tokens << std::endl;   
+            }
+            this->gosrc_info.remain_tokens--;
+            if(this->gosrc_info.remain_tokens == 0) {
+                this->gosrc_info.reset();
+            }
         }
-    }
-    while(!flows_tried.empty()) {
-        this->active_short_flows.push(flows_tried.front());
-        flows_tried.pop();
+
+        auto gap = 0;
+        auto ctrl_pkt_rtt = topology->get_control_pkt_rtt(this->id);
+        if(this->gosrc_info.remain_tokens > f->remaining_pkts() - f->token_gap()) {
+            gap = f->remaining_pkts() - f->token_gap();
+        } else {
+            gap = this->gosrc_info.remain_tokens;
+        }
+        if(debug_host(id)) {
+            std::cout << get_current_time() << " gap " << gap << " large or not " <<  (gap * params.get_full_pkt_tran_delay() <= ctrl_pkt_rtt + params.ruf_controller_epoch) << std::endl;
+        }
+        if ((f->redundancy_ctrl_timeout > get_current_time() || 
+            gap * params.get_full_pkt_tran_delay() <= ctrl_pkt_rtt + params.ruf_controller_epoch)
+         && this->gosrc_info.send_nrts == false) {
+            // this->fake_flow->sending_nrts_to_arbiter(f->src->id, f->dst->id);
+            // this->gosrc_info.send_nrts = true;
+            assert(this->wakeup_evt == NULL);
+            this->debug_use_all_tokens++;
+            this->send_listSrcs(f->src->id, this->gosrc_info.round);
+            this->schedule_wakeup_event();
+        } 
+        
     }
 
     if(token_sent)// pkt sent
@@ -612,8 +581,8 @@ void RufHost::receive_gosrc(RufGoSrc* pkt) {
         std::cout << get_current_time() << " receive GoSRC for dst " << this->id << "src id is " << pkt->src_id << " queue delay:" << pkt->total_queuing_delay << std::endl; 
     }
     // find the minimum size of the flow for a source;
-    RufFlow* best_large_flow = this->get_top_unfinish_flow(pkt->src_id);
-    if(best_large_flow == NULL) {
+    RufFlow* best_flow = this->get_top_unfinish_flow(pkt->src_id);
+    if(best_flow == NULL) {
         // this->fake_flow->sending_nrts_to_arbiter(pkt->src_id, this->id);
         this->debug_send_go_src++;
         this->send_listSrcs(pkt->src_id, pkt->round);

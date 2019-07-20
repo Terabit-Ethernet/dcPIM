@@ -1,6 +1,7 @@
 #include "pfabricqueue.h"
 #include "../run/params.h"
 #include "../coresim/debug.h"
+#include "factory.h"
 #include <iostream>
 #include <limits.h>
 

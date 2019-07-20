@@ -138,7 +138,7 @@ class RufHost : public SchedulingHost {
         int debug_new_flow;
         int debug_use_all_tokens;
         RufFlow* get_top_unfinish_flow(uint32_t src_id);
-        CustomPriorityQueue<RufFlow*, std::vector<RufFlow*>, RufShortFlowComparatorAtReceiver> active_short_flows;
+        // CustomPriorityQueue<RufFlow*, std::vector<RufFlow*>, RufShortFlowComparatorAtReceiver> active_short_flows;
         std::unordered_map<uint32_t, CustomPriorityQueue<RufFlow*, std::vector<RufFlow*>, RufFlowComparatorAtReceiver>> src_to_flows;
 
         GoSRC gosrc_info;
