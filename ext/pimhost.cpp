@@ -184,6 +184,10 @@ void PimEpoch::receive_grantsr(GrantsR *p) {
 
 void PimEpoch::receive_grants(PIMGrants *p) {
     assert(p->epoch == this->epoch);
+    if(debug_host(this->host->id)) {
+        std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << std::endl;
+        std::cout << "           "<< " receive grants for flow " << p->flow->id << "host: " << this->host->id << " p iter:" << p->iter  << " total queue delay:" << p->total_queuing_delay << std::endl; 
+    }
     if(p->iter < this->iter)
         return;
     PIM_Grants grant;
@@ -193,9 +197,7 @@ void PimEpoch::receive_grants(PIMGrants *p) {
     grant.prompt = p->prompt;
     // may need to check epoch number
     // TO DO: trigger random dicision process
-    if(debug_flow(p->flow->id)) {
-        std::cout << get_current_time() << " epoch " << this->epoch << "iter " << this->iter << " receive grants for flow " << p->flow->id << "host: " << this->host->id << std::endl; 
-    }
+
     assert(this->iter == p->iter);
     this->grants_q.push_back(grant);
     if(this->min_grant.f == NULL || this->min_grant.remaining_sz > grant.remaining_sz) {
@@ -258,7 +260,7 @@ void PimEpoch::send_all_req() {
         }
         if(best_flow != NULL) {
             if(debug_flow(best_flow->id) || debug_host(this->host->id)) {
-                std::cout << "flow " << best_flow->id << " dst " << this->host->id << " send_req" << std::endl;
+                std::cout << "flow " << best_flow->id << " dst " << this->host->id << " send_req to src " << best_flow->src->id << std::endl;
             }
             best_flow->send_req(this->iter, this->epoch);
         }
@@ -687,7 +689,7 @@ void PimHost::send_token() {
         token_sent = true;
     }
     PimFlow* f = NULL;
-    if(this->sender!= NULL) {
+    if(this->sender!= NULL && !token_sent) {
         f = this->get_top_unfinish_flow(this->sender->id);
     }
     if(f != NULL) {
