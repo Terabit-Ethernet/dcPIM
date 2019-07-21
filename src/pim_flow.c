@@ -70,6 +70,12 @@ int pflow_remaining_pkts(const struct pim_flow* f) {
 }
 int pflow_token_gap(const struct pim_flow* f) {
     if(f->token_count - f->largest_token_seq_received < 0) {
+        printf("flow id: %u\n", f->_f.id);
+        printf("flow src: %u\n", f->_f.src_addr);
+        printf("flow dst:%u\n", f->_f.dst_addr);
+        printf("flow size in pkt:%u\n", f->_f.size_in_pkt);
+        printf("f->token_count:%u\n", f->token_count);
+        printf("f->largest_token_seq_received:%u\n", f->largest_token_seq_received);
         rte_exit(EXIT_FAILURE ,"token gap less than 0");
     }
     return f->token_count - f->largest_token_seq_received - 1;
