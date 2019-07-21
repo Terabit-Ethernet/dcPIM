@@ -114,7 +114,7 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
 		for(; i < new_flow->_f.size_in_pkt; i++) {
 	    	int data_seq = i;
     		// allocate new packet
-		 	struct rte_mbuf* p = pflow_get_token_pkt(new_flow, data_seq);
+		 	struct rte_mbuf* p = pflow_get_token_pkt(new_flow, data_seq, true);
 			enqueue_ring(host->short_flow_token_q , p);
 		}
 	} else {
@@ -777,7 +777,7 @@ void pim_send_token_evt_handler(__rte_unused struct rte_timer *timer, void* arg)
     	}
     	int data_seq = pflow_get_next_token_seq_num(pim_flow);
     	// allocate new packet
-	 	struct rte_mbuf* p = pflow_get_token_pkt(pim_flow, data_seq);
+	 	struct rte_mbuf* p = pflow_get_token_pkt(pim_flow, data_seq, false);
 		if(p == NULL) {
 			printf("size of token q: %u\n", rte_ring_count(pim_host->send_token_q));
 			rte_exit(EXIT_FAILURE, "NULL packet");

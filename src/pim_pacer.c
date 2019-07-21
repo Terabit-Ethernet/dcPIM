@@ -81,7 +81,6 @@ void pim_pacer_send_data_pkt_handler(__rte_unused struct rte_timer *timer, void*
 	// fetch non-finish flows tokens
 	struct rte_mbuf* p = NULL;
 	struct rte_mbuf* sent_p = NULL;
-
 	// struct ruf_flow* flow = NULL;
 	if(!rte_ring_empty(short_flow_token_q)) {
 		p = (struct rte_mbuf*)dequeue_ring(short_flow_token_q);
@@ -133,6 +132,7 @@ void pim_pacer_send_data_pkt_handler(__rte_unused struct rte_timer *timer, void*
 		pim_data_hdr->data_seq_no = pim_token_hdr->data_seq_no;
 		pim_data_hdr->seq_no = pim_token_hdr->seq_no;
 		pim_data_hdr->priority = pim_token_hdr->priority;
+		pim_data_hdr->free_token = pim_token_hdr->free_token;
 		rte_pktmbuf_free(p);
 		p = NULL;
 		if(pim_data_hdr->seq_no == 0) {

@@ -63,13 +63,16 @@ struct pim_ack_hdr {
 
 
 struct pim_data_hdr{
+	uint8_t free_token;
 	uint8_t priority;
 	uint32_t flow_id;
 	uint32_t seq_no;
 	uint32_t data_seq_no;
+
 };
 
 struct pim_token_hdr{
+	uint8_t free_token;
 	uint8_t priority;
 	uint32_t flow_id;
 	uint32_t seq_no;

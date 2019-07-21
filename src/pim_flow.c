@@ -139,7 +139,7 @@ void pflow_set_rd_ctrl_timeout_params_null(struct pim_flow* flow) {
     }
     flow->rd_ctrl_timeout_params = NULL;
 }
-struct rte_mbuf* pflow_get_token_pkt(struct pim_flow* flow, uint32_t data_seq) {
+struct rte_mbuf* pflow_get_token_pkt(struct pim_flow* flow, uint32_t data_seq, bool free_token) {
     if(flow == NULL) {
         rte_exit(EXIT_FAILURE, "FLOW IS NULL");
     }
@@ -166,14 +166,19 @@ struct rte_mbuf* pflow_get_token_pkt(struct pim_flow* flow, uint32_t data_seq) {
 
     pim_hdr->type = PIM_TOKEN;
     pim_token_hdr->flow_id = flow->_f.id;
-    pim_token_hdr->seq_no = flow->token_count;
     pim_token_hdr->data_seq_no = data_seq;
     pim_token_hdr->priority = flow->_f.priority;
-    pim_token_hdr->remaining_size = pflow_remaining_pkts(flow);
-    
-    flow->token_count++;
-    flow->token_packet_sent_count++;
-    flow->last_token_data_seq_num_sent = data_seq;
+    if(free_token) {
+        pim_token_hdr->free_token = 1;
+    } else {
+        pim_token_hdr->free_token = 0;
+        pim_token_hdr->seq_no = flow->token_count;
+        pim_token_hdr->remaining_size = pflow_remaining_pkts(flow);
+        
+        flow->token_count++;
+        flow->token_packet_sent_count++;
+        flow->last_token_data_seq_num_sent = data_seq;
+    }
     // flow->next_seq_no += 1;
     // flow->last_data_seq_num_sent = pim_token_hdr->data_seq_no;
     return p;
@@ -256,8 +261,10 @@ void pflow_receive_data(struct pim_host* host, struct pim_pacer* pacer, struct p
     // hard code part
     f->_f.received_bytes += 1460;
 
-    if((int)pim_data_hdr->seq_no > f->largest_token_seq_received)
-        f->largest_token_seq_received = (int)pim_data_hdr->seq_no;
+    if(pim_data_hdr->free_token != 1) {
+        if((int)pim_data_hdr->seq_no > f->largest_token_seq_received)
+            f->largest_token_seq_received = (int)pim_data_hdr->seq_no;
+    }
     if (f->_f.received_count >= f->_f.size_in_pkt) {
         struct rte_mbuf* p = pflow_get_ack_pkt(f);
         enqueue_ring(pacer->ctrl_q, p);
