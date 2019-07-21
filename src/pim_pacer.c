@@ -191,7 +191,6 @@ void pim_pacer_send_token_handler(__rte_unused struct rte_timer *timer, void* ar
 		// }
 		// i++;
 
-
 		int sent = rte_eth_tx_burst(get_port_by_ip(dst_addr), 0, &p, 1);
 	   	if(sent != 1) {
     		printf("%d:sent fails\n", __LINE__);

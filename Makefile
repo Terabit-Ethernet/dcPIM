@@ -5,7 +5,7 @@
 APP = pim
 
 # all source are stored in SRCS-y
-SRCS-y := src/debug.c src/config.c src/pq.c src/header.c src/flow.c src/ds.c src/pim_flow.c src/pim_host.c src/pim_pacer.c src/main.c
+SRCS-y := src/debug.c src/config.c src/pq.c src/random_variable.c src/header.c src/flow.c src/ds.c src/pim_flow.c src/pim_host.c src/pim_pacer.c src/main.c
 
 # Build using pkg-config variables if possible
 $(shell pkg-config --exists libdpdk)

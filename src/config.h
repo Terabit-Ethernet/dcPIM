@@ -58,6 +58,7 @@ extern char *link_correspondence[];
 
 
 struct Params {
+	double load;
 	double BDP;
 	double small_flow_thre;
 	uint32_t mss;

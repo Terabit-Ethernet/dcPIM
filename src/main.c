@@ -50,7 +50,7 @@
 #include "pim_flow.h"
 #include "pim_host.h"
 #include "pim_pacer.h"
-
+#include "random_variable.h"
 #define TIMER_RESOLUTION_CYCLES 3000UL /* around 10ms at 2 Ghz */
 
 int mode;
@@ -99,9 +99,10 @@ struct pim_epoch epoch;
 struct pim_host host;
 struct pim_pacer pacer;
 
+char *cdf_file;
 static volatile bool force_quit;
 
-#define TARGET_NUM 5000
+#define TARGET_NUM 10
 
 static unsigned char
 outgoing_port(unsigned char id) {
@@ -219,9 +220,10 @@ static void pacer_main_loop(void) {
 }
 static void start_main_loop(void) {
 	// unsigned lcore_id;
-	int ips[2] = {20, 22};
+	rte_delay_us_block(2000000);
+	int ips[1] = {24};
 	int i = 0;
-	for (; i < 2; i++) {
+	for (; i < 1; i++) {
 		 struct rte_mbuf* p = NULL;
 	    p = rte_pktmbuf_alloc(pktmbuf_pool);
 	    uint16_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
@@ -239,7 +241,7 @@ static void start_main_loop(void) {
 	    pim_hdr->type = PIM_START;
 		rte_eth_tx_burst(get_port_by_ip(ips[i]) ,0, &p, 1);
 	}
-
+	pim_receive_start(&epoch, &host, &pacer, 3);
 	// lcore_id = rte_lcore_id();
  //    uint64_t prev_tsc = 0, cur_tsc, diff_tsc;
  //    rte_timer_reset(&epoch.epoch_timer, 0,
@@ -268,16 +270,29 @@ static void flow_generate_loop(void) {
 	int i = 0;
     uint64_t prev_tsc = 0, cur_tsc, diff_tsc;
     uint64_t prev_tsc_2 = 0, diff_tsc_2 = TIMER_RESOLUTION_CYCLES * 100000;
+	struct exp_random_variable exp_r;
+	struct empirical_random_variable emp_r;
+	init_empirical_random_variable(&emp_r, cdf_file ,true);
+	double lamba = params.bandwidth * params.load / (emp_r.mean_flow_size * 8.0 / 1460 * 1500);
+    init_exp_random_variable(&exp_r, 1.0 / lamba);
+    uint32_t flow_size = (uint32_t)(value_emp(&emp_r) + 0.5) * 1460;
+    double time = value_exp(&exp_r);
+
 	while(!force_quit) {
 		cur_tsc = rte_rdtsc();
         diff_tsc = cur_tsc - prev_tsc;
-         if (diff_tsc > TIMER_RESOLUTION_CYCLES * 1200 / 0.6) {
+         if (diff_tsc > TIMER_RESOLUTION_CYCLES * time * 1000000.0) {
          	if(i == 0) {
 			 	host.start_cycle = rte_get_tsc_cycles();
          	}
-			 pim_new_flow_comes(&host, & pacer, i, params.dst_ip, 1460 * 1000);
+			printf("flow size:%u\n", flow_size);
+			printf("time:%f\n", time);
+			pim_new_flow_comes(&host, & pacer, i, params.dst_ip, flow_size);
          	i++;
-             prev_tsc = cur_tsc;
+            prev_tsc = cur_tsc;
+            flow_size = (uint32_t)(value_emp(&emp_r) + 0.5) * 1460;
+        	time = value_exp(&exp_r);
+
          }
         if(cur_tsc - prev_tsc_2 > diff_tsc_2) {
 			host.end_cycle = rte_get_tsc_cycles();
@@ -289,14 +304,14 @@ static void flow_generate_loop(void) {
 			
 			host.start_cycle = host.end_cycle;
 
-			printf("-------------------------------\n");
-			printf("sent throughput: %f\n", sent_tpt);
-			printf("received throughput: %f\n", receive_tpt); 
-			printf("size of temp_pkt_buffer: %u\n",rte_ring_count(host.temp_pkt_buffer));
-			printf("size of control q: %u\n", rte_ring_count(pacer.ctrl_q));
-			printf("size of data q: %u\n", rte_ring_count(pacer.data_q));
-			printf("number of unfinished flow: %u\n", rte_hash_count(host.rx_flow_table));
-			printf("size of event q: %u\n", rte_ring_count(host.event_q));
+			// printf("-------------------------------\n");
+			// printf("sent throughput: %f\n", sent_tpt);
+			// printf("received throughput: %f\n", receive_tpt); 
+			// printf("size of temp_pkt_buffer: %u\n",rte_ring_count(host.temp_pkt_buffer));
+			// printf("size of control q: %u\n", rte_ring_count(pacer.ctrl_q));
+			// printf("size of data q: %u\n", rte_ring_count(pacer.data_q));
+			// printf("number of unfinished flow: %u\n", rte_hash_count(host.rx_flow_table));
+			// printf("size of event q: %u\n", rte_ring_count(host.event_q));
 
 			host.sent_bytes -= old_sentbytes;
 			host.received_bytes -= old_receivebytes;
@@ -452,14 +467,16 @@ main(int argc, char **argv)
 	} else if (argc >= 2 && !strcmp("start", argv[1])) {
 		mode = 2;
 	}
-
+	if(argc >= 3) {
+		cdf_file = argv[2];
+	}
 	/* exit if no ports open*/
 	num_ports = rte_eth_dev_count_avail();
 	if (num_ports == 0)
 		rte_exit(EXIT_FAILURE, "No Ethernet ports - bye\n");
 
 	/*initialize lcore 1 as RX for ports 0 and 1*/
-	qconf = &lcore_queue_conf[1];
+	qconf = &lcore_queue_conf[3];
 	// if(params.ip == 22) {
 	// 	qconf->rx_port_list[0] = 0;
 	// } else if (params.ip == 24) {
@@ -577,12 +594,12 @@ main(int argc, char **argv)
 	    pim_init_host(&host, 1);
 	    pim_init_pacer(&pacer, &host, 1);
 	    pim_init_epoch(&epoch, &host, &pacer);
-		rte_eal_remote_launch(launch_host_lcore, NULL, 1);
-		rte_eal_remote_launch(launch_pacer_lcore, NULL, 3);
-	    rte_eal_remote_launch(launch_flowgen_lcore, NULL, 5);
-	} else {
-		rte_eal_remote_launch(launch_start_lcore, NULL, 1);
+		rte_eal_remote_launch(launch_host_lcore, NULL, 3);
+		rte_eal_remote_launch(launch_pacer_lcore, NULL, 5);
+	    rte_eal_remote_launch(launch_flowgen_lcore, NULL, 7);
+		rte_eal_remote_launch(launch_start_lcore, NULL, 9);
 
+	} else {
 	}
 
 	while(!force_quit){
@@ -597,6 +614,9 @@ main(int argc, char **argv)
 		ret = -1;
 	}
 	if(rte_eal_wait_lcore(7) < 0){
+		ret = -1;
+	}
+	if(rte_eal_wait_lcore(9) < 0){
 		ret = -1;
 	}
 	// print_stats();

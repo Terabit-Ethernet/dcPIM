@@ -32,7 +32,7 @@ struct Params params = {
 	.priority_limit = 6,
 	.bandwidth = 10000000000,
 	.ip = 22,
-	.dst_ip = 20,
+	.dst_ip = 24,
 	.pim_beta = 5,
 	.pim_alpha = 1.6,
 	.pim_iter_limit = 5,
@@ -40,7 +40,8 @@ struct Params params = {
 	.clock_bias = 0.0000005,
 	.send_port = 0,
 	.pim_select_min_iters = 1,
-	.batch_tokens = 7
+	.batch_tokens = 7,
+	.load = 0.6
 };
 
 double get_transmission_delay(double bytes) {
