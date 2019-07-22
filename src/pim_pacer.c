@@ -17,7 +17,7 @@ void pim_init_pacer(struct pim_pacer* pacer, struct pim_host* host, uint32_t soc
 	pacer->last_update_time = rte_get_timer_cycles();
 	pacer->remaining_bytes = 0;
 	// pacer->data_q = create_ring("pacer_data_q", sizeof(1500), 256, RING_F_SC_DEQ | RING_F_SP_ENQ);
-	pacer->ctrl_q = create_ring("pacer_ctl_q", 200, 256, RING_F_SC_DEQ | RING_F_SP_ENQ, socket_id);
+	pacer->ctrl_q = create_ring("pacer_ctl_q", 200, 256, RING_F_SC_DEQ, socket_id);
 	pacer->data_q = create_ring("pacer_data_q", 200, 256, RING_F_SC_DEQ | RING_F_SP_ENQ, socket_id);
 	rte_timer_init(&pacer->data_timer);
 	rte_timer_init(&pacer->token_timer);
@@ -134,6 +134,9 @@ void pim_pacer_send_data_pkt_handler(__rte_unused struct rte_timer *timer, void*
 		pim_data_hdr->priority = pim_token_hdr->priority;
 		pim_data_hdr->free_token = pim_token_hdr->free_token;
 		rte_pktmbuf_free(p);
+		// if(pim_data_hdr->free_token == 1) {
+		// 	printf("send free token data\n");
+		// }
 		p = NULL;
 		if(pim_data_hdr->seq_no == 0) {
 			struct pim_flow* f = lookup_table_entry(host->tx_flow_table, pim_data_hdr->flow_id);
