@@ -102,7 +102,7 @@ struct pim_pacer pacer;
 char *cdf_file;
 static volatile bool force_quit;
 
-#define TARGET_NUM 10
+#define TARGET_NUM 5000
 
 static unsigned char
 outgoing_port(unsigned char id) {
@@ -285,8 +285,8 @@ static void flow_generate_loop(void) {
          	if(i == 0) {
 			 	host.start_cycle = rte_get_tsc_cycles();
          	}
-			printf("flow size:%u\n", flow_size);
-			printf("time:%f\n", time);
+			// printf("flow size:%u\n", flow_size);
+			// printf("time:%f\n", time);
 			pim_new_flow_comes(&host, & pacer, i, params.dst_ip, flow_size);
          	i++;
             prev_tsc = cur_tsc;
@@ -304,14 +304,14 @@ static void flow_generate_loop(void) {
 			
 			host.start_cycle = host.end_cycle;
 
-			// printf("-------------------------------\n");
-			// printf("sent throughput: %f\n", sent_tpt);
-			// printf("received throughput: %f\n", receive_tpt); 
-			// printf("size of temp_pkt_buffer: %u\n",rte_ring_count(host.temp_pkt_buffer));
-			// printf("size of control q: %u\n", rte_ring_count(pacer.ctrl_q));
-			// printf("size of data q: %u\n", rte_ring_count(pacer.data_q));
-			// printf("number of unfinished flow: %u\n", rte_hash_count(host.rx_flow_table));
-			// printf("size of event q: %u\n", rte_ring_count(host.event_q));
+			printf("-------------------------------\n");
+			printf("sent throughput: %f\n", sent_tpt);
+			printf("received throughput: %f\n", receive_tpt); 
+			printf("size of temp_pkt_buffer: %u\n",rte_ring_count(host.temp_pkt_buffer));
+			printf("size of control q: %u\n", rte_ring_count(pacer.ctrl_q));
+			printf("size of data q: %u\n", rte_ring_count(pacer.data_q));
+			printf("number of unfinished flow: %u\n", rte_hash_count(host.rx_flow_table));
+			printf("size of event q: %u\n", rte_ring_count(host.event_q));
 
 			host.sent_bytes -= old_sentbytes;
 			host.received_bytes -= old_receivebytes;
@@ -432,7 +432,41 @@ signal_handler(int signum)
 				finished_flow += 1;
 				pflow_dump(flow);
 			}
-			printf("Finished flow:%u \n", finished_flow);    
+			printf("Finished flow:%u \n", finished_flow);
+			printf("------------\n");
+			printf("Unfinished flows\n");
+			position = 0;
+ 			next = 0;
+			while(1) {
+				position = rte_hash_iterate(host.tx_flow_table, (const void**) &flow_id, (void**)&flow, &next);
+				if(position == -ENOENT) {
+					break;
+				}
+				if(flow->_f.finished) {
+					continue;
+				}
+				// if(flow->rd_ctrl_timeout_params != NULL) {
+				// 	continue;
+				// }
+				pflow_dump(flow);
+			}
+			printf("------------\n");
+			printf("Unfinished received flows:%u\n", rte_hash_count(host.rx_flow_table));
+			position = 0;
+ 			next = 0;
+			while(1) {
+				position = rte_hash_iterate(host.rx_flow_table, (const void**) &flow_id, (void**)&flow, &next);
+				if(position == -ENOENT) {
+					break;
+				}
+				if(flow->finished_at_receiver) {
+					continue;
+				}
+				// if(flow->rd_ctrl_timeout_params != NULL) {
+				// 	continue;
+				// }
+				pflow_dump(flow);
+			} 
 			pim_host_dump(&host, &pacer);
 		}
 

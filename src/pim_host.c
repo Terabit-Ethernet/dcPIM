@@ -661,7 +661,7 @@ void pim_receive_data(struct pim_host* host, struct pim_pacer* pacer,
  struct pim_data_hdr * pim_data_hdr, struct rte_mbuf* p) {
 	uint32_t flow_id = pim_data_hdr->flow_id;
 	struct pim_flow* f = lookup_table_entry(host->rx_flow_table, flow_id);
-	if(f == NULL && pim_data_hdr->priority == 1) {
+	if(f == NULL && pim_data_hdr->free_token == 1) {
 		if(rte_ring_free_count(host->temp_pkt_buffer) == 0) {
 			struct rte_mbuf *temp = 
 			(struct rte_mbuf*) dequeue_ring(host->temp_pkt_buffer);
@@ -820,12 +820,18 @@ void pim_iterate_temp_pkt_buf(struct pim_host* host, struct pim_pacer* pacer,
 	struct rte_ring* buf = host->temp_pkt_buffer;
 	uint32_t size = rte_ring_count(buf);
 	uint32_t i = 0;
+	// printf("iteration start\n");
 	for(; i < size; i++) {
 		struct rte_mbuf* p = NULL;
 		p = (struct rte_mbuf*)dequeue_ring(buf);
 		uint32_t offset = sizeof(struct ether_hdr) + 
 		sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr);
 		struct pim_data_hdr *pim_data_hdr = rte_pktmbuf_mtod_offset(p, struct pim_data_hdr*, offset);
+		// printf("flow id:%u\n", flow_id);
+		// struct pim_flow* f = lookup_table_entry(host->rx_flow_table, pim_data_hdr->flow_id);
+		// printf("data header flow id:%u\n", pim_data_hdr->flow_id);
+		// if(f != NULL)
+		// 	printf("flow is finished:%u\n", f->_f.finished);
 		if(pim_data_hdr->flow_id == flow_id) {
 			// packet free by pim_receive_data
 			pim_receive_data(host, pacer, pim_data_hdr, p);
