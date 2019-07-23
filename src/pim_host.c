@@ -362,6 +362,10 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, str
 		pim_rts->src_addr = rte_be_to_cpu_32(ipv4_hdr->src_addr);
 		pim_rts->remaining_sz = pim_rts_hdr->remaining_sz;
 		pim_epoch->rts_size++;
+		if(pim_epoch->rts_size > 16) {
+			printf("rts size > 16\n");
+			rte_exit(EXIT_FAILURE, "");
+		}
 		if(pim_epoch->min_rts == NULL || pim_epoch->min_rts->remaining_sz > pim_rts->remaining_sz) {
 			pim_epoch->min_rts = pim_rts;
 		}
@@ -386,6 +390,10 @@ void pim_receive_grant(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, s
 		pim_grant->remaining_sz = pim_grant_hdr->remaining_sz;
 		pim_grant->prompt = pim_grant_hdr->prompt;
 		pim_epoch->grant_size++;
+		if(pim_epoch->grant_size > 16) {
+			printf("grant size > 16\n");
+			rte_exit(EXIT_FAILURE , "");
+		}
 		if(pim_epoch->min_grant == NULL || pim_epoch->min_grant->remaining_sz > pim_grant->remaining_sz) {
 			pim_epoch->min_grant = pim_grant;
 		}
