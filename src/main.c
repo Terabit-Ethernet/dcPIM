@@ -189,16 +189,16 @@ static void pacer_main_loop(void) {
 			// insert vlan header with highest priority;
 			// use tos in ipheader instead;
 			ipv4_hdr->type_of_service = TOS_7;
-
 			// p->vlan_tci = TCI_7;
 			// rte_vlan_insert(&p); 
 			// send packets; hard code the port;
 			// cycles[0] = rte_get_timer_cycles();
 
 			int sent = rte_eth_tx_burst(get_port_by_ip(dst_addr) ,0, &p, 1);
-		   			uint64_t end_cycle = rte_get_tsc_cycles();
-		   	if(sent != 1) {
-        		printf("pacer main loop: %d:sent fails\n", __LINE__);
+		   	while(sent != 1) {
+		   		sent = rte_eth_tx_burst(get_port_by_ip(dst_addr) ,0, &p, 1);
+        		// printf("pacer main loop: %d:sent fails\n", __LINE__);
+        		// rte_exit(EXIT_FAILURE, "");
 		   	}
 			// cycles[1] = rte_get_timer_cycles();
 			// rts_sent = true;
@@ -273,11 +273,12 @@ static void flow_generate_loop(void) {
 	struct exp_random_variable exp_r;
 	struct empirical_random_variable emp_r;
 	init_empirical_random_variable(&emp_r, cdf_file ,true);
-	double lamba = params.bandwidth * params.load / (emp_r.mean_flow_size * 8.0 / 1460 * 1500);
-    init_exp_random_variable(&exp_r, 1.0 / lamba);
+	double lambda = params.bandwidth * params.load / (emp_r.mean_flow_size * 8.0 / 1460 * 1500);
+    init_exp_random_variable(&exp_r, 1.0 / lambda);
     uint32_t flow_size = (uint32_t)(value_emp(&emp_r) + 0.5) * 1460;
     double time = value_exp(&exp_r);
-
+    // double acc_time = 0;
+    // double acc_flow_size = 0;
 	while(!force_quit) {
 		cur_tsc = rte_rdtsc();
         diff_tsc = cur_tsc - prev_tsc;
@@ -285,14 +286,19 @@ static void flow_generate_loop(void) {
          	if(i == 0) {
 			 	host.start_cycle = rte_get_tsc_cycles();
          	}
+        	// acc_time += time;
+        	// acc_flow_size += flow_size;
 			// printf("flow size:%u\n", flow_size);
-			// printf("time:%f\n", time);
+			// printf("acc_time:%f\n", acc_time);
+			// printf("avg load: %f\n", acc_flow_size * 8 / (params.bandwidth * acc_time));
 			pim_new_flow_comes(&host, & pacer, i, params.dst_ip, flow_size);
+            // printf("flow id%u\n", i);
+            // printf("flow size:%u\n", flow_size);
+            // printf("time:%f\n", time);
          	i++;
             prev_tsc = cur_tsc;
             flow_size = (uint32_t)(value_emp(&emp_r) + 0.5) * 1460;
         	time = value_exp(&exp_r);
-
          }
         if(cur_tsc - prev_tsc_2 > diff_tsc_2) {
 			host.end_cycle = rte_get_tsc_cycles();
@@ -307,11 +313,13 @@ static void flow_generate_loop(void) {
 			printf("-------------------------------\n");
 			printf("sent throughput: %f\n", sent_tpt);
 			printf("received throughput: %f\n", receive_tpt); 
+			printf("size of long flow token q: %u\n",rte_ring_count(host.long_flow_token_q));
+			printf("size of short flow token q: %u\n",rte_ring_count(host.short_flow_token_q));
+
 			printf("size of temp_pkt_buffer: %u\n",rte_ring_count(host.temp_pkt_buffer));
 			printf("size of control q: %u\n", rte_ring_count(pacer.ctrl_q));
 			printf("size of data q: %u\n", rte_ring_count(pacer.data_q));
 			printf("number of unfinished flow: %u\n", rte_hash_count(host.rx_flow_table));
-			printf("size of event q: %u\n", rte_ring_count(host.event_q));
 
 			host.sent_bytes -= old_sentbytes;
 			host.received_bytes -= old_receivebytes;
@@ -467,6 +475,23 @@ signal_handler(int signum)
 				// }
 				pflow_dump(flow);
 			} 
+			struct rte_ring* buf = host.temp_pkt_buffer;
+			uint32_t size = rte_ring_count(buf);
+			uint32_t i = 0;
+			// printf("iteration start\n");
+			for(; i < size; i++) {
+				struct rte_mbuf* p = NULL;
+				p = (struct rte_mbuf*)dequeue_ring(buf);
+				uint32_t offset = sizeof(struct ether_hdr) + 
+				sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr);
+				struct pim_data_hdr *pim_data_hdr = rte_pktmbuf_mtod_offset(p, struct pim_data_hdr*, offset);
+				// printf("flow id:%u\n", flow_id);
+				// struct pim_flow* f = lookup_table_entry(host->rx_flow_table, pim_data_hdr->flow_id);
+				// printf("data header flow id:%u\n", pim_data_hdr->flow_id);
+				// if(f != NULL)
+				printf("flow id:%u\n", pim_data_hdr->flow_id);
+
+			}
 			pim_host_dump(&host, &pacer);
 		}
 

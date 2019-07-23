@@ -148,6 +148,11 @@ void pim_pacer_send_data_pkt_handler(__rte_unused struct rte_timer *timer, void*
 		//rte_vlan_insert(&p);
 		data_sent = 1;
 		int sent = rte_eth_tx_burst(get_port_by_ip(rte_be_to_cpu_32(ipv4_hdr->dst_addr)) ,0, &sent_p, 1);
+		while(sent != 1) {
+			sent = rte_eth_tx_burst(get_port_by_ip(rte_be_to_cpu_32(ipv4_hdr->dst_addr)) ,0, &sent_p, 1);
+   //  		printf("pacer main loop: %d:sent fails\n", __LINE__);
+			// rte_exit(EXIT_FAILURE, "");
+		}
 	}
 	if(data_sent) {
 		pacer->remaining_bytes += 1500;
@@ -195,9 +200,11 @@ void pim_pacer_send_token_handler(__rte_unused struct rte_timer *timer, void* ar
 		// i++;
 
 		int sent = rte_eth_tx_burst(get_port_by_ip(dst_addr), 0, &p, 1);
-	   	if(sent != 1) {
-    		printf("%d:sent fails\n", __LINE__);
-	   	}
+		while(sent != 1) {
+			sent = rte_eth_tx_burst(get_port_by_ip(dst_addr), 0, &p, 1);
+   //  		printf("pacer main loop: %d:sent fails\n", __LINE__);
+			// rte_exit(EXIT_FAILURE, "");
+		}
 		token_sent = 1;
 	}
 	if(token_sent == 1) {
