@@ -143,15 +143,10 @@ void run_scenario() {
         // if(1) {
         //     if(current_time > next_time) {
         //         next_time = current_time + 0.000002;
-
-        //         // if(queue->bytes_in_queue  > 3000 && max == queue->bytes_in_queue) {
-        //                 std::cout << get_current_time() - 1.0
-        //                  << " " << 1 - num_outstanding_packets / (double) arrival_packets_count << std::endl;
-        //                 // for(int i = 0; i < queue->packets.size(); i++) {
-        //                 //     std::cout << queue->packets[i]->src->id << " " <<
-        //                 //      dynamic_cast<RufListSrcs*> (queue->packets[i])->listSrcs.size() << std::endl;
-        //                 // }
-        //         // }
+        //         double sent_bytes = (double) (arrival_packets_count - num_outstanding_packets) * 1500;
+        //         double ideal_bytes = params.num_hosts * double (params.bandwidth) / 8 * (current_time - 1.0);
+        //         std::cout << get_current_time() - 1.0
+        //          << " " << sent_bytes / ideal_bytes << std::endl;
         //     }
         //     if(current_time > 1.05) {
         //         assert(false);

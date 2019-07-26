@@ -32,4 +32,4 @@ set output 'img/'.ARG1.'_'.ARG2.'_slowdown_flow_size.eps'
 
 plot 'data/'.ARG1.'_'.ARG2.'_slowdown_size.dat' using 2:3:xtic(1) title 'pFabric' fillstyle pattern 1, \
 	'' using 4:5 title 'pHost' fillstyle pattern 4, \
-	'' using 6:7 title 'Ranking' fillstyle pattern 5
+	'' using 6:7 title 'PIM' fillstyle pattern 5

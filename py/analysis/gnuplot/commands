@@ -90,5 +90,22 @@ gnuplot scripts/fat_tree_slowdown.gp
 
 gnuplot scripts/fat_tree_util.gp
 
+gnuplot scripts/fat_tree_99_slowdown.gp
+
+gnuplot scripts/pim_alpha_slowdown.gp
+
+gnuplot scripts/pim_alpha_util.gp
+
+gnuplot scripts/pim_beta_slowdown.gp
+
+gnuplot scripts/pim_beta_util.gp
+
+gnuplot scripts/pim_fct_round_slowdown.gp 
+
+gnuplot scripts/pim_fct_round_util.gp 
+
+gnuplot scripts/pim_iterations_slowdown.gp
+
+gnuplot scripts/pim_iterations_util.gp
 # gnuplot -c scripts/queue_occupancy.gp aditya 1.4
 # gnuplot -c scripts/queue_occupancy.gp dctcp 4

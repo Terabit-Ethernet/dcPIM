@@ -8,7 +8,7 @@ from matplotlib import cm
 import sys
 import json
 
-algos = ["pfabric","fastpass", "phost", "ranking"]
+algos = ["pfabric","fastpass", "phost", "ranking", "pim"]
 incasts = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
 
 ID = 0
@@ -20,6 +20,9 @@ ORCT = 5
 RATIO = 6
 SENT_PACKET = 7
 DROP_PACKET = 8
+
+def get_oracle_fct(flowsize, bandwidth):
+    return float(flowsize) * 8.0 / bandwidth * 1000000.0 
 
 def read_file(filename):
     output = []
@@ -44,8 +47,8 @@ def read_file(filename):
                 start_time = float(params[4])
                 end_time = float(params[5])
                 fct = float(params[6])
-                orct = float(params[7])
-                ratio = float(params[8])
+                orct = get_oracle_fct(size, 10000000000.0)
+                ratio = fct / orct
                 sent_packet = float(params[9].split('/')[0])
                 drop_packet = float(params[10].split('/')[0])
                 if flowId == 0:

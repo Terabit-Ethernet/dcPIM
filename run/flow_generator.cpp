@@ -60,6 +60,7 @@ void PoissonFlowGenerator::make_flows() {
     params.mean_flow_size = nv_bytes->mean_flow_size;
     double lambda = params.bandwidth * params.load / (params.mean_flow_size * 8.0 / 1460 * 1500);
     double lambda_per_host = lambda / (topo->hosts.size() - 1);
+    std::cout << "Lambda: " << lambda << std::endl;
     //std::cout << "Lambda: " << lambda_per_host << std::endl;
 
 
@@ -162,7 +163,7 @@ void FlowReader::make_flows() {
         size = (uint32_t) (params.mss * size);
         assert(size > 0);
 
-        std::cout << "Flow " << id << " " << start_time << " " << size << " " << s << " " << d << "\n";
+        // std::cout << "Flow " << id << " " << start_time << " " << size << " " << s << " " << d << "\n";
         flows_to_schedule.push_back(
             Factory::get_flow(id, start_time, size, topo->hosts[s], topo->hosts[d], params.flow_type)
         );

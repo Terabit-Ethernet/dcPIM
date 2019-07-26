@@ -20,7 +20,8 @@ matplotlib.rcParams['xtick.minor.width'] = 0
 
 marker = [".", "o", "x", "s", "*"]
 
-algos = ["pfabric", "fastpass", "phost", "ranking"]
+algos = ["pfabric", "fastpass", "phost", "ranking", "pim"]
+#algos=["pim"]
 loads = [5, 6, 7, 8, 9]
 # input_file1 = sys.argv[1]
 # output_file = sys.argv[2]
@@ -258,6 +259,7 @@ def main():
     date = str(sys.argv[1])
     trace = str(sys.argv[2])
     util, fct_oct_ratio, stats =  read_outputs("../../result/load/" + date, trace)
+    print util, fct_oct_ratio
     # draw_graph(util, trace + " load Utilization")
     # draw_graph(fct_oct_ratio,  trace + " load FCT_OCT_ratio")
     # draw_bar_graph(stats, num_elements, trace + " bar chart for Slowdown")

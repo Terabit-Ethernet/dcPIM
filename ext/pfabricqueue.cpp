@@ -70,12 +70,12 @@ Packet* PFabricQueue::deque() {
         b_departures += p->size;
 
         p->total_queuing_delay += get_current_time() - p->last_enque_time;
-        if(p->type == PIM_GRANTS_PACKET) {
-            if(debug_host(p->flow->dst->id)) {
-                std::cout << "delay:" << get_current_time() - p->last_enque_time << std::endl;
-                std::cout << " location: " << this->location << std::endl;
-            }
-        }
+        // if(p->type == PIM_GRANTS_PACKET) {
+        //     if(debug_host(p->flow->dst->id)) {
+        //         std::cout << "delay:" << get_current_time() - p->last_enque_time << std::endl;
+        //         std::cout << " location: " << this->location << std::endl;
+        //     }
+        // }
         if(p->type ==  NORMAL_PACKET){
             if(p->flow->first_byte_send_time < 0)
                 p->flow->first_byte_send_time = get_current_time();

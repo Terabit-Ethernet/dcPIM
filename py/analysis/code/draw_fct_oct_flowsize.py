@@ -20,7 +20,7 @@ matplotlib.rcParams['xtick.minor.width'] = 0
 
 marker = [".", "o", "x", "s", "*"]
 #algos = ["ranking"]
-algos = ["pfabric", "fastpass" ,"phost", "ranking"]
+algos = ["pfabric", "fastpass" ,"phost","ranking", "pim"]
 #algos = ["p1", "p2", "p2+p3", "p2+p3+p4"]
 #algos = ["pfabric", "phost", "ranking", "fastpass"]
 # input_file1 = sys.argv[1]

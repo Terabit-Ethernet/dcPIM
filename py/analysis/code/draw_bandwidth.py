@@ -20,7 +20,7 @@ matplotlib.rcParams['xtick.minor.width'] = 0
 
 marker = [".", "o", "x", "s", "*"]
 
-algos = ["pfabric","fastpass", "phost", "ranking"]
+algos = ["pfabric", "fastpass", "phost", "ranking", "pim"]
 bandwidths = [10, 40, 100]
 # input_file1 = sys.argv[1]
 # output_file = sys.argv[2]

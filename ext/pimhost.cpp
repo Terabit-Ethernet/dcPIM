@@ -159,6 +159,10 @@ void PimEpoch::receive_req(PIMREQ *p) {
         this->min_req.f = req.f;
         this->min_req.remaining_sz = req.remaining_sz;
         this->min_req.iter = req.iter;
+    } else if (this->min_req.remaining_sz == req.remaining_sz && this->host->receiver == req.f->dst) {
+        this->min_req.f = req.f;
+        this->min_req.remaining_sz = req.remaining_sz;
+        this->min_req.iter = req.iter;
     }
     // schduling handle all rtses
 }
@@ -184,12 +188,12 @@ void PimEpoch::receive_grantsr(GrantsR *p) {
 
 void PimEpoch::receive_grants(PIMGrants *p) {
     assert(p->epoch == this->epoch);
-    if(debug_host(this->host->id)) {
+    if(p->iter < this->iter)
+        return;
+    if(debug_host(this->host->id) || debug_flow(p->flow->id)) {
         std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << std::endl;
         std::cout << "           "<< " receive grants for flow " << p->flow->id << "host: " << this->host->id << " p iter:" << p->iter  << " total queue delay:" << p->total_queuing_delay << std::endl; 
     }
-    if(p->iter < this->iter)
-        return;
     PIM_Grants grant;
     grant.iter = p->iter;
     grant.f = (PimFlow*)p->flow;
@@ -201,6 +205,11 @@ void PimEpoch::receive_grants(PIMGrants *p) {
     assert(this->iter == p->iter);
     this->grants_q.push_back(grant);
     if(this->min_grant.f == NULL || this->min_grant.remaining_sz > grant.remaining_sz) {
+        this->min_grant.f = grant.f;
+        this->min_grant.remaining_sz = grant.remaining_sz;
+        this->min_grant.iter = grant.iter;
+        this->min_grant.prompt = grant.prompt;
+    } else if (this->min_grant.remaining_sz == grant.remaining_sz && this->host->sender == grant.f->src) {
         this->min_grant.f = grant.f;
         this->min_grant.remaining_sz = grant.remaining_sz;
         this->min_grant.iter = grant.iter;
@@ -341,7 +350,7 @@ void PimEpoch::handle_all_grants() {
     }
     if(f != NULL) {
         f->send_accept_pkt(this->iter, this->epoch);
-        if(debug_host(f->dst->id)) {
+        if(debug_host(f->dst->id) || debug_host(f->src->id)) {
             std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " dst " << this->host->id << " accept " << f->src->id << std::endl;
         }
         this->match_sender = (PimHost*)(f->src);
@@ -426,6 +435,8 @@ void PimEpoch::schedule_receiver_iter_evt() {
     }
     this->send_all_req();
     this->proc_receiver_iter_evt = new ProcessReceiverIterEvent(get_current_time() + params.pim_iter_epoch, this);
+    this->min_grant = PIM_Grants();
+    this->min_req = PIM_REQ();
     add_to_event_queue(this->proc_receiver_iter_evt);
 
 }

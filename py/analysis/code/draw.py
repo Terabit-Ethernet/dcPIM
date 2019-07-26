@@ -21,8 +21,10 @@ matplotlib.rcParams['xtick.minor.width'] = 0
 marker = [".", "o", "x", "s", "*"]
 #algos = ["ranking"]
 #algos = ["p1", "p2", "p2+p3", "p2+p3+p4", "p2+p3+p4+p5"]
-algos = ["pfabric","fastpass", "phost", "ranking"]
-traces = ["aditya", "dctcp", "datamining"]
+#algos = ["pfabric","fastpass", "phost", "ranking", "pim"]
+algos = ["pim"]
+traces = ["aditya", "dctcp"]
+#traces = ["aditya", "dctcp", "datamining"]
 #traces = ['aditya', 'dctcp']
 # input_file1 = sys.argv[1]
 # output_file = sys.argv[2]
@@ -105,6 +107,8 @@ def read_file(filename):
                 orct = get_oracle_fct(src, dst, size, 10000000000.0)
                 assert(fct > orct)
                 # ratio = float(params[8])
+                #if fct / orct > 10.0:
+                 #   print flowId, size, fct / orct
                 if reach_check_point < 10:
                     output.append([flowId, size, start_time, end_time, fct, orct])
     return output, total_sent_packets,total_packets, finish_time, s_time
@@ -140,8 +144,8 @@ def get_99_fct_oct_ratio(output):
     data = []
     for line in output:
         data.append(line[FCT] / line[ORCT])
-        if line[FCT] / line[RCT] > 8.0:
-            print line[SIZE] / 1460
+        #if line[FCT] / line[ORCT] > 8.0:
+         #   print line[SIZE] / 1460
     return np.percentile(data, 99)
 
 def get_utilization(output, end_time, bandwidth, num_nodes):

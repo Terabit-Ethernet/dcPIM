@@ -21,9 +21,9 @@ matplotlib.rcParams['xtick.minor.width'] = 0
 marker = [".", "o", "x", "s", "*"]
 #algos = ["ranking"]
 #algos = ["p1", "p2", "p2+p3", "p2+p3+p4", "p2+p3+p4+p5"]
-algos = ["pfabric", "phost", "ranking"]
-traces = ["aditya", "dctcp", "datamining"]
-#traces = ['aditya', 'dctcp']
+algos = ["pim"]
+#traces = ["aditya", "dctcp", "datamining"]
+traces = ['aditya']
 # input_file1 = sys.argv[1]
 # output_file = sys.argv[2]
 load = 0.8
@@ -119,6 +119,14 @@ def get_mean_fct_oct_ratio(output):
         total += line[FCT] / line[ORCT]
     return total / float(len(output))
 
+def get_99_fct_oct_ratio(output):
+    data = []
+    for line in output:
+        data.append(line[FCT] / line[ORCT])
+        #if line[FCT] / line[ORCT] > 8.0:
+         #   print line[SIZE] / 1460
+    return np.percentile(data, 99)
+
 def get_utilization(output, end_time, bandwidth, num_nodes):
     total = 0
     for line in output:
@@ -130,20 +138,23 @@ def read_outputs(direc):
     input_prefix = direc + "/result_"
     util = {}
     fct_oct_ratio = {}
+    fct_oct_ratio_99 = {}
     for k in traces:
         util[k] = {}
         fct_oct_ratio[k] = {}
+        fct_oct_ratio_99[k] = {}
         for i in algos:
             util[k][i] = 0
             fct_oct_ratio[k][i] = 0
-
+            fct_oct_ratio_99[k][i] = 0
     for k in traces:
         for i in algos:
             file = input_prefix  + i +  "_" + k + ".txt"
             output, total_sent_packets, total_packets, finish_time, start_time = read_file(file)
             util[k][i] = total_sent_packets  / float(total_packets)
             fct_oct_ratio[k][i] = get_mean_fct_oct_ratio(output)
-    return util, fct_oct_ratio
+            fct_oct_ratio_99[k][i] = get_99_fct_oct_ratio(output)
+    return util, fct_oct_ratio, fct_oct_ratio_99
 
 # def draw_graph(dicts, name):
 #     fig, ax = plt.subplots()
@@ -210,12 +221,13 @@ def draw_graph(dicts, name):
 def main():
     date = str(sys.argv[1])
     # trace = str(sys.argv[2])
-    util, fct_oct_ratio =  read_outputs("../../result/fat_tree/" + date)
+    util, fct_oct_ratio, fct_oct_ratio_99 =  read_outputs("../../result/fat_tree/" + date)
     # draw_graph(util, trace + " Utilization")
     # draw_graph(fct_oct_ratio, trace + " Slowdown")
-    print util, fct_oct_ratio
+    print util, fct_oct_ratio, fct_oct_ratio_99
     output_file(util, "../gnuplot/data/fat_tree_util.dat")
     output_file(fct_oct_ratio, "../gnuplot/data/fat_tree_slowdown.dat")
+    output_file(fct_oct_ratio_99, "../gnuplot/data/fat_tree_99_slowdown.dat")
 
 main()
 # def draw_histogram(data):
