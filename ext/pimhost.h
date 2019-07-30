@@ -79,6 +79,10 @@ class PimFlowComparator {
         bool operator() (PimFlow* a, PimFlow* b);
 };
 
+class PimFlowComparatorAtReceiver {
+    public:
+        bool operator() (PimFlow* a, PimFlow* b);
+};
 // class CapabilityFlowComparator {
 //     public:
 //         bool operator() (CapabilityFlow* a, CapabilityFlow* b);
@@ -112,7 +116,7 @@ class PimHost : public SchedulingHost {
         PimTokenProcessingEvent *token_send_evt;
 
         // std::vector<bool> receiver_state;
-        std::unordered_map<uint32_t, CustomPriorityQueue<PimFlow*, std::vector<PimFlow*>, PimFlowComparator>> src_to_flows;
+        std::unordered_map<uint32_t, CustomPriorityQueue<PimFlow*, std::vector<PimFlow*>, PimFlowComparatorAtReceiver>> src_to_flows;
         CustomPriorityQueue<PimFlow*, std::vector<PimFlow*>, PimFlowComparator> active_sending_flows;
         // std::unordered_map<uint32_t, CustomPriorityQueue<PimFlow*, std::vector<PimFlow*>, PimFlowComparator>> dst_to_flows;
 

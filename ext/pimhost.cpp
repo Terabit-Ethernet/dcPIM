@@ -43,7 +43,14 @@ bool PimFlowComparator::operator() (PimFlow* a, PimFlow* b){
     else
         return false;
 }
-
+bool PimFlowComparatorAtReceiver::operator() (PimFlow* a, PimFlow* b){
+    if (a->remaining_pkts() > b->remaining_pkts())
+        return true;
+    else if (a->remaining_pkts() == b->remaining_pkts())
+        return a->start_time > b->start_time;
+    else
+        return false;
+}
 NewEpochEvent::NewEpochEvent(double time, int epoch, PimHost *h)
     : Event(NEW_EPOCH_PROCESSING, time) {
         this->time = time;
