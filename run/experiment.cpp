@@ -167,7 +167,7 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
         params.num_hosts =  params.k * params.k * params.k / 4;
         topology = new FatTreeTopology(params.k, params.bandwidth, params.queue_type);
     } else {
-        params.num_hosts = 144;
+        // params.num_hosts = 144;
         params.num_agg_switches = 9;
         params.num_core_switches = 4;
         // if (params.flow_type == FASTPASS_FLOW) {

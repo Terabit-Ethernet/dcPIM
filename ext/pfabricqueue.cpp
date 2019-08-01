@@ -4,7 +4,7 @@
 #include "factory.h"
 #include <iostream>
 #include <limits.h>
-
+#include <assert.h>
 extern double get_current_time();
 extern void add_to_event_queue(Event *ev);
 extern DCExpParams params;
@@ -35,6 +35,12 @@ void PFabricQueue::enque(Packet *packet) {
         pkt_drop++;
         drop(worst_packet);
     }
+    if(packet->type == PIM_GRANTS_PACKET && packet_transmitting != NULL) {
+        if(debug_host(packet_transmitting->dst->id)) {
+            std::cout << " transmitting a packet now: for flow :" << packet_transmitting->flow->id << " location: " <<  this->location << std::endl;
+            std::cout << " grant flow id:" << packet->flow->id << std::endl;
+        }
+    }    
     // for debugging
     packet->hop++;
 }
@@ -70,12 +76,12 @@ Packet* PFabricQueue::deque() {
         b_departures += p->size;
 
         p->total_queuing_delay += get_current_time() - p->last_enque_time;
-        // if(p->type == PIM_GRANTS_PACKET) {
-        //     if(debug_host(p->flow->dst->id)) {
-        //         std::cout << "delay:" << get_current_time() - p->last_enque_time << std::endl;
-        //         std::cout << " location: " << this->location << std::endl;
-        //     }
-        // }
+        if(p->type == PIM_GRANTS_PACKET) {
+            if(debug_host(p->flow->dst->id)) {
+                std::cout << "delay:" << get_current_time() - p->last_enque_time << std::endl;
+                std::cout << " location: " << this->location << std::endl;
+            }
+        }
         if(p->type ==  NORMAL_PACKET){
             if(p->flow->first_byte_send_time < 0)
                 p->flow->first_byte_send_time = get_current_time();

@@ -14,11 +14,9 @@ LeafSpineTopology::LeafSpineTopology(
     this->num_hosts = num_hosts;
     this->num_agg_switches = num_agg_switches;
     this->num_core_switches = num_core_switches;
-
     //Capacities
     double c1 = bandwidth;
-    double c2 = hosts_per_agg_switch * bandwidth / num_core_switches;
-
+    double c2 = hosts_per_agg_switch * params.os_ratio * bandwidth / num_core_switches;
 
     // Create Hosts
     this->arbiter = NULL;
@@ -52,7 +50,7 @@ LeafSpineTopology::LeafSpineTopology(
 
     //Connect host queues
     for (uint32_t i = 0; i < num_hosts; i++) {
-        hosts[i]->queue->set_src_dst(hosts[i], agg_switches[i/16]);
+        hosts[i]->queue->set_src_dst(hosts[i], agg_switches[i/hosts_per_agg_switch]);
     }
 
     // std::cout << "Linking arbiter with queue " << arbiter->queue->id << " " << arbiter->queue->unique_id << " with agg switch " << agg_switches[0]->id << "\n" ;
@@ -63,12 +61,12 @@ LeafSpineTopology::LeafSpineTopology(
         // Queues to Hosts
         for (uint32_t j = 0; j < hosts_per_agg_switch; j++) { // TODO make generic
             Queue *q = agg_switches[i]->queues[j];
-            q->set_src_dst(agg_switches[i], hosts[i * 16 + j]);
+            q->set_src_dst(agg_switches[i], hosts[i * hosts_per_agg_switch + j]);
             // std::cout << "Linking Agg " << i << " to Host" << i * 16 + j << " with queue " << q->id << " " << q->unique_id << "\n";
         }
         // Queues to Core
         for (uint32_t j = 0; j < num_core_switches; j++) {
-            Queue *q = agg_switches[i]->queues[j + 16];
+            Queue *q = agg_switches[i]->queues[j + hosts_per_agg_switch];
             q->set_src_dst(agg_switches[i], core_switches[j]);
             // std::cout << "Linking Agg " << i << " to Core" << j << " with queue " << q->id << " " << q->unique_id << "\n";
         }
@@ -200,7 +198,7 @@ Queue* LeafSpineTopology::get_next_hop(Packet* p, Queue* q) {
 
 double LeafSpineTopology::get_oracle_fct(Flow *f) {
     int num_hops = 4;
-    if (f->src->id/16 == f->dst->id/16) {
+    if (f->src->id / hosts_per_agg_switch == f->dst->id / hosts_per_agg_switch) {
         num_hops = 2;
     }
     double propagation_delay;
@@ -272,7 +270,7 @@ double LeafSpineTopology::get_oracle_fct(Flow *f) {
     return (propagation_delay + transmission_delay); //us
 }
 double LeafSpineTopology::get_control_pkt_rtt(int host_id) {
-    if(host_id / 16 == 0) {
+    if(host_id / hosts_per_agg_switch == 0) {
         return (2 * params.propagation_delay + (40 * 8 / params.bandwidth) * 2) * 2;
     } else {
         return (4 * params.propagation_delay + (40 * 8 / params.bandwidth) * 2.5) * 2;

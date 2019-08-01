@@ -23,6 +23,8 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     params.debug_controller_queue = false;
     // params.policy = "rtt";
     params.topology = "LeafSpine";
+    // default full-bisection bandwidth topology
+    params.os_ratio = 1;
     while (std::getline(input, line)) {
         std::istringstream lineStream(line);
         if (line.empty()) {
@@ -36,7 +38,15 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         if(key == "topology") {
             lineStream >> params.topology;
         } 
+        else if (key == "num_hosts") {
+            lineStream >> params.num_hosts; 
+        }
+        else if (key == "os_ratio") {
+            //over subscription ratio
+            lineStream >> params.os_ratio;
+        }
         else if (key == "k") {
+            // for fat-tree topology
             lineStream >> params.k;
         }
         else if (key == "init_cwnd") {

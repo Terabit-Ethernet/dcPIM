@@ -169,7 +169,7 @@ void PimFlow::receive(Packet *p) {
         return;
     }
     if(debug_host(p->dst->id)) {
-        std::cout << get_current_time() << "receive pkt size: " << p->size << " pkt type:" << p->type << "for flow" << this->id  << std::endl;
+        std::cout << get_current_time() << "receive pkt size: " << p->size << " pkt type:" << p->type << "for flow " << this->id  << std::endl;
     }
     if (p->type == FLOW_RTS) {
         if(this->rts_received == false) {

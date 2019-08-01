@@ -24,7 +24,8 @@ class DCExpParams {
 
         double propagation_delay;
         double bandwidth;
-
+        double os_ratio;
+        
         uint32_t num_flows_to_run;
         double end_time;
         std::string cdf_or_flow_trace;

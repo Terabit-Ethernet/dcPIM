@@ -195,12 +195,12 @@ void PimEpoch::receive_grantsr(GrantsR *p) {
 
 void PimEpoch::receive_grants(PIMGrants *p) {
     assert(p->epoch == this->epoch);
-    if(p->iter < this->iter)
-        return;
     if(debug_host(this->host->id) || debug_flow(p->flow->id)) {
         std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << std::endl;
         std::cout << "           "<< " receive grants for flow " << p->flow->id << "host: " << this->host->id << " p iter:" << p->iter  << " total queue delay:" << p->total_queuing_delay << std::endl; 
     }
+    if(p->iter < this->iter)
+        return;
     PIM_Grants grant;
     grant.iter = p->iter;
     grant.f = (PimFlow*)p->flow;
