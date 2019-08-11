@@ -242,12 +242,12 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 40000000000.0
+bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 116
 topology: FatTree
 k: 16
-num_flow: 200000
+num_flow: 1000000
 flow_trace: ../CDF_{0}.txt
 cut_through: 0
 mean_flow_size: 0
