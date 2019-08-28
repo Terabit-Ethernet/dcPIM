@@ -1,7 +1,7 @@
 #!/bin/bash
 
-loads=(1 2 3 4 5 6 7 8 9)
-algos=(pim phost pfabric ruf fastpass)
+loads=(0 1 2 3 4 5 6 7 8 9)
+algos=(pim phost pfabric fastpass)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()
 
@@ -18,7 +18,8 @@ do
 	    algo=${algos[$i]}
 	    # echo conf_"$algo"_dctcp_$load.txt
 	    # echo "$OUTPUT_FOLDER"/result_"$algo"_dctcp_"$load".txt
-	    ../../simulator 1 conf_"$algo"_"$2"_"0.7$load".txt > "$OUTPUT_FOLDER/$DATE"/result_"$algo"_"$2"_"0.7$load".txt&
+	    #../../simulator 1 conf_"$algo"_"$2"_"0.7$load".txt > "$OUTPUT_FOLDER/$DATE"/result_"$algo"_"$2"_"0.7$load".txt&
+	    ../../simulator 1 conf_"$algo"_"$2"_"0.8$load".txt > "$OUTPUT_FOLDER/$DATE"/result_"$algo"_"$2"_"0.8$load".txt&
 	#	nohup ./batch_simulate_sflow.py -P $p -F ../../../data/ -t ${threshold[$index]} -i 10 -N 1000 -s 1 -l results/conext18/flows/percentage-${percentage[$index]}.log &
 	    pids[${index}]=$!
 	done
