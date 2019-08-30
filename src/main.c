@@ -66,11 +66,12 @@ struct l2fwd_port_statistics flow_stats;
 // char sendpath[8];
 static struct rte_eth_conf port_conf = {
 	.rxmode = {
-		.split_hdr_size = 0,
+		.mq_mode = ETH_MQ_RX_NONE
+		//.split_hdr_size = 0,
 		//.offloads = DEV_RX_OFFLOAD_CRC_STRIP,
 	},
 	.txmode = {
-		.offloads = 0,
+		.mq_mode = ETH_MQ_TX_NONE,
 	},
 };
 #define MAX_RX_QUEUE_PER_LCORE 16
@@ -319,7 +320,7 @@ static void flow_generate_loop(void) {
 			printf("size of temp_pkt_buffer: %u\n",rte_ring_count(host.temp_pkt_buffer));
 			printf("size of control q: %u\n", rte_ring_count(pacer.ctrl_q));
 			printf("size of data q: %u\n", rte_ring_count(pacer.data_q));
-			printf("number of unfinished flow: %u\n", rte_hash_count(host.rx_flow_table));
+			//printf("number of unfinished flow: %u\n", rte_hash_count(host.rx_flow_table));
 
 			host.sent_bytes -= old_sentbytes;
 			host.received_bytes -= old_receivebytes;
@@ -459,7 +460,7 @@ signal_handler(int signum)
 				pflow_dump(flow);
 			}
 			printf("------------\n");
-			printf("Unfinished received flows:%u\n", rte_hash_count(host.rx_flow_table));
+			//printf("Unfinished received flows:%u\n", rte_hash_count(host.rx_flow_table));
 			position = 0;
  			next = 0;
 			while(1) {
@@ -530,7 +531,7 @@ main(int argc, char **argv)
 		cdf_file = argv[2];
 	}
 	/* exit if no ports open*/
-	num_ports = rte_eth_dev_count_avail();
+	num_ports = rte_eth_dev_count();
 	if (num_ports == 0)
 		rte_exit(EXIT_FAILURE, "No Ethernet ports - bye\n");
 
@@ -579,18 +580,18 @@ main(int argc, char **argv)
 			rte_exit(EXIT_FAILURE, "Cannot configure device: err=%d, port=%u\n", ret, portid);
 		}
 
-		ret = rte_eth_dev_adjust_nb_rx_tx_desc(portid, &nb_rxd, &nb_txd);
+		// ret = rte_eth_dev_adjust_nb_rx_tx_desc(portid, &nb_rxd, &nb_txd);
 
-		if (ret < 0){
-			rte_exit(EXIT_FAILURE, "Cannot adjust number of descriptors: err=%d, port=%u\n", ret, portid);
-		}
+		// if (ret < 0){
+		// 	rte_exit(EXIT_FAILURE, "Cannot adjust number of descriptors: err=%d, port=%u\n", ret, portid);
+		// }
 
 		// rte_eth_macaddr_get(portid, &r2c2_ports_eth_addr[portid]);
 
 		/*init one RX queue*/
 		fflush(stdout);
 		rxq_conf = dev_info.default_rxconf;
-		rxq_conf.offloads = local_port_conf.rxmode.offloads;
+		// rxq_conf.offloads = local_port_conf.rxmode.offloads;
 		ret = rte_eth_rx_queue_setup(portid, 0, nb_rxd, rte_eth_dev_socket_id(portid), &rxq_conf, pktmbuf_pool);
 		if (ret < 0){
 			rte_exit(EXIT_FAILURE, "rte_eth_rx_queue_setup:err=%d, port=%u\n", ret, portid);
@@ -598,7 +599,7 @@ main(int argc, char **argv)
 		/* init one TX queues on each port */
 		fflush(stdout);
 		txq_conf = dev_info.default_txconf;
-		txq_conf.offloads = local_port_conf.txmode.offloads;
+		// txq_conf.offloads = local_port_conf.txmode.offloads;
 		ret = rte_eth_tx_queue_setup(portid, 0, nb_txd,
 				rte_eth_dev_socket_id(portid),
 				&txq_conf);

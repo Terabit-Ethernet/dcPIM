@@ -1,4 +1,5 @@
 #include "config.h"
+#include <rte_ip.h>
 #include <rte_common.h>
 
 uint32_t id_to_ip[] = {20, 22, 24, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
@@ -31,8 +32,8 @@ struct Params params = {
 	.mss = 1460,
 	.priority_limit = 6,
 	.bandwidth = 10000000000,
-	.ip = 22,
-	.dst_ip = 24,
+	.ip = IPv4(192, 168, 6, 27),
+	.dst_ip = IPv4(192, 168, 6, 28),
 	.pim_beta = 5,
 	.pim_alpha = 1.6,
 	.pim_iter_limit = 5,
@@ -65,6 +66,7 @@ uint32_t ip_to_id(uint32_t ip) {
 	return 0;
 }
 uint32_t get_port_by_ip(uint32_t ip) {
+	return 1;
 	if(params.ip == 20) {
 		if(ip == 22) {
 			return 1;

@@ -5,6 +5,7 @@
 #include <rte_mbuf.h>
 #include <rte_mempool.h>
 #include <rte_timer.h>
+#include <rte_cycles.h>
 #include <rte_hash.h>
 
 #include "debug.h"
