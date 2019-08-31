@@ -13,6 +13,7 @@ void add_ether_hdr(struct rte_mbuf* p, struct ether_addr* dst) {
 	eth_hdr = rte_pktmbuf_mtod(p, struct ether_hdr *);
 	eth_hdr->ether_type = htons(0x0800);
 	ether_addr_copy(dst, &eth_hdr->d_addr);
+	ether_addr_copy(&params.ether_addr, &eth_hdr->s_addr);
 
 }
 // void add_ip_hdr(struct rte_mbuf* p, struct ipv4_hdr* ipv4_hdr) {

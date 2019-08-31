@@ -655,6 +655,7 @@ main(int argc, char **argv)
 	check_all_ports_link_status();
 	ret = 0;
 	init_config(&params);
+	rte_eth_macaddr_get(1, &params.ether_addr);
 	/* initialize flow rates and flow nums */
 	// for(int i = 0; i < NUM_FLOW_TYPES; i++) {
 	// 	flow_remainder[i] = 0;

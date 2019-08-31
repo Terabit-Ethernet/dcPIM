@@ -2,7 +2,7 @@
 #define HEADER_H
 
 #include "debug.h"
-
+#include "config.h"
 #include <rte_mbuf.h>
 #include <rte_ether.h>
 #include <rte_ip.h>
