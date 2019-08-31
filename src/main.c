@@ -228,6 +228,7 @@ static void start_main_loop(void) {
 		if(params.dst_ips[i] == params.ip){
 			continue;
 		}
+		printf("%i\n", params.num_hosts);
 		 struct rte_mbuf* p = NULL;
 	    p = rte_pktmbuf_alloc(pktmbuf_pool);
 	    uint16_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
@@ -304,6 +305,7 @@ static void flow_generate_loop(void) {
 			 		continue;
 			 	}
 			 	ether_addr_copy(&params.dst_ethers[index], &dst_ether);
+			 	break;
 			}
 
 			pim_new_flow_comes(&host, & pacer, i, dst_ip, &dst_ether, flow_size);
