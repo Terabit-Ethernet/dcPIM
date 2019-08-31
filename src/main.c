@@ -308,7 +308,7 @@ static void flow_generate_loop(void) {
 			 	break;
 			}
 
-			pim_new_flow_comes(&host, & pacer, i, dst_ip, &dst_ether, flow_size);
+			pim_new_flow_comes(&host, & pacer, i + index * 100000, dst_ip, &dst_ether, flow_size);
             // printf("flow id%u\n", i);
             // printf("flow size:%u\n", flow_size);
             // printf("time:%f\n", time);

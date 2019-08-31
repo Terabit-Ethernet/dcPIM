@@ -49,6 +49,7 @@ struct Params {
 	double pim_epoch;
 	double pipe_epoch;
 	// debug purpose
+	uint32_t index;
 	uint32_t num_hosts;
 	uint32_t dst_ips[6];
 	struct ether_addr dst_ethers[6];

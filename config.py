@@ -33,12 +33,13 @@ def main():
 #include <rte_ip.h>
 #include <rte_common.h>
 struct Params params = {{
+    .index = {0},
     .BDP = 7,
     .small_flow_thre = 7,
     .mss = 1460,
     .priority_limit = 6,
     .bandwidth = 10000000000,
-    .ip = {0},
+    .ip = {1},
     .pim_beta = 5,
     .pim_alpha = 1.6,
     .pim_iter_limit = 5,
@@ -48,9 +49,9 @@ struct Params params = {{
     .pim_select_min_iters = 1,
     .batch_tokens = 7,
     .load = 0.6,
-    .num_hosts = {1}
+    .num_hosts = {2}
 }};
-""".format(ip_str, int(large_ip) - int(small_ip) + 1)
+""".format(int(ip) - int(small_ip), ip_str, int(large_ip) - int(small_ip) + 1)
     statement = dst_ips
     statement += construct_ethers()
 
