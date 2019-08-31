@@ -224,19 +224,22 @@ static void start_main_loop(void) {
 	rte_delay_us_block(2000000);
 	int ips[1] = {24};
 	int i = 0;
-	for (; i < 1; i++) {
+	for (; i < params.num_hosts; i++) {
+		if(params.dst_ips[i] == params.ip){
+			continue;
+		}
 		 struct rte_mbuf* p = NULL;
 	    p = rte_pktmbuf_alloc(pktmbuf_pool);
 	    uint16_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
 	                sizeof(struct pim_hdr);
 	    rte_pktmbuf_append(p, size);
-	    add_ether_hdr(p);
+	    add_ether_hdr(p, &params.dst_ethers[i]);
 	    struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, 
 	    	struct ipv4_hdr*, sizeof(struct ether_hdr));
 	    struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
 	    	sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
-	    ipv4_hdr->src_addr = rte_cpu_to_be_32(24);
-	    ipv4_hdr->dst_addr = rte_cpu_to_be_32(ips[i]);
+	    ipv4_hdr->src_addr = rte_cpu_to_be_32(params.ip);
+	    ipv4_hdr->dst_addr = rte_cpu_to_be_32(params.dst_ips[i]);
 	    ipv4_hdr->total_length = rte_cpu_to_be_16(size);
 
 	    pim_hdr->type = PIM_START;
@@ -292,7 +295,18 @@ static void flow_generate_loop(void) {
 			// printf("flow size:%u\n", flow_size);
 			// printf("acc_time:%f\n", acc_time);
 			// printf("avg load: %f\n", acc_flow_size * 8 / (params.bandwidth * acc_time));
-			pim_new_flow_comes(&host, & pacer, i, params.dst_ip, flow_size);
+			uint32_t dst_ip = params.ip;
+			struct ether_addr dst_ether;
+			while(1) {
+				uint32_t index = (uint32_t)(rte_rand() % params.num_hosts);
+			 	dst_ip = params.dst_ips[index];
+			 	if(dst_ip == params.ip){
+			 		continue;
+			 	}
+			 	ether_addr_copy(&params.dst_ethers[index], &dst_ether);
+			}
+
+			pim_new_flow_comes(&host, & pacer, i, dst_ip, &dst_ether, flow_size);
             // printf("flow id%u\n", i);
             // printf("flow size:%u\n", flow_size);
             // printf("time:%f\n", time);
@@ -640,7 +654,7 @@ main(int argc, char **argv)
 
 	check_all_ports_link_status();
 	ret = 0;
-
+	init_config(&params);
 	/* initialize flow rates and flow nums */
 	// for(int i = 0; i < NUM_FLOW_TYPES; i++) {
 	// 	flow_remainder[i] = 0;

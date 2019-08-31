@@ -38,8 +38,9 @@ struct pim_flow* pflow_new(struct rte_mempool* pool) {
 	flow->buf = buf;
 	return flow;
 }
-void pflow_init(struct pim_flow* pim_f, uint32_t id, uint32_t size, uint32_t src_addr, uint32_t dst_addr, double start_time, int receiver_side) {
-	init_flow(&(pim_f->_f), id, size, src_addr, dst_addr, start_time, receiver_side);
+void pflow_init(struct pim_flow* pim_f, uint32_t id, uint32_t size, uint32_t src_addr, uint32_t dst_addr,
+struct ether_addr* ether_addr, double start_time, int receiver_side) {
+	init_flow(&(pim_f->_f), id, size, src_addr, dst_addr, ether_addr, start_time, receiver_side);
     pim_f->flow_sync_received = false;
     pim_f->token_goal = (int)(ceil(pim_f->_f.size_in_pkt * 1.00));
     pim_f->remaining_pkts_at_sender = pim_f->_f.size_in_pkt;
@@ -153,7 +154,7 @@ struct rte_mbuf* pflow_get_token_pkt(struct pim_flow* flow, uint32_t data_seq, b
     uint32_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
         sizeof(struct pim_hdr) + sizeof(struct pim_token_hdr);
     rte_pktmbuf_append(p, size);
-    add_ether_hdr(p);
+    add_ether_hdr(p, &flow->_f.src_ether_addr);
     struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, 
                 sizeof(struct ether_hdr));
     struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
@@ -198,7 +199,7 @@ struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow) {
     uint16_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
                 sizeof(struct pim_hdr) + sizeof(struct pim_ack_hdr);
     rte_pktmbuf_append(p, size);
-    add_ether_hdr(p);
+    add_ether_hdr(p, &flow->_f.src_ether_addr);
     struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, 
                 sizeof(struct ether_hdr));
     struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 

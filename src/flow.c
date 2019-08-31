@@ -8,7 +8,8 @@
 #include "config.h"
 #include "flow.h"
 
-void init_flow(struct flow* f, uint32_t id, uint32_t size, uint32_t src_addr, uint32_t dst_addr, uint64_t start_time, int receiver_side){
+void init_flow(struct flow* f, uint32_t id, uint32_t size, uint32_t src_addr, uint32_t dst_addr, 
+    struct ether_addr* ether, uint64_t start_time, int receiver_side){
 	f->id = id;
     f->start_time = start_time;
     f->size = size;
@@ -29,6 +30,8 @@ void init_flow(struct flow* f, uint32_t id, uint32_t size, uint32_t src_addr, ui
     // }
 
     if(receiver_side == 1) {
+        ether_addr_copy(ether, &(f->src_ether_addr));
+
         uint32_t bmp_size = rte_bitmap_get_memory_footprint(size_in_pkt);
         void *mem = rte_zmalloc("bit map", bmp_size, 0);
         if (mem == NULL) {
@@ -37,6 +40,7 @@ void init_flow(struct flow* f, uint32_t id, uint32_t size, uint32_t src_addr, ui
        }
        f->bmp = rte_bitmap_init(size_in_pkt, mem, bmp_size);
     } else {
+        ether_addr_copy(ether, &(f->dst_ether_addr));
         f->bmp = NULL;
     }
 } 

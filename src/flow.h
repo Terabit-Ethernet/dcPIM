@@ -3,7 +3,7 @@
 
 #include <rte_bitmap.h>
 #include <stdbool.h>
-
+#include <rte_ether.h>
 #include "debug.h"
 
 // #include <set>
@@ -31,6 +31,8 @@ struct flow{
     uint32_t size;
     uint32_t src_addr;
     uint32_t dst_addr;
+    struct ether_addr src_ether_addr;
+    struct ether_addr dst_ether_addr;
 
     uint32_t received_bytes;
     uint32_t received_count;
@@ -58,7 +60,8 @@ struct flow{
     struct rte_bitmap* bmp;
     // double deadline;
 };
-void init_flow(struct flow* f, uint32_t id, uint32_t size, uint32_t src_addr, uint32_t dst_addr, uint64_t start_time, int receiver_side);
+void init_flow(struct flow* f, uint32_t id, uint32_t size, uint32_t src_addr, uint32_t dst_addr, 
+    struct ether_addr* ether, uint64_t start_time, int receiver_side);
 uint8_t get_flow_priority(struct flow* f, uint32_t base, uint32_t limit);
 // uint16_t get_tci(uint8_t priority);
 uint8_t get_tos(uint8_t priority);

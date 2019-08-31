@@ -90,7 +90,8 @@ void pim_host_dump(struct pim_host* host, struct pim_pacer* pacer) {
     printf("size of control q: %u\n", rte_ring_count(pacer->ctrl_q)); 
 }
 
-void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t flow_id, uint32_t dst_addr, uint32_t flow_size) {
+void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t flow_id, uint32_t dst_addr, 
+    struct ether_addr* dst_ether, uint32_t flow_size) {
     struct pim_flow* exist_flow = lookup_table_entry(host->tx_flow_table, flow_id);
     if(exist_flow != NULL) {
         rte_exit(EXIT_FAILURE, "Twice new flows comes");
@@ -101,7 +102,7 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
         rte_exit(EXIT_FAILURE, "flow is null");
     }
 
-    pflow_init(new_flow, flow_id, flow_size, params.ip, dst_addr, rte_get_tsc_cycles(), 0);
+    pflow_init(new_flow, flow_id, flow_size, params.ip, dst_addr, dst_ether, rte_get_tsc_cycles(), 0);
     insert_table_entry(host->tx_flow_table, new_flow->_f.id, new_flow);
     // send rts
     if(debug_flow(flow_id)) {
@@ -131,9 +132,11 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
 // receiver logic 
 void pim_rx_packets(struct pim_epoch* epoch, struct pim_host* host, struct pim_pacer* pacer,
 struct rte_mbuf* p) {
+    struct ether_hdr * ether_hdr;
     struct pim_hdr *pim_hdr;
     struct ipv4_hdr *ipv4_hdr;
     uint32_t offset = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr);
+    ether_hdr = rte_pktmbuf_mtod_offset(p, struct ether_hdr*, 0);
     // get ip header
     ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, sizeof(struct ether_hdr));
     // get pim header
@@ -142,17 +145,17 @@ struct rte_mbuf* p) {
     // parse packet
     if(pim_hdr->type == PIM_FLOW_SYNC) {
         struct pim_flow_sync_hdr *pim_flow_sync_hdr = rte_pktmbuf_mtod_offset(p, struct pim_flow_sync_hdr*, offset);
-        pim_receive_flow_sync(host, pacer, ipv4_hdr, pim_flow_sync_hdr);
+        pim_receive_flow_sync(host, pacer, ether_hdr, ipv4_hdr, pim_flow_sync_hdr);
     } else if(pim_hdr->type == PIM_RTS) {
         struct pim_rts_hdr *pim_rts_hdr = rte_pktmbuf_mtod_offset(p, struct pim_rts_hdr*, offset);
-        pim_receive_rts(epoch, ipv4_hdr, pim_rts_hdr);
+        pim_receive_rts(epoch, ether_hdr, ipv4_hdr, pim_rts_hdr);
     } else if (pim_hdr->type == PIM_GRANT) {
         struct pim_grant_hdr *pim_grant_hdr = rte_pktmbuf_mtod_offset(p, struct pim_grant_hdr*, offset);
-        pim_receive_grant(epoch, ipv4_hdr, pim_grant_hdr);
+        pim_receive_grant(epoch, ether_hdr, ipv4_hdr, pim_grant_hdr);
 
     } else if (pim_hdr->type == PIM_ACCEPT) {
         struct pim_accept_hdr *pim_accept_hdr = rte_pktmbuf_mtod_offset(p, struct pim_accept_hdr*, offset);
-        pim_receive_accept(epoch, host, pacer, ipv4_hdr, pim_accept_hdr);
+        pim_receive_accept(epoch, host, pacer, ether_hdr, ipv4_hdr, pim_accept_hdr);
     } else if (pim_hdr->type == PIM_GRANTR) {
         struct pim_grantr_hdr *pim_grantr_hdr = rte_pktmbuf_mtod_offset(p, struct pim_grantr_hdr*, offset);
         pim_receive_grantr(epoch, host, pim_grantr_hdr);
@@ -181,7 +184,7 @@ struct rte_mbuf* p) {
     }
     rte_pktmbuf_free(p);
 }
-struct rte_mbuf* pim_get_grantr_pkt(struct ipv4_hdr* ipv4_hdr, int iter, int epoch) {
+struct rte_mbuf* pim_get_grantr_pkt(struct ether_hdr* ether_hdr, struct ipv4_hdr* ipv4_hdr, int iter, int epoch) {
     struct rte_mbuf* p = NULL;
     p = rte_pktmbuf_alloc(pktmbuf_pool);
     uint16_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
@@ -191,7 +194,7 @@ struct rte_mbuf* pim_get_grantr_pkt(struct ipv4_hdr* ipv4_hdr, int iter, int epo
                 rte_exit(EXIT_FAILURE ,"Pktbuf full");
     }
     rte_pktmbuf_append(p, size);
-    add_ether_hdr(p);
+    add_ether_hdr(p, &ether_hdr->s_addr);
     struct ipv4_hdr* ipv4_hdr2 = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, 
                 sizeof(struct ether_hdr));
     struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
@@ -221,7 +224,7 @@ struct rte_mbuf* pim_get_grant_pkt(struct pim_rts* pim_rts, int iter, int epoch,
         rte_exit(EXIT_FAILURE ,"Pktbuf full");
     }
     rte_pktmbuf_append(p, size);
-    add_ether_hdr(p);
+    add_ether_hdr(p, &pim_rts->src_ether_addr);
     struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, 
                 sizeof(struct ether_hdr));
     struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
@@ -253,7 +256,7 @@ struct rte_mbuf* pim_get_accept_pkt(struct pim_grant* pim_grant, int iter, int e
         rte_exit(EXIT_FAILURE ,"Pktbuf full");
     }
     rte_pktmbuf_append(p, size);
-    add_ether_hdr(p);
+    add_ether_hdr(p, &pim_grant->dst_ether_addr);
     struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, 
                 sizeof(struct ether_hdr));
     struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
@@ -284,7 +287,7 @@ struct rte_mbuf* pim_get_rts_pkt(struct pim_flow* flow, int iter, int epoch) {
         rte_exit(EXIT_FAILURE ,"Pktbuf full");
     }
     rte_pktmbuf_append(p, size);
-    add_ether_hdr(p);
+    add_ether_hdr(p, &flow->_f.src_ether_addr);
     struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, 
                 sizeof(struct ether_hdr));
     struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
@@ -305,7 +308,8 @@ struct rte_mbuf* pim_get_rts_pkt(struct pim_flow* flow, int iter, int epoch) {
     return p;
 }
 
-void pim_receive_rts(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, struct pim_rts_hdr* pim_rts_hdr) {
+void pim_receive_rts(struct pim_epoch* pim_epoch, struct ether_hdr* ether_hdr,
+ struct ipv4_hdr* ipv4_hdr, struct pim_rts_hdr* pim_rts_hdr) {
     // if(pim_rts_hdr->epoch == pim_epoch->epoch) {
     //  if(pim_epoch->iter == params.pim_iter_limit + 1) {
     //      return;
@@ -361,6 +365,7 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, str
         struct pim_rts *pim_rts = &pim_epoch->rts_q[pim_epoch->rts_size];
         pim_rts->src_addr = rte_be_to_cpu_32(ipv4_hdr->src_addr);
         pim_rts->remaining_sz = pim_rts_hdr->remaining_sz;
+        ether_addr_copy(&ether_hdr->s_addr, &pim_rts->src_ether_addr);
         pim_epoch->rts_size++;
         if(pim_epoch->rts_size > 16) {
             printf("rts size > 16\n");
@@ -371,7 +376,8 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, str
         }
     // }
 } 
-void pim_receive_grant(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, struct pim_grant_hdr* pim_grant_hdr) {
+void pim_receive_grant(struct pim_epoch* pim_epoch, struct ether_hdr* ether_hdr,
+ struct ipv4_hdr* ipv4_hdr, struct pim_grant_hdr* pim_grant_hdr) {
     // if(pim_grant_hdr->iter != pim_epoch->iter || pim_grant_hdr->epoch != pim_epoch->epoch) {
     //  double epoch_size = (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit);
     //  double precise_epoch = (double)(rte_get_tsc_cycles() - pim_epoch->start_cycle) / rte_get_timer_hz() / epoch_size;
@@ -389,6 +395,7 @@ void pim_receive_grant(struct pim_epoch* pim_epoch, struct ipv4_hdr* ipv4_hdr, s
         pim_grant->dst_addr = rte_be_to_cpu_32(ipv4_hdr->src_addr);
         pim_grant->remaining_sz = pim_grant_hdr->remaining_sz;
         pim_grant->prompt = pim_grant_hdr->prompt;
+        ether_addr_copy(&ether_hdr->s_addr, &pim_grant->dst_ether_addr);
         pim_epoch->grant_size++;
         if(pim_epoch->grant_size > 16) {
             printf("grant size > 16\n");
@@ -431,10 +438,11 @@ void pim_receive_start(struct pim_epoch* pim_epoch, struct pim_host* pim_host, s
     //  SINGLE, rte_lcore_id(), &pim_start_new_epoch, (void *)(&pim_epoch->pim_timer_params));
 }
 
-void pim_receive_accept(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer, struct ipv4_hdr* ipv4_hdr, struct pim_accept_hdr* pim_accept_hdr) {
+void pim_receive_accept(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer, struct ether_hdr* ether_hdr,
+ struct ipv4_hdr* ipv4_hdr, struct pim_accept_hdr* pim_accept_hdr) {
     if(pim_epoch->epoch == pim_accept_hdr->epoch) {
         if(pim_epoch->match_src_addr != 0) {
-            struct rte_mbuf *p = pim_get_grantr_pkt(ipv4_hdr, pim_epoch->iter, pim_epoch->epoch);
+            struct rte_mbuf *p = pim_get_grantr_pkt(ether_hdr, ipv4_hdr, pim_epoch->iter, pim_epoch->epoch);
             //rte_eth_tx_burst(get_port_by_ip(rte_be_to_cpu_32(ipv4_hdr->src_addr)) ,0, &p, 1);
             enqueue_ring(pacer->ctrl_q, p);
         } else {
@@ -625,7 +633,7 @@ void pim_start_new_epoch(__rte_unused struct rte_timer *timer, void* arg) {
     // do the first iteration sender event here
     // pim_schedule_sender_iter_evt(&pim_epoch->sender_iter_timer, (void *)(&pim_epoch->pim_timer_params));
 }
-void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer, 
+void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer, struct ether_hdr* ether_hdr,
     struct ipv4_hdr* ipv4_hdr, struct pim_flow_sync_hdr* pim_flow_sync_hdr) {
     struct pim_flow* exist_flow = lookup_table_entry(host->rx_flow_table, pim_flow_sync_hdr->flow_id);
     if(exist_flow != NULL && exist_flow->_f.size_in_pkt > params.small_flow_thre) {
@@ -639,7 +647,7 @@ void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer,
     uint32_t src_addr = rte_be_to_cpu_32(ipv4_hdr->src_addr);
     uint32_t dst_addr = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
     struct pim_flow* new_flow = pflow_new(host->rx_flow_pool);
-    pflow_init(new_flow, pim_flow_sync_hdr->flow_id, pim_flow_sync_hdr->flow_size, src_addr, dst_addr, pim_flow_sync_hdr->start_time, 1);
+    pflow_init(new_flow, pim_flow_sync_hdr->flow_id, pim_flow_sync_hdr->flow_size, src_addr, dst_addr, &ether_hdr->s_addr, pim_flow_sync_hdr->start_time, 1);
     new_flow->flow_sync_received = true;
     // pim_flow_dump(new_flow);
     // insert new flow to the table entry
@@ -741,7 +749,7 @@ void pim_send_flow_sync(struct pim_pacer* pacer, struct pim_host* host, struct p
                 sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
     struct pim_flow_sync_hdr* pim_flow_sync_hdr = rte_pktmbuf_mtod_offset(p, struct pim_flow_sync_hdr*, 
                 sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
-    add_ether_hdr(p);
+    add_ether_hdr(p, &flow->_f.dst_ether_addr);
     ipv4_hdr->src_addr = rte_cpu_to_be_32(flow->_f.src_addr);
 
     ipv4_hdr->dst_addr = rte_cpu_to_be_32(flow->_f.dst_addr);

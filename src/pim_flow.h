@@ -52,7 +52,8 @@ struct finish_timeout_params {
 
 void pflow_dump(struct pim_flow* f);
 struct pim_flow* pflow_new(struct rte_mempool* pool);
-void pflow_init(struct pim_flow* pim_f, uint32_t id, uint32_t size, uint32_t src_addr, uint32_t dst_addr, double start_time, int receiver_side);
+void pflow_init(struct pim_flow* pim_f, uint32_t id, uint32_t size, uint32_t src_addr, uint32_t dst_addr, 
+    struct ether_addr* ether_addr, double start_time, int receiver_side);
 
 // void pim_flow_free(struct rte_mempool* pool);
 bool pflow_is_small_flow(struct pim_flow* pim_flow);
