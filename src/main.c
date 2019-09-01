@@ -228,8 +228,7 @@ static void start_main_loop(void) {
 		if(params.dst_ips[i] == params.ip){
 			continue;
 		}
-		printf("%i\n", params.num_hosts);
-		 struct rte_mbuf* p = NULL;
+		struct rte_mbuf* p = NULL;
 	    p = rte_pktmbuf_alloc(pktmbuf_pool);
 	    uint16_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
 	                sizeof(struct pim_hdr);
@@ -665,7 +664,7 @@ main(int argc, char **argv)
 	// 	num_flows[i] = 8;
 	// }
 
-	if(mode == 1) {
+	if(mode == 1 || mode == 2) {
 		// allocate all data structure on socket 1(Numa node 1) because
 		// NIC is connected to node 1.
 	    pim_init_host(&host, 1);
@@ -674,9 +673,11 @@ main(int argc, char **argv)
 		rte_eal_remote_launch(launch_host_lcore, NULL, 3);
 		rte_eal_remote_launch(launch_pacer_lcore, NULL, 5);
 	    rte_eal_remote_launch(launch_flowgen_lcore, NULL, 7);
-		rte_eal_remote_launch(launch_start_lcore, NULL, 9);
+		// rte_eal_remote_launch(launch_start_lcore, NULL, 9);
 
-	} else {
+	}  
+	if(mode == 2){
+		rte_eal_remote_launch(launch_start_lcore, NULL, 9);
 	}
 
 	while(!force_quit){

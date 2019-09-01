@@ -154,7 +154,13 @@ struct rte_mbuf* pflow_get_token_pkt(struct pim_flow* flow, uint32_t data_seq, b
     uint32_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
         sizeof(struct pim_hdr) + sizeof(struct pim_token_hdr);
     rte_pktmbuf_append(p, size);
-    add_ether_hdr(p, &flow->_f.src_ether_addr);
+    if(free_token) {
+        struct ether_hdr* ether_hdr = rte_pktmbuf_mtod_offset(p, struct ether_hdr*, 0);
+        ether_addr_copy(&params.ether_addr, &ether_hdr->d_addr);
+        ether_addr_copy(&flow->_f.dst_ether_addr, &ether_hdr->s_addr);
+    } else {
+        add_ether_hdr(p, &flow->_f.src_ether_addr);
+    }
     struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, 
                 sizeof(struct ether_hdr));
     struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 

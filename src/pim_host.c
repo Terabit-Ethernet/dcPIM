@@ -117,6 +117,7 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
             // allocate new packet
             struct rte_mbuf* p = pflow_get_token_pkt(new_flow, data_seq, true);
             enqueue_ring(host->short_flow_token_q , p);
+            // printf("push to short flow token q\n");
         }
     } else {
         if(lookup_table_entry(host->dst_minflow_table, dst_addr) == NULL) {
