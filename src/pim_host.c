@@ -1,3 +1,4 @@
+#include <math.h>
 #include <rte_bitmap.h>
 #include <rte_hash.h>
 #include <rte_jhash.h>
@@ -5,6 +6,7 @@
 #include "ds.h"
 #include "pim_host.h"
 #include "pim_pacer.h"
+
 
 extern struct rte_mempool* pktmbuf_pool;
 
@@ -144,6 +146,7 @@ struct rte_mbuf* p) {
     pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, offset);
     offset += sizeof(struct pim_hdr);
     if(ether_hdr->ether_type != rte_cpu_to_be_16(0x0800)) {
+        // printf("receive unknown packets\n");
         rte_pktmbuf_free(p);
         return;
     }
@@ -379,9 +382,16 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ether_hdr* ether_hdr,
         pim_rts->remaining_sz = pim_rts_hdr->remaining_sz;
         ether_addr_copy(&ether_hdr->s_addr, &pim_rts->src_ether_addr);
         pim_epoch->rts_size++;
-        if(pim_epoch->rts_size > 16) {
-            printf("rts size > 16\n");
-            rte_exit(EXIT_FAILURE, "rts size is larger than 16");
+        if(pim_epoch->rts_size > 2) {
+            printf("rts size > 2\n");
+            printf("pim_epoch->epoch: %u\n", pim_epoch->epoch);
+            printf("rts->epoch:%u\n", pim_rts_hdr->epoch);
+            printf("pim_epoch->iter:%u\n", pim_epoch->iter);
+
+            printf("rts->iter:%u\n", pim_rts_hdr->iter);
+
+
+            rte_exit(EXIT_FAILURE, "rts size is larger than 2");
         }
         if(pim_epoch->min_rts == NULL || pim_epoch->min_rts->remaining_sz > pim_rts->remaining_sz) {
             pim_epoch->min_rts = pim_rts;
@@ -436,16 +446,20 @@ void pim_receive_start(struct pim_epoch* pim_epoch, struct pim_host* pim_host, s
     rte_timer_reset(&pim_epoch->epoch_timer, epoch_size,
     PERIODICAL, core_id, &pim_start_new_epoch, (void *)(&pim_epoch->pim_timer_params));
     uint32_t i = 0;
+    uint64_t start_cycle = rte_get_tsc_cycles();
+    uint32_t half_epoch_time = ceil(params.pim_iter_epoch / 2 * 1000000);
     for(; i <= params.pim_iter_limit; i++) {
         rte_timer_reset(&pim_epoch->sender_iter_timers[i], epoch_size, PERIODICAL,
             core_id, &pim_schedule_sender_iter_evt, (void *)(&pim_epoch->pim_timer_params));    
         if (i == params.pim_iter_limit)
             break;  
-        rte_delay_us_block(params.pim_iter_epoch / 2 * 1000000);
+        rte_delay_us_block(half_epoch_time);
         rte_timer_reset(&pim_epoch->receiver_iter_timers[i], epoch_size, PERIODICAL,
             core_id, &pim_schedule_receiver_iter_evt, (void *)(&pim_epoch->pim_timer_params));  
-        rte_delay_us_block(params.pim_iter_epoch / 2 * 1000000);
+        rte_delay_us_block(half_epoch_time);
     }
+
+
     // rte_timer_reset(&pim_epoch->epoch_timer, 0,
     //  SINGLE, rte_lcore_id(), &pim_start_new_epoch, (void *)(&pim_epoch->pim_timer_params));
 }

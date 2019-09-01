@@ -436,7 +436,7 @@ signal_handler(int signum)
 		printf("\n\nSignal %d received, preparing to exit...\n",
 				signum);
 		force_quit = true;
-		if(mode == 1) {
+		if(mode == 1 || mode == 2) {
 			uint32_t* flow_id = 0;
 			int32_t position = 0;
 			uint32_t next = 0;
