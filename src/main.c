@@ -139,8 +139,8 @@ static void host_main_loop(void) {
 	// pim_receive_start(&epoch, &host, &pacer);
 
 	// pim_receive_start(&epoch, &host, &pacer);
-	rte_timer_reset(&host.pim_send_token_timer, rte_get_timer_hz() * get_transmission_delay(1500) * params.batch_tokens,
-	 	PERIODICAL, rte_lcore_id(), &pim_send_token_evt_handler, (void *)&epoch.pim_timer_params);
+	// rte_timer_reset(&host.pim_send_token_timer, rte_get_timer_hz() * get_transmission_delay(1500) * params.batch_tokens,
+	//  	PERIODICAL, rte_lcore_id(), &pim_send_token_evt_handler, (void *)&epoch.pim_timer_params);
 
 	// rte_timer_reset(&epoch.epoch_timer, rte_get_timer_hz() * (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit),
 	//  PERIODICAL, 1, &pim_start_new_epoch, (void *)(&epoch.pim_timer_params));
@@ -150,7 +150,6 @@ static void host_main_loop(void) {
 
 			nb_rx = rte_eth_rx_burst(portid, 0,
 						 pkts_burst, MAX_PKT_BURST);
-
 			for (j = 0; j < nb_rx; j++) {
 				p = pkts_burst[j];
 				// rte_vlan_strip(p);

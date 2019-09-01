@@ -43,6 +43,10 @@ void pim_init_epoch(struct pim_epoch* pim_epoch, struct pim_host* pim_host, stru
         rte_timer_init(&pim_epoch->sender_iter_timers[i]);
         rte_timer_init(&pim_epoch->receiver_iter_timers[i]);
     }
+    for (i = 0; i < 16; i++) {
+        pim_epoch->rts_bmp[i] = false;
+        pim_epoch->grant_bmp[i] = false;
+    }
     // rte_timer_init(&pim_epoch->sender_iter_timer);
     // rte_timer_init(&pim_epoch->receiver_iter_timer);
     pim_epoch->pim_timer_params.pim_epoch = pim_epoch;
@@ -152,8 +156,8 @@ struct rte_mbuf* p) {
     }
     if(ipv4_hdr->dst_addr != rte_cpu_to_be_32(params.ip)) {
         printf("packet type: %u\n", pim_hdr->type);
-        printf("source addr: %%u\n", rte_be_to_cpu_32(ipv4_hdr->src_addr));
-        printf("dst addr: %%u\n", rte_be_to_cpu_32(ipv4_hdr->dst_addr));
+        printf("source addr: %u\n", rte_be_to_cpu_32(ipv4_hdr->src_addr));
+        printf("dst addr: %u\n", rte_be_to_cpu_32(ipv4_hdr->dst_addr));
         rte_pktmbuf_free(p);
         rte_exit(EXIT_FAILURE, "recieve wrong packets\n");
     }
@@ -376,25 +380,37 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ether_hdr* ether_hdr,
         // printf("current iter:%u\n",pim_epoch->iter);
         // printf("packet epoch:%u\n", pim_rts_hdr->epoch);
         // printf("packet iter:%u\n", pim_rts_hdr->iter);
+        int index = rte_be_to_cpu_32(ipv4_hdr->src_addr) - params.dst_ips[0];
+        if(pim_epoch->rts_bmp[index] == false) {
+            pim_epoch->rts_bmp[index] = true;
+            struct pim_rts *pim_rts = &pim_epoch->rts_q[pim_epoch->rts_size];
+            pim_rts->cycles = rte_get_tsc_cycles();
+            pim_rts->epoch = pim_rts_hdr->epoch;
+            pim_rts->iter = pim_rts_hdr->iter;
+            pim_rts->src_addr = rte_be_to_cpu_32(ipv4_hdr->src_addr);
+            pim_rts->remaining_sz = pim_rts_hdr->remaining_sz;
+            ether_addr_copy(&ether_hdr->s_addr, &pim_rts->src_ether_addr);
+            pim_epoch->rts_size++;
+            // if(pim_epoch->rts_size > 1) {
+            //     printf("rts size > 2\n");
+            //     printf("pim_epoch->epoch: %u\n", pim_epoch->epoch);
+            //     printf("rts->epoch:%u\n", pim_rts_hdr->epoch);
+            //     printf("pim_epoch->iter:%u\n", pim_epoch->iter);
+            //     printf("rts->iter:%u\n", pim_rts_hdr->iter);
 
-        struct pim_rts *pim_rts = &pim_epoch->rts_q[pim_epoch->rts_size];
-        pim_rts->src_addr = rte_be_to_cpu_32(ipv4_hdr->src_addr);
-        pim_rts->remaining_sz = pim_rts_hdr->remaining_sz;
-        ether_addr_copy(&ether_hdr->s_addr, &pim_rts->src_ether_addr);
-        pim_epoch->rts_size++;
-        if(pim_epoch->rts_size > 2) {
-            printf("rts size > 2\n");
-            printf("pim_epoch->epoch: %u\n", pim_epoch->epoch);
-            printf("rts->epoch:%u\n", pim_rts_hdr->epoch);
-            printf("pim_epoch->iter:%u\n", pim_epoch->iter);
+            //     uint32_t i = 0;
+            //     for(; i < pim_epoch->rts_size; i++) {
+            //         printf("%u rts->iter:%u\n", i, pim_epoch->rts_q[i].iter);
+            //         printf("%u rts->epoch:%u\n", i, pim_epoch->rts_q[i].epoch);
+            //         printf("%u rts->remaining_sz:%i\n",i,  pim_epoch->rts_q[i].remaining_sz);
+            //         printf("%u rts->cycles:%"PRIu64"\n",i,  pim_epoch->rts_q[i].cycles - pim_epoch->rts_q[0].cycles);
+            //     }
 
-            printf("rts->iter:%u\n", pim_rts_hdr->iter);
-
-
-            rte_exit(EXIT_FAILURE, "rts size is larger than 2");
-        }
-        if(pim_epoch->min_rts == NULL || pim_epoch->min_rts->remaining_sz > pim_rts->remaining_sz) {
-            pim_epoch->min_rts = pim_rts;
+            //     rte_exit(EXIT_FAILURE, "rts size is larger than 2");
+            // }
+            if(pim_epoch->min_rts == NULL || pim_epoch->min_rts->remaining_sz > pim_rts->remaining_sz) {
+                pim_epoch->min_rts = pim_rts;
+            }
         }
     // }
 } 
@@ -413,18 +429,22 @@ void pim_receive_grant(struct pim_epoch* pim_epoch, struct ether_hdr* ether_hdr,
     //  rte_exit(EXIT_FAILURE, "Iter diff");
     // }
     // if(pim_grant_hdr->iter == pim_epoch->iter && pim_grant_hdr->epoch == pim_epoch->epoch) {
-        struct pim_grant *pim_grant = &pim_epoch->grants_q[pim_epoch->grant_size];
-        pim_grant->dst_addr = rte_be_to_cpu_32(ipv4_hdr->src_addr);
-        pim_grant->remaining_sz = pim_grant_hdr->remaining_sz;
-        pim_grant->prompt = pim_grant_hdr->prompt;
-        ether_addr_copy(&ether_hdr->s_addr, &pim_grant->dst_ether_addr);
-        pim_epoch->grant_size++;
-        if(pim_epoch->grant_size > 16) {
-            printf("grant size > 16\n");
-            rte_exit(EXIT_FAILURE , "grant size is larger than 16");
-        }
-        if(pim_epoch->min_grant == NULL || pim_epoch->min_grant->remaining_sz > pim_grant->remaining_sz) {
-            pim_epoch->min_grant = pim_grant;
+        int index = rte_be_to_cpu_32(ipv4_hdr->src_addr) - params.dst_ips[0];
+        if(pim_epoch->grant_bmp[index] == false) {
+            pim_epoch->grant_bmp[index] = true;
+            struct pim_grant *pim_grant = &pim_epoch->grants_q[pim_epoch->grant_size];
+            pim_grant->dst_addr = rte_be_to_cpu_32(ipv4_hdr->src_addr);
+            pim_grant->remaining_sz = pim_grant_hdr->remaining_sz;
+            pim_grant->prompt = pim_grant_hdr->prompt;
+            ether_addr_copy(&ether_hdr->s_addr, &pim_grant->dst_ether_addr);
+            pim_epoch->grant_size++;
+            if(pim_epoch->grant_size > 16) {
+                printf("grant size > 16\n");
+                rte_exit(EXIT_FAILURE , "grant size is larger than 16");
+            }
+            if(pim_epoch->min_grant == NULL || pim_epoch->min_grant->remaining_sz > pim_grant->remaining_sz) {
+                pim_epoch->min_grant = pim_grant;
+            }
         }
     // }
 }
@@ -476,6 +496,8 @@ void pim_receive_accept(struct pim_epoch* pim_epoch, struct pim_host* host, stru
         }
         if(pim_epoch->iter > params.pim_iter_limit && host->cur_epoch == pim_epoch->epoch) {
             host->cur_match_src_addr = pim_epoch->match_src_addr;
+            rte_timer_reset(&host->pim_send_token_timer, rte_get_timer_hz() * get_transmission_delay(1500) * params.batch_tokens,
+                 PERIODICAL, rte_lcore_id(), &pim_send_token_evt_handler, (void *)&pim_epoch->pim_timer_params);
         }
     }
 }
@@ -499,6 +521,10 @@ void pim_handle_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, stru
     }
     pim_epoch->min_rts = NULL;
     pim_epoch->rts_size = 0;
+    int i = 0;
+    for(; i < 16; i++) {
+        pim_epoch->rts_bmp[i] = false;
+    }
 
 }
 
@@ -535,6 +561,10 @@ void pim_handle_all_grant(struct pim_epoch* pim_epoch, struct pim_host* host, st
     }
     pim_epoch->min_grant = NULL;
     pim_epoch->grant_size = 0;
+    int i = 0;
+    for(; i < 16; i++) {
+        pim_epoch->grant_bmp[i] = false;
+    }
 }
 
 void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer) {
@@ -545,13 +575,13 @@ void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct
     int32_t position = 0;
     uint32_t next = 0;
     Pq *pq;
+
     while(1) {
 
         position = rte_hash_iterate(host->dst_minflow_table,(const void**) &dst_addr, (void**)&pq, &next);
         if(position == -ENOENT) {
             break;
         }
-
 
         struct pim_flow* smallest_flow = get_smallest_unfinished_flow(pq);
 
@@ -573,8 +603,6 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
         pim_handle_all_grant(pim_epoch, pim_host, pim_pacer);
     }
     pim_advance_iter(pim_epoch);
-    // printf("%"PRIu64"sender iter: %d epoch: %d\n", rte_get_tsc_cycles(), pim_epoch->iter, pim_epoch->epoch);
-
     if(pim_epoch->iter > params.pim_iter_limit) {
         pim_host->cur_match_src_addr = pim_epoch->match_src_addr;
         pim_host->cur_match_dst_addr = pim_epoch->match_dst_addr;;
@@ -583,6 +611,13 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
         pim_epoch->min_grant = NULL;
         pim_epoch->rts_size = 0;
         pim_epoch->grant_size = 0;
+        rte_timer_reset(&pim_host->pim_send_token_timer, rte_get_timer_hz() * get_transmission_delay(1500) * params.batch_tokens,
+             PERIODICAL, rte_lcore_id(), &pim_send_token_evt_handler, (void *)&pim_epoch->pim_timer_params);
+        int i = 0;
+        for(; i < 16; i++) {
+            pim_epoch->rts_bmp[i] = false;
+            pim_epoch->grant_bmp[i] = false;
+        }
         return;
     }
 
@@ -799,7 +834,10 @@ void pim_send_token_evt_handler(__rte_unused struct rte_timer *timer, void* arg)
     struct pim_pacer* pim_pacer  = pim_timer_params->pim_pacer;
 
     int sent_token = 0;
-
+    if(pim_host->cur_match_src_addr == 0) {
+        rte_timer_stop(timer);
+        return;
+    }
     Pq *pq = lookup_table_entry(pim_host->src_minflow_table, pim_host->cur_match_src_addr);
     if(pq == NULL)
         return;

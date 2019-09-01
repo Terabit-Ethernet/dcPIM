@@ -25,7 +25,9 @@ struct pim_flow;
 
 struct pim_rts {
     uint8_t iter;
+    uint32_t epoch;
     uint32_t src_addr;
+    uint64_t cycles;
     struct ether_addr src_ether_addr;
     int remaining_sz;
 
@@ -54,6 +56,8 @@ struct pim_epoch {
 	struct pim_rts rts_q[16];
 	uint32_t grant_size;
 	uint32_t rts_size;
+	bool grant_bmp[16];
+	bool rts_bmp[16];
 	struct pim_rts* min_rts;
 	struct pim_grant* min_grant;
 	struct rte_timer epoch_timer;
