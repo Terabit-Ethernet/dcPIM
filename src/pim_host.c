@@ -143,6 +143,17 @@ struct rte_mbuf* p) {
     // get pim header
     pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, offset);
     offset += sizeof(struct pim_hdr);
+    if(ether_hdr->ether_type != rte_cpu_to_be_16(0x0800)) {
+        rte_pktmbuf_free(p);
+        return;
+    }
+    if(ipv4_hdr->dst_addr != rte_cpu_to_be_32(params.ip)) {
+        printf("packet type: %u\n", pim_hdr->type);
+        printf("source addr: %%u\n", rte_be_to_cpu_32(ipv4_hdr->src_addr));
+        printf("dst addr: %%u\n", rte_be_to_cpu_32(ipv4_hdr->dst_addr));
+        rte_pktmbuf_free(p);
+        rte_exit(EXIT_FAILURE, "recieve wrong packets\n");
+    }
     // parse packet
     if(pim_hdr->type == PIM_FLOW_SYNC) {
         struct pim_flow_sync_hdr *pim_flow_sync_hdr = rte_pktmbuf_mtod_offset(p, struct pim_flow_sync_hdr*, offset);
