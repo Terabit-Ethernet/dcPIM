@@ -158,6 +158,9 @@ struct rte_mbuf* p) {
         printf("packet type: %u\n", pim_hdr->type);
         printf("source addr: %u\n", rte_be_to_cpu_32(ipv4_hdr->src_addr));
         printf("dst addr: %u\n", rte_be_to_cpu_32(ipv4_hdr->dst_addr));
+        printf("ip addr: %u\n", params.ip);
+        printf("ether addr same: %u\n",is_same_ether_addr(&ether_hdr->d_addr,&params.dst_ethers[0]));
+
         rte_pktmbuf_free(p);
         rte_exit(EXIT_FAILURE, "recieve wrong packets\n");
     }

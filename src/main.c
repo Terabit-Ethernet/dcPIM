@@ -188,7 +188,11 @@ static void pacer_main_loop(void) {
 			uint32_t dst_addr = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
 			// insert vlan header with highest priority;
 			// use tos in ipheader instead;
+			ipv4_hdr->version_ihl = (0x40 | 0x05);
 			ipv4_hdr->type_of_service = TOS_7;
+			ipv4_hdr->time_to_live = 64;
+			ipv4_hdr->hdr_checksum = 0;
+			ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 			// p->vlan_tci = TCI_7;
 			// rte_vlan_insert(&p); 
 			// send packets; hard code the port;
@@ -233,6 +237,7 @@ static void start_main_loop(void) {
 	                sizeof(struct pim_hdr);
 	    rte_pktmbuf_append(p, size);
 	    add_ether_hdr(p, &params.dst_ethers[i]);
+	    printf(" fifth part :%u\n", params.dst_ethers[i].addr_bytes[5]);
 	    struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, 
 	    	struct ipv4_hdr*, sizeof(struct ether_hdr));
 	    struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
@@ -240,7 +245,11 @@ static void start_main_loop(void) {
 	    ipv4_hdr->src_addr = rte_cpu_to_be_32(params.ip);
 	    ipv4_hdr->dst_addr = rte_cpu_to_be_32(params.dst_ips[i]);
 	    ipv4_hdr->total_length = rte_cpu_to_be_16(size);
-
+		ipv4_hdr->version_ihl = (0x40 | 0x05);
+		ipv4_hdr->type_of_service = TOS_7;
+		ipv4_hdr->time_to_live = 64;
+		ipv4_hdr->hdr_checksum = 0;
+		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 	    pim_hdr->type = PIM_START;
 		rte_eth_tx_burst(get_port_by_ip(ips[i]) ,0, &p, 1);
 	}
@@ -636,7 +645,7 @@ main(int argc, char **argv)
 
 		printf("done: \n");
 
-		rte_eth_promiscuous_enable(portid);
+		rte_eth_promiscuous_disable(portid);
 
 		// printf("Port %u, MAC address: %02X:%02X:%02X:%02X:%02X:%02X\n\n",
 		// 		portid,

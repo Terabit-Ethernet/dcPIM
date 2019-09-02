@@ -122,11 +122,14 @@ void pim_pacer_send_data_pkt_handler(__rte_unused struct rte_timer *timer, void*
 			sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
 
 
-
 		ipv4_hdr->src_addr = token_ip_hdr->dst_addr;
 		ipv4_hdr->dst_addr = token_ip_hdr->src_addr;
 		ipv4_hdr->total_length = rte_cpu_to_be_16(1500);
+		ipv4_hdr->version_ihl = (0x40 | 0x05);
 		ipv4_hdr->type_of_service = get_tos(pim_token_hdr->priority);
+		ipv4_hdr->time_to_live = 64;
+		ipv4_hdr->hdr_checksum = 0;
+		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 		pim_hdr->type = DATA;
 		pim_data_hdr->flow_id = pim_token_hdr->flow_id;
 		pim_data_hdr->data_seq_no = pim_token_hdr->data_seq_no;
@@ -189,7 +192,11 @@ void pim_pacer_send_token_handler(__rte_unused struct rte_timer *timer, void* ar
 		// this part need to change after the topology set up;
 		uint32_t dst_addr = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
 		// insert vlan header with highest priority or tos for ip;
+		ipv4_hdr->version_ihl = (0x40 | 0x05);
 		ipv4_hdr->type_of_service = TOS_7;
+		ipv4_hdr->time_to_live = 64;
+		ipv4_hdr->hdr_checksum = 0;
+		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 		// p->vlan_tci = TCI_7;
 		// rte_vlan_insert(&p); 
 		// send packets; hard code the port;
