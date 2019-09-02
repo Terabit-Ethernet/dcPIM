@@ -1,5 +1,5 @@
 import sys
-ether_addrs = ["7c:fe:90:32:7a:fb", "7c:fe:90:32:79:7b", "7c:fe:90:32:78:f7"]
+ether_addrs = ["7c:fe:90:32:7a:fb", "7c:fe:90:32:79:7b", "7c:fe:90:32:78:f7", "7c:fe:90:32:79:d7"]
 
 def construct_ip(ip, small_ip, large_ip, ip_prefix = "192, 168, 9"):
     ip = "IPv4({}, {})".format(ip_prefix, ip)
