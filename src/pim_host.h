@@ -22,7 +22,7 @@
 #include "pq.h"
 
 struct pim_flow;
-
+extern bool start_signal;
 struct pim_rts {
     uint8_t iter;
     uint32_t epoch;

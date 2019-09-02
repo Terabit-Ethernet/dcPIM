@@ -103,6 +103,7 @@ struct pim_pacer pacer;
 char *cdf_file;
 static volatile bool force_quit;
 
+bool start_signal;
 #define TARGET_NUM 5000
 
 static unsigned char
@@ -278,7 +279,7 @@ static void start_main_loop(void) {
 }
 
 static void flow_generate_loop(void) {
-	rte_delay_us_block(5000000);
+	// rte_delay_us_block(5000000);
 	int i = 0;
     uint64_t prev_tsc = 0, cur_tsc, diff_tsc;
     uint64_t prev_tsc_2 = 0, diff_tsc_2 = TIMER_RESOLUTION_CYCLES * 100000;
@@ -291,6 +292,9 @@ static void flow_generate_loop(void) {
     double time = value_exp(&exp_r);
     // double acc_time = 0;
     // double acc_flow_size = 0;
+    while(!start_signal) {
+	    rte_delay_us_block(10000);
+    }
 	while(!force_quit) {
 		cur_tsc = rte_rdtsc();
         diff_tsc = cur_tsc - prev_tsc;
@@ -541,6 +545,7 @@ main(int argc, char **argv)
 	argv += ret;
 
 	force_quit = false;
+	start_signal = false;
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
 

@@ -484,8 +484,7 @@ void pim_receive_start(struct pim_epoch* pim_epoch, struct pim_host* pim_host, s
             core_id, &pim_schedule_receiver_iter_evt, (void *)(&pim_epoch->pim_timer_params));  
         rte_delay_us_block(half_epoch_time);
     }
-
-
+    start_signal = true;
     // rte_timer_reset(&pim_epoch->epoch_timer, 0,
     //  SINGLE, rte_lcore_id(), &pim_start_new_epoch, (void *)(&pim_epoch->pim_timer_params));
 }
