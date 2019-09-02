@@ -193,6 +193,7 @@ static void pacer_main_loop(void) {
 			ipv4_hdr->time_to_live = 64;
 			ipv4_hdr->hdr_checksum = 0;
 			ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
+
 			// p->vlan_tci = TCI_7;
 			// rte_vlan_insert(&p); 
 			// send packets; hard code the port;
@@ -237,7 +238,6 @@ static void start_main_loop(void) {
 	                sizeof(struct pim_hdr);
 	    rte_pktmbuf_append(p, size);
 	    add_ether_hdr(p, &params.dst_ethers[i]);
-	    printf(" fifth part :%u\n", params.dst_ethers[i].addr_bytes[5]);
 	    struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, 
 	    	struct ipv4_hdr*, sizeof(struct ether_hdr));
 	    struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 

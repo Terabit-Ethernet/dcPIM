@@ -155,19 +155,21 @@ struct rte_mbuf* p) {
         return;
     }
     if(ipv4_hdr->dst_addr != rte_cpu_to_be_32(params.ip)) {
-        printf("packet type: %u\n", pim_hdr->type);
-        printf("source addr: %u\n", rte_be_to_cpu_32(ipv4_hdr->src_addr));
-        printf("dst addr: %u\n", rte_be_to_cpu_32(ipv4_hdr->dst_addr));
-        printf("ip addr: %u\n", params.ip);
-        printf("ether addr same: %u\n",is_same_ether_addr(&ether_hdr->d_addr,&params.dst_ethers[0]));
+        // printf("packet type: %u\n", pim_hdr->type);
+        // printf("source addr: %u\n", rte_be_to_cpu_32(ipv4_hdr->src_addr));
+        // printf("dst addr: %u\n", rte_be_to_cpu_32(ipv4_hdr->dst_addr));
+        // printf("ip addr: %u\n", params.ip);
+        // printf("ether addr same: %u\n",is_same_ether_addr(&ether_hdr->d_addr,&params.dst_ethers[0]));
 
         rte_pktmbuf_free(p);
+        // return;
         rte_exit(EXIT_FAILURE, "recieve wrong packets\n");
     }
     // parse packet
     if(pim_hdr->type == PIM_FLOW_SYNC) {
         struct pim_flow_sync_hdr *pim_flow_sync_hdr = rte_pktmbuf_mtod_offset(p, struct pim_flow_sync_hdr*, offset);
         pim_receive_flow_sync(host, pacer, ether_hdr, ipv4_hdr, pim_flow_sync_hdr);
+
     } else if(pim_hdr->type == PIM_RTS) {
         struct pim_rts_hdr *pim_rts_hdr = rte_pktmbuf_mtod_offset(p, struct pim_rts_hdr*, offset);
         pim_receive_rts(epoch, ether_hdr, ipv4_hdr, pim_rts_hdr);
@@ -309,7 +311,7 @@ struct rte_mbuf* pim_get_rts_pkt(struct pim_flow* flow, int iter, int epoch) {
         rte_exit(EXIT_FAILURE ,"Pktbuf full");
     }
     rte_pktmbuf_append(p, size);
-    add_ether_hdr(p, &flow->_f.src_ether_addr);
+    add_ether_hdr(p, &flow->_f.dst_ether_addr);
     struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, 
                 sizeof(struct ether_hdr));
     struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
