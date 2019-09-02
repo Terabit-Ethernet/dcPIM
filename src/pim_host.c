@@ -491,7 +491,7 @@ void pim_receive_start(struct pim_epoch* pim_epoch, struct pim_host* pim_host, s
 
 void pim_receive_accept(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer, struct ether_hdr* ether_hdr,
  struct ipv4_hdr* ipv4_hdr, struct pim_accept_hdr* pim_accept_hdr) {
-    if(pim_epoch->epoch == pim_accept_hdr->epoch) {
+    // if(pim_epoch->epoch == pim_accept_hdr->epoch) {
         if(pim_epoch->match_src_addr != 0) {
             struct rte_mbuf *p = pim_get_grantr_pkt(ether_hdr, ipv4_hdr, pim_epoch->iter, pim_epoch->epoch);
             //rte_eth_tx_burst(get_port_by_ip(rte_be_to_cpu_32(ipv4_hdr->src_addr)) ,0, &p, 1);
@@ -504,7 +504,7 @@ void pim_receive_accept(struct pim_epoch* pim_epoch, struct pim_host* host, stru
             rte_timer_reset(&host->pim_send_token_timer, rte_get_timer_hz() * get_transmission_delay(1500) * params.batch_tokens,
                  PERIODICAL, rte_lcore_id(), &pim_send_token_evt_handler, (void *)&pim_epoch->pim_timer_params);
         }
-    }
+    // }
 }
 void pim_handle_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer) {
     uint32_t index = 0;
