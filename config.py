@@ -47,14 +47,16 @@ struct Params params = {{
     .clock_bias = 0.0000005,
     .send_port = 0,
     .pim_select_min_iters = 1,
-    .batch_tokens = 7,
+    .batch_tokens = 1,
     .load = 0.6,
+    .token_window = 7,
+    .token_window_timeout = 1.1,
     .num_hosts = {2}
 }};
 """.format(int(ip) - int(small_ip), ip_str, int(large_ip) - int(small_ip) + 1)
     statement = dst_ips
     statement += construct_ethers()
-
+    statement += "\tparams.token_window_timeout_cycle = (uint64_t) (params.token_window_timeout * params.BDP * 1500 * 8 \n \t / params.bandwidth * rte_get_timer_hz());\n"
     init_string= """
 void init_config(struct Params* p) {{
 {0}

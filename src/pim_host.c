@@ -307,6 +307,7 @@ struct rte_mbuf* pim_get_rts_pkt(struct pim_flow* flow, int iter, int epoch) {
     uint16_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
                 sizeof(struct pim_hdr) + sizeof(struct pim_rts_hdr);
     if(p == NULL) {
+
         printf("%s: Pktbuf pool full\n", __func__);
         rte_exit(EXIT_FAILURE ,"Pktbuf full");
     }
@@ -850,9 +851,9 @@ void pim_send_token_evt_handler(__rte_unused struct rte_timer *timer, void* arg)
         //pq_pop(pq);
  
     // case: when a flow finishes after receiving gosrc and no other flow exists.
-    if (pim_flow == NULL) {
-        return;
-    }
+    // if (pim_flow == NULL) {
+    //     return;
+    // }
     
     // push the batch_token number of tokens to the long flow token queue;
     int num_tokens = params.batch_tokens;
@@ -860,6 +861,15 @@ void pim_send_token_evt_handler(__rte_unused struct rte_timer *timer, void* arg)
     for(; i < num_tokens; i++) {
         if(pim_flow == NULL) {
             break;
+        }
+        if(pflow_token_gap(pim_flow) > params.token_window) {
+            uint64_t time = rte_get_tsc_cycles();
+            if(time >= pim_flow->latest_token_sent_time + params.token_window_timeout_cycle) {
+                 pflow_relax_token_gap(pim_flow);
+            }
+            else {
+                break;
+            }
         }
         int data_seq = pflow_get_next_token_seq_num(pim_flow);
         // allocate new packet
@@ -870,7 +880,6 @@ void pim_send_token_evt_handler(__rte_unused struct rte_timer *timer, void* arg)
 
         }
         // printf("size of token q: %u\n", rte_ring_count(pim_host->send_token_q));
-
         enqueue_ring(pim_host->send_token_q, p);
 
         sent_token += 1;

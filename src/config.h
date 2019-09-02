@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 #include <rte_ether.h>
+#include <rte_timer.h>
+#include <rte_cycles.h>
 
 #define MY_ID 22
 #define PORT_0 20
@@ -48,6 +50,9 @@ struct Params {
 	double pim_iter_epoch;
 	double pim_epoch;
 	double pipe_epoch;
+	uint32_t token_window;
+	double token_window_timeout;
+	uint64_t token_window_timeout_cycle;
 	// debug purpose
 	uint32_t index;
 	uint32_t num_hosts;

@@ -29,7 +29,7 @@ struct pim_flow {
     int remaining_pkts_at_sender;
     int largest_token_seq_received;
     int largest_token_data_seq_received;
-    double latest_token_sent_time;
+    uint64_t latest_token_sent_time;
     double latest_data_pkt_sent_time;
     
     struct rte_timer rd_ctrl_timeout;
@@ -60,6 +60,7 @@ bool pflow_is_small_flow(struct pim_flow* pim_flow);
 int pflow_init_token_size(struct pim_flow* pim_flow);
 int pflow_token_gap(const struct pim_flow* f);
 int pflow_get_next_token_seq_num(struct pim_flow* f);
+void pflow_relax_token_gap(struct pim_flow* f);
 // pim_flow* pim_flow_free(pim_flow* pim_f);
 bool pflow_is_rd_ctrl_timeout_params_null(struct pim_flow* flow);
 void pflow_set_rd_ctrl_timeout_params_null(struct pim_flow* flow);

@@ -46,7 +46,7 @@ struct ether_addr* ether_addr, double start_time, int receiver_side) {
     pim_f->remaining_pkts_at_sender = pim_f->_f.size_in_pkt;
     pim_f->largest_token_seq_received = -1;
     pim_f->largest_token_data_seq_received = -1;
-    pim_f->latest_token_sent_time = -1;
+    pim_f->latest_token_sent_time = 0;
     pim_f->latest_data_pkt_sent_time = -1;
     pim_f->last_token_data_seq_num_sent = -1;
     pim_f->rd_ctrl_timeout_times = 0;
@@ -82,6 +82,9 @@ int pflow_token_gap(const struct pim_flow* f) {
     return f->token_count - f->largest_token_seq_received - 1;
 }
 
+void pflow_relax_token_gap(struct pim_flow* f) {
+    f->largest_token_seq_received = f->token_count - params.token_window;
+}
 bool pflow_get_finish_at_receiver(struct pim_flow* flow) {
     return flow->finished_at_receiver;
 }
@@ -185,6 +188,7 @@ struct rte_mbuf* pflow_get_token_pkt(struct pim_flow* flow, uint32_t data_seq, b
         flow->token_count++;
         flow->token_packet_sent_count++;
         flow->last_token_data_seq_num_sent = data_seq;
+        flow->latest_token_sent_time = rte_get_tsc_cycles();
     }
     // flow->next_seq_no += 1;
     // flow->last_data_seq_num_sent = pim_token_hdr->data_seq_no;
