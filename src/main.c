@@ -147,6 +147,8 @@ static void host_main_loop(void) {
 	//  PERIODICAL, 1, &pim_start_new_epoch, (void *)(&epoch.pim_timer_params));
 	while(!force_quit) {
 		for (i = 0; i < qconf->n_rx_port; i++) {
+			if(i == 1)
+				continue;
 			portid = qconf->rx_port_list[i];
 
 			nb_rx = rte_eth_rx_burst(portid, 0,
@@ -194,6 +196,7 @@ static void pacer_main_loop(void) {
 			ipv4_hdr->time_to_live = 64;
 			ipv4_hdr->hdr_checksum = 0;
 			ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
+
 
 			// p->vlan_tci = TCI_7;
 			// rte_vlan_insert(&p); 
@@ -670,7 +673,7 @@ main(int argc, char **argv)
 	ret = 0;
 	init_config(&params);
 	printf("window timeout cycle:%"PRIu64"\n", params.token_window_timeout_cycle);
-	rte_eth_macaddr_get(1, &params.ether_addr);
+	rte_eth_macaddr_get(0, &params.ether_addr);
 	/* initialize flow rates and flow nums */
 	// for(int i = 0; i < NUM_FLOW_TYPES; i++) {
 	// 	flow_remainder[i] = 0;
