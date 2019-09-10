@@ -584,11 +584,14 @@ void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct
     while(1) {
 
         position = rte_hash_iterate(host->dst_minflow_table,(const void**) &dst_addr, (void**)&pq, &next);
+
         if(position == -ENOENT) {
             break;
         }
-
+        
         struct pim_flow* smallest_flow = get_smallest_unfinished_flow(pq);
+
+
 
         if(smallest_flow != NULL) {
             struct rte_mbuf *p = pim_get_rts_pkt(smallest_flow, pim_epoch->iter, pim_epoch->epoch);
@@ -625,8 +628,24 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
         }
         return;
     }
+    uint64_t start_cycle = rte_get_tsc_cycles();
+    double epoch_size = rte_get_timer_hz() * (params.pim_iter_epoch);
 
-    pim_send_all_rts(pim_epoch, pim_host, pim_pacer);
+    if(pim_epoch->iter == 1 || (double)(start_cycle - pim_epoch->send_rts_cycle) < epoch_size * 1.5) {
+        pim_send_all_rts(pim_epoch, pim_host, pim_pacer);
+        // printf("diff epoch:%f epoch:%f\n", (double)(start_cycle - pim_epoch->send_rts_cycle), epoch_size * 1.5);
+    } else {
+        printf("skip epoch: %d iter: %d diff of cycles:%f\n", pim_epoch->epoch, pim_epoch->iter, (double)(start_cycle - pim_epoch->send_rts_cycle));
+
+    }
+    pim_epoch->send_rts_cycle = start_cycle;
+    // uint64_t end_cycle = rte_get_tsc_cycles();
+
+    // double time = end_cycle - start_cycle;
+ 
+    // if(time > 5000) {
+    //     printf("print epoch: %d iter: %d diff of cycles:%f\n", pim_epoch->epoch, pim_epoch->iter, time);
+    // }
 
     // rte_timer_reset(&pim_epoch->sender_iter_timer, rte_get_timer_hz() * params.pim_iter_epoch,
     //  SINGLE, rte_lcore_id(), &pim_schedule_sender_iter_evt, (void *)pim_timer_params);
