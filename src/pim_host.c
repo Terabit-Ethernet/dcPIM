@@ -634,10 +634,11 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
     if(pim_epoch->iter == 1 || (double)(start_cycle - pim_epoch->send_rts_cycle) < epoch_size * 1.5) {
         pim_send_all_rts(pim_epoch, pim_host, pim_pacer);
         // printf("diff epoch:%f epoch:%f\n", (double)(start_cycle - pim_epoch->send_rts_cycle), epoch_size * 1.5);
-    } else {
-        printf("skip epoch: %d iter: %d diff of cycles:%f\n", pim_epoch->epoch, pim_epoch->iter, (double)(start_cycle - pim_epoch->send_rts_cycle));
-
     }
+    //  else {
+    //     printf("skip epoch: %d iter: %d diff of cycles:%f\n", pim_epoch->epoch, pim_epoch->iter, (double)(start_cycle - pim_epoch->send_rts_cycle));
+
+    // }
     pim_epoch->send_rts_cycle = start_cycle;
     // uint64_t end_cycle = rte_get_tsc_cycles();
 
