@@ -119,6 +119,9 @@ void flow_dump(struct flow *f) {
     printf("%u ", f->sent_bytes);
     printf("%u ", f->finished);
     printf("%u ", f->priority);
+    printf("%f ", (double)(f->start_time) / (double)(rte_get_tsc_hz()));
+    printf("%f ", (double)(f->finish_time) / (double)(rte_get_tsc_hz()));
+
 }
 
 double flow_oracle_fct(struct flow* f) {
