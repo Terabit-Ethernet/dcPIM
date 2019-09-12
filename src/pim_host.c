@@ -193,7 +193,6 @@ struct rte_mbuf* p) {
     } else if (pim_hdr->type == PIM_TOKEN) {
         struct pim_token_hdr *pim_token_hdr = rte_pktmbuf_mtod_offset(p, struct pim_token_hdr*, offset);
         pim_receive_token(host, pim_token_hdr, p);
-        rte_pktmbuf_free(p);
         return;
     } else if(pim_hdr->type == DATA) {
         struct pim_data_hdr *pim_data_hdr = rte_pktmbuf_mtod_offset(p, struct pim_data_hdr*, offset);
