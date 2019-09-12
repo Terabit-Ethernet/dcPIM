@@ -106,6 +106,9 @@ void flow_dump(struct flow *f) {
     double fct = (double)(f->finish_time - f->start_time) / (double)(rte_get_tsc_hz());
     double waiting_time = (double)(f->first_byte_send_time - f->start_time) / (double)(rte_get_tsc_hz());
     printf("%u ", f->id);
+    printf("%u ", f->src_addr);
+    printf("%u ", f->dst_addr);
+
     // printf("%lu ", f->start_time);
     // printf("%lu ", f->finish_time);
     printf("%u ", f->size);
