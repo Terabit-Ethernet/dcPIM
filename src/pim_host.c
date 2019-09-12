@@ -632,7 +632,7 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
     uint64_t start_cycle = rte_get_tsc_cycles();
     double epoch_size = rte_get_timer_hz() * (params.pim_iter_epoch);
 
-    if(pim_epoch->iter == 1 || (double)(start_cycle - pim_epoch->send_rts_cycle) < epoch_size * 1.5) {
+    if(pim_epoch->iter == 1 || (double)(start_cycle - pim_epoch->send_rts_cycle) >= epoch_size * 0.5) {
         pim_send_all_rts(pim_epoch, pim_host, pim_pacer);
         // printf("diff epoch:%f epoch:%f\n", (double)(start_cycle - pim_epoch->send_rts_cycle), epoch_size * 1.5);
     }
