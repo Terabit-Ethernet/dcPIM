@@ -54,6 +54,7 @@ struct ether_addr* ether_addr, double start_time, int receiver_side) {
     rte_timer_init(&pim_f->finish_timeout);
     pim_f->rd_ctrl_timeout_params = NULL;
     pim_f->finish_timeout_params = NULL;
+    pim_f->token_count = 0;
 }
 
 // void pim_flow_free(struct rte_mempool* pool){}

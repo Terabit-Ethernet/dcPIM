@@ -17,10 +17,11 @@ bool pim_pflow_compare(const void* a, const void* b) {
         return false;
 
     if(pflow_remaining_pkts((const struct pim_flow*)a) - pflow_token_gap((const struct pim_flow*)a) 
-        >= pflow_remaining_pkts((const struct pim_flow*)b) - pflow_token_gap((const struct pim_flow*)b))
+        > pflow_remaining_pkts((const struct pim_flow*)b) - pflow_token_gap((const struct pim_flow*)b))
         return true;
-    else if(((const struct pim_flow*)a)->_f.start_time >= ((const struct pim_flow*)b)->_f.start_time)
-        return true;
+  if(pflow_remaining_pkts((const struct pim_flow*)a) - pflow_token_gap((const struct pim_flow*)a) 
+        == pflow_remaining_pkts((const struct pim_flow*)b) - pflow_token_gap((const struct pim_flow*)b))
+        return ((const struct pim_flow*)a)->_f.start_time >= ((const struct pim_flow*)b)->_f.start_time;
     else
         return false;
 }
@@ -192,6 +193,7 @@ struct rte_mbuf* p) {
     } else if (pim_hdr->type == PIM_TOKEN) {
         struct pim_token_hdr *pim_token_hdr = rte_pktmbuf_mtod_offset(p, struct pim_token_hdr*, offset);
         pim_receive_token(host, pim_token_hdr, p);
+        rte_pktmbuf_free(p);
         return;
     } else if(pim_hdr->type == DATA) {
         struct pim_data_hdr *pim_data_hdr = rte_pktmbuf_mtod_offset(p, struct pim_data_hdr*, offset);
