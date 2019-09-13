@@ -509,6 +509,9 @@ void pim_receive_accept(struct pim_epoch* pim_epoch, struct pim_host* host, stru
 }
 void pim_handle_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer) {
     uint32_t index = 0;
+    if(pim_epoch->match_src_addr != 0) {
+        return;
+    }
     if (params.pim_select_min_iters > 0 && pim_epoch->iter <= params.pim_select_min_iters) {
         if(pim_epoch->min_rts != NULL) {
             struct rte_mbuf *p = pim_get_grant_pkt(pim_epoch->min_rts, pim_epoch->iter, pim_epoch->epoch, pim_epoch->epoch - 1 == host->cur_epoch && host->cur_match_src_addr == 0);
@@ -537,6 +540,9 @@ void pim_handle_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, stru
 void pim_handle_all_grant(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer) {
     uint32_t index = 0;
     struct pim_grant* grant = NULL;
+    if(pim_epoch->match_dst_addr != 0) {
+        return;
+    }
     if (params.pim_select_min_iters > 0 && pim_epoch->iter <= params.pim_select_min_iters) {
         if(pim_epoch->min_grant != NULL) {
             grant = pim_epoch->min_grant;
@@ -668,6 +674,7 @@ void pim_schedule_receiver_iter_evt(__rte_unused struct rte_timer *timer, void* 
     //  uint64_t step = rte_get_tsc_cycles();
     //  printf("%"PRIu64" sender iter %d event\n", step, pim_epoch->iter);
     // } 
+
     pim_handle_all_rts(pim_epoch, pim_host, pim_pacer);
     // rte_timer_reset(&pim_epoch->receiver_iter_timer, rte_get_timer_hz() * params.pim_iter_epoch,
     //  SINGLE, rte_lcore_id(), &pim_schedule_receiver_iter_evt, (void *)pim_timer_params);
