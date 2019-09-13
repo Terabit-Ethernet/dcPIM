@@ -625,15 +625,15 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
         pim_host->cur_match_src_addr = pim_epoch->match_src_addr;
         pim_host->cur_match_dst_addr = pim_epoch->match_dst_addr;;
         pim_host->cur_epoch = pim_epoch->epoch;
-        // pim_epoch->min_rts = NULL;
+        pim_epoch->min_rts = NULL;
         pim_epoch->min_grant = NULL;
-        // pim_epoch->rts_size = 0;
+        pim_epoch->rts_size = 0;
         pim_epoch->grant_size = 0;
         rte_timer_reset(&pim_host->pim_send_token_timer, rte_get_timer_hz() * get_transmission_delay(1500) * params.batch_tokens,
              PERIODICAL, rte_lcore_id(), &pim_send_token_evt_handler, (void *)&pim_epoch->pim_timer_params);
         int i = 0;
         for(; i < 16; i++) {
-            // pim_epoch->rts_bmp[i] = false;
+            pim_epoch->rts_bmp[i] = false;
             pim_epoch->grant_bmp[i] = false;
         }
         return;
