@@ -1,12 +1,12 @@
 import sys
-ether_addrs = ["7c:fe:90:32:7a:fb", "7c:fe:90:32:79:7b", "7c:fe:90:32:78:f7", "7c:fe:90:32:79:d7", "7c:fe:90:80:aa:d9", "7c:fe:90:32:76:e3"]
+ether_addrs = ["00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4"]
 
-def construct_ip(ip, small_ip, large_ip, ip_prefix = "192, 168, 9"):
-    ip = "IPv4({}, {})".format(ip_prefix, ip)
+def construct_ip(ip, small_ip, large_ip, ip_prefix = "0, 0, 10"):
+    ip = "IPv4({}, {})".format(ip, ip_prefix)
     num_dst = large_ip - small_ip + 1
     dst_ips = ""
     for i in range(num_dst):
-        dst_ips += "\tp->dst_ips[{}] = IPv4({}, {});".format(i, ip_prefix, small_ip + i)
+        dst_ips += "\tp->dst_ips[{}] = IPv4({}, {});".format(i,small_ip + i, ip_prefix)
         dst_ips += "\n"
     return ip, num_dst, dst_ips
 
