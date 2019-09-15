@@ -295,7 +295,7 @@ static void flow_generate_loop(void) {
     double time = value_exp(&exp_r);
     // double acc_time = 0;
     // double acc_flow_size = 0;
-    while(!start_signal) {
+    while(!start_signal && !force_quit) {
 	    rte_delay_us_block(10000);
     }
 	while(!force_quit) {
