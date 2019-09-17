@@ -228,7 +228,7 @@ struct rte_mbuf* pim_get_grantr_pkt(struct ether_hdr* ether_hdr, struct ipv4_hdr
                 sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
     ipv4_hdr2->src_addr = rte_cpu_to_be_32(params.ip);
     ipv4_hdr2->dst_addr = ipv4_hdr->src_addr;
-    ipv4_hdr2->total_length = rte_cpu_to_be_16(size);
+    ipv4_hdr2->total_length = rte_cpu_to_be_16(size - sizeof(struct ether_hdr));
     // add_ip_hdr(p, &ipv4_hdr2);
 
     pim_hdr->type = PIM_GRANTR;
@@ -258,7 +258,7 @@ struct rte_mbuf* pim_get_grant_pkt(struct pim_rts* pim_rts, int iter, int epoch,
                 sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
     ipv4_hdr->src_addr = rte_cpu_to_be_32(params.ip);
     ipv4_hdr->dst_addr = rte_cpu_to_be_32(pim_rts->src_addr);
-    ipv4_hdr->total_length = rte_cpu_to_be_16(size);
+    ipv4_hdr->total_length = rte_cpu_to_be_16(size - sizeof(struct ether_hdr));
     // add_ip_hdr(p, &ipv4_hdr);
 
     pim_hdr->type = PIM_GRANT;
@@ -290,7 +290,7 @@ struct rte_mbuf* pim_get_accept_pkt(struct pim_grant* pim_grant, int iter, int e
                 sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
     ipv4_hdr->src_addr = rte_cpu_to_be_32(params.ip);
     ipv4_hdr->dst_addr = rte_cpu_to_be_32(pim_grant->dst_addr);
-    ipv4_hdr->total_length = rte_cpu_to_be_16(size);
+    ipv4_hdr->total_length = rte_cpu_to_be_16(size - sizeof(struct ether_hdr));
     // add_ip_hdr(p, &ipv4_hdr);
 
     pim_hdr->type = PIM_ACCEPT;
@@ -321,8 +321,8 @@ struct rte_mbuf* pim_get_rts_pkt(struct pim_flow* flow, int iter, int epoch) {
     struct pim_rts_hdr* pim_rts_hdr = rte_pktmbuf_mtod_offset(p, struct pim_rts_hdr*, 
                 sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
     ipv4_hdr->src_addr = rte_cpu_to_be_32(params.ip);
-    ipv4_hdr->dst_addr = rte_cpu_to_be_32(flow->_f.dst_addr);
-    ipv4_hdr->total_length = rte_cpu_to_be_16(size);
+    ipv4_hdr->dst_addr = rte_cpu_to_be_32(flow->_f.dst_addr - sizeof(struct ether_hdr));
+    ipv4_hdr->total_length = rte_cpu_to_be_16(size - sizeof(struct ether_hdr));
     // add_ip_hdr(p, &ipv4_hdr);
 
     pim_hdr->type = PIM_RTS;
@@ -851,7 +851,7 @@ void pim_send_flow_sync(struct pim_pacer* pacer, struct pim_host* host, struct p
 
     ipv4_hdr->dst_addr = rte_cpu_to_be_32(flow->_f.dst_addr);
 
-    ipv4_hdr->total_length = rte_cpu_to_be_16(size); 
+    ipv4_hdr->total_length = rte_cpu_to_be_16(size - sizeof(struct ether_hdr)); 
 
     pim_hdr->type = PIM_FLOW_SYNC;
     pim_flow_sync_hdr->flow_id = flow->_f.id;

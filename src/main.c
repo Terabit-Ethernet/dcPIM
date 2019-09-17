@@ -48,7 +48,7 @@
 #include "header.h"
 #include "flow.h"
 #include "pim_flow.h"
-#include "pim_host.h"
+#include "pim_host.h"m
 #include "pim_pacer.h"
 #include "random_variable.h"
 #define TIMER_RESOLUTION_CYCLES 3000UL /* around 10ms at 2 Ghz */
@@ -248,7 +248,7 @@ static void start_main_loop(void) {
 	    	sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
 	    ipv4_hdr->src_addr = rte_cpu_to_be_32(params.ip);
 	    ipv4_hdr->dst_addr = rte_cpu_to_be_32(params.dst_ips[i]);
-	    ipv4_hdr->total_length = rte_cpu_to_be_16(size);
+	    ipv4_hdr->total_length = rte_cpu_to_be_16(size - sizeof(struct ether_hdr));
 		ipv4_hdr->version_ihl = (0x40 | 0x05);
 		ipv4_hdr->type_of_service = TOS_7;
 		ipv4_hdr->time_to_live = 64;
