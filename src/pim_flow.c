@@ -238,7 +238,6 @@ void pflow_reset_rd_ctrl_timeout(struct pim_host* host, struct pim_flow* flow, d
         flow->rd_ctrl_timeout_params->host = host;
         flow->rd_ctrl_timeout_params->flow = flow;
     }
-    printf("set rd ctrl timeout\n");
     flow->rd_ctrl_timeout_times++;
     int ret = rte_timer_reset(&flow->rd_ctrl_timeout, rte_get_timer_hz() * time, SINGLE,
                     rte_lcore_id(), &pflow_rd_ctrl_timeout_handler, (void*)flow->rd_ctrl_timeout_params);
