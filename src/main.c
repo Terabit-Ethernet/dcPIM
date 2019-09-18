@@ -48,10 +48,11 @@
 #include "header.h"
 #include "flow.h"
 #include "pim_flow.h"
-#include "pim_host.h"m
+#include "pim_host.h"
 #include "pim_pacer.h"
 #include "random_variable.h"
 #define TIMER_RESOLUTION_CYCLES 3000UL /* around 10ms at 2 Ghz */
+#define IP_DN_FRAGMENT_FLAG 0x0040
 
 int mode;
 /* Per-port statistics struct */
@@ -104,7 +105,7 @@ char *cdf_file;
 static volatile bool force_quit;
 
 bool start_signal;
-#define TARGET_NUM 5000
+#define TARGET_NUM 1
 
 static unsigned char
 outgoing_port(unsigned char id) {
@@ -186,18 +187,36 @@ static void pacer_main_loop(void) {
 				rte_exit(EXIT_FAILURE, "deque ring\n");
 			}
 			struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, sizeof(struct ether_hdr));
+    		struct pim_hdr *pim_hdr;
+
+    		uint32_t offset = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr);
+
+   		 	pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, offset);
+
 			pacer.remaining_bytes += rte_be_to_cpu_16(ipv4_hdr->total_length) + sizeof(struct ether_hdr);
 			
 			uint32_t dst_addr = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
 			// insert vlan header with highest priority;
 			// use tos in ipheader instead;
+
 			ipv4_hdr->version_ihl = (0x40 | 0x05);
 			ipv4_hdr->type_of_service = TOS_7;
+			ipv4_hdr->fragment_offset = IP_DN_FRAGMENT_FLAG;
+			ipv4_hdr->next_proto_id = 6;
 			ipv4_hdr->time_to_live = 64;
 			ipv4_hdr->hdr_checksum = 0;
 			ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
+			printf("pim hdr type:%u\n", pim_hdr->type);
 
+			if(pim_hdr->type == 2){
+			printf("previous dst ip address:%u\n", dst_addr);
 
+				rte_pktmbuf_dump(stdout, p, 60);
+				printf("new dst ip address:%u\n", rte_be_to_cpu_32(ipv4_hdr->dst_addr));
+				fflush(stdout);
+				rte_exit(EXIT_FAILURE, "stop");
+			}
+			// printf("send control packet type:%u\n", pim_hdr->type);
 			// p->vlan_tci = TCI_7;
 			// rte_vlan_insert(&p); 
 			// send packets; hard code the port;
@@ -328,7 +347,7 @@ static void flow_generate_loop(void) {
             // printf("time:%f\n", time);
          	i++;
             prev_tsc = cur_tsc;
-            flow_size = (uint32_t)(value_emp(&emp_r) + 0.5) * 1460;
+            flow_size = (uint32_t)(value_emp(&emp_r) + 0.5) * 1460 * 20;
         	time = value_exp(&exp_r);
          }
         if(cur_tsc - prev_tsc_2 > diff_tsc_2) {
