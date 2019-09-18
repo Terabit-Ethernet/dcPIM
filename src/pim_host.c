@@ -198,7 +198,6 @@ struct rte_mbuf* p) {
         struct pim_data_hdr *pim_data_hdr = rte_pktmbuf_mtod_offset(p, struct pim_data_hdr*, offset);
         host->received_bytes += 1500;
         pim_receive_data(host, pacer, pim_data_hdr, p);
-	printf("receive data\n");
         return;
     } else if (pim_hdr->type == PIM_START) {
         pim_receive_start(epoch, host, pacer, 0);
