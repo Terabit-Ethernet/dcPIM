@@ -388,7 +388,7 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ether_hdr* ether_hdr,
         // printf("current iter:%u\n",pim_epoch->iter);
         // printf("packet epoch:%u\n", pim_rts_hdr->epoch);
         // printf("packet iter:%u\n", pim_rts_hdr->iter);
-        int index = rte_be_to_cpu_32(ipv4_hdr->src_addr) - params.dst_ips[0];
+        int index = rte_be_to_cpu_32(ipv4_hdr->src_addr) >> 24 - params.dst_ips[0] >> 24;
         if(pim_epoch->rts_bmp[index] == false) {
             pim_epoch->rts_bmp[index] = true;
             struct pim_rts *pim_rts = &pim_epoch->rts_q[pim_epoch->rts_size];
@@ -440,7 +440,7 @@ void pim_receive_grant(struct pim_epoch* pim_epoch, struct ether_hdr* ether_hdr,
     if(pim_epoch->match_dst_addr != 0) {
         return;
     }
-        int index = rte_be_to_cpu_32(ipv4_hdr->src_addr) - params.dst_ips[0];
+        int index = rte_be_to_cpu_32(ipv4_hdr->src_addr) >> 24 - params.dst_ips[0] >> 24;
         if(pim_epoch->grant_bmp[index] == false) {
             pim_epoch->grant_bmp[index] = true;
             struct pim_grant *pim_grant = &pim_epoch->grants_q[pim_epoch->grant_size];
