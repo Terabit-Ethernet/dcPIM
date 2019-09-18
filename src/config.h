@@ -15,6 +15,7 @@
 
 #define NUM_FLOW_TYPES 12
 #define NUM_LINKS 6
+#define IP_DN_FRAGMENT_FLAG 0x0040
 
 // highest to lowest: 7 - 1
 // #define TCI_7 0xE000
