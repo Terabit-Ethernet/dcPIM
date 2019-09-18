@@ -198,6 +198,7 @@ struct rte_mbuf* p) {
         struct pim_data_hdr *pim_data_hdr = rte_pktmbuf_mtod_offset(p, struct pim_data_hdr*, offset);
         host->received_bytes += 1500;
         pim_receive_data(host, pacer, pim_data_hdr, p);
+	printf("receive data\n");
         return;
     } else if (pim_hdr->type == PIM_START) {
         pim_receive_start(epoch, host, pacer, 0);
@@ -321,7 +322,7 @@ struct rte_mbuf* pim_get_rts_pkt(struct pim_flow* flow, int iter, int epoch) {
     struct pim_rts_hdr* pim_rts_hdr = rte_pktmbuf_mtod_offset(p, struct pim_rts_hdr*, 
                 sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
     ipv4_hdr->src_addr = rte_cpu_to_be_32(params.ip);
-    ipv4_hdr->dst_addr = rte_cpu_to_be_32(flow->_f.dst_addr - sizeof(struct ether_hdr));
+    ipv4_hdr->dst_addr = rte_cpu_to_be_32(flow->_f.dst_addr);
     ipv4_hdr->total_length = rte_cpu_to_be_16(size - sizeof(struct ether_hdr));
     // add_ip_hdr(p, &ipv4_hdr);
 
@@ -616,7 +617,6 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
     struct pim_epoch* pim_epoch = pim_timer_params->pim_epoch;
     struct pim_host* pim_host = pim_timer_params->pim_host;
     struct pim_pacer* pim_pacer = pim_timer_params->pim_pacer;
-
     if(pim_epoch->iter > 0) {
         pim_handle_all_grant(pim_epoch, pim_host, pim_pacer);
     }
@@ -643,7 +643,7 @@ void pim_schedule_sender_iter_evt(__rte_unused struct rte_timer *timer, void* ar
 
     if(pim_epoch->iter == 1 || (double)(start_cycle - pim_epoch->send_rts_cycle) >= epoch_size * 0.5) {
         pim_send_all_rts(pim_epoch, pim_host, pim_pacer);
-        // printf("diff epoch:%f epoch:%f\n", (double)(start_cycle - pim_epoch->send_rts_cycle), epoch_size * 1.5);
+         // printf("diff epoch:%f epoch:%f\n", (double)(start_cycle - pim_epoch->send_rts_cycle), epoch_size * 1.5);
     }
     //  else {
     //     printf("skip epoch: %d iter: %d diff of cycles:%f\n", pim_epoch->epoch, pim_epoch->iter, (double)(start_cycle - pim_epoch->send_rts_cycle));
@@ -858,9 +858,7 @@ void pim_send_flow_sync(struct pim_pacer* pacer, struct pim_host* host, struct p
     pim_flow_sync_hdr->flow_size = flow->_f.size;
     pim_flow_sync_hdr->start_time = flow->_f.start_time;
     //push the packet
-    if(debug_flow(flow->_f.id)){
-        printf("send rts %u\n", flow->_f.id);
-    }
+
     enqueue_ring(pacer->ctrl_q, p);
 }
 
