@@ -238,6 +238,7 @@ void pflow_reset_rd_ctrl_timeout(struct pim_host* host, struct pim_flow* flow, d
         flow->rd_ctrl_timeout_params->host = host;
         flow->rd_ctrl_timeout_params->flow = flow;
     }
+    printf("set rd ctrl timeout\n");
     flow->rd_ctrl_timeout_times++;
     int ret = rte_timer_reset(&flow->rd_ctrl_timeout, rte_get_timer_hz() * time, SINGLE,
                     rte_lcore_id(), &pflow_rd_ctrl_timeout_handler, (void*)flow->rd_ctrl_timeout_params);
@@ -299,12 +300,18 @@ void pflow_rd_ctrl_timeout_handler(__rte_unused struct rte_timer *timer, void* a
         printf("redundancy ctl timeout for flow flow%u\n", flow->_f.id);
     }
     rte_free(timeout_params);
-    if(flow->_f.finished) {
+    if(flow->_f.finished || flow->finished_at_receiver) {
         return;
     }
+    if(flow->_f.src_addr == params.ip) {
+        Pq* pq = lookup_table_entry(host->dst_minflow_table, flow->_f.dst_addr);
+        pq_push(pq, flow);
+    } else {
+        Pq* pq = lookup_table_entry(host->src_minflow_table, flow->_f.src_addr);
+        pq_push(pq, flow);
+    }
     // failed short flows will be treated as long flows
-    Pq* pq = lookup_table_entry(host->src_minflow_table, flow->_f.src_addr);
-    pq_push(pq, flow);
+
     
 }
 

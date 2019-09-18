@@ -310,7 +310,7 @@ static void flow_generate_loop(void) {
 	while(!force_quit) {
 		cur_tsc = rte_rdtsc();
         diff_tsc = cur_tsc - prev_tsc;
-         if (diff_tsc > TIMER_RESOLUTION_CYCLES * time * 1000000.0) {
+         if (diff_tsc > TIMER_RESOLUTION_CYCLES * time * 1000000.0 && i < TARGET_NUM) {
          	if(i == 0) {
 			 	host.start_cycle = rte_get_tsc_cycles();
          	}
@@ -364,9 +364,6 @@ static void flow_generate_loop(void) {
 			host.sent_bytes -= old_sentbytes;
 			host.received_bytes -= old_receivebytes;
 			prev_tsc_2 = cur_tsc;
-        }
-        if(i == TARGET_NUM) {
-        	break;
         }
 	}
 }

@@ -126,6 +126,8 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
             enqueue_ring(host->short_flow_token_q , p);
             // printf("push to short flow token q\n");
         }
+        // set timer for avoid PIM process for short flows
+        pflow_reset_rd_ctrl_timeout(host, new_flow, (new_flow->_f.size_in_pkt + params.BDP) * get_transmission_delay(1500));
     } else {
         if(lookup_table_entry(host->dst_minflow_table, dst_addr) == NULL) {
             Pq* pq = rte_zmalloc("Prioirty Queue", sizeof(Pq), 0);
