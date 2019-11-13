@@ -26,16 +26,16 @@ extern bool start_signal;
 struct pim_rts {
     uint8_t iter;
     uint32_t epoch;
-    uint32_t src_addr;
+    uint32_t dst_addr;
+    struct ether_addr dst_ether_addr;
     uint64_t cycles;
-    struct ether_addr src_ether_addr;
     int remaining_sz;
 
 };
 struct pim_grant {
     bool prompt;
-    uint32_t dst_addr;
-    struct ether_addr dst_ether_addr;
+    uint32_t src_addr;
+    struct ether_addr src_ether_addr;
     int remaining_sz;
 };
 
