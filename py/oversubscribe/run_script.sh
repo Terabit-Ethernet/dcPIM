@@ -1,6 +1,6 @@
 #!/bin/bash
 
-algos=(pim)
+algos=(ruf_local)
 aids=()
 OUTPUT_FOLDER=../result/oversubscribe
 DATE=$1

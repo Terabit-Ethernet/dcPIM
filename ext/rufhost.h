@@ -90,9 +90,11 @@ public:
 
 class PqElementComparator {
 public:
-    bool operator() (PqElement* a, PqElement* b) {
-        return a->flow_size > b->flow_size;
+    bool local;
+    PqElementComparator(const bool & localize = false) {
+        local = localize;
     }
+    bool operator() (PqElement* a, PqElement* b);
 };
 
 class RufFlowComparator {

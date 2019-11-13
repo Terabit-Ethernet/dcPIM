@@ -29,6 +29,8 @@ class LeafSpineTopology : public Topology {
         );
 		bool is_arbiter(Host* n);
 		bool is_same_rack(Host* a, Host*b);
+        bool is_same_rack(int a, int b);
+
 		// uint32_t get_rack_num(Host* a);
         void set_up_parameter();
 

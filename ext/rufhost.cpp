@@ -2,6 +2,8 @@
 #include "../coresim/event.h"
 #include "../coresim/topology.h"
 #include "../coresim/debug.h"
+#include "../coresim/leafSpineTopology.h"
+#include "../coresim/fatTreeTopology.h"
 
 #include "factory.h"
 #include "rufflow.h"
@@ -75,7 +77,28 @@ void RufGoSrcQueuingEvent::process_event() {
 
 
 // Comparator
-
+bool PqElementComparator::operator() (PqElement* a, PqElement* b) {
+    LeafSpineTopology *t = dynamic_cast<LeafSpineTopology*>(topology);
+    if(this->local) {
+        bool local_a = false;
+        bool local_b = false;
+        if (t->is_same_rack(a->src_id, a->dst->id)) {
+            local_a = true;
+        }
+        if (t->is_same_rack(b->src_id, b->dst->id)) {
+            local_b = true;
+        }
+        if(local_a && local_b) {
+            return a->flow_size > b->flow_size;
+        } else if (local_a || local_b) {
+            if (local_a) 
+                return false;
+            else 
+                return true;
+        }
+    }
+    return a->flow_size > b->flow_size;
+}
 bool RufFlowComparator::operator() (RufFlow* a, RufFlow* b){
     if (a->remaining_pkts_at_sender > b->remaining_pkts_at_sender)
         return true;
@@ -627,6 +650,7 @@ RufArbiter::RufArbiter(uint32_t id, double rate, uint32_t queue_type) : Host(id,
     this->arbiter_proc_evt = NULL;
     this->gosrc_queue_evt = NULL;
     this->round = 0;
+    this->ruf_q = CustomPriorityQueue<PqElement*, std::vector<PqElement*>, PqElementComparator>(PqElementComparator(params.ruf_localize));
     // this->last_reset_ruf_time = 0;
 }
 
@@ -673,6 +697,7 @@ void RufArbiter::ruf_schedule() {
             std::cout << get_current_time() << " schedule epoch for dst " << request->dst->id << std::endl;
             std::cout << get_current_time() << " src " << (request->src_id) << "state " << this->src_state[request->src_id].state << " flow size:" << request->flow_size << std::endl;
         }
+
         bool dst_state = true;
         bool src_state = true;
         // reset the dst state if the timeout happens;

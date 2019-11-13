@@ -162,6 +162,13 @@ bool FatTreeTopology::is_same_rack(Host* a, Host*b) {
 	return false;
 }
 
+bool FatTreeTopology::is_same_rack(int a, int b) {
+    // assume arbiter is at pod 0 and edge switch 0;
+    if(a / (_k / 2) == b / (_k / 2))
+        return true;
+    return false;
+}
+
 uint32_t FatTreeTopology::get_rack_num(Host* a) {
 	if(is_arbiter(a))
 		return 0;

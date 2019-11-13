@@ -27,6 +27,7 @@ class FatTreeTopology : public Topology {
                 );
 		bool is_arbiter(Host* n);
 		bool is_same_rack(Host* a, Host*b);
+        bool is_same_rack(int a, int b);
 		uint32_t get_rack_num(Host* a);
 		bool is_same_pod(Host* a, Host*b);
 		uint32_t get_pod_num(Host* a);

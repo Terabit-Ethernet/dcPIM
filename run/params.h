@@ -108,6 +108,7 @@ class DCExpParams {
         // double ctrl_pkt_rtt;
         double ruf_max_src_num;
         bool debug_controller_queue;
+        bool ruf_localize;
         // std::string policy;
         // debug for max-min fairness
         bool print_max_min_fairness;

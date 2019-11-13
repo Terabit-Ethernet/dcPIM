@@ -32,7 +32,12 @@ public:
         v = _Sequence();
         best_index = -1;
     }
-
+    CustomPriorityQueue(const _Compare& compartor)
+    {
+        comp = compartor;
+        v = _Sequence();
+        best_index = -1;
+    }
     bool empty() const
     {
         return v.empty();

@@ -148,6 +148,13 @@ bool LeafSpineTopology::is_same_rack(Host* a, Host*b) {
 	return false;
 }
 
+bool LeafSpineTopology::is_same_rack(int a, int b) {
+    // assume arbiter is at pod 0 and edge switch 0;
+    if(a / this->hosts_per_agg_switch == b / this->hosts_per_agg_switch)
+        return true;
+    return false;
+}
+
 Queue* LeafSpineTopology::get_next_hop(Packet* p, Queue* q) {
     if (q->dst->type == HOST) {
         assert(p->dst->id == q->dst->id);
