@@ -24,6 +24,7 @@ class DCExpParams {
 
         double propagation_delay;
         double bandwidth;
+        // oversubscription ratio
         double os_ratio;
         
         uint32_t num_flows_to_run;
@@ -109,6 +110,7 @@ class DCExpParams {
         double ruf_max_src_num;
         bool debug_controller_queue;
         bool ruf_localize;
+        bool ruf_limit_conns;
         // std::string policy;
         // debug for max-min fairness
         bool print_max_min_fairness;

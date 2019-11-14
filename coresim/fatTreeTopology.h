@@ -27,7 +27,6 @@ class FatTreeTopology : public Topology {
                 );
 		bool is_arbiter(Host* n);
 		bool is_same_rack(Host* a, Host*b);
-        bool is_same_rack(int a, int b);
 		uint32_t get_rack_num(Host* a);
 		bool is_same_pod(Host* a, Host*b);
 		uint32_t get_pod_num(Host* a);
@@ -40,6 +39,8 @@ class FatTreeTopology : public Topology {
         virtual Queue* get_next_hop(Packet *p, Queue *q);
         virtual double get_control_pkt_rtt(int host_id);
         virtual double get_oracle_fct(Flow* f);
+        virtual bool is_same_rack(int a, int b);
+        virtual int num_hosts_per_tor();
 
         uint32_t num_edge_switches;
         uint32_t num_agg_switches;

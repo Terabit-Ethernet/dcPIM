@@ -176,12 +176,12 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
         // else if (params.flow_type == RUF_FLOW) {
         //     topology = new RufTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
         // }
-        if (params.big_switch) {
-            topology = new BigSwitchTopology(params.num_hosts, params.bandwidth, params.queue_type);
-        } 
-        else {
+        // if (params.big_switch) {
+        //     topology = new BigSwitchTopology(params.num_hosts, params.bandwidth, params.queue_type);
+        // } 
+        // else {
             topology = new LeafSpineTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
-        }
+//        }
     }
     uint32_t num_flows = params.num_flows_to_run;
 

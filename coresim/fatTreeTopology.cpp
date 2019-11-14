@@ -360,3 +360,6 @@ double FatTreeTopology::get_control_pkt_rtt(int host_id) {
     }
 }
 
+int FatTreeTopology::num_hosts_per_tor() {
+    return int(_k * _k / 4);
+}

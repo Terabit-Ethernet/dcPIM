@@ -182,6 +182,9 @@ class RufArbiter : public Host {
         std::vector<HostState> dst_state;
         RufArbiterProcessingEvent* arbiter_proc_evt;
         RufGoSrcQueuingEvent* gosrc_queue_evt;
+        std::vector<int> inbound_cons;
+        std::vector<int> outbound_cons;
+
         // double last_reset_ruf_time;
         CustomPriorityQueue<PqElement*, std::vector<PqElement*>, PqElementComparator> ruf_q;
 };

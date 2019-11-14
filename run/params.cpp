@@ -26,6 +26,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     // default full-bisection bandwidth topology
     params.os_ratio = 1;
     params.ruf_localize = false;
+    params.ruf_limit_conns = false;
     while (std::getline(input, line)) {
         std::istringstream lineStream(line);
         if (line.empty()) {
@@ -186,6 +187,9 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         else if (key == "ruf_localize") {
             lineStream >> params.ruf_localize;
         } 
+        else if (key == "ruf_limit_conns") {
+            lineStream >> params.ruf_limit_conns;
+        }
         else if (key == "debug_controller_queue") {
             lineStream >> params.debug_controller_queue;
         }

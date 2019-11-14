@@ -29,7 +29,6 @@ class LeafSpineTopology : public Topology {
         );
 		bool is_arbiter(Host* n);
 		bool is_same_rack(Host* a, Host*b);
-        bool is_same_rack(int a, int b);
 
 		// uint32_t get_rack_num(Host* a);
         void set_up_parameter();
@@ -37,6 +36,10 @@ class LeafSpineTopology : public Topology {
         virtual Queue* get_next_hop(Packet *p, Queue *q);
         virtual double get_control_pkt_rtt(int host_id);
         virtual double get_oracle_fct(Flow* f);
+
+        // this is for RUF local matching; not optimized yet;
+        virtual bool is_same_rack(int a, int b);
+        virtual int num_hosts_per_tor();
 
         uint32_t hosts_per_agg_switch;
         uint32_t num_agg_switches;

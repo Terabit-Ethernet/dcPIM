@@ -119,27 +119,27 @@ void run_scenario() {
             }
             assert(false);
         }
-        if(params.debug_controller_queue) {
-            if(current_time > next_time) {
-                next_time = current_time + 0.000002;
-                Queue* queue = NULL;
-                if(params.topology == "FatTree") {
-                    queue = dynamic_cast<FatTreeTopology*>(topology)->edge_switches[0]->queue_to_arbiter;
-                } else {
-                    RufTopology* t = dynamic_cast<RufTopology*>(topology);
-                    RufAggSwitch* agg_switch = (RufAggSwitch*)(t->agg_switches[0]);
-                    queue = agg_switch->queue_to_arbiter;
-                }
+        // if(params.debug_controller_queue) {
+        //     if(current_time > next_time) {
+        //         next_time = current_time + 0.000002;
+        //         Queue* queue = NULL;
+        //         if(params.topology == "FatTree") {
+        //             queue = dynamic_cast<FatTreeTopology*>(topology)->edge_switches[0]->queue_to_arbiter;
+        //         } else {
+        //             RufTopology* t = dynamic_cast<RufTopology*>(topology);
+        //             RufAggSwitch* agg_switch = (RufAggSwitch*)(t->agg_switches[0]);
+        //             queue = agg_switch->queue_to_arbiter;
+        //         }
 
-                // if(queue->bytes_in_queue  > 3000 && max == queue->bytes_in_queue) {
-                        std::cout << get_current_time() << " " << queue->bytes_in_queue << "\n";
-                        // for(int i = 0; i < queue->packets.size(); i++) {
-                        //     std::cout << queue->packets[i]->src->id << " " <<
-                        //      dynamic_cast<RufListSrcs*> (queue->packets[i])->listSrcs.size() << std::endl;
-                        // }
-                // }
-            }
-        }
+        //         // if(queue->bytes_in_queue  > 3000 && max == queue->bytes_in_queue) {
+        //                 std::cout << get_current_time() << " " << queue->bytes_in_queue << "\n";
+        //                 // for(int i = 0; i < queue->packets.size(); i++) {
+        //                 //     std::cout << queue->packets[i]->src->id << " " <<
+        //                 //      dynamic_cast<RufListSrcs*> (queue->packets[i])->listSrcs.size() << std::endl;
+        //                 // }
+        //         // }
+        //     }
+        // }
         // if(1) {
         //     if(current_time > next_time) {
         //         next_time = current_time + 0.000002;

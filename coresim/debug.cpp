@@ -12,7 +12,7 @@ std::set<uint32_t> flows_to_debug_set = {};
 bool debug_all_queues = false;
 std::set<uint32_t> queues_to_debug_set = {};
 bool debug_all_hosts = false;
-std::set<uint32_t> hosts_to_debug_set = {0};
+std::set<uint32_t> hosts_to_debug_set = {};
 
 bool debug_flow(uint32_t fid){
     // return false;

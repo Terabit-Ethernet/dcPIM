@@ -283,3 +283,7 @@ double LeafSpineTopology::get_control_pkt_rtt(int host_id) {
         return (4 * params.propagation_delay + (40 * 8 / params.bandwidth) * 2.5) * 2;
     }
 }
+
+int LeafSpineTopology::num_hosts_per_tor() {
+    return hosts_per_agg_switch;
+}
