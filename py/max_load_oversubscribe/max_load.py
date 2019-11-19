@@ -6,6 +6,7 @@ propagation_delay: 0.0000002
 bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 2
+os_ratio: 0.5
 num_flow: 1000000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
@@ -52,6 +53,7 @@ propagation_delay: 0.0000002
 bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 112
+os_ratio: 0.5
 num_flow: 1000000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
@@ -97,6 +99,7 @@ propagation_delay: 0.0000002
 bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 114
+os_ratio: 0.5
 num_flow: 1000000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
@@ -142,6 +145,7 @@ propagation_delay: 0.0000002
 bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 112
+os_ratio: 0.5
 num_flow: 1000000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
@@ -187,6 +191,7 @@ propagation_delay: 0.0000002
 bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 115
+os_ratio: 0.5
 num_flow: 1000000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
@@ -237,6 +242,7 @@ propagation_delay: 0.0000002
 bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 116
+os_ratio: 0.5
 num_flow: 1000000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
