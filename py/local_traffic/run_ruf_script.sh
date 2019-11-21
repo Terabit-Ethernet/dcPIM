@@ -22,7 +22,7 @@ do
 		do
 			for k in ${!conn[*]}
 			do 
-		   	../../simulator 1 conf_"$algo"_"$2"_"$j"_"$k"_"0.1$load".txt > "$OUTPUT_FOLDER/$DATE"/result_"$algo"_"$2"_"$j"_"$k"_"0.1$load.txt"&
+		   	../../simulator 1 conf_"$algo"_"$2"_"$j"_"$k"_"0.$load"0.txt > "$OUTPUT_FOLDER/$DATE"/result_"$algo"_"$2"_"$j"_"$k"_"0.$load"0.txt&
 	    	pids[${index}]=$!
 			done
 	    # echo conf_"$algo"_dctcp_$load.txt
