@@ -7,7 +7,7 @@ algos=(ruf)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()
 
-OUTPUT_FOLDER=../result/max_load
+OUTPUT_FOLDER=../result/max_load_oversubscribe
 DATE=$1
 TRACE=$2
 mkdir -p $OUTPUT_FOLDER
@@ -22,7 +22,7 @@ do
 		do
 			for k in ${!conn[*]}
 			do 
-		   	../../simulator 1 conf_"$algo"_"$2"_"$j"_"$k"_"0.5$load".txt > "$OUTPUT_FOLDER/$DATE"/result_"$algo"_"$2"_"$j"_"$k"_"0.5$load"&
+		   	../../simulator 1 conf_"$algo"_"$2"_"$j"_"$k"_"0.2$load".txt > "$OUTPUT_FOLDER/$DATE"/result_"$algo"_"$2"_"$j"_"$k"_"0.2$load".txt&
 	    	pids[${index}]=$!
 			done
 		done 
