@@ -191,7 +191,8 @@ propagation_delay: 0.0000002
 bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 115
-os_ratio: 0.1
+os_ratio: {4}
+num_hosts: {5}
 num_flow: 1000000
 flow_trace: ../CDF_{1}.txt
 cut_through: 0
@@ -294,7 +295,7 @@ for r in runs:
             if r == "ruf":
                 for i in range(2):
                     for j in range(2):
-                        conf_str = conf_str_ruf.format(load, w, i, j)
+                        conf_str = conf_str_ruf.format(load, w, i, ji, 0.2, 144 / 0.2)
                         confFile = "conf_{0}_{1}_{2}_{3}_{4}.txt".format(r, w, i, j, str("{:.2f}".format(load)))
                         with open(confFile, 'w') as f:
                             f.write(conf_str)
