@@ -160,16 +160,18 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
         std::cout << "Usage: <exe> exp_type conf_file" << std::endl;
         return;
     }
-
+    int local_endhost = 0;
     std::string conf_filename(argv[2]);
     read_experiment_parameters(conf_filename, exp_type);    
     if(params.topology == "FatTree") {
         params.num_hosts =  params.k * params.k * params.k / 4;
         topology = new FatTreeTopology(params.k, params.bandwidth, params.queue_type);
+        local_endhost = params.k * params.k / 2;
     } else {
         // params.num_hosts = 144;
         params.num_agg_switches = 9;
         params.num_core_switches = 4;
+        local_endhost = params.num_hosts / params.num_agg_switches;
         // if (params.flow_type == FASTPASS_FLOW) {
         //     topology = new FastpassTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
         // } 
@@ -183,6 +185,7 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
             topology = new LeafSpineTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
 //        }
     }
+
     uint32_t num_flows = params.num_flows_to_run;
 
     FlowGenerator *fg;
@@ -220,6 +223,10 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
     }
     else if (params.bytes_mode) {
         fg = new PoissonFlowBytesGenerator(num_flows, topology, params.cdf_or_flow_trace);
+        fg->make_flows();
+    }
+    else if (params.local_flow_precentage != -1) {
+        fg = new PoissonLocalFlowGenerator(num_flows, topology, params.cdf_or_flow_trace, local_endhost ,params.local_flow_precentage);
         fg->make_flows();
     }
     else if (params.traffic_imbalance < 0.01) {

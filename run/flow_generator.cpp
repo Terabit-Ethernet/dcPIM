@@ -48,6 +48,80 @@ void FlowGenerator::make_flows() {
     current_time = 0;
 }
 
+PoissonLocalFlowGenerator::PoissonLocalFlowGenerator(uint32_t num_flows, Topology *topo, std::string filename, int local, double precentage) : FlowGenerator(num_flows, topo, filename) {
+    this->local = local;
+    this->precentage = precentage;
+};
+    
+void PoissonLocalFlowGenerator::make_flows() {
+    EmpiricalRandomVariable *nv_bytes;
+    if (params.smooth_cdf)
+        nv_bytes = new EmpiricalRandomVariable(filename);
+    else
+        nv_bytes = new CDFRandomVariable(filename);
+
+    params.mean_flow_size = nv_bytes->mean_flow_size;
+    //std::cout << "Lambda: " << lambda_per_host << std::endl;
+
+    double lambda = params.bandwidth * params.load / (params.mean_flow_size * 8.0 / 1460 * 1500);
+    std::cout << precentage << std::endl;
+    double lambda_per_host_non_local = lambda * (1 - precentage) / (topo->hosts.size() - local);
+    double lambda_per_host_local = lambda * precentage / (local - 1);
+    
+    ExponentialRandomVariable *nv_intarr_local, *nv_intarr_non_local;
+    if (params.burst_at_beginning) {
+        nv_intarr_local = new ExponentialRandomVariable(0.0000001);
+        nv_intarr_non_local = new ExponentialRandomVariable(0.0000001);
+
+    }
+    else {
+        nv_intarr_local = new ExponentialRandomVariable(1.0 / lambda_per_host_local);
+        nv_intarr_non_local = new ExponentialRandomVariable(1.0 / lambda_per_host_non_local);
+
+    }
+
+    //* [expr ($link_rate*$load*1000000000)/($meanFlowSize*8.0/1460*1500)]
+    for (uint32_t i = 0; i < topo->hosts.size(); i++) {
+        for (uint32_t j = 0; j < topo->hosts.size(); j++) {
+            if (i != j && i / local == j / local) {
+                double first_flow_time = 1.0 + nv_intarr_local->value();
+                add_to_event_queue(
+                    new FlowCreationForInitializationEvent(
+                        first_flow_time,
+                        topo->hosts[i], 
+                        topo->hosts[j],
+                        nv_bytes, 
+                        nv_intarr_local
+                    )
+                );
+            } else if (i != j && i / local != j / local) {
+                double first_flow_time = 1.0 + nv_intarr_non_local->value();
+                add_to_event_queue(
+                    new FlowCreationForInitializationEvent(
+                        first_flow_time,
+                        topo->hosts[i], 
+                        topo->hosts[j],
+                        nv_bytes, 
+                        nv_intarr_non_local
+                    )
+                );
+            }
+        }
+    }
+
+    while (event_queue.size() > 0) {
+        Event *ev = event_queue.top();
+        event_queue.pop();
+        current_time = ev->time;
+        if (flows_to_schedule.size() < num_flows) {
+            ev->process_event();
+        }
+        delete ev;
+    }
+    current_time = 0;
+}
+
+
 PoissonFlowGenerator::PoissonFlowGenerator(uint32_t num_flows, Topology *topo, std::string filename) : FlowGenerator(num_flows, topo, filename) {};
     
 void PoissonFlowGenerator::make_flows() {
