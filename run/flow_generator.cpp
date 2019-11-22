@@ -64,7 +64,6 @@ void PoissonLocalFlowGenerator::make_flows() {
     //std::cout << "Lambda: " << lambda_per_host << std::endl;
 
     double lambda = params.bandwidth * params.load / (params.mean_flow_size * 8.0 / 1460 * 1500);
-    std::cout << precentage << std::endl;
     double lambda_per_host_non_local = lambda * (1 - precentage) / (topo->hosts.size() - local);
     double lambda_per_host_local = lambda * precentage / (local - 1);
     
