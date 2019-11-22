@@ -711,6 +711,7 @@ void RufArbiter::ruf_schedule() {
         bool src_state = true;
         int inbound_tor = request->dst->id / topology->num_hosts_per_tor();
         int outbound_tor = request->src_id / topology->num_hosts_per_tor();
+
         // reset the dst state if the timeout happens;
         if(this->dst_state[request->dst->id].state == false) {
             if(this->dst_state[request->dst->id].timeout >= get_current_time()) {
@@ -718,7 +719,6 @@ void RufArbiter::ruf_schedule() {
             } else {
                 this->dst_state[request->dst->id].reset();
                 this->inbound_cons[inbound_tor] += 1;
-                assert(false);
             }
         } 
         // reset the src state if timeout happens;
@@ -728,8 +728,6 @@ void RufArbiter::ruf_schedule() {
             } else {
                 this->src_state[request->src_id].reset();
                 this->outbound_cons[outbound_tor] += 1;
-            
-                assert(false);
             }
 
         }
@@ -738,7 +736,8 @@ void RufArbiter::ruf_schedule() {
             delete request;
             continue;
         }
-        if(params.ruf_limit_conns && (this->inbound_cons[inbound_tor] == 0 || this->outbound_cons[outbound_tor] == 0)) {
+
+        if(params.ruf_limit_conns && inbound_tor != outbound_tor && (this->inbound_cons[inbound_tor] == 0 || this->outbound_cons[outbound_tor] == 0)) {
             delete request;
             continue;
         }
