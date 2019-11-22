@@ -7,7 +7,7 @@ algos=(ruf)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()
 
-OUTPUT_FOLDER=../result/max_load_oversubscribe
+OUTPUT_FOLDER=../result/local_traffic
 DATE=$1
 TRACE=$2
 mkdir -p $OUTPUT_FOLDER
