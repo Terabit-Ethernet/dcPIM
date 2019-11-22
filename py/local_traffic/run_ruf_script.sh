@@ -1,13 +1,13 @@
 #!/bin/bash
 
-loads=(0 1 2 3 4 5 6 7 8 9)
+loads=(1 2 3 4 5 6 7 8 9)
 local=(0 1)
 conn=(0 1)
 algos=(ruf)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()
 
-OUTPUT_FOLDER=../result/max_load_oversubscribe
+OUTPUT_FOLDER=../result/local_traffic
 DATE=$1
 TRACE=$2
 mkdir -p $OUTPUT_FOLDER
