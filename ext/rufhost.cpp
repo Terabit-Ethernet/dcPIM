@@ -717,8 +717,10 @@ void RufArbiter::ruf_schedule() {
             if(this->dst_state[request->dst->id].timeout >= get_current_time()) {
                 dst_state = false;
             } else {
+                if(this->dst_state[request->dst->id].local == false) {
+                    this->inbound_cons[inbound_tor] += 1;
+                }
                 this->dst_state[request->dst->id].reset();
-                this->inbound_cons[inbound_tor] += 1;
             }
         } 
         // reset the src state if timeout happens;
@@ -726,8 +728,10 @@ void RufArbiter::ruf_schedule() {
             if(this->src_state[request->src_id].timeout >= get_current_time()) {
                 src_state = false;
             } else {
+                if(this->src_state[request->src_id].local == false) {
+                    this->outbound_cons[outbound_tor] += 1;
+                }
                 this->src_state[request->src_id].reset();
-                this->outbound_cons[outbound_tor] += 1;
             }
 
         }
@@ -747,17 +751,21 @@ void RufArbiter::ruf_schedule() {
         this->src_state[request->src_id].timeout = get_current_time() +
              topology->get_control_pkt_rtt(request->src_id) + 5 * params.ruf_max_tokens * params.get_full_pkt_tran_delay();
         this->src_state[request->src_id].round = this->round;
-        
+        this->src_state[request->src_id].local = (inbound_tor == outbound_tor);
+
         // set the destinatation state
         this->dst_state[request->dst->id].state = false;
         // set the timeout of the dst state
         this->dst_state[request->dst->id].timeout = get_current_time() + 
              topology->get_control_pkt_rtt(request->dst->id) + 5 * params.ruf_max_tokens * params.get_full_pkt_tran_delay();
         this->dst_state[request->dst->id].round = this->round;
+        this->dst_state[request->dst->id].local = (inbound_tor == outbound_tor);
 
         // reduce the inbound and outbound connections
-        this->inbound_cons[inbound_tor]--;
-        this->outbound_cons[outbound_tor]--;
+        if(inbound_tor != outbound_tor) {
+            this->inbound_cons[inbound_tor]--;
+            this->outbound_cons[outbound_tor]--;
+        }
         
         if(max_go_src > 0){
             ((RufHost*)(request->dst))->fake_flow->sending_gosrc(request->src_id, this->round);
@@ -789,8 +797,10 @@ void RufArbiter::receive_listsrcs(RufListSrcs* pkt) {
         int outbound_tor = pkt->nrts_src_id / topology->num_hosts_per_tor();
         // To DO: check the round number;
         if(pkt->round == this->src_state[pkt->nrts_src_id].round) {
+            if(this->src_state[pkt->nrts_src_id].local == false) {
+                this->outbound_cons[outbound_tor] += 1;
+            }
             this->src_state[pkt->nrts_src_id].reset();
-            this->outbound_cons[outbound_tor] += 1;
         } else {
             // std::cout << get_current_time() << " src id: " << pkt->nrts_src_id << std::endl;
             // std::cout << get_current_time() << " pkt round: " << pkt->round << 
@@ -799,8 +809,10 @@ void RufArbiter::receive_listsrcs(RufListSrcs* pkt) {
             // assert(false);
         }
         if(pkt->round == this->dst_state[pkt->nrts_dst_id].round) {
+            if(this->dst_state[pkt->nrts_dst_id].local == false) {
+                this->inbound_cons[inbound_tor] += 1;
+            }
             this->dst_state[pkt->nrts_dst_id].reset();
-            this->inbound_cons[inbound_tor] += 1;
         } else {
             // std::cout << get_current_time() << " dst id: " << pkt->nrts_dst_id << std::endl;
             // std::cout << get_current_time() << " pkt round: " << pkt->round << 

@@ -66,11 +66,13 @@ class HostState {
 public:
     bool state;
     double timeout;
-    int round; 
+    int round;
+    bool local; 
     HostState() {
         state = true;
         timeout = -1;
         round = -1;
+        local = false;
     }
     void reset_state() {
         state = true;
@@ -81,10 +83,14 @@ public:
     void reset_round() {
         round = -1;
     }
+    void reset_local() {
+        local = false;
+    }
     void reset() {
         this->reset_state();
         this->reset_timeout();
         this->reset_round(); 
+        this->reset_local();
     }
 };
 
