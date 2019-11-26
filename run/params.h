@@ -43,7 +43,7 @@ class DCExpParams {
         uint32_t host_type;
         double traffic_imbalance;
         double load;
-
+        double local_load;
         double reauth_limit;
 
         double magic_trans_slack;
@@ -84,8 +84,6 @@ class DCExpParams {
         uint32_t outcast_tm;
 
         uint32_t worstcase_tm;
-
-        double local_flow_precentage;
 
         uint32_t dctcp_mark_thresh;
         //uint32_t dctcp_delayed_ack_freq;
