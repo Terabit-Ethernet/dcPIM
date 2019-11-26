@@ -17,7 +17,6 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     params.permutation_tm = 0;
     params.worstcase_tm = 0;
     params.incast_tm = 0;
-    params.local_flow_precentage = -1;
     params.hdr_size = 40;
     params.print_max_min_fairness = false;
     params.num_hosts = 144;
@@ -26,6 +25,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     params.topology = "LeafSpine";
     // default full-bisection bandwidth topology
     params.os_ratio = 1;
+    params.local_load = -1;
     params.ruf_localize = false;
     params.ruf_limit_conns = false;
     while (std::getline(input, line)) {
@@ -105,6 +105,9 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         }
         else if (key == "load") {
             lineStream >> params.load;
+        }
+        else if (key == "local_load") {
+            lineStream >> params.local_load;
         }
         else if (key == "traffic_imbalance") {
             lineStream >> params.traffic_imbalance;
@@ -274,9 +277,6 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         }
         else if (key == "worstcase_tm") {
             lineStream >> params.worstcase_tm;
-        }
-        else if (key == "local_flow_precentage") {
-            lineStream >> params.local_flow_precentage;
         }
         else if (key == "dctcp_mark_thresh") {
             lineStream >> params.dctcp_mark_thresh;

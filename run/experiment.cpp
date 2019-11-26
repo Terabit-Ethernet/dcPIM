@@ -225,8 +225,8 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
         fg = new PoissonFlowBytesGenerator(num_flows, topology, params.cdf_or_flow_trace);
         fg->make_flows();
     }
-    else if (params.local_flow_precentage != -1) {
-        fg = new PoissonLocalFlowGenerator(num_flows, topology, params.cdf_or_flow_trace, local_endhost ,params.local_flow_precentage);
+    else if (params.local_load != -1) {
+        fg = new PoissonLocalFlowGenerator(num_flows, topology, params.cdf_or_flow_trace, local_endhost);
         fg->make_flows();
     }
     else if (params.traffic_imbalance < 0.01) {

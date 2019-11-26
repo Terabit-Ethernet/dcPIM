@@ -48,9 +48,8 @@ void FlowGenerator::make_flows() {
     current_time = 0;
 }
 
-PoissonLocalFlowGenerator::PoissonLocalFlowGenerator(uint32_t num_flows, Topology *topo, std::string filename, int local, double precentage) : FlowGenerator(num_flows, topo, filename) {
+PoissonLocalFlowGenerator::PoissonLocalFlowGenerator(uint32_t num_flows, Topology *topo, std::string filename, int local) : FlowGenerator(num_flows, topo, filename) {
     this->local = local;
-    this->precentage = precentage;
 };
     
 void PoissonLocalFlowGenerator::make_flows() {
@@ -63,10 +62,10 @@ void PoissonLocalFlowGenerator::make_flows() {
     params.mean_flow_size = nv_bytes->mean_flow_size;
     //std::cout << "Lambda: " << lambda_per_host << std::endl;
 
-    double lambda = params.bandwidth * params.load / (params.mean_flow_size * 8.0 / 1460 * 1500);
-    double lambda_per_host_non_local = lambda * (1 - precentage) / (topo->hosts.size() - local);
-    double lambda_per_host_local = lambda * precentage / (local - 1);
-    
+    double lambda_local = params.bandwidth * params.local_load / (params.mean_flow_size * 8.0 / 1460 * 1500);
+    double lambda_non_local = params.bandwidth * params.os_ratio / (params.mean_flow_size * 8.0 / 1460 * 1500);
+    double lambda_per_host_non_local = lambda_non_local / (topo->hosts.size() - local);
+    double lambda_per_host_local = lambda_local / (local - 1);
     ExponentialRandomVariable *nv_intarr_local, *nv_intarr_non_local;
     if (params.burst_at_beginning) {
         nv_intarr_local = new ExponentialRandomVariable(0.0000001);
