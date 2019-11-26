@@ -65,6 +65,5 @@ for r in runs:
                 if first_time == False and load > 1.0 - os_ratio:
                     load = 1.0 - os_ratio
                     first_time = True
-        for p in pros:
-            print "process"
-            p.wait()
+            for p in pros:
+                p.wait()
