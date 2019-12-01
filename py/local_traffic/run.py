@@ -46,17 +46,6 @@ for r in runs:
                             pros.append(p)
                             f.close()
                 else:
-                    if r == 'pfabric':
-                        conf_str = conf_str_pfabric.format(load, w)
-                    elif r == 'phost':
-                        conf_str = conf_str_phost.format(load, w)
-                    elif r == 'fastpass':
-                        conf_str = conf_str_fastpass.format(load, w)
-                    elif r == 'random':
-                        conf_str = conf_str_random.format(load, w)
-
-                    elif r == 'pim':
-                        conf_str = conf_str_pim.format(load, w)
                     confFile = "conf_{0}_{1}_{2}_{3}.txt".format(r, w, o, load)
                     resultFile = "{0}/{1}/result_{2}_{3}_{4}_{5}.txt".format(OUTPUT_FOLDER,DATE, r, w, o, load)
                     f = safe_open_w(resultFile)
