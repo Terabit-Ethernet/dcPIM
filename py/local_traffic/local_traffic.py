@@ -24,7 +24,6 @@ magic_delay_scheduling: 1
 use_flow_trace: 0
 smooth_cdf: 1
 burst_at_beginning: 0
-fastpass_epoch_pkts: 7
 capability_timeout: 1.5
 capability_resend_timeout: 9
 capability_initial: 7
@@ -123,6 +122,7 @@ capability_timeout: 1.5
 capability_resend_timeout: 9
 capability_initial: 7
 capability_window: 7
+fastpass_epoch_pkts: 7
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
