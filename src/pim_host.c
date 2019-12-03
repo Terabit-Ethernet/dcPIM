@@ -315,7 +315,7 @@ struct rte_mbuf* pim_get_rts_pkt(struct pim_flow* flow, int iter, int epoch) {
         rte_exit(EXIT_FAILURE ,"Pktbuf full");
     }
     rte_pktmbuf_append(p, size);
-    add_ether_hdr(p, &flow->_f.dst_ether_addr);
+    add_ether_hdr(p, &flow->_f.src_ether_addr);
     struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, 
                 sizeof(struct ether_hdr));
     struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
@@ -389,6 +389,7 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ether_hdr* ether_hdr,
         // printf("current iter:%u\n",pim_epoch->iter);
         // printf("packet epoch:%u\n", pim_rts_hdr->epoch);
         // printf("packet iter:%u\n", pim_rts_hdr->iter);
+    printf("receive rts\n");
         int index = (rte_be_to_cpu_32(ipv4_hdr->src_addr) >> 24) - (params.dst_ips[0] >> 24);
         if(pim_epoch->rts_bmp[index] == false) {
             pim_epoch->rts_bmp[index] = true;
@@ -400,6 +401,7 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ether_hdr* ether_hdr,
             pim_rts->remaining_sz = pim_rts_hdr->remaining_sz;
             ether_addr_copy(&ether_hdr->s_addr, &pim_rts->dst_ether_addr);
             pim_epoch->rts_size++;
+
             // if(pim_epoch->rts_size > 1) {
             //     printf("rts size > 2\n");
             //     printf("pim_epoch->epoch: %u\n", pim_epoch->epoch);
@@ -603,8 +605,9 @@ void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct
         
         struct pim_flow* smallest_flow = get_smallest_unfinished_flow(pq);
 
-
-
+        // printf("smallest flow size:%u\n", smallest_flow->_f.size);
+        // printf("flow src ip: %u\n", smallest_flow->_f.src_addr);
+        // printf("flow dst ip:%u\n", smallest_flow->_f.dst_addr);
         if(smallest_flow != NULL) {
             struct rte_mbuf *p = pim_get_rts_pkt(smallest_flow, pim_epoch->iter, pim_epoch->epoch);
             // rte_eth_tx_burst(get_port_by_ip(smallest_flow->_f.dst_addr) ,0, &p, 1);
