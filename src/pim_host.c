@@ -389,7 +389,6 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ether_hdr* ether_hdr,
         // printf("current iter:%u\n",pim_epoch->iter);
         // printf("packet epoch:%u\n", pim_rts_hdr->epoch);
         // printf("packet iter:%u\n", pim_rts_hdr->iter);
-    printf("receive rts\n");
         int index = (rte_be_to_cpu_32(ipv4_hdr->src_addr) >> 24) - (params.dst_ips[0] >> 24);
         if(pim_epoch->rts_bmp[index] == false) {
             pim_epoch->rts_bmp[index] = true;
