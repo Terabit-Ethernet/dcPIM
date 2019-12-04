@@ -54,6 +54,8 @@
 #define TIMER_RESOLUTION_CYCLES 3000UL /* around 10ms at 2 Ghz */
 
 int mode;
+uint64_t start, end;
+
 /* Per-port statistics struct */
 struct l2fwd_port_statistics {
 	uint64_t tx;
@@ -205,8 +207,9 @@ static void pacer_main_loop(void) {
 			ipv4_hdr->time_to_live = 64;
 			ipv4_hdr->hdr_checksum = 0;
 			ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
-
-			// printf("send control packet type:%u\n", pim_hdr->type);
+			// if(pim_hdr->type == PIM_RTS) {
+			// 	printf("send control packet type:%u\n", pim_hdr->type);
+			// }
 			// p->vlan_tci = TCI_7;
 			// rte_vlan_insert(&p); 
 			// send packets; hard code the port;
@@ -265,6 +268,7 @@ static void start_main_loop(void) {
 		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 	    pim_hdr->type = PIM_START;
 		rte_eth_tx_burst(get_port_by_ip(ips[i]) ,0, &p, 1);
+		start = rte_get_timer_cycles();
 	}
 	pim_receive_start(&epoch, &host, &pacer, 3);
 	// lcore_id = rte_lcore_id();
@@ -341,29 +345,29 @@ static void flow_generate_loop(void) {
         	time = value_exp(&exp_r);
          }
         if(cur_tsc - prev_tsc_2 > diff_tsc_2) {
-			host.end_cycle = rte_get_tsc_cycles();
-			double time = (double)(host.end_cycle - host.start_cycle) / (double)rte_get_tsc_hz();
-			uint32_t old_sentbytes = host.sent_bytes;
-			uint32_t old_receivebytes = host.received_bytes;
-			double sent_tpt = (double)(old_sentbytes) * 8 / time;
-			double receive_tpt = (double)(old_receivebytes) * 8 / time;
+			// host.end_cycle = rte_get_tsc_cycles();
+			// double time = (double)(host.end_cycle - host.start_cycle) / (double)rte_get_tsc_hz();
+			// uint32_t old_sentbytes = host.sent_bytes;
+			// uint32_t old_receivebytes = host.received_bytes;
+			// double sent_tpt = (double)(old_sentbytes) * 8 / time;
+			// double receive_tpt = (double)(old_receivebytes) * 8 / time;
 			
-			host.start_cycle = host.end_cycle;
+			// host.start_cycle = host.end_cycle;
 
-			printf("-------------------------------\n");
-			printf("sent throughput: %f\n", sent_tpt);
-			printf("received throughput: %f\n", receive_tpt); 
-			printf("size of long flow token q: %u\n",rte_ring_count(host.long_flow_token_q));
-			printf("size of short flow token q: %u\n",rte_ring_count(host.short_flow_token_q));
+			// printf("-------------------------------\n");
+			// printf("sent throughput: %f\n", sent_tpt);
+			// printf("received throughput: %f\n", receive_tpt); 
+			// printf("size of long flow token q: %u\n",rte_ring_count(host.long_flow_token_q));
+			// printf("size of short flow token q: %u\n",rte_ring_count(host.short_flow_token_q));
 
-			printf("size of temp_pkt_buffer: %u\n",rte_ring_count(host.temp_pkt_buffer));
-			printf("size of control q: %u\n", rte_ring_count(pacer.ctrl_q));
-			printf("size of data q: %u\n", rte_ring_count(pacer.data_q));
-			//printf("number of unfinished flow: %u\n", rte_hash_count(host.rx_flow_table));
+			// printf("size of temp_pkt_buffer: %u\n",rte_ring_count(host.temp_pkt_buffer));
+			// printf("size of control q: %u\n", rte_ring_count(pacer.ctrl_q));
+			// printf("size of data q: %u\n", rte_ring_count(pacer.data_q));
+			// //printf("number of unfinished flow: %u\n", rte_hash_count(host.rx_flow_table));
 
-			host.sent_bytes -= old_sentbytes;
-			host.received_bytes -= old_receivebytes;
-			prev_tsc_2 = cur_tsc;
+			// host.sent_bytes -= old_sentbytes;
+			// host.received_bytes -= old_receivebytes;
+			// prev_tsc_2 = cur_tsc;
         }
 	}
 }
