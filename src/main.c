@@ -51,7 +51,6 @@
 #include "pim_host.h"
 #include "pim_pacer.h"
 #include "random_variable.h"
-#define TIMER_RESOLUTION_CYCLES 3000UL /* around 10ms at 2 Ghz */
 
 int mode;
 uint64_t start, end;
@@ -138,6 +137,8 @@ static void host_main_loop(void) {
 	printf("iter size :%f\n",params.pim_iter_epoch * 1000000);
 	printf("epoch:%f\n", params.pim_epoch * 1000000);
 	printf("new epoch start:%f\n", 1000000 * (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit));
+	uint64_t cycle_per_us = (uint64_t)(rte_get_timer_hz() / 1000000.0);
+	printf("cycle per us:%"PRIu64"\n", cycle_per_us);
 	// pim_init_epoch(&epoch, &host, &pacer);
 	// pim_receive_start(&epoch, &host, &pacer);
 
@@ -163,7 +164,7 @@ static void host_main_loop(void) {
 		}
 		cur_tsc = rte_rdtsc();
         diff_tsc = cur_tsc - prev_tsc;
-         if (diff_tsc > 300) {
+         if (diff_tsc > cycle_per_us / 10) {
                 rte_timer_manage();
                  prev_tsc = cur_tsc;
          }
@@ -298,6 +299,8 @@ static void flow_generate_loop(void) {
 	// rte_delay_us_block(5000000);
 	int i = 0;
     uint64_t prev_tsc = 0, cur_tsc, diff_tsc;
+    double TIMER_RESOLUTION_CYCLES = rte_get_timer_hz() / 1000000.0; /* how many cycles in 1 us */
+
     uint64_t prev_tsc_2 = 0, diff_tsc_2 = TIMER_RESOLUTION_CYCLES * 100000;
 	struct exp_random_variable exp_r;
 	struct empirical_random_variable emp_r;
