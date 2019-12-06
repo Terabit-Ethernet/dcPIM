@@ -190,6 +190,7 @@ struct rte_mbuf* p) {
     } else if (pim_hdr->type == PIM_ACK) {
         struct pim_ack_hdr *pim_ack_hdr = rte_pktmbuf_mtod_offset(p, struct pim_ack_hdr*, offset);
         struct pim_flow* flow = lookup_table_entry(host->tx_flow_table, pim_ack_hdr->flow_id);
+        flow->rd_ctrl_timeout_times = pim_ack_hdr->rd_ctrl_times;
         pflow_set_finish(flow);
         host->finished_flow += 1;
     } else if (pim_hdr->type == PIM_TOKEN) {

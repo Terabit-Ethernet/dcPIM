@@ -59,6 +59,7 @@ struct pim_accept_hdr {
 
 struct pim_ack_hdr {
 	uint32_t flow_id;
+	uint32_t rd_ctrl_times;
 };
 
 

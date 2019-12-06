@@ -224,6 +224,7 @@ struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow) {
     pim_hdr->type = PIM_ACK;
 
     pim_ack_hdr->flow_id = flow->_f.id;
+    pim_ack_hdr->rd_ctrl_times = flow->rd_ctrl_timeout_times;
     // pim_ack_hdr->data_seq_no_acked = pim_data_hdr->data_seq_no;
     // pim_ack_hdr->seq_no = pim_data_hdr->seq_no;
 
