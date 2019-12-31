@@ -44,6 +44,8 @@ class LeafSpineTopology : public Topology {
         uint32_t hosts_per_agg_switch;
         uint32_t num_agg_switches;
         uint32_t num_core_switches;
+        double access_bw;
+        double core_bw;
         std::vector<AggSwitch*> agg_switches;
         std::vector<CoreSwitch*> core_switches;
 };

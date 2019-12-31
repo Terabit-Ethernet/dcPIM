@@ -26,6 +26,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     // default full-bisection bandwidth topology
     params.os_ratio = 1;
     params.local_load = -1;
+    params.remote_load = -1;
     params.ruf_localize = false;
     params.ruf_limit_conns = false;
     while (std::getline(input, line)) {
@@ -108,6 +109,9 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         }
         else if (key == "local_load") {
             lineStream >> params.local_load;
+        }
+        else if (key == "remote_load") {
+            lineStream >> params.remote_load;
         }
         else if (key == "traffic_imbalance") {
             lineStream >> params.traffic_imbalance;

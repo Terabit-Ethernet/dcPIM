@@ -3,7 +3,7 @@
 
 extern double get_current_time();
 
-bool debug_mode = true;
+bool debug_mode = false;
 bool print_flow = true;
 double debug_start_time = 0;
 

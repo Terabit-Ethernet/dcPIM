@@ -44,6 +44,7 @@ class DCExpParams {
         double traffic_imbalance;
         double load;
         double local_load;
+        double remote_load;
         double reauth_limit;
 
         double magic_trans_slack;

@@ -17,8 +17,7 @@ LeafSpineTopology::LeafSpineTopology(
     //Capacities
     double c1 = bandwidth;
     double c2 = hosts_per_agg_switch * params.os_ratio * bandwidth / num_core_switches;
-    this->access_bw = c1;
-    this->core_bw = c2;
+
     // Create Hosts
     this->arbiter = NULL;
     for (uint32_t i = 0; i < num_hosts; i++) {
@@ -99,9 +98,9 @@ LeafSpineTopology::LeafSpineTopology(
 }
 
 void LeafSpineTopology::set_up_parameter() {
-    params.rtt = (4 * params.propagation_delay + (1500 * 8 / this->access_bw +  1500 * 8 / this->core_bw) * 2) * 2;
+    params.rtt = (4 * params.propagation_delay + (1500 * 8 / params.bandwidth) * 2.5) * 2;
     // params.ctrl_pkt_rtt = (4 * params.propagation_delay + (40 * 8 / params.bandwidth) * 2.5) * 2;
-    params.BDP = ceil(params.rtt * this->access_bw / 1500 / 8);
+    params.BDP = ceil(params.rtt * params.bandwidth / 1500 / 8);
     if (params.host_type == RUF_HOST) {
         params.ruf_max_tokens = ceil(params.ruf_max_tokens * params.BDP);
         params.ruf_min_tokens = ceil(params.ruf_min_tokens * params.BDP);
@@ -229,7 +228,7 @@ double LeafSpineTopology::get_oracle_fct(Flow *f) {
     if(leftover != 0) {
         incl_overhead_bytes += f->hdr_size;
     }
-    double bandwidth = this->access_bw / 1000000.0; // For us
+    double bandwidth = f->src->queue->rate / 1000000.0; // For us
     double transmission_delay;
     if (params.cut_through) {
         transmission_delay = 
@@ -240,7 +239,7 @@ double LeafSpineTopology::get_oracle_fct(Flow *f) {
             ) * 8.0 / bandwidth;
         if (num_hops == 4) {
             //1 packet and 1 ack
-            transmission_delay += 2 * (2*params.hdr_size) * 8.0 / (this->core_bw / 1000000.0);
+            transmission_delay += 2 * (2*params.hdr_size) * 8.0 / (4 * bandwidth);
         }
         //std::cout << "pd: " << propagation_delay << " td: " << transmission_delay << std::endl;
     }
@@ -250,11 +249,11 @@ double LeafSpineTopology::get_oracle_fct(Flow *f) {
 			// 1 packet and 1 ack
 			if (leftover != params.mss && leftover != 0) {
 				// less than mss sized flow. the 1 packet is leftover sized.
-				transmission_delay += 2 * (leftover + 2*params.hdr_size) * 8.0 / (this->core_bw / 1000000.0);
+				transmission_delay += 2 * (leftover + 2*params.hdr_size) * 8.0 / (4 * bandwidth);
 				
 			} else {
 				// 1 packet is full sized
-				transmission_delay += 2 * (params.mss + 2*params.hdr_size) * 8.0 / (this->core_bw / 1000000.0);
+				transmission_delay += 2 * (params.mss + 2*params.hdr_size) * 8.0 / (4 * bandwidth);
 			}
 		}
         if (leftover != params.mss && leftover != 0) {
@@ -279,9 +278,9 @@ double LeafSpineTopology::get_oracle_fct(Flow *f) {
 }
 double LeafSpineTopology::get_control_pkt_rtt(int host_id) {
     if(host_id / hosts_per_agg_switch == 0) {
-        return (2 * params.propagation_delay + (40 * 8 / this->access_bw) * 2) * 2;
+        return (2 * params.propagation_delay + (40 * 8 / params.bandwidth) * 2) * 2;
     } else {
-        return (4 * params.propagation_delay + (40 * 8 / this->access_bw + 40 * 8 / this->core_bw) * 2) * 2;
+        return (4 * params.propagation_delay + (40 * 8 / params.bandwidth) * 2.5) * 2;
     }
 }
 

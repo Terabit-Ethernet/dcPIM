@@ -63,7 +63,7 @@ void PoissonLocalFlowGenerator::make_flows() {
     //std::cout << "Lambda: " << lambda_per_host << std::endl;
 
     double lambda_local = params.bandwidth * params.local_load / (params.mean_flow_size * 8.0 / 1460 * 1500);
-    double lambda_non_local = params.bandwidth * params.os_ratio / (params.mean_flow_size * 8.0 / 1460 * 1500);
+    double lambda_non_local = params.bandwidth * params.os_ratio * params.remote_load / (params.mean_flow_size * 8.0 / 1460 * 1500);
     double lambda_per_host_non_local = lambda_non_local / (topo->hosts.size() - local);
     double lambda_per_host_local = lambda_local / (local - 1);
     ExponentialRandomVariable *nv_intarr_local, *nv_intarr_non_local;
