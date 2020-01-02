@@ -252,7 +252,7 @@ propagation_delay: 0.0000002
 bandwidth: 10000000000.0
 queue_type: 2
 flow_type: 116
-os_ratio: {1}
+os_ratio: {3}
 num_hosts: 144
 num_flow: 1000000
 flow_trace: ../CDF_{0}.txt
@@ -263,8 +263,8 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 17
 traffic_imbalance: 0
-local_load: {2}
-remote_load: {3}
+local_load: {1}
+remote_load: {2}
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
