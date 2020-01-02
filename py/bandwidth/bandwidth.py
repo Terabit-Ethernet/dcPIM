@@ -2,7 +2,7 @@ import math
 
 conf_str_pfabric = '''init_cwnd: {0}
 max_cwnd: {2}
-retx_timeout: 45e-06
+retx_timeout: {4}
 queue_size: 36864
 propagation_delay: 0.0000002
 bandwidth: {3}
@@ -286,7 +286,7 @@ for r in runs:
         	rtt = (4 * 0.0000002 + (1500.0 * 8 / b / 1000000000.0) * 2.5) * 2
         	bdp = int(math.ceil(rtt * b * 1000000000.0 / 1500 / 8))
 	        if r == 'pfabric':
-	            conf_str = conf_str_pfabric.format(bdp, w, int(bdp + 3), b * 1000000000)
+	            conf_str = conf_str_pfabric.format(bdp, w, int(bdp + 3), b * 1000000000, rtt * 7)
 	        elif r == 'phost':
 	            conf_str = conf_str_phost.format(bdp, w, b * 1000000000)
 	        elif r == 'fastpass':
