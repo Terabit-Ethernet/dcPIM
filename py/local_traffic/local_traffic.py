@@ -1,9 +1,9 @@
-conf_str_pfabric = '''init_cwnd: 7
-max_cwnd: {4}
-retx_timeout: 45e-06
+conf_str_pfabric = '''init_cwnd: {4}
+max_cwnd: {5}
+retx_timeout: {6}
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 10000000000.0
+bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 2
 os_ratio: {3}
@@ -51,7 +51,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 10000000000.0
+bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 112
 os_ratio: {3}
@@ -74,10 +74,10 @@ use_flow_trace: 0
 smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
-capability_resend_timeout: 9
+capability_resend_timeout: {5}
 capability_initial: {4}
 capability_window: {4}
-capability_window_timeout: 25
+capability_window_timeout: {6}
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33
@@ -99,7 +99,7 @@ max_cwnd: 12
 retx_timeout: 45e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 10000000000.0
+bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 114
 os_ratio: {3}
@@ -148,7 +148,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 10000000000.0
+bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 112
 os_ratio: {2}
@@ -196,7 +196,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 10000000000.0
+bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 115
 os_ratio: {3}
@@ -249,7 +249,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 10000000000.0
+bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 116
 os_ratio: {3}
@@ -310,7 +310,7 @@ for r in runs:
                 load = 0.0
                 first_time = False
                 propagation_delay = 0.0000002
-                access_bw = 10000000000.0
+                access_bw = 100000000000.0
                 core_bw = 4 * access_bw * os_ratio
                 rtt = (4 * propagation_delay + (1500 * 8 / access_bw +  1500 * 8 / core_bw) * 2) * 2
                 bdp = int(math.ceil(rtt * access_bw / 8 / 1500))
@@ -324,9 +324,9 @@ for r in runs:
                                     f.write(conf_str)
                     else:
                         if r == 'pfabric':
-                            conf_str = conf_str_pfabric.format(w, load, r_load, os_ratio, bdp + 3)
+                            conf_str = conf_str_pfabric.format(w, load, r_load, os_ratio, bdp,  bdp + 3, rtt * 7)
                         elif r == 'phost':
-                            conf_str = conf_str_phost.format(w, load, r_load, os_ratio,bdp)
+                            conf_str = conf_str_phost.format(w, load, r_load, os_ratio,bdp, bdp + 2, bdp * 3 + 4)
                         elif r == 'fastpass':
                             conf_str = conf_str_fastpass.format(w, load, r_load, os_ratio, bdp)
                         elif r == 'random':
