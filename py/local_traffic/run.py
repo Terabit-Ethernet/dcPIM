@@ -45,6 +45,7 @@ for r in runs:
                             for j in range(2):
                                 confFile = "conf_{0}_{1}_{2}_{3}_{4}_{5}_{6}.txt".format(r, w, i, j, o, load, r_load)
                                 resultFile = "{0}/{1}/result_{2}_{3}_{4}_{5}_{6}_{7}_{8}.txt".format(OUTPUT_FOLDER,DATE, r, i, j, w, o, load, r_load)
+                                print confFile
                                 f = safe_open_w(resultFile)
                                 p = subprocess.Popen(["../../simulator", "1", confFile],stdout=f)
                                 pros.append(p)
@@ -57,8 +58,5 @@ for r in runs:
                         pros.append(p)
                         f.close()
                     load += 0.1
-                    if first_time == False and load > 1.0 - os_ratio:
-                        load = 1.0 - os_ratio
-                        first_time = True
         for p in pros:
             p.wait()
