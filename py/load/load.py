@@ -1,9 +1,9 @@
-conf_str_pfabric = '''init_cwnd: 7
-max_cwnd: 10
+conf_str_pfabric = '''init_cwnd: 19
+max_cwnd: 22
 retx_timeout: 45e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 10000000000.0
+bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 2
 num_flow: 1000000
@@ -22,7 +22,6 @@ magic_delay_scheduling: 1
 use_flow_trace: 0
 smooth_cdf: 1
 burst_at_beginning: 0
-fastpass_epoch_pkts: 7
 capability_timeout: 1.5
 capability_resend_timeout: 9
 capability_initial: 7
@@ -49,7 +48,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 10000000000.0
+bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 112
 num_flow: 1000000
@@ -70,8 +69,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 7
-capability_window: 7
+capability_initial: 19
+capability_window: 19
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -94,7 +93,7 @@ max_cwnd: 12
 retx_timeout: 45e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 10000000000.0
+bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 114
 num_flow: 1000000
@@ -115,8 +114,9 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 7
-capability_window: 7
+capability_initial: 19
+capability_window: 19
+fastpass_epoch_pkts: 19
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -139,7 +139,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 10000000000.0
+bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 112
 num_flow: 1000000
@@ -184,7 +184,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 10000000000.0
+bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 115
 num_flow: 1000000
@@ -232,7 +232,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 10000000000.0
+bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 116
 num_flow: 1000000
@@ -251,8 +251,8 @@ magic_delay_scheduling: 1
 use_flow_trace: 0
 smooth_cdf: 1
 burst_at_beginning: 0
-pim_iter_limit: 5
-pim_beta: 4
+pim_iter_limit: 4
+pim_beta: 1.3
 pim_alpha: 1
 token_initial: 1
 token_timeout: 2
@@ -277,7 +277,7 @@ num_host_types: 13
 
 runs = ['pfabric', 'phost', 'fastpass', 'random', 'ruf', 'pim']
 workloads = ['aditya', 'dctcp', 'datamining', 'constant']
-loads = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+loads = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 for r in runs:
     for w in workloads:
         #  generate conf file
