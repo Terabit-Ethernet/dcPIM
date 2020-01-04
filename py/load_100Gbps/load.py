@@ -251,7 +251,7 @@ magic_delay_scheduling: 1
 use_flow_trace: 0
 smooth_cdf: 1
 burst_at_beginning: 0
-pim_iter_limit: 5
+pim_iter_limit: 4
 pim_beta: 1.3
 pim_alpha: 1
 token_initial: 1
