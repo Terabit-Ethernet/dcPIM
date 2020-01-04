@@ -1,6 +1,6 @@
 conf_str_pfabric = '''init_cwnd: 19
 max_cwnd: 22
-retx_timeout: 45e-06
+retx_timeout: 1.54e-05
 queue_size: 36864
 propagation_delay: 0.0000002
 bandwidth: 100000000000.0
