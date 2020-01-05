@@ -1,6 +1,6 @@
-conf_str_pfabric = '''init_cwnd: 7
-max_cwnd: 10
-retx_timeout: 45e-06
+conf_str_pfabric = '''init_cwnd: 19
+max_cwnd: 22
+retx_timeout: 1.54e-05
 queue_size: 36864
 propagation_delay: 0.0000002
 bandwidth: 10000000000.0
@@ -50,7 +50,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 10000000000.0
+bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 112
 os_ratio: 0.5
@@ -145,7 +145,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 10000000000.0
+bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 112
 os_ratio: 0.5
@@ -192,7 +192,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 10000000000.0
+bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 115
 os_ratio: 0.5
@@ -244,7 +244,7 @@ max_cwnd: 6
 retx_timeout: 9.50003e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 10000000000.0
+bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 116
 os_ratio: 0.5
@@ -265,8 +265,8 @@ magic_delay_scheduling: 1
 use_flow_trace: 0
 smooth_cdf: 1
 burst_at_beginning: 0
-pim_iter_limit: 5
-pim_beta: 4
+pim_iter_limit: 4
+pim_beta: 1.3
 pim_alpha: 1
 token_initial: 1
 token_timeout: 2
