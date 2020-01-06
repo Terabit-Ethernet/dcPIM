@@ -23,6 +23,7 @@ class Topology {
         virtual double get_control_pkt_rtt(int host_id) = 0;
         virtual bool is_same_rack(int src_id, int dst_id) = 0;
         virtual int num_hosts_per_tor() = 0;
+        void print_queue_length();
         uint32_t num_hosts;
         Host* arbiter;
         std::vector<Host *> hosts;

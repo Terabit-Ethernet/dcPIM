@@ -110,6 +110,8 @@ class DCExpParams {
         // double ctrl_pkt_rtt;
         double ruf_max_src_num;
         bool debug_controller_queue;
+        bool debug_queue;
+        double debug_queue_interval;
         bool ruf_localize;
         bool ruf_limit_conns;
         // std::string policy;

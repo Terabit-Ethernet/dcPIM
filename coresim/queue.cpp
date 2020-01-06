@@ -29,6 +29,9 @@ Queue::Queue(uint32_t id, double rate, uint32_t limit_bytes, int location) {
     //this->packet_propagation_event = NULL;
     this->location = location;
 
+    this->max_bytes_in_queue = 0;
+    this->total_bytes_in_queue = 0;
+    this->record_time = 0;
     if (params.ddc != 0) {
         if (location == 0) {
             this->propagation_delay = 10e-9;

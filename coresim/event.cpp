@@ -93,9 +93,16 @@ void FlowCreationForInitializationEvent::process_event() {
         }
         size = (uint32_t) nvVal * 1460;
     }
+    Host* new_dst = dst;
+    while(new_dst == NULL) {
+        new_dst =  topology->hosts[rand()% topology->hosts.size()];
+        if (new_dst->id == src->id) {
+            new_dst = NULL;
+        }
+    }
 
     if (size != 0) {
-        flows_to_schedule.push_back(Factory::get_flow(id, time, size, src, dst, params.flow_type));
+        flows_to_schedule.push_back(Factory::get_flow(id, time, size, src, new_dst, params.flow_type));
     }
 
     double tnext = time + nv_intarr->value();
@@ -164,6 +171,9 @@ void FlowArrivalEvent::process_event() {
         std::cout << "## " << current_time << " NumPacketOutstanding " << num_outstanding_packets
             << " NumUnfinishedFlows " << num_unfinished_flows << " StartedFlows " << flow_arrival_count
             << " StartedPkts " << arrival_packets_count << std::endl;
+        if(params.debug_queue) {
+            topology->print_queue_length();
+        }
     }
 }
 
@@ -364,3 +374,25 @@ void RetxTimeoutEvent::process_event() {
     flow->handle_timeout();
 }
 
+/* Record Queue Event */
+RecordQueueEvent::RecordQueueEvent(double time, double interval)
+    : Event(RECORD_QUEUEING, time) {
+        this->interval = interval;
+    }
+
+RecordQueueEvent::~RecordQueueEvent() {
+}
+
+void RecordQueueEvent::process_event() {
+    for(int i = 0; i < topology->num_hosts; i++) {
+        topology->hosts[i]->queue->record();
+    }
+    for(int i = 0; i < topology->switches.size(); i++) {
+        for (int j = 0; j < topology->switches[i]->queues.size(); j++) {
+            topology->switches[i]->queues[j]->record();
+        }
+    }
+
+    add_to_event_queue(new RecordQueueEvent(get_current_time() + params.debug_queue_interval, params.debug_queue_interval));
+
+}

@@ -21,6 +21,8 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     params.print_max_min_fairness = false;
     params.num_hosts = 144;
     params.debug_controller_queue = false;
+    params.debug_queue = false;
+    params.debug_queue_interval = 0.000002;
     // params.policy = "rtt";
     params.topology = "LeafSpine";
     // default full-bisection bandwidth topology
@@ -200,6 +202,12 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         }
         else if (key == "debug_controller_queue") {
             lineStream >> params.debug_controller_queue;
+        }
+        else if (key == "debug_queue") {
+            lineStream >> params.debug_queue;
+        }
+        else if (key == "debug_queue_interval") {
+            lineStream >> params.debug_queue_interval;
         }
         // --------------
         // Multi-Round algorithm

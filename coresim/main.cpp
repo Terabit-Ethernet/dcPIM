@@ -89,6 +89,9 @@ void run_scenario() {
     }
     int last_evt_type = -1;
     int same_evt_count = 0;
+    if(params.debug_queue) {
+        add_to_event_queue(new RecordQueueEvent(1.0, params.debug_queue_interval));
+    }
     while (event_queue.size() > 0) {
         Event *ev = event_queue.top();
         event_queue.pop();

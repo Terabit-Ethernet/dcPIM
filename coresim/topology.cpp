@@ -1,4 +1,5 @@
 #include "topology.h"
+#include <map>
 
 extern DCExpParams params;
 
@@ -9,6 +10,40 @@ extern DCExpParams params;
    */
 Topology::Topology() {
     this->arbiter = NULL;
+}
+
+void Topology::print_queue_length() {
+
+	std::map<int, std::vector<uint64_t>> total_queue_length;
+	std::map<int, uint32_t> max_queue_length;
+	for (int i = 0; i < 6; i++) {
+		total_queue_length[i] = std::vector<uint64_t>();
+		max_queue_length[i] = 0;
+	}
+	for (int i = 0; i < this->num_hosts; i++) {
+		int location = this->hosts[i]->queue->location;
+        total_queue_length[location].push_back(this->hosts[i]->queue->total_bytes_in_queue);
+        max_queue_length[location] = std::max(this->hosts[i]->queue->max_bytes_in_queue, max_queue_length[location]);
+    }
+    for(int i = 0; i < this->switches.size(); i++) {
+        for (int j = 0; j < this->switches[i]->queues.size(); j++) {
+			int location = this->switches[i]->queues[j]->location;
+        	total_queue_length[location].push_back(this->switches[i]->queues[j]->total_bytes_in_queue);
+			max_queue_length[location] = std::max(this->switches[i]->queues[j]->max_bytes_in_queue, max_queue_length[location]);
+        }
+    }
+    for (int i = 0; i < 6; i++) {
+    	uint64_t total = 0;
+    	int record_time =  this->hosts[0]->queue->record_time;
+    	if(total_queue_length[i].size() == 0) {
+    		continue;
+    	}
+    	for(int j = 0; j < total_queue_length[i].size(); j++) {
+    		total += total_queue_length[i][j];
+    	}
+	    std::cout << "queue pos " << i << " " << double(total) / total_queue_length[i].size() / record_time
+	    << " " << max_queue_length[i] << std::endl;
+    }
 }
 
 /*

@@ -24,6 +24,11 @@ class Queue {
         double get_transmission_delay(uint32_t size);
         void preempt_current_transmission();
 
+        double record() {
+            max_bytes_in_queue = std::max(max_bytes_in_queue, bytes_in_queue);
+            total_bytes_in_queue = total_bytes_in_queue + bytes_in_queue;
+            record_time += 1;
+        };
         // Members
         uint32_t id;
         uint32_t unique_id;
@@ -51,6 +56,11 @@ class Queue {
         uint64_t spray_counter;
 
         int location;
+
+        // for tracing purpose for recording queue event
+        uint32_t max_bytes_in_queue;
+        uint64_t total_bytes_in_queue;
+        uint64_t record_time;
 };
 
 
