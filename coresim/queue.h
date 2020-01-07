@@ -16,7 +16,7 @@ class PacketPropagationEvent;
 
 class Queue {
     public:
-        Queue(uint32_t id, double rate, uint32_t limit_bytes, int location);
+        Queue(uint32_t id, double rate, int limit_bytes, int location);
         void set_src_dst(Node *src, Node *dst);
         virtual void enque(Packet *packet);
         virtual Packet *deque();
@@ -34,7 +34,7 @@ class Queue {
         uint32_t unique_id;
         static uint32_t instance_count;
         double rate;
-        uint32_t limit_bytes;
+        int limit_bytes;
         std::deque<Packet *> packets;
         uint32_t bytes_in_queue;
         bool busy;

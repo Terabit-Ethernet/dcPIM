@@ -18,7 +18,7 @@ extern DCExpParams params;
 uint32_t Queue::instance_count = 0;
 
 /* Queues */
-Queue::Queue(uint32_t id, double rate, uint32_t limit_bytes, int location) {
+Queue::Queue(uint32_t id, double rate, int limit_bytes, int location) {
     this->id = id;
     this->unique_id = Queue::instance_count++;
     this->rate = rate; // in bps
@@ -65,7 +65,7 @@ void Queue::set_src_dst(Node *src, Node *dst) {
 void Queue::enque(Packet *packet) {
     p_arrivals += 1;
     b_arrivals += packet->size;
-    if (bytes_in_queue + packet->size <= limit_bytes) {
+    if (bytes_in_queue + packet->size <= limit_bytes && limit_bytes != -1) {
         packets.push_back(packet);
         bytes_in_queue += packet->size;
     } else {

@@ -17,7 +17,7 @@ class DCExpParams {
         double retx_timeout_value;
         uint32_t mss;
         uint32_t hdr_size;
-        uint32_t queue_size;
+        int queue_size;
         uint32_t queue_type;
         uint32_t flow_type;
         uint32_t load_balancing; //0 per pkt, 1 per flow
