@@ -392,7 +392,8 @@ void RecordQueueEvent::process_event() {
             topology->switches[i]->queues[j]->record();
         }
     }
-
+    if (total_finished_flows >= params.num_flows_to_run)
+        return;
     add_to_event_queue(new RecordQueueEvent(get_current_time() + params.debug_queue_interval, params.debug_queue_interval));
 
 }
