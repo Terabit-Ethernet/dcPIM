@@ -122,6 +122,7 @@ void run_scenario() {
             }
             assert(false);
         }
+
         // if(params.debug_controller_queue) {
         //     if(current_time > next_time) {
         //         next_time = current_time + 0.000002;
@@ -156,6 +157,8 @@ void run_scenario() {
         //     }
         // }
         delete ev;
+        if (total_finished_flows >= params.num_flows_to_run)
+            return;
     }
 }
 
