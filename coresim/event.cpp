@@ -388,6 +388,7 @@ void RecordQueueEvent::process_event() {
         topology->hosts[i]->queue->record();
     }
     for(int i = 0; i < topology->switches.size(); i++) {
+        topology->switches[i]->record();
         for (int j = 0; j < topology->switches[i]->queues.size(); j++) {
             topology->switches[i]->queues[j]->record();
         }

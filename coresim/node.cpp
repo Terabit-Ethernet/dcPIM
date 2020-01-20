@@ -31,6 +31,9 @@ Host::Host(uint32_t id, double rate, uint32_t queue_type, uint32_t host_type) : 
 // TODO FIX superclass constructor
 Switch::Switch(uint32_t id, uint32_t switch_type) : Node(id, SWITCH) {
     this->switch_type = switch_type;
+    this->record_time = 0;
+    this->total_bytes_in_switch = 0;
+    this->max_bytes_in_switch = 0;
 }
 
 

@@ -50,6 +50,19 @@ class Switch : public Node {
         Switch(uint32_t id, uint32_t switch_type);
         uint32_t switch_type;
         std::vector<Queue *> queues;
+        double record() {
+            uint64_t bytes_in_switch = 0;
+            for(int i = 0; i < queues.size(); i++) {
+                bytes_in_switch += queues[i]->bytes_in_queue;
+            }
+            max_bytes_in_switch = std::max(max_bytes_in_switch, bytes_in_switch);
+            total_bytes_in_switch = total_bytes_in_switch + bytes_in_switch;
+            record_time += 1;
+        };
+        // for tracing purpose for recording queue event
+        uint64_t max_bytes_in_switch;
+        uint64_t total_bytes_in_switch;
+        uint64_t record_time;
 };
 
 class CoreSwitch : public Switch {

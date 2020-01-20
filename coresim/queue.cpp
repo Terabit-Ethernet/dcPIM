@@ -88,7 +88,7 @@ Packet *Queue::deque() {
 
 void Queue::drop(Packet *packet) {
     packet->flow->pkt_drop++;
-    if(packet->seq_no < packet->flow->size){
+    if(packet->seq_no <= packet->flow->size){
         packet->flow->data_pkt_drop++;
     }
     if(packet->type == ACK_PACKET)

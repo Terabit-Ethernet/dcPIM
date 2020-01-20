@@ -44,6 +44,14 @@ void Topology::print_queue_length() {
 	    std::cout << "queue pos " << i << " " << double(total) / total_queue_length[i].size() / record_time
 	    << " " << max_queue_length[i] << std::endl;
     }
+    uint64_t max_switch_queue = 0;
+    uint64_t max_avg_switch_queue = 0;
+    for(int i = 0; i < this->switches.size(); i++) {
+            max_switch_queue = std::max(max_switch_queue, this->switches[i]->max_bytes_in_switch);
+            uint64_t average = this->switches[i]->total_bytes_in_switch / this->switches[i]->record_time;
+            max_avg_switch_queue = std::max(average, max_avg_switch_queue);        
+    }
+    std::cout << "queue per switch: " << max_avg_switch_queue << " " << max_switch_queue << std::endl;
 }
 
 /*
