@@ -247,8 +247,8 @@ num_host_types: 13
 conf_str_pim = '''init_cwnd: 2
 max_cwnd: 6
 retx_timeout: 9.50003e-06
-queue_size: 36864
-propagation_delay: 0.0000002
+queue_size: 500000
+propagation_delay: 0.00000065
 bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 116
@@ -271,14 +271,14 @@ magic_delay_scheduling: 1
 use_flow_trace: 0
 smooth_cdf: 1
 burst_at_beginning: 0
-pim_iter_limit: 5
-pim_beta: 4
+pim_iter_limit: 3
+pim_beta: 1.08
 pim_alpha: 1
 token_initial: 1
 token_timeout: 2
 token_resend_timeout: 1
 token_window: 1
-token_window_timeout: 1.1
+token_window_timeout: 1
 pim_select_min_iters: 1
 ddc: 0
 ddc_cpu_ratio: 0.33
@@ -296,49 +296,82 @@ num_host_types: 13
 
 import math
 #runs = ['pfabric', 'phost', 'fastpass', 'ruf', 'pim']
-runs = ['ruf', 'pfabric', 'phost', 'fastpass', 'pim']
+runs = ['pfabric', 'pim']
 workloads = ['aditya', 'dctcp', 'datamining']
 #precentage = [  0.10, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.40, 0.41, 0.42, 0.43, 0.44, 0.45, 0.46, 0.47, 0.48, 0.49, 0.50, 0.51, 0.52, 0.53, 0.54, 0.55, 0.56, 0.57, 0.58, 0.59, 0.60, 0.61, 0.62, 0.63, 0.64, 0.65, 0.66, 0.67, 0.68, 0.69, 0.70, 0.71, 0.72, 0.73, 0.74, 0.75, 0.76, 0.77, 0.78, 0.79, 0.80, 0.81, 0.82, 0.83, 0.84, 0.85, 0.86, 0.87, 0.88, 0.89]
 over_subscription = [1, 2, 4, 8, 16]
-remote_load = [0.6, 0.8]
+#remote_load = [0.6, 0.8]
+load = [0.6]
 for r in runs:
     for w in workloads:
         #  generate conf file
-        for r_load in remote_load:
+        # for r_load in remote_load:
+        #     for o in over_subscription:
+        #         os_ratio = 1.0 / o
+        #         load = 0.0
+        #         first_time = False
+        #         propagation_delay = 0.0000002
+        #         access_bw = 100000000000.0
+        #         core_bw = 4 * access_bw * os_ratio
+        #         rtt = (4 * propagation_delay + (1500 * 8 / access_bw +  1500 * 8 / core_bw) * 2) * 2
+        #         bdp = int(math.ceil(rtt * access_bw / 8 / 1500))
+        #         while load <= 1.0 - os_ratio * r_load:
+        #             if r == "ruf":
+        #                 for i in range(2):
+        #                     for j in range(2):
+        #                         conf_str = conf_str_ruf.format(w, load, r_load, os_ratio, i, j)
+        #                         confFile = "conf_{0}_{1}_{2}_{3}_{4}_{5}_{6}.txt".format(r, w, i, j, o, load, r_load)
+        #                         with open(confFile, 'w') as f:
+        #                             f.write(conf_str)
+        #             else:
+        #                 if r == 'pfabric':
+        #                     conf_str = conf_str_pfabric.format(w, load, r_load, os_ratio, bdp,  bdp + 3, rtt * 7)
+        #                 elif r == 'phost':
+        #                     conf_str = conf_str_phost.format(w, load, r_load, os_ratio,bdp, bdp + 2, bdp * 3 + 4)
+        #                 elif r == 'fastpass':
+        #                     conf_str = conf_str_fastpass.format(w, load, r_load, os_ratio, bdp)
+        #                 elif r == 'random':
+        #                     conf_str = conf_str_random.format(w, load, r_load, os_ratio, bdp)
+
+        #                 elif r == 'pim':
+        #                     conf_str = conf_str_pim.format(w, load, r_load, os_ratio)
+        #                 confFile = "conf_{0}_{1}_{2}_{3}_{4}.txt".format(r, w, o, load, r_load)
+        #                 with open(confFile, 'w') as f:
+        #                     print confFile
+        #                     f.write(conf_str)
+        #             load += 0.1
+        for l in load:
             for o in over_subscription:
                 os_ratio = 1.0 / o
-                load = 0.0
                 first_time = False
                 propagation_delay = 0.0000002
                 access_bw = 100000000000.0
                 core_bw = 4 * access_bw * os_ratio
                 rtt = (4 * propagation_delay + (1500 * 8 / access_bw +  1500 * 8 / core_bw) * 2) * 2
                 bdp = int(math.ceil(rtt * access_bw / 8 / 1500))
-                while load <= 1.0 - os_ratio * r_load:
-                    if r == "ruf":
-                        for i in range(2):
-                            for j in range(2):
-                                conf_str = conf_str_ruf.format(w, load, r_load, os_ratio, i, j)
-                                confFile = "conf_{0}_{1}_{2}_{3}_{4}_{5}_{6}.txt".format(r, w, i, j, o, load, r_load)
-                                with open(confFile, 'w') as f:
-                                    f.write(conf_str)
-                    else:
-                        if r == 'pfabric':
-                            conf_str = conf_str_pfabric.format(w, load, r_load, os_ratio, bdp,  bdp + 3, rtt * 7)
-                        elif r == 'phost':
-                            conf_str = conf_str_phost.format(w, load, r_load, os_ratio,bdp, bdp + 2, bdp * 3 + 4)
-                        elif r == 'fastpass':
-                            conf_str = conf_str_fastpass.format(w, load, r_load, os_ratio, bdp)
-                        elif r == 'random':
-                            conf_str = conf_str_random.format(w, load, r_load, os_ratio, bdp)
+                r_load = l * os_ratio
+                l_load = l - r_load
+                print o
+                if r == "ruf":
+                    for i in range(2):
+                        for j in range(2):
+                            conf_str = conf_str_ruf.format(w, l_load, r_load, os_ratio, i, j)
+                            confFile = "conf_{0}_{1}_{2}_{3}_{4}_{5}_{6}.txt".format(r, w, i, j, o, l_load, r_load)
+                            with open(confFile, 'w') as f:
+                                f.write(conf_str)
+                else:
+                    if r == 'pfabric':
+                        conf_str = conf_str_pfabric.format(w, l_load, r_load, os_ratio, bdp,  bdp + 3, rtt * 7)
+                    elif r == 'phost':
+                        conf_str = conf_str_phost.format(w, l_load, r_load, os_ratio,bdp, bdp + 2, bdp * 3 + 4)
+                    elif r == 'fastpass':
+                        conf_str = conf_str_fastpass.format(w, l_load, r_load, os_ratio, bdp)
+                    elif r == 'random':
+                        conf_str = conf_str_random.format(w, l_load, r_load, os_ratio, bdp)
 
-                        elif r == 'pim':
-                            conf_str = conf_str_pim.format(w, load, r_load, os_ratio)
-                        confFile = "conf_{0}_{1}_{2}_{3}_{4}.txt".format(r, w, o, load, r_load)
-                        with open(confFile, 'w') as f:
-                            print confFile
-                            f.write(conf_str)
-                    load += 0.1
-                    # if first_time == False and load > 1.0 - os_ratio:
-                    #     load = 1.0 - os_ratio
-                    #     first_time = True
+                    elif r == 'pim':
+                        conf_str = conf_str_pim.format(w, l_load, r_load, os_ratio)
+                    confFile = "conf_{0}_{1}_{2}_{3}_{4}.txt".format(r, w, o, l_load, r_load)
+                    with open(confFile, 'w') as f:
+                        print confFile
+                        f.write(conf_str)
