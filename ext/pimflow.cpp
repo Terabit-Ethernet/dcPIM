@@ -308,7 +308,7 @@ void PimFlow::receive_short_flow() {
     this->token_count = init_token;
     this->last_token_data_seq_num_sent = init_token - 1;
     if(this->token_count == this->token_goal){
-        this->redundancy_ctrl_timeout = get_current_time() + init_token * params.get_full_pkt_tran_delay() + params.BDP * params.get_full_pkt_tran_delay();
+        this->redundancy_ctrl_timeout = get_current_time() + init_token * params.get_full_pkt_tran_delay() + params.token_resend_timeout;
     }
     // if(debug_flow(this->id)) {
     //     std::cout << get_current_time() << " flow id " << this->id << " token_count: " << init_token <<" redundancy_ctrl_timeout:" << this->redundancy_ctrl_timeout << "\n";
