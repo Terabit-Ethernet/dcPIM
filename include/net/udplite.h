@@ -1,49 +1,49 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- *	Definitions for the RDP-Lite (RFC 3828) code.
+ *	Definitions for the UDP-Lite (RFC 3828) code.
  */
-#ifndef _RDPLITE_H
-#define _RDPLITE_H
+#ifndef _UDPLITE_H
+#define _UDPLITE_H
 
 #include <net/ip6_checksum.h>
 
-/* RDP-Lite socket options */
-#define RDPLITE_SEND_CSCOV   10 /* sender partial coverage (as sent)      */
-#define RDPLITE_RECV_CSCOV   11 /* receiver partial coverage (threshold ) */
+/* UDP-Lite socket options */
+#define UDPLITE_SEND_CSCOV   10 /* sender partial coverage (as sent)      */
+#define UDPLITE_RECV_CSCOV   11 /* receiver partial coverage (threshold ) */
 
-extern struct proto 		rdplite_prot;
-extern struct rdp_table		rdplite_table;
+extern struct proto 		udplite_prot;
+extern struct udp_table		udplite_table;
 
 /*
  *	Checksum computation is all in software, hence simpler getfrag.
  */
-static __inline__ int rdplite_getfrag(void *from, char *to, int  offset,
+static __inline__ int udplite_getfrag(void *from, char *to, int  offset,
 				      int len, int odd, struct sk_buff *skb)
 {
 	struct msghdr *msg = from;
 	return copy_from_iter_full(to, len, &msg->msg_iter) ? 0 : -EFAULT;
 }
 
-/* Designate sk as RDP-Lite socket */
-static inline int rdplite_sk_init(struct sock *sk)
+/* Designate sk as UDP-Lite socket */
+static inline int udplite_sk_init(struct sock *sk)
 {
-	rdp_init_sock(sk);
-	rdp_sk(sk)->pcflag = RDPLITE_BIT;
+	udp_init_sock(sk);
+	udp_sk(sk)->pcflag = UDPLITE_BIT;
 	return 0;
 }
 
 /*
  * 	Checksumming routines
  */
-static inline int rdplite_checksum_init(struct sk_buff *skb, struct rdphdr *uh)
+static inline int udplite_checksum_init(struct sk_buff *skb, struct udphdr *uh)
 {
 	u16 cscov;
 
-        /* In RDPv4 a zero checksum means that the transmitter generated no
-         * checksum. RDP-Lite (like IPv6) mandates checksums, hence packets
+        /* In UDPv4 a zero checksum means that the transmitter generated no
+         * checksum. UDP-Lite (like IPv6) mandates checksums, hence packets
          * with a zero checksum field are illegal.                            */
 	if (uh->check == 0) {
-		net_dbg_ratelimited("RDPLite: zeroed checksum field\n");
+		net_dbg_ratelimited("UDPLite: zeroed checksum field\n");
 		return 1;
 	}
 
@@ -55,13 +55,13 @@ static inline int rdplite_checksum_init(struct sk_buff *skb, struct rdphdr *uh)
 		/*
 		 * Coverage length violates RFC 3828: log and discard silently.
 		 */
-		net_dbg_ratelimited("RDPLite: bad csum coverage %d/%d\n",
+		net_dbg_ratelimited("UDPLite: bad csum coverage %d/%d\n",
 				    cscov, skb->len);
 		return 1;
 
 	} else if (cscov < skb->len) {
-        	RDP_SKB_CB(skb)->partial_cov = 1;
-		RDP_SKB_CB(skb)->cscov = cscov;
+        	UDP_SKB_CB(skb)->partial_cov = 1;
+		UDP_SKB_CB(skb)->cscov = cscov;
 		if (skb->ip_summed == CHECKSUM_COMPLETE)
 			skb->ip_summed = CHECKSUM_NONE;
 		skb->csum_valid = 0;
@@ -71,21 +71,21 @@ static inline int rdplite_checksum_init(struct sk_buff *skb, struct rdphdr *uh)
 }
 
 /* Slow-path computation of checksum. Socket is locked. */
-static inline __wsum rdplite_csum_outgoing(struct sock *sk, struct sk_buff *skb)
+static inline __wsum udplite_csum_outgoing(struct sock *sk, struct sk_buff *skb)
 {
-	const struct rdp_sock *up = rdp_sk(skb->sk);
+	const struct udp_sock *up = udp_sk(skb->sk);
 	int cscov = up->len;
 	__wsum csum = 0;
 
-	if (up->pcflag & RDPLITE_SEND_CC) {
+	if (up->pcflag & UDPLITE_SEND_CC) {
 		/*
-		 * Sender has set `partial coverage' option on RDP-Lite socket.
+		 * Sender has set `partial coverage' option on UDP-Lite socket.
 		 * The special case "up->pcslen == 0" signifies full coverage.
 		 */
 		if (up->pcslen < up->len) {
 			if (0 < up->pcslen)
 				cscov = up->pcslen;
-			rdp_hdr(skb)->len = htons(up->pcslen);
+			udp_hdr(skb)->len = htons(up->pcslen);
 		}
 		/*
 		 * NOTE: Causes for the error case  `up->pcslen > up->len':
@@ -114,23 +114,23 @@ static inline __wsum rdplite_csum_outgoing(struct sock *sk, struct sk_buff *skb)
 }
 
 /* Fast-path computation of checksum. Socket may not be locked. */
-static inline __wsum rdplite_csum(struct sk_buff *skb)
+static inline __wsum udplite_csum(struct sk_buff *skb)
 {
-	const struct rdp_sock *up = rdp_sk(skb->sk);
+	const struct udp_sock *up = udp_sk(skb->sk);
 	const int off = skb_transport_offset(skb);
 	int len = skb->len - off;
 
-	if ((up->pcflag & RDPLITE_SEND_CC) && up->pcslen < len) {
+	if ((up->pcflag & UDPLITE_SEND_CC) && up->pcslen < len) {
 		if (0 < up->pcslen)
 			len = up->pcslen;
-		rdp_hdr(skb)->len = htons(up->pcslen);
+		udp_hdr(skb)->len = htons(up->pcslen);
 	}
 	skb->ip_summed = CHECKSUM_NONE;     /* no HW support for checksumming */
 
 	return skb_checksum(skb, off, len, 0);
 }
 
-void rdplite4_register(void);
-int rdplite_get_port(struct sock *sk, unsigned short snum,
+void udplite4_register(void);
+int udplite_get_port(struct sock *sk, unsigned short snum,
 		     int (*scmp)(const struct sock *, const struct sock *));
-#endif	/* _RDPLITE_H */
+#endif	/* _UDPLITE_H */
