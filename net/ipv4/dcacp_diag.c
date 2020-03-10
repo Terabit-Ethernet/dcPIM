@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /*
- * udp_diag.c	Module for monitoring UDP transport protocols sockets.
+ * dcacp_diag.c	Module for monitoring DCACP transport protocols sockets.
  *
  * Authors:	Pavel Emelyanov, <xemul@parallels.com>
  */
@@ -8,9 +8,9 @@
 
 #include <linux/module.h>
 #include <linux/inet_diag.h>
-#include <linux/udp.h>
-#include <net/udp.h>
-#include <net/udplite.h>
+#include <linux/dcacp.h>
+#include <net/dcacp.h>
+#include <net/dcacplite.h>
 #include <linux/sock_diag.h>
 
 static int sk_diag_dump(struct sock *sk, struct sk_buff *skb,
@@ -27,7 +27,7 @@ static int sk_diag_dump(struct sock *sk, struct sk_buff *skb,
 			cb->nlh->nlmsg_seq, NLM_F_MULTI, cb->nlh, net_admin);
 }
 
-static int udp_dump_one(struct udp_table *tbl, struct sk_buff *in_skb,
+static int dcacp_dump_one(struct dcacp_table *tbl, struct sk_buff *in_skb,
 			const struct nlmsghdr *nlh,
 			const struct inet_diag_req_v2 *req)
 {
@@ -39,13 +39,13 @@ static int udp_dump_one(struct udp_table *tbl, struct sk_buff *in_skb,
 	rcu_read_lock();
 	if (req->sdiag_family == AF_INET)
 		/* src and dst are swapped for historical reasons */
-		sk = __udp4_lib_lookup(net,
+		sk = __dcacp4_lib_lookup(net,
 				req->id.idiag_src[0], req->id.idiag_sport,
 				req->id.idiag_dst[0], req->id.idiag_dport,
 				req->id.idiag_if, 0, tbl, NULL);
 #if IS_ENABLED(CONFIG_IPV6)
 	else if (req->sdiag_family == AF_INET6)
-		sk = __udp6_lib_lookup(net,
+		sk = __dcacp6_lib_lookup(net,
 				(struct in6_addr *)req->id.idiag_src,
 				req->id.idiag_sport,
 				(struct in6_addr *)req->id.idiag_dst,
@@ -91,7 +91,7 @@ out_nosk:
 	return err;
 }
 
-static void udp_dump(struct udp_table *table, struct sk_buff *skb,
+static void dcacp_dump(struct dcacp_table *table, struct sk_buff *skb,
 		     struct netlink_callback *cb,
 		     const struct inet_diag_req_v2 *r, struct nlattr *bc)
 {
@@ -103,7 +103,7 @@ static void udp_dump(struct udp_table *table, struct sk_buff *skb,
 	num = s_num = cb->args[1];
 
 	for (slot = s_slot; slot <= table->mask; s_num = 0, slot++) {
-		struct udp_hslot *hslot = &table->hash[slot];
+		struct dcacp_hslot *hslot = &table->hash[slot];
 		struct sock *sk;
 
 		num = 0;
@@ -145,29 +145,29 @@ done:
 	cb->args[1] = num;
 }
 
-static void udp_diag_dump(struct sk_buff *skb, struct netlink_callback *cb,
+static void dcacp_diag_dump(struct sk_buff *skb, struct netlink_callback *cb,
 			  const struct inet_diag_req_v2 *r, struct nlattr *bc)
 {
-	udp_dump(&udp_table, skb, cb, r, bc);
+	dcacp_dump(&dcacp_table, skb, cb, r, bc);
 }
 
-static int udp_diag_dump_one(struct sk_buff *in_skb, const struct nlmsghdr *nlh,
+static int dcacp_diag_dump_one(struct sk_buff *in_skb, const struct nlmsghdr *nlh,
 			     const struct inet_diag_req_v2 *req)
 {
-	return udp_dump_one(&udp_table, in_skb, nlh, req);
+	return dcacp_dump_one(&dcacp_table, in_skb, nlh, req);
 }
 
-static void udp_diag_get_info(struct sock *sk, struct inet_diag_msg *r,
+static void dcacp_diag_get_info(struct sock *sk, struct inet_diag_msg *r,
 		void *info)
 {
-	r->idiag_rqueue = udp_rqueue_get(sk);
+	r->idiag_rqueue = dcacp_rqueue_get(sk);
 	r->idiag_wqueue = sk_wmem_alloc_get(sk);
 }
 
 #ifdef CONFIG_INET_DIAG_DESTROY
-static int __udp_diag_destroy(struct sk_buff *in_skb,
+static int __dcacp_diag_destroy(struct sk_buff *in_skb,
 			      const struct inet_diag_req_v2 *req,
-			      struct udp_table *tbl)
+			      struct dcacp_table *tbl)
 {
 	struct net *net = sock_net(in_skb->sk);
 	struct sock *sk;
@@ -176,7 +176,7 @@ static int __udp_diag_destroy(struct sk_buff *in_skb,
 	rcu_read_lock();
 
 	if (req->sdiag_family == AF_INET)
-		sk = __udp4_lib_lookup(net,
+		sk = __dcacp4_lib_lookup(net,
 				req->id.idiag_dst[0], req->id.idiag_dport,
 				req->id.idiag_src[0], req->id.idiag_sport,
 				req->id.idiag_if, 0, tbl, NULL);
@@ -184,13 +184,13 @@ static int __udp_diag_destroy(struct sk_buff *in_skb,
 	else if (req->sdiag_family == AF_INET6) {
 		if (ipv6_addr_v4mapped((struct in6_addr *)req->id.idiag_dst) &&
 		    ipv6_addr_v4mapped((struct in6_addr *)req->id.idiag_src))
-			sk = __udp4_lib_lookup(net,
+			sk = __dcacp4_lib_lookup(net,
 					req->id.idiag_dst[3], req->id.idiag_dport,
 					req->id.idiag_src[3], req->id.idiag_sport,
 					req->id.idiag_if, 0, tbl, NULL);
 
 		else
-			sk = __udp6_lib_lookup(net,
+			sk = __dcacp6_lib_lookup(net,
 					(struct in6_addr *)req->id.idiag_dst,
 					req->id.idiag_dport,
 					(struct in6_addr *)req->id.idiag_src,
@@ -223,80 +223,80 @@ static int __udp_diag_destroy(struct sk_buff *in_skb,
 	return err;
 }
 
-static int udp_diag_destroy(struct sk_buff *in_skb,
+static int dcacp_diag_destroy(struct sk_buff *in_skb,
 			    const struct inet_diag_req_v2 *req)
 {
-	return __udp_diag_destroy(in_skb, req, &udp_table);
+	return __dcacp_diag_destroy(in_skb, req, &dcacp_table);
 }
 
-static int udplite_diag_destroy(struct sk_buff *in_skb,
+static int dcacplite_diag_destroy(struct sk_buff *in_skb,
 				const struct inet_diag_req_v2 *req)
 {
-	return __udp_diag_destroy(in_skb, req, &udplite_table);
+	return __dcacp_diag_destroy(in_skb, req, &dcacplite_table);
 }
 
 #endif
 
-static const struct inet_diag_handler udp_diag_handler = {
-	.dump		 = udp_diag_dump,
-	.dump_one	 = udp_diag_dump_one,
-	.idiag_get_info  = udp_diag_get_info,
-	.idiag_type	 = IPPROTO_UDP,
+static const struct inet_diag_handler dcacp_diag_handler = {
+	.dump		 = dcacp_diag_dump,
+	.dump_one	 = dcacp_diag_dump_one,
+	.idiag_get_info  = dcacp_diag_get_info,
+	.idiag_type	 = IPPROTO_DCACP,
 	.idiag_info_size = 0,
 #ifdef CONFIG_INET_DIAG_DESTROY
-	.destroy	 = udp_diag_destroy,
+	.destroy	 = dcacp_diag_destroy,
 #endif
 };
 
-static void udplite_diag_dump(struct sk_buff *skb, struct netlink_callback *cb,
+static void dcacplite_diag_dump(struct sk_buff *skb, struct netlink_callback *cb,
 			      const struct inet_diag_req_v2 *r,
 			      struct nlattr *bc)
 {
-	udp_dump(&udplite_table, skb, cb, r, bc);
+	dcacp_dump(&dcacplite_table, skb, cb, r, bc);
 }
 
-static int udplite_diag_dump_one(struct sk_buff *in_skb, const struct nlmsghdr *nlh,
+static int dcacplite_diag_dump_one(struct sk_buff *in_skb, const struct nlmsghdr *nlh,
 				 const struct inet_diag_req_v2 *req)
 {
-	return udp_dump_one(&udplite_table, in_skb, nlh, req);
+	return dcacp_dump_one(&dcacplite_table, in_skb, nlh, req);
 }
 
-static const struct inet_diag_handler udplite_diag_handler = {
-	.dump		 = udplite_diag_dump,
-	.dump_one	 = udplite_diag_dump_one,
-	.idiag_get_info  = udp_diag_get_info,
-	.idiag_type	 = IPPROTO_UDPLITE,
+static const struct inet_diag_handler dcacplite_diag_handler = {
+	.dump		 = dcacplite_diag_dump,
+	.dump_one	 = dcacplite_diag_dump_one,
+	.idiag_get_info  = dcacp_diag_get_info,
+	.idiag_type	 = IPPROTO_DCACPLITE,
 	.idiag_info_size = 0,
 #ifdef CONFIG_INET_DIAG_DESTROY
-	.destroy	 = udplite_diag_destroy,
+	.destroy	 = dcacplite_diag_destroy,
 #endif
 };
 
-static int __init udp_diag_init(void)
+static int __init dcacp_diag_init(void)
 {
 	int err;
 
-	err = inet_diag_register(&udp_diag_handler);
+	err = inet_diag_register(&dcacp_diag_handler);
 	if (err)
 		goto out;
-	err = inet_diag_register(&udplite_diag_handler);
+	err = inet_diag_register(&dcacplite_diag_handler);
 	if (err)
 		goto out_lite;
 out:
 	return err;
 out_lite:
-	inet_diag_unregister(&udp_diag_handler);
+	inet_diag_unregister(&dcacp_diag_handler);
 	goto out;
 }
 
-static void __exit udp_diag_exit(void)
+static void __exit dcacp_diag_exit(void)
 {
-	inet_diag_unregister(&udplite_diag_handler);
-	inet_diag_unregister(&udp_diag_handler);
+	inet_diag_unregister(&dcacplite_diag_handler);
+	inet_diag_unregister(&dcacp_diag_handler);
 }
 
-module_init(udp_diag_init);
-module_exit(udp_diag_exit);
+module_init(dcacp_diag_init);
+module_exit(dcacp_diag_exit);
 MODULE_LICENSE("GPL");
-MODULE_ALIAS_NET_PF_PROTO_TYPE(PF_NETLINK, NETLINK_SOCK_DIAG, 2-17 /* AF_INET - IPPROTO_UDP */);
-MODULE_ALIAS_NET_PF_PROTO_TYPE(PF_NETLINK, NETLINK_SOCK_DIAG, 2-136 /* AF_INET - IPPROTO_UDPLITE */);
+MODULE_ALIAS_NET_PF_PROTO_TYPE(PF_NETLINK, NETLINK_SOCK_DIAG, 2-17 /* AF_INET - IPPROTO_DCACP */);
+MODULE_ALIAS_NET_PF_PROTO_TYPE(PF_NETLINK, NETLINK_SOCK_DIAG, 2-136 /* AF_INET - IPPROTO_DCACPLITE */);

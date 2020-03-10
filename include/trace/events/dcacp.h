@@ -1,14 +1,14 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 #undef TRACE_SYSTEM
-#define TRACE_SYSTEM udp
+#define TRACE_SYSTEM dcacp
 
-#if !defined(_TRACE_UDP_H) || defined(TRACE_HEADER_MULTI_READ)
-#define _TRACE_UDP_H
+#if !defined(_TRACE_DCACP_H) || defined(TRACE_HEADER_MULTI_READ)
+#define _TRACE_DCACP_H
 
-#include <linux/udp.h>
+#include <linux/dcacp.h>
 #include <linux/tracepoint.h>
 
-TRACE_EVENT(udp_fail_queue_rcv_skb,
+TRACE_EVENT(dcacp_fail_queue_rcv_skb,
 
 	TP_PROTO(int rc, struct sock *sk),
 
@@ -27,7 +27,7 @@ TRACE_EVENT(udp_fail_queue_rcv_skb,
 	TP_printk("rc=%d port=%hu", __entry->rc, __entry->lport)
 );
 
-#endif /* _TRACE_UDP_H */
+#endif /* _TRACE_DCACP_H */
 
 /* This part must be outside protection */
 #include <trace/define_trace.h>
