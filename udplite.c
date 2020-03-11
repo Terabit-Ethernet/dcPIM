@@ -16,21 +16,21 @@
 
 #define IPPROTO_DCACPLITE 19
 
-struct udp_table 	udplite_table __read_mostly;
-// EXPORT_SYMBOL(udplite_table);
+struct udp_table 	dcacplite_table __read_mostly;
+EXPORT_SYMBOL(dcacplite_table);
 
-static int udplite_rcv(struct sk_buff *skb)
+static int dcacplite_rcv(struct sk_buff *skb)
 {
-	return __udp4_lib_rcv(skb, &udplite_table, IPPROTO_UDPLITE);
+	return __dcacp4_lib_rcv(skb, &udplite_table, IPPROTO_DCACPLITE);
 }
 
 static int udplite_err(struct sk_buff *skb, u32 info)
 {
-	return __udp4_lib_err(skb, info, &udplite_table);
+	return __dcacp4_lib_err(skb, info, &udplite_table);
 }
 
 static const struct net_protocol udplite_protocol = {
-	.handler	= udplite_rcv,
+	.handler	= dcacplite_rcv,
 	.err_handler	= udplite_err,
 	.no_policy	= 1,
 	.netns_ok	= 1,
@@ -39,28 +39,28 @@ static const struct net_protocol udplite_protocol = {
 struct proto 	dcacplite_prot = {
 	.name		   = "DCACP-Lite",
 	.owner		   = THIS_MODULE,
-	.close		   = udp_lib_close,
+	.close		   = dcacp_lib_close,
 	.connect	   = ip4_datagram_connect,
-	.disconnect	   = udp_disconnect,
-	.ioctl		   = udp_ioctl,
+	.disconnect	   = dcacp_disconnect,
+	.ioctl		   = dcacp_ioctl,
 	.init		   = udplite_sk_init,
 	.destroy	   = dcacp_destroy_sock,
-	.setsockopt	   = udp_setsockopt,
-	.getsockopt	   = udp_getsockopt,
-	.sendmsg	   = udp_sendmsg,
-	.recvmsg	   = udp_recvmsg,
-	.sendpage	   = udp_sendpage,
-	.hash		   = udp_lib_hash,
-	.unhash		   = udp_lib_unhash,
-	.rehash		   = udp_v4_rehash,
-	.get_port	   = udp_v4_get_port,
-	.memory_allocated  = &udp_memory_allocated,
-	.sysctl_mem	   = sysctl_udp_mem,
-	.obj_size	   = sizeof(struct udp_sock),
-	.h.udp_table	   = &udplite_table,
+	.setsockopt	   = dcacp_setsockopt,
+	.getsockopt	   = dcacp_getsockopt,
+	.sendmsg	   = dcacp_sendmsg,
+	.recvmsg	   = dcacp_recvmsg,
+	.sendpage	   = dcacp_sendpage,
+	.hash		   = dcacp_lib_hash,
+	.unhash		   = dcacp_lib_unhash,
+	.rehash		   = dcacp_v4_rehash,
+	.get_port	   = dcacp_v4_get_port,
+	.memory_allocated  = &dcacp_memory_allocated,
+	.sysctl_mem	   = sysctl_dcacp_mem,
+	.obj_size	   = sizeof(struct dcacp_sock),
+	.h.udp_table	   = &dcacplite_table,
 #ifdef CONFIG_COMPAT
-	.compat_setsockopt = compat_udp_setsockopt,
-	.compat_getsockopt = compat_udp_getsockopt,
+	.compat_setsockopt = compat_dcacp_setsockopt,
+	.compat_getsockopt = compat_dcacp_getsockopt,
 #endif
 };
 // EXPORT_SYMBOL(dcacplite_prot);
@@ -76,7 +76,7 @@ static struct inet_protosw dcacplite4_protosw = {
 #ifdef CONFIG_PROC_FS
 static struct udp_seq_afinfo udplite4_seq_afinfo = {
 	.family		= AF_INET,
-	.udp_table 	= &udplite_table,
+	.udp_table 	= &dcacplite_table,
 };
 
 static int __net_init udplite4_proc_init_net(struct net *net)
@@ -110,7 +110,7 @@ static inline int udplite4_proc_init(void)
 
 void __init udplite4_register(void)
 {
-	udp_table_init(&udplite_table, "UDP-Lite");
+	dcacp_table_init(&udplite_table, "UDP-Lite");
 	if (proto_register(&udplite_prot, 1))
 		goto out_register_err;
 

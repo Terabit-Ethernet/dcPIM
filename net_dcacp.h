@@ -27,7 +27,8 @@
 #include <linux/ipv6.h>
 #include <linux/seq_file.h>
 #include <linux/poll.h>
-// #include "../linux/dcacp.h"
+
+#include "linux_dcacp.h"
 /**
  *	struct dcacp_skb_cb  -  DCACP(-Lite) private variables
  *
@@ -35,17 +36,17 @@
  *	@cscov:       checksum coverage length (DCACP-Lite only)
  *	@partial_cov: if set indicates partial csum coverage
  */
-// struct dcacp_skb_cb {
-// 	union {
-// 		struct inet_skb_parm	h4;
-// #if IS_ENABLED(CONFIG_IPV6)
-// 		struct inet6_skb_parm	h6;
-// #endif
-// 	} header;
-// 	__u16		cscov;
-// 	__u8		partial_cov;
-// };
-// #define DCACP_SKB_CB(__skb)	((struct dcacp_skb_cb *)((__skb)->cb))
+struct dcacp_skb_cb {
+	union {
+		struct inet_skb_parm	h4;
+#if IS_ENABLED(CONFIG_IPV6)
+		struct inet6_skb_parm	h6;
+#endif
+	} header;
+	__u16		cscov;
+	__u8		partial_cov;
+};
+#define DCACP_SKB_CB(__skb)	((struct dcacp_skb_cb *)((__skb)->cb))
 
 // /**
 //  *	struct dcacp_hslot - DCACP hash slot
@@ -74,8 +75,8 @@
 // 	unsigned int		mask;
 // 	unsigned int		log;
 // };
-// extern struct dcacp_table dcacp_table;
-// void dcacp_table_init(struct dcacp_table *, const char *);
+extern struct udp_table dcacp_table;
+void dcacp_table_init(struct udp_table *, const char *);
 // static inline struct dcacp_hslot *dcacp_hashslot(struct dcacp_table *table,
 // 					     struct net *net, unsigned int num)
 // {
@@ -93,30 +94,30 @@
 
 // extern struct proto dcacp_prot;
 
-// extern atomic_long_t dcacp_memory_allocated;
+extern atomic_long_t dcacp_memory_allocated;
 
-// /* sysctl variables for dcacp */
-// extern long sysctl_dcacp_mem[3];
+/* sysctl variables for dcacp */
+extern long sysctl_dcacp_mem[3];
 // extern int sysctl_dcacp_rmem_min;
 // extern int sysctl_dcacp_wmem_min;
 
 // struct sk_buff;
 
-// /*
-//  *	Generic checksumming routines for DCACP(-Lite) v4 and v6
-//  */
-// static inline __sum16 __dcacp_lib_checksum_complete(struct sk_buff *skb)
-// {
-// 	return (DCACP_SKB_CB(skb)->cscov == skb->len ?
-// 		__skb_checksum_complete(skb) :
-// 		__skb_checksum_complete_head(skb, DCACP_SKB_CB(skb)->cscov));
-// }
+/*
+ *	Generic checksumming routines for DCACP(-Lite) v4 and v6
+ */
+static inline __sum16 __dcacp_lib_checksum_complete(struct sk_buff *skb)
+{
+	return (DCACP_SKB_CB(skb)->cscov == skb->len ?
+		__skb_checksum_complete(skb) :
+		__skb_checksum_complete_head(skb, DCACP_SKB_CB(skb)->cscov));
+}
 
-// static inline int dcacp_lib_checksum_complete(struct sk_buff *skb)
-// {
-// 	return !skb_csum_unnecessary(skb) &&
-// 		__dcacp_lib_checksum_complete(skb);
-// }
+static inline int dcacp_lib_checksum_complete(struct sk_buff *skb)
+{
+	return !skb_csum_unnecessary(skb) &&
+		__dcacp_lib_checksum_complete(skb);
+}
 
 // /**
 //  * 	dcacp_csum_outgoing  -  compute DCACPv4/v6 checksum over fragments
@@ -134,16 +135,16 @@
 // 	return csum;
 // }
 
-// static inline __wsum dcacp_csum(struct sk_buff *skb)
-// {
-// 	__wsum csum = csum_partial(skb_transport_header(skb),
-// 				   sizeof(struct dcacphdr), skb->csum);
+static inline __wsum dcacp_csum(struct sk_buff *skb)
+{
+	__wsum csum = csum_partial(skb_transport_header(skb),
+				   sizeof(struct dcacphdr), skb->csum);
 
-// 	for (skb = skb_shinfo(skb)->frag_list; skb; skb = skb->next) {
-// 		csum = csum_add(csum, skb->csum);
-// 	}
-// 	return csum;
-// }
+	for (skb = skb_shinfo(skb)->frag_list; skb; skb = skb->next) {
+		csum = csum_add(csum, skb->csum);
+	}
+	return csum;
+}
 
 // static inline __sum16 dcacp_v4_check(int len, __be32 saddr,
 // 				   __be32 daddr, __wsum base)
@@ -154,14 +155,14 @@
 // void dcacp_set_csum(bool nocheck, struct sk_buff *skb,
 // 		  __be32 saddr, __be32 daddr, int len);
 
-// static inline void dcacp_csum_pull_header(struct sk_buff *skb)
-// {
-// 	if (!skb->csum_valid && skb->ip_summed == CHECKSUM_NONE)
-// 		skb->csum = csum_partial(skb->data, sizeof(struct dcacphdr),
-// 					 skb->csum);
-// 	skb_pull_rcsum(skb, sizeof(struct dcacphdr));
-// 	DCACP_SKB_CB(skb)->cscov -= sizeof(struct dcacphdr);
-// }
+static inline void dcacp_csum_pull_header(struct sk_buff *skb)
+{
+	if (!skb->csum_valid && skb->ip_summed == CHECKSUM_NONE)
+		skb->csum = csum_partial(skb->data, sizeof(struct dcacphdr),
+					 skb->csum);
+	skb_pull_rcsum(skb, sizeof(struct dcacphdr));
+	DCACP_SKB_CB(skb)->cscov -= sizeof(struct dcacphdr);
+}
 
 // typedef struct sock *(*dcacp_lookup_t)(struct sk_buff *skb, __be16 sport,
 // 				     __be16 dport);
@@ -187,14 +188,14 @@
 // 	return uh;
 // }
 
-// /* hash routines shared between DCACPv4/6 and DCACP-Litev4/6 */
-// static inline int dcacp_lib_hash(struct sock *sk)
-// {
-// 	BUG();
-// 	return 0;
-// }
+/* hash routines shared between DCACPv4/6 and DCACP-Litev4/6 */
+static inline int dcacp_lib_hash(struct sock *sk)
+{
+	BUG();
+	return 0;
+}
 
-// void dcacp_lib_unhash(struct sock *sk);
+void dcacp_lib_unhash(struct sock *sk);
 // void dcacp_lib_rehash(struct sock *sk, u16 new_hash);
 
 static inline void dcacp_lib_close(struct sock *sk, long timeout)
@@ -202,8 +203,8 @@ static inline void dcacp_lib_close(struct sock *sk, long timeout)
 	sk_common_release(sk);
 }
 
-// int dcacp_lib_get_port(struct sock *sk, unsigned short snum,
-// 		     unsigned int hash2_nulladdr);
+int dcacp_lib_get_port(struct sock *sk, unsigned short snum,
+		     unsigned int hash2_nulladdr);
 
 // u32 dcacp_flow_hashrnd(void);
 
@@ -274,19 +275,19 @@ void dcacp_destruct_sock(struct sock *sk);
 // 	return __skb_recv_dcacp(sk, flags, noblock, &off, err);
 // }
 
-// int dcacp_v4_early_demux(struct sk_buff *skb);
-// bool dcacp_sk_rx_dst_set(struct sock *sk, struct dst_entry *dst);
+int dcacp_v4_early_demux(struct sk_buff *skb);
+bool dcacp_sk_rx_dst_set(struct sock *sk, struct dst_entry *dst);
 // int dcacp_get_port(struct sock *sk, unsigned short snum,
 // 		 int (*saddr_cmp)(const struct sock *,
 // 				  const struct sock *));
-// int dcacp_err(struct sk_buff *, u32);
-// int dcacp_abort(struct sock *sk, int err);
-// int dcacp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len);
-// int dcacp_push_pending_frames(struct sock *sk);
-// void dcacp_flush_pending_frames(struct sock *sk);
-// int dcacp_cmsg_send(struct sock *sk, struct msghdr *msg, u16 *gso_size);
-// void dcacp4_hwcsum(struct sk_buff *skb, __be32 src, __be32 dst);
-// int dcacp_rcv(struct sk_buff *skb);
+int dcacp_err(struct sk_buff *, u32);
+int dcacp_abort(struct sock *sk, int err);
+int dcacp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len);
+int dcacp_push_pending_frames(struct sock *sk);
+void dcacp_flush_pending_frames(struct sock *sk);
+int dcacp_cmsg_send(struct sock *sk, struct msghdr *msg, u16 *gso_size);
+void dcacp4_hwcsum(struct sk_buff *skb, __be32 src, __be32 dst);
+int dcacp_rcv(struct sk_buff *skb);
 int dcacp_ioctl(struct sock *sk, int cmd, unsigned long arg);
 int dcacp_init_sock(struct sock *sk);
 int dcacp_pre_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len);
@@ -296,18 +297,18 @@ int dcacp_disconnect(struct sock *sk, int flags);
 // struct sk_buff *skb_dcacp_tunnel_segment(struct sk_buff *skb,
 // 				       netdev_features_t features,
 // 				       bool is_ipv6);
-// int dcacp_lib_getsockopt(struct sock *sk, int level, int optname,
-// 		       char __user *optval, int __user *optlen);
-// int dcacp_lib_setsockopt(struct sock *sk, int level, int optname,
-// 		       char __user *optval, unsigned int optlen,
-// 		       int (*push_pending_frames)(struct sock *));
-// struct sock *dcacp4_lib_lookup(struct net *net, __be32 saddr, __be16 sport,
-// 			     __be32 daddr, __be16 dport, int dif);
-// struct sock *__dcacp4_lib_lookup(struct net *net, __be32 saddr, __be16 sport,
-// 			       __be32 daddr, __be16 dport, int dif, int sdif,
-// 			       struct dcacp_table *tbl, struct sk_buff *skb);
-// struct sock *dcacp4_lib_lookup_skb(struct sk_buff *skb,
-// 				 __be16 sport, __be16 dport);
+int dcacp_lib_getsockopt(struct sock *sk, int level, int optname,
+		       char __user *optval, int __user *optlen);
+int dcacp_lib_setsockopt(struct sock *sk, int level, int optname,
+		       char __user *optval, unsigned int optlen,
+		       int (*push_pending_frames)(struct sock *));
+struct sock *dcacp4_lib_lookup(struct net *net, __be32 saddr, __be16 sport,
+			     __be32 daddr, __be16 dport, int dif);
+struct sock *__dcacp4_lib_lookup(struct net *net, __be32 saddr, __be16 sport,
+			       __be32 daddr, __be16 dport, int dif, int sdif,
+			       struct udp_table *tbl, struct sk_buff *skb);
+struct sock *dcacp4_lib_lookup_skb(struct sk_buff *skb,
+				 __be16 sport, __be16 dport);
 // struct sock *dcacp6_lib_lookup(struct net *net,
 // 			     const struct in6_addr *saddr, __be16 sport,
 // 			     const struct in6_addr *daddr, __be16 dport,
@@ -320,65 +321,65 @@ int dcacp_disconnect(struct sock *sk, int flags);
 // struct sock *dcacp6_lib_lookup_skb(struct sk_buff *skb,
 // 				 __be16 sport, __be16 dport);
 
-// /* DCACP uses skb->dev_scratch to cache as much information as possible and avoid
-//  * possibly multiple cache miss on dequeue()
-//  */
-// struct dcacp_dev_scratch {
-// 	/* skb->truesize and the stateless bit are embedded in a single field;
-// 	 * do not use a bitfield since the compiler emits better/smaller code
-// 	 * this way
-// 	 */
-// 	u32 _tsize_state;
+/* DCACP uses skb->dev_scratch to cache as much information as possible and avoid
+ * possibly multiple cache miss on dequeue()
+ */
+struct dcacp_dev_scratch {
+	/* skb->truesize and the stateless bit are embedded in a single field;
+	 * do not use a bitfield since the compiler emits better/smaller code
+	 * this way
+	 */
+	u32 _tsize_state;
 
-// #if BITS_PER_LONG == 64
-// 	/* len and the bit needed to compute skb_csum_unnecessary
-// 	 * will be on cold cache lines at recvmsg time.
-// 	 * skb->len can be stored on 16 bits since the dcacp header has been
-// 	 * already validated and pulled.
-// 	 */
-// 	u16 len;
-// 	bool is_linear;
-// 	bool csum_unnecessary;
-// #endif
-// };
+#if BITS_PER_LONG == 64
+	/* len and the bit needed to compute skb_csum_unnecessary
+	 * will be on cold cache lines at recvmsg time.
+	 * skb->len can be stored on 16 bits since the dcacp header has been
+	 * already validated and pulled.
+	 */
+	u16 len;
+	bool is_linear;
+	bool csum_unnecessary;
+#endif
+};
 
-// static inline struct dcacp_dev_scratch *dcacp_skb_scratch(struct sk_buff *skb)
-// {
-// 	return (struct dcacp_dev_scratch *)&skb->dev_scratch;
-// }
+static inline struct dcacp_dev_scratch *dcacp_skb_scratch(struct sk_buff *skb)
+{
+	return (struct dcacp_dev_scratch *)&skb->dev_scratch;
+}
 
-// #if BITS_PER_LONG == 64
-// static inline unsigned int dcacp_skb_len(struct sk_buff *skb)
-// {
-// 	return dcacp_skb_scratch(skb)->len;
-// }
+#if BITS_PER_LONG == 64
+static inline unsigned int dcacp_skb_len(struct sk_buff *skb)
+{
+	return dcacp_skb_scratch(skb)->len;
+}
 
-// static inline bool dcacp_skb_csum_unnecessary(struct sk_buff *skb)
-// {
-// 	return dcacp_skb_scratch(skb)->csum_unnecessary;
-// }
+static inline bool dcacp_skb_csum_unnecessary(struct sk_buff *skb)
+{
+	return dcacp_skb_scratch(skb)->csum_unnecessary;
+}
 
-// static inline bool dcacp_skb_is_linear(struct sk_buff *skb)
-// {
-// 	return dcacp_skb_scratch(skb)->is_linear;
-// }
+static inline bool dcacp_skb_is_linear(struct sk_buff *skb)
+{
+	return dcacp_skb_scratch(skb)->is_linear;
+}
 
-// #else
-// static inline unsigned int dcacp_skb_len(struct sk_buff *skb)
-// {
-// 	return skb->len;
-// }
+#else
+static inline unsigned int dcacp_skb_len(struct sk_buff *skb)
+{
+	return skb->len;
+}
 
-// static inline bool dcacp_skb_csum_unnecessary(struct sk_buff *skb)
-// {
-// 	return skb_csum_unnecessary(skb);
-// }
+static inline bool dcacp_skb_csum_unnecessary(struct sk_buff *skb)
+{
+	return skb_csum_unnecessary(skb);
+}
 
-// static inline bool dcacp_skb_is_linear(struct sk_buff *skb)
-// {
-// 	return !skb_is_nonlinear(skb);
-// }
-// #endif
+static inline bool dcacp_skb_is_linear(struct sk_buff *skb)
+{
+	return !skb_is_nonlinear(skb);
+}
+#endif
 
 // static inline int copy_linear_skb(struct sk_buff *skb, int len, int off,
 // 				  struct iov_iter *to)
@@ -393,43 +394,43 @@ int dcacp_disconnect(struct sock *sk, int flags);
 // 	return -EFAULT;
 // }
 
-// /*
-//  * 	SNMP statistics for DCACP and DCACP-Lite
-//  */
-// #define DCACP_INC_STATS(net, field, is_dcacplite)		      do { \
-// 	if (is_dcacplite) SNMP_INC_STATS((net)->mib.dcacplite_statistics, field);       \
-// 	else		SNMP_INC_STATS((net)->mib.dcacp_statistics, field);  }  while(0)
-// #define __DCACP_INC_STATS(net, field, is_dcacplite) 	      do { \
-// 	if (is_dcacplite) __SNMP_INC_STATS((net)->mib.dcacplite_statistics, field);         \
-// 	else		__SNMP_INC_STATS((net)->mib.dcacp_statistics, field);    }  while(0)
+/*
+ * 	SNMP statistics for UDP and UDP-Lite
+ */
+#define UDP_INC_STATS(net, field, is_udplite)		      do { \
+	if (is_udplite) SNMP_INC_STATS((net)->mib.udplite_statistics, field);       \
+	else		SNMP_INC_STATS((net)->mib.udp_statistics, field);  }  while(0)
+#define __UDP_INC_STATS(net, field, is_udplite) 	      do { \
+	if (is_udplite) __SNMP_INC_STATS((net)->mib.udplite_statistics, field);         \
+	else		__SNMP_INC_STATS((net)->mib.udp_statistics, field);    }  while(0)
 
-// #define __DCACP6_INC_STATS(net, field, is_dcacplite)	    do { \
-// 	if (is_dcacplite) __SNMP_INC_STATS((net)->mib.dcacplite_stats_in6, field);\
-// 	else		__SNMP_INC_STATS((net)->mib.dcacp_stats_in6, field);  \
-// } while(0)
-// #define DCACP6_INC_STATS(net, field, __lite)		    do { \
-// 	if (__lite) SNMP_INC_STATS((net)->mib.dcacplite_stats_in6, field);  \
-// 	else	    SNMP_INC_STATS((net)->mib.dcacp_stats_in6, field);      \
-// } while(0)
+#define __UDP6_INC_STATS(net, field, is_udplite)	    do { \
+	if (is_udplite) __SNMP_INC_STATS((net)->mib.udplite_stats_in6, field);\
+	else		__SNMP_INC_STATS((net)->mib.udp_stats_in6, field);  \
+} while(0)
+#define UDP6_INC_STATS(net, field, __lite)		    do { \
+	if (__lite) SNMP_INC_STATS((net)->mib.udplite_stats_in6, field);  \
+	else	    SNMP_INC_STATS((net)->mib.udp_stats_in6, field);      \
+} while(0)
 
-// #if IS_ENABLED(CONFIG_IPV6)
-// #define __DCACPX_MIB(sk, ipv4)						\
-// ({									\
-// 	ipv4 ? (IS_DCACPLITE(sk) ? sock_net(sk)->mib.dcacplite_statistics :	\
-// 				 sock_net(sk)->mib.dcacp_statistics) :	\
-// 		(IS_DCACPLITE(sk) ? sock_net(sk)->mib.dcacplite_stats_in6 :	\
-// 				 sock_net(sk)->mib.dcacp_stats_in6);	\
-// })
-// #else
-// #define __DCACPX_MIB(sk, ipv4)						\
-// ({									\
-// 	IS_DCACPLITE(sk) ? sock_net(sk)->mib.dcacplite_statistics :		\
-// 			 sock_net(sk)->mib.dcacp_statistics;		\
-// })
-// #endif
+#if IS_ENABLED(CONFIG_IPV6)
+#define __UDPX_MIB(sk, ipv4)						\
+({									\
+	ipv4 ? (IS_UDPLITE(sk) ? sock_net(sk)->mib.udplite_statistics :	\
+				 sock_net(sk)->mib.udp_statistics) :	\
+		(IS_UDPLITE(sk) ? sock_net(sk)->mib.udplite_stats_in6 :	\
+				 sock_net(sk)->mib.udp_stats_in6);	\
+})
+#else
+#define __UDPX_MIB(sk, ipv4)						\
+({									\
+	IS_UDPLITE(sk) ? sock_net(sk)->mib.udplite_statistics :		\
+			 sock_net(sk)->mib.udp_statistics;		\
+})
+#endif
 
-// #define __DCACPX_INC_STATS(sk, field) \
-// 	__SNMP_INC_STATS(__DCACPX_MIB(sk, (sk)->sk_family == AF_INET), field)
+#define __UDPX_INC_STATS(sk, field) \
+	__SNMP_INC_STATS(__UDPX_MIB(sk, (sk)->sk_family == AF_INET), field)
 
 // #ifdef CONFIG_PROC_FS
 // struct dcacp_seq_afinfo {
@@ -464,43 +465,43 @@ DECLARE_STATIC_KEY_FALSE(dcacpv6_encap_needed_key);
 void dcacpv6_encap_enable(void);
 #endif
 
-// static inline struct sk_buff *dcacp_rcv_segment(struct sock *sk,
-// 					      struct sk_buff *skb, bool ipv4)
-// {
-// 	netdev_features_t features = NETIF_F_SG;
-// 	struct sk_buff *segs;
+static inline struct sk_buff *dcacp_rcv_segment(struct sock *sk,
+					      struct sk_buff *skb, bool ipv4)
+{
+	netdev_features_t features = NETIF_F_SG;
+	struct sk_buff *segs;
 
-// 	/* Avoid csum recalculation by skb_segment unless userspace explicitly
-// 	 * asks for the final checksum values
-// 	 */
-// 	if (!inet_get_convert_csum(sk))
-// 		features |= NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM;
+	/* Avoid csum recalculation by skb_segment unless userspace explicitly
+	 * asks for the final checksum values
+	 */
+	if (!inet_get_convert_csum(sk))
+		features |= NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM;
 
-// 	/* DCACP segmentation expects packets of type CHECKSUM_PARTIAL or
-// 	 * CHECKSUM_NONE in __dcacp_gso_segment. DCACP GRO indeed builds partial
-// 	 * packets in dcacp_gro_complete_segment. As does DCACP GSO, verified by
-// 	 * dcacp_send_skb. But when those packets are looped in dev_loopback_xmit
-// 	 * their ip_summed is set to CHECKSUM_UNNECESSARY. Reset in this
-// 	 * specific case, where PARTIAL is both correct and required.
-// 	 */
-// 	if (skb->pkt_type == PACKET_LOOPBACK)
-// 		skb->ip_summed = CHECKSUM_PARTIAL;
+	/* DCACP segmentation expects packets of type CHECKSUM_PARTIAL or
+	 * CHECKSUM_NONE in __dcacp_gso_segment. DCACP GRO indeed builds partial
+	 * packets in dcacp_gro_complete_segment. As does DCACP GSO, verified by
+	 * dcacp_send_skb. But when those packets are looped in dev_loopback_xmit
+	 * their ip_summed is set to CHECKSUM_UNNECESSARY. Reset in this
+	 * specific case, where PARTIAL is both correct and required.
+	 */
+	if (skb->pkt_type == PACKET_LOOPBACK)
+		skb->ip_summed = CHECKSUM_PARTIAL;
 
-// 	/* the GSO CB lays after the DCACP one, no need to save and restore any
-// 	 * CB fragment
-// 	 */
-// 	segs = __skb_gso_segment(skb, features, false);
-// 	if (IS_ERR_OR_NULL(segs)) {
-// 		int segs_nr = skb_shinfo(skb)->gso_segs;
+	/* the GSO CB lays after the DCACP one, no need to save and restore any
+	 * CB fragment
+	 */
+	segs = __skb_gso_segment(skb, features, false);
+	if (IS_ERR_OR_NULL(segs)) {
+		int segs_nr = skb_shinfo(skb)->gso_segs;
 
-// 		atomic_add(segs_nr, &sk->sk_drops);
-// 		SNMP_ADD_STATS(__DCACPX_MIB(sk, ipv4), DCACP_MIB_INERRORS, segs_nr);
-// 		kfree_skb(skb);
-// 		return NULL;
-// 	}
+		atomic_add(segs_nr, &sk->sk_drops);
+		SNMP_ADD_STATS(__UDPX_MIB(sk, ipv4), UDP_MIB_INERRORS, segs_nr);
+		kfree_skb(skb);
+		return NULL;
+	}
 
-// 	consume_skb(skb);
-// 	return segs;
-// }
+	consume_skb(skb);
+	return segs;
+}
 
 #endif	/* _DCACP_H */
