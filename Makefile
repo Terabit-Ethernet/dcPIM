@@ -1,7 +1,8 @@
 # Makefile to build DCACP as a Linux module.
 
 obj-m += dcacp_module.o
-dcacp_module-y = udp.o \
+dcacp_module-y = udp_tunnel.o \
+				 udp.o \
 				 udplite.o \
 				 udp_offload.o\
 				 dcacp_plumbing.o

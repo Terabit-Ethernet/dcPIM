@@ -41,26 +41,26 @@ struct proto dcacp_prot = {
     .init           = dcacp_init_sock,
     .destroy        = dcacp_destroy_sock,
     .setsockopt     = dcacp_setsockopt,
-    .getsockopt     = udp_getsockopt,
-    .sendmsg        = udp_sendmsg,
-    .recvmsg        = udp_recvmsg,
-    .sendpage       = udp_sendpage,
+    .getsockopt     = dcacp_getsockopt,
+    .sendmsg        = dcacp_sendmsg,
+    .recvmsg        = dcacp_recvmsg,
+    .sendpage       = dcacp_sendpage,
     .release_cb     = ip4_datagram_release_cb,
-    .hash           = udp_lib_hash,
-    .unhash         = udp_lib_unhash,
-    .rehash         = udp_v4_rehash,
-    .get_port       = udp_v4_get_port,
-    .memory_allocated   = &udp_memory_allocated,
-    .sysctl_mem     = sysctl_udp_mem,
+    .hash           = dcacp_lib_hash,
+    .unhash         = dcacp_lib_unhash,
+    .rehash         = dcacp_v4_rehash,
+    .get_port       = dcacp_v4_get_port,
+    .memory_allocated   = &dcacp_memory_allocated,
+    .sysctl_mem     = sysctl_dcacp_mem,
     .sysctl_wmem_offset = offsetof(struct net, ipv4.sysctl_udp_wmem_min),
     .sysctl_rmem_offset = offsetof(struct net, ipv4.sysctl_udp_rmem_min),
-    .obj_size       = sizeof(struct udp_sock),
-    .h.udp_table        = &udp_table,
+    .obj_size       = sizeof(struct dcacp_sock),
+    .h.udp_table        = &dcacp_table,
 #ifdef CONFIG_COMPAT
-    .compat_setsockopt  = compat_udp_setsockopt,
-    .compat_getsockopt  = compat_udp_getsockopt,
+    .compat_setsockopt  = compat_dcacp_setsockopt,
+    .compat_getsockopt  = compat_dcacp_getsockopt,
 #endif
-    .diag_destroy       = udp_abort,
+    .diag_destroy       = dcacp_abort,
 };
 // EXPORT_SYMBOL(dcacp_prot);
 
@@ -78,10 +78,10 @@ struct inet_protosw dcacp_protosw = {
  * early_demux can change based on sysctl.
  */
 static struct net_protocol dcacp_protocol = {
-        .early_demux =  udp_v4_early_demux,
-        .early_demux_handler =  udp_v4_early_demux,
-        .handler =      udp_rcv,
-        .err_handler =  udp_err,
+        .early_demux =  dcacp_v4_early_demux,
+        .early_demux_handler =  dcacp_v4_early_demux,
+        .handler =      dcacp_rcv,
+        .err_handler =  dcacp_err,
         .no_policy =    1,
         .netns_ok =     1,
 };
@@ -101,16 +101,19 @@ static int __init dcacp_load(void) {
                     status);
                 goto out;
         }
-
+        printk("dcacp protocol register\n");
         inet_register_protosw(&dcacp_protosw);
+        printk("dcacp protocol sw \n");
         status = inet_add_protocol(&dcacp_protocol, IPPROTO_DCACP);
+        printk("inet add dcacp\n");
+
         if (status != 0) {
                 printk(KERN_ERR "inet_add_protocol failed in dcacp_load: %d\n",
                     status);
                 goto out_cleanup;
         }
 
-        // status = udp_init();
+        dcacp_init();
         // if (status)
         //         goto out_cleanup;
         // dcacplite4_register();
@@ -150,10 +153,13 @@ static int __init dcacp_load(void) {
 out_cleanup:
         // unregister_net_sysctl_table(homa_ctl_header);
         // proc_remove(metrics_dir_entry);
-        // dcacp_destroy();
+        dcacp_destroy();
         inet_del_protocol(&dcacp_protocol, IPPROTO_DCACP);
+        printk("inet delete protocol\n");
         inet_unregister_protosw(&dcacp_protosw);
+        printk("inet unregister protosw");
         proto_unregister(&dcacp_prot);
+        printk("unregister protocol\n");
         // proto_unregister(&dcacplite_prot);
 out:
         return status;

@@ -146,14 +146,14 @@ static inline __wsum dcacp_csum(struct sk_buff *skb)
 	return csum;
 }
 
-// static inline __sum16 dcacp_v4_check(int len, __be32 saddr,
-// 				   __be32 daddr, __wsum base)
-// {
-// 	return csum_tcpdcacp_magic(saddr, daddr, len, IPPROTO_DCACP, base);
-// }
+static inline __sum16 dcacp_v4_check(int len, __be32 saddr,
+				   __be32 daddr, __wsum base)
+{
+	return csum_tcpudp_magic(saddr, daddr, len, IPPROTO_DCACP, base);
+}
 
-// void dcacp_set_csum(bool nocheck, struct sk_buff *skb,
-// 		  __be32 saddr, __be32 daddr, int len);
+void dcacp_set_csum(bool nocheck, struct sk_buff *skb,
+		  __be32 saddr, __be32 daddr, int len);
 
 static inline void dcacp_csum_pull_header(struct sk_buff *skb)
 {
@@ -164,29 +164,29 @@ static inline void dcacp_csum_pull_header(struct sk_buff *skb)
 	DCACP_SKB_CB(skb)->cscov -= sizeof(struct dcacphdr);
 }
 
-// typedef struct sock *(*dcacp_lookup_t)(struct sk_buff *skb, __be16 sport,
-// 				     __be16 dport);
+typedef struct sock *(*dcacp_lookup_t)(struct sk_buff *skb, __be16 sport,
+				     __be16 dport);
 
-// struct sk_buff *dcacp_gro_receive(struct list_head *head, struct sk_buff *skb,
-// 				struct dcacphdr *uh, struct sock *sk);
-// int dcacp_gro_complete(struct sk_buff *skb, int nhoff, dcacp_lookup_t lookup);
+struct sk_buff *dcacp_gro_receive(struct list_head *head, struct sk_buff *skb,
+				struct dcacphdr *uh, struct sock *sk);
+int dcacp_gro_complete(struct sk_buff *skb, int nhoff, dcacp_lookup_t lookup);
 
-// struct sk_buff *__dcacp_gso_segment(struct sk_buff *gso_skb,
-// 				  netdev_features_t features);
+struct sk_buff *__dcacp_gso_segment(struct sk_buff *gso_skb,
+				  netdev_features_t features);
 
-// static inline struct dcacphdr *dcacp_gro_dcacphdr(struct sk_buff *skb)
-// {
-// 	struct dcacphdr *uh;
-// 	unsigned int hlen, off;
+static inline struct dcacphdr *dcacp_gro_dcacphdr(struct sk_buff *skb)
+{
+	struct dcacphdr *uh;
+	unsigned int hlen, off;
 
-// 	off  = skb_gro_offset(skb);
-// 	hlen = off + sizeof(*uh);
-// 	uh   = skb_gro_header_fast(skb, off);
-// 	if (skb_gro_header_hard(skb, hlen))
-// 		uh = skb_gro_header_slow(skb, hlen, off);
+	off  = skb_gro_offset(skb);
+	hlen = off + sizeof(*uh);
+	uh   = skb_gro_header_fast(skb, off);
+	if (skb_gro_header_hard(skb, hlen))
+		uh = skb_gro_header_slow(skb, hlen, off);
 
-// 	return uh;
-// }
+	return uh;
+}
 
 /* hash routines shared between DCACPv4/6 and DCACP-Litev4/6 */
 static inline int dcacp_lib_hash(struct sock *sk)
@@ -244,25 +244,25 @@ int dcacp_lib_get_port(struct sock *sk, unsigned short snum,
 // 	return htons((((u64) hash * (max - min)) >> 32) + min);
 // }
 
-// static inline int dcacp_rqueue_get(struct sock *sk)
-// {
-// 	return sk_rmem_alloc_get(sk) - READ_ONCE(dcacp_sk(sk)->forward_deficit);
-// }
+static inline int dcacp_rqueue_get(struct sock *sk)
+{
+	return sk_rmem_alloc_get(sk) - READ_ONCE(dcacp_sk(sk)->forward_deficit);
+}
 
-// static inline bool dcacp_sk_bound_dev_eq(struct net *net, int bound_dev_if,
-// 				       int dif, int sdif)
-// {
-// #if IS_ENABLED(CONFIG_NET_L3_MASTER_DEV)
-// 	return inet_bound_dev_eq(!!net->ipv4.sysctl_dcacp_l3mdev_accept,
-// 				 bound_dev_if, dif, sdif);
-// #else
-// 	return inet_bound_dev_eq(true, bound_dev_if, dif, sdif);
-// #endif
-// }
+static inline bool dcacp_sk_bound_dev_eq(struct net *net, int bound_dev_if,
+				       int dif, int sdif)
+{
+#if IS_ENABLED(CONFIG_NET_L3_MASTER_DEV)
+	return inet_bound_dev_eq(!!net->ipv4.sysctl_udp_l3mdev_accept,
+				 bound_dev_if, dif, sdif);
+#else
+	return inet_bound_dev_eq(true, bound_dev_if, dif, sdif);
+#endif
+}
 
 // /* net/ipv4/dcacp.c */
 void dcacp_destruct_sock(struct sock *sk);
-// void skb_consume_dcacp(struct sock *sk, struct sk_buff *skb, int len);
+void skb_consume_dcacp(struct sock *sk, struct sk_buff *skb, int len);
 // int __dcacp_enqueue_schedule_skb(struct sock *sk, struct sk_buff *skb);
 // void dcacp_skb_destructor(struct sock *sk, struct sk_buff *skb);
 // struct sk_buff *__skb_recv_dcacp(struct sock *sk, unsigned int flags,
@@ -432,32 +432,33 @@ static inline bool dcacp_skb_is_linear(struct sk_buff *skb)
 #define __UDPX_INC_STATS(sk, field) \
 	__SNMP_INC_STATS(__UDPX_MIB(sk, (sk)->sk_family == AF_INET), field)
 
-// #ifdef CONFIG_PROC_FS
-// struct dcacp_seq_afinfo {
-// 	sa_family_t			family;
-// 	struct dcacp_table		*dcacp_table;
-// };
+#ifdef CONFIG_PROC_FS
+struct dcacp_seq_afinfo {
+	sa_family_t			family;
+	struct udp_table		*dcacp_table;
+};
 
-// struct dcacp_iter_state {
-// 	struct seq_net_private  p;
-// 	int			bucket;
-// };
+struct dcacp_iter_state {
+	struct seq_net_private  p;
+	int			bucket;
+};
 
-// void *dcacp_seq_start(struct seq_file *seq, loff_t *pos);
-// void *dcacp_seq_next(struct seq_file *seq, void *v, loff_t *pos);
-// void dcacp_seq_stop(struct seq_file *seq, void *v);
+void *dcacp_seq_start(struct seq_file *seq, loff_t *pos);
+void *dcacp_seq_next(struct seq_file *seq, void *v, loff_t *pos);
+void dcacp_seq_stop(struct seq_file *seq, void *v);
 
-// extern const struct seq_operations dcacp_seq_ops;
-// extern const struct seq_operations dcacp6_seq_ops;
+extern const struct seq_operations dcacp_seq_ops;
+extern const struct seq_operations dcacp6_seq_ops;
 
-// int dcacp4_proc_init(void);
-// void dcacp4_proc_exit(void);
-// #endif /* CONFIG_PROC_FS */
+int dcacp4_proc_init(void);
+void dcacp4_proc_exit(void);
+#endif /* CONFIG_PROC_FS */
 
-// int dcacpv4_offload_init(void);
+int dcacpv4_offload_init(void);
 
-// void dcacp_init(void);
+void dcacp_init(void);
 
+void dcacp_destroy(void);
 DECLARE_STATIC_KEY_FALSE(dcacp_encap_needed_key);
 void dcacp_encap_enable(void);
 #if IS_ENABLED(CONFIG_IPV6)

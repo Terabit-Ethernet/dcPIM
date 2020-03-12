@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /*
- *  UDPLITE     An implementation of the UDP-Lite protocol (RFC 3828).
+ *  DCACPLITE     An implementation of the DCACP-Lite protocol (RFC 3828).
  *
  *  Authors:    Gerrit Renker       <gerrit@erg.abdn.ac.uk>
  *
@@ -8,7 +8,7 @@
  *  Fixes:
  */
 
-#define pr_fmt(fmt) "UDPLite: " fmt
+#define pr_fmt(fmt) "DCACPLite: " fmt
 
 #include <linux/export.h>
 #include <linux/proc_fs.h>
@@ -21,17 +21,17 @@ EXPORT_SYMBOL(dcacplite_table);
 
 static int dcacplite_rcv(struct sk_buff *skb)
 {
-	return __dcacp4_lib_rcv(skb, &udplite_table, IPPROTO_DCACPLITE);
+	return __dcacp4_lib_rcv(skb, &dcacplite_table, IPPROTO_DCACPLITE);
 }
 
-static int udplite_err(struct sk_buff *skb, u32 info)
+static int dcacplite_err(struct sk_buff *skb, u32 info)
 {
-	return __dcacp4_lib_err(skb, info, &udplite_table);
+	return __dcacp4_lib_err(skb, info, &dcacplite_table);
 }
 
-static const struct net_protocol udplite_protocol = {
+static const struct net_protocol dcacplite_protocol = {
 	.handler	= dcacplite_rcv,
-	.err_handler	= udplite_err,
+	.err_handler	= dcacplite_err,
 	.no_policy	= 1,
 	.netns_ok	= 1,
 };
@@ -43,7 +43,7 @@ struct proto 	dcacplite_prot = {
 	.connect	   = ip4_datagram_connect,
 	.disconnect	   = dcacp_disconnect,
 	.ioctl		   = dcacp_ioctl,
-	.init		   = udplite_sk_init,
+	.init		   = dcacplite_sk_init,
 	.destroy	   = dcacp_destroy_sock,
 	.setsockopt	   = dcacp_setsockopt,
 	.getsockopt	   = dcacp_getsockopt,
@@ -63,7 +63,7 @@ struct proto 	dcacplite_prot = {
 	.compat_getsockopt = compat_dcacp_getsockopt,
 #endif
 };
-// EXPORT_SYMBOL(dcacplite_prot);
+EXPORT_SYMBOL(dcacplite_prot);
 
 static struct inet_protosw dcacplite4_protosw = {
 	.type		=  SOCK_DGRAM,
@@ -74,57 +74,57 @@ static struct inet_protosw dcacplite4_protosw = {
 };
 
 #ifdef CONFIG_PROC_FS
-static struct udp_seq_afinfo udplite4_seq_afinfo = {
+static struct dcacp_seq_afinfo dcacplite4_seq_afinfo = {
 	.family		= AF_INET,
-	.udp_table 	= &dcacplite_table,
+	.dcacp_table 	= &dcacplite_table,
 };
 
-static int __net_init udplite4_proc_init_net(struct net *net)
+static int __net_init dcacplite4_proc_init_net(struct net *net)
 {
-	if (!proc_create_net_data("udplite", 0444, net->proc_net, &udp_seq_ops,
-			sizeof(struct udp_iter_state), &udplite4_seq_afinfo))
+	if (!proc_create_net_data("dcacplite", 0444, net->proc_net, &dcacp_seq_ops,
+			sizeof(struct dcacp_iter_state), &dcacplite4_seq_afinfo))
 		return -ENOMEM;
 	return 0;
 }
 
-static void __net_exit udplite4_proc_exit_net(struct net *net)
+static void __net_exit dcacplite4_proc_exit_net(struct net *net)
 {
-	remove_proc_entry("udplite", net->proc_net);
+	remove_proc_entry("dcacplite", net->proc_net);
 }
 
-static struct pernet_operations udplite4_net_ops = {
-	.init = udplite4_proc_init_net,
-	.exit = udplite4_proc_exit_net,
+static struct pernet_operations dcacplite4_net_ops = {
+	.init = dcacplite4_proc_init_net,
+	.exit = dcacplite4_proc_exit_net,
 };
 
-static __init int udplite4_proc_init(void)
+static __init int dcacplite4_proc_init(void)
 {
-	return register_pernet_subsys(&udplite4_net_ops);
+	return register_pernet_subsys(&dcacplite4_net_ops);
 }
 #else
-static inline int udplite4_proc_init(void)
+static inline int dcacplite4_proc_init(void)
 {
 	return 0;
 }
 #endif
 
-void __init udplite4_register(void)
+void __init dcacplite4_register(void)
 {
-	dcacp_table_init(&udplite_table, "UDP-Lite");
-	if (proto_register(&udplite_prot, 1))
+	dcacp_table_init(&dcacplite_table, "DCACP-Lite");
+	if (proto_register(&dcacplite_prot, 1))
 		goto out_register_err;
 
-	if (inet_add_protocol(&udplite_protocol, IPPROTO_UDPLITE) < 0)
+	if (inet_add_protocol(&dcacplite_protocol, IPPROTO_DCACPLITE) < 0)
 		goto out_unregister_proto;
 
 	inet_register_protosw(&dcacplite4_protosw);
 
-	if (udplite4_proc_init())
+	if (dcacplite4_proc_init())
 		pr_err("%s: Cannot register /proc!\n", __func__);
 	return;
 
 out_unregister_proto:
-	proto_unregister(&udplite_prot);
+	proto_unregister(&dcacplite_prot);
 out_register_err:
-	pr_crit("%s: Cannot add UDP-Lite protocol\n", __func__);
+	pr_crit("%s: Cannot add DCACP-Lite protocol\n", __func__);
 }

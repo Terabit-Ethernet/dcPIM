@@ -10,12 +10,14 @@
 #include <net/udp.h>
 #include <net/udp_tunnel.h>
 
-int udp_sock_create4(struct net *net, struct udp_port_cfg *cfg,
+
+#include "net_dcacp_tunnel.h"
+int dcacp_sock_create4(struct net *net, struct dcacp_port_cfg *cfg,
 		     struct socket **sockp)
 {
 	int err;
 	struct socket *sock = NULL;
-	struct sockaddr_in udp_addr;
+	struct sockaddr_in dcacp_addr;
 
 	err = sock_create_kern(net, AF_INET, SOCK_DGRAM, 0, &sock);
 	if (err < 0)
@@ -29,25 +31,25 @@ int udp_sock_create4(struct net *net, struct udp_port_cfg *cfg,
 			goto error;
 	}
 
-	udp_addr.sin_family = AF_INET;
-	udp_addr.sin_addr = cfg->local_ip;
-	udp_addr.sin_port = cfg->local_udp_port;
-	err = kernel_bind(sock, (struct sockaddr *)&udp_addr,
-			  sizeof(udp_addr));
+	dcacp_addr.sin_family = AF_INET;
+	dcacp_addr.sin_addr = cfg->local_ip;
+	dcacp_addr.sin_port = cfg->local_dcacp_port;
+	err = kernel_bind(sock, (struct sockaddr *)&dcacp_addr,
+			  sizeof(dcacp_addr));
 	if (err < 0)
 		goto error;
 
-	if (cfg->peer_udp_port) {
-		udp_addr.sin_family = AF_INET;
-		udp_addr.sin_addr = cfg->peer_ip;
-		udp_addr.sin_port = cfg->peer_udp_port;
-		err = kernel_connect(sock, (struct sockaddr *)&udp_addr,
-				     sizeof(udp_addr), 0);
+	if (cfg->peer_dcacp_port) {
+		dcacp_addr.sin_family = AF_INET;
+		dcacp_addr.sin_addr = cfg->peer_ip;
+		dcacp_addr.sin_port = cfg->peer_dcacp_port;
+		err = kernel_connect(sock, (struct sockaddr *)&dcacp_addr,
+				     sizeof(dcacp_addr), 0);
 		if (err < 0)
 			goto error;
 	}
 
-	sock->sk->sk_no_check_tx = !cfg->use_udp_checksums;
+	sock->sk->sk_no_check_tx = !cfg->use_dcacp_checksums;
 
 	*sockp = sock;
 	return 0;
@@ -60,10 +62,10 @@ error:
 	*sockp = NULL;
 	return err;
 }
-// EXPORT_SYMBOL(udp_sock_create4);
+EXPORT_SYMBOL(dcacp_sock_create4);
 
-void setup_udp_tunnel_sock(struct net *net, struct socket *sock,
-			   struct udp_tunnel_sock_cfg *cfg)
+void setup_dcacp_tunnel_sock(struct net *net, struct socket *sock,
+			   struct dcacp_tunnel_sock_cfg *cfg)
 {
 	struct sock *sk = sock->sk;
 
@@ -75,18 +77,18 @@ void setup_udp_tunnel_sock(struct net *net, struct socket *sock,
 
 	rcu_assign_sk_user_data(sk, cfg->sk_user_data);
 
-	udp_sk(sk)->encap_type = cfg->encap_type;
-	udp_sk(sk)->encap_rcv = cfg->encap_rcv;
-	udp_sk(sk)->encap_err_lookup = cfg->encap_err_lookup;
-	udp_sk(sk)->encap_destroy = cfg->encap_destroy;
-	udp_sk(sk)->gro_receive = cfg->gro_receive;
-	udp_sk(sk)->gro_complete = cfg->gro_complete;
+	dcacp_sk(sk)->encap_type = cfg->encap_type;
+	dcacp_sk(sk)->encap_rcv = cfg->encap_rcv;
+	dcacp_sk(sk)->encap_err_lookup = cfg->encap_err_lookup;
+	dcacp_sk(sk)->encap_destroy = cfg->encap_destroy;
+	dcacp_sk(sk)->gro_receive = cfg->gro_receive;
+	dcacp_sk(sk)->gro_complete = cfg->gro_complete;
 
-	udp_tunnel_encap_enable(sock);
+	dcacp_tunnel_encap_enable(sock);
 }
-EXPORT_SYMBOL_GPL(setup_udp_tunnel_sock);
+EXPORT_SYMBOL_GPL(setup_dcacp_tunnel_sock);
 
-void udp_tunnel_push_rx_port(struct net_device *dev, struct socket *sock,
+void dcacp_tunnel_push_rx_port(struct net_device *dev, struct socket *sock,
 			     unsigned short type)
 {
 	struct sock *sk = sock->sk;
@@ -102,9 +104,9 @@ void udp_tunnel_push_rx_port(struct net_device *dev, struct socket *sock,
 
 	dev->netdev_ops->ndo_udp_tunnel_add(dev, &ti);
 }
-EXPORT_SYMBOL_GPL(udp_tunnel_push_rx_port);
+EXPORT_SYMBOL_GPL(dcacp_tunnel_push_rx_port);
 
-void udp_tunnel_drop_rx_port(struct net_device *dev, struct socket *sock,
+void dcacp_tunnel_drop_rx_port(struct net_device *dev, struct socket *sock,
 			     unsigned short type)
 {
 	struct sock *sk = sock->sk;
@@ -120,10 +122,10 @@ void udp_tunnel_drop_rx_port(struct net_device *dev, struct socket *sock,
 
 	dev->netdev_ops->ndo_udp_tunnel_del(dev, &ti);
 }
-EXPORT_SYMBOL_GPL(udp_tunnel_drop_rx_port);
+EXPORT_SYMBOL_GPL(dcacp_tunnel_drop_rx_port);
 
 /* Notify netdevs that UDP port started listening */
-void udp_tunnel_notify_add_rx_port(struct socket *sock, unsigned short type)
+void dcacp_tunnel_notify_add_rx_port(struct socket *sock, unsigned short type)
 {
 	struct sock *sk = sock->sk;
 	struct net *net = sock_net(sk);
@@ -144,10 +146,10 @@ void udp_tunnel_notify_add_rx_port(struct socket *sock, unsigned short type)
 	}
 	rcu_read_unlock();
 }
-EXPORT_SYMBOL_GPL(udp_tunnel_notify_add_rx_port);
+EXPORT_SYMBOL_GPL(dcacp_tunnel_notify_add_rx_port);
 
 /* Notify netdevs that UDP port is no more listening */
-void udp_tunnel_notify_del_rx_port(struct socket *sock, unsigned short type)
+void dcacp_tunnel_notify_del_rx_port(struct socket *sock, unsigned short type)
 {
 	struct sock *sk = sock->sk;
 	struct net *net = sock_net(sk);
@@ -168,18 +170,18 @@ void udp_tunnel_notify_del_rx_port(struct socket *sock, unsigned short type)
 	}
 	rcu_read_unlock();
 }
-EXPORT_SYMBOL_GPL(udp_tunnel_notify_del_rx_port);
+EXPORT_SYMBOL_GPL(dcacp_tunnel_notify_del_rx_port);
 
-void udp_tunnel_xmit_skb(struct rtable *rt, struct sock *sk, struct sk_buff *skb,
+void dcacp_tunnel_xmit_skb(struct rtable *rt, struct sock *sk, struct sk_buff *skb,
 			 __be32 src, __be32 dst, __u8 tos, __u8 ttl,
 			 __be16 df, __be16 src_port, __be16 dst_port,
 			 bool xnet, bool nocheck)
 {
-	struct udphdr *uh;
+	struct dcacphdr *uh;
 
 	__skb_push(skb, sizeof(*uh));
 	skb_reset_transport_header(skb);
-	uh = udp_hdr(skb);
+	uh = dcacp_hdr(skb);
 
 	uh->dest = dst_port;
 	uh->source = src_port;
@@ -187,21 +189,21 @@ void udp_tunnel_xmit_skb(struct rtable *rt, struct sock *sk, struct sk_buff *skb
 
 	memset(&(IPCB(skb)->opt), 0, sizeof(IPCB(skb)->opt));
 
-	udp_set_csum(nocheck, skb, src, dst, skb->len);
+	dcacp_set_csum(nocheck, skb, src, dst, skb->len);
 
 	iptunnel_xmit(sk, rt, skb, src, dst, IPPROTO_UDP, tos, ttl, df, xnet);
 }
-EXPORT_SYMBOL_GPL(udp_tunnel_xmit_skb);
+EXPORT_SYMBOL_GPL(dcacp_tunnel_xmit_skb);
 
-void udp_tunnel_sock_release(struct socket *sock)
+void dcacp_tunnel_sock_release(struct socket *sock)
 {
 	rcu_assign_sk_user_data(sock->sk, NULL);
 	kernel_sock_shutdown(sock, SHUT_RDWR);
 	sock_release(sock);
 }
-EXPORT_SYMBOL_GPL(udp_tunnel_sock_release);
+EXPORT_SYMBOL_GPL(dcacp_tunnel_sock_release);
 
-struct metadata_dst *udp_tun_rx_dst(struct sk_buff *skb,  unsigned short family,
+struct metadata_dst *dcacp_tun_rx_dst(struct sk_buff *skb,  unsigned short family,
 				    __be16 flags, __be64 tunnel_id, int md_size)
 {
 	struct metadata_dst *tun_dst;
@@ -215,12 +217,12 @@ struct metadata_dst *udp_tun_rx_dst(struct sk_buff *skb,  unsigned short family,
 		return NULL;
 
 	info = &tun_dst->u.tun_info;
-	info->key.tp_src = udp_hdr(skb)->source;
-	info->key.tp_dst = udp_hdr(skb)->dest;
-	if (udp_hdr(skb)->check)
+	info->key.tp_src = dcacp_hdr(skb)->source;
+	info->key.tp_dst = dcacp_hdr(skb)->dest;
+	if (dcacp_hdr(skb)->check)
 		info->key.tun_flags |= TUNNEL_CSUM;
 	return tun_dst;
 }
-EXPORT_SYMBOL_GPL(udp_tun_rx_dst);
+EXPORT_SYMBOL_GPL(dcacp_tun_rx_dst);
 
 MODULE_LICENSE("GPL");
