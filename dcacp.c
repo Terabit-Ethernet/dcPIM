@@ -49,7 +49,7 @@
 #include <linux/static_key.h>
 #include <trace/events/skb.h>
 #include <net/busy_poll.h>
-#include "udp_impl.h"
+#include "dcacp_impl.h"
 #include <net/sock_reuseport.h>
 #include <net/addrconf.h>
 #include <net/udp_tunnel.h>
@@ -2892,6 +2892,50 @@ void dcacp4_proc_exit(void)
 }
 #endif /* CONFIG_PROC_FS */
 
+void* allocate_hash_table(const char *tablename,
+				     unsigned long bucketsize,
+				     unsigned long numentries,
+				     int scale,
+				     int flags,
+				     unsigned int *_hash_shift,
+				     unsigned int *_hash_mask,
+				     unsigned long low_limit,
+				     unsigned long high_limit) {
+	unsigned long long max = high_limit;
+	unsigned long log2qty, size;
+	void *table = NULL;
+	gfp_t gfp_flags;
+	numentries = roundup_pow_of_two(numentries);
+
+	max = min(max, 0x80000000ULL);
+
+	if (numentries < low_limit)
+		numentries = low_limit;
+	if (numentries > max)
+		numentries = max;
+
+	log2qty = ilog2(numentries);
+	gfp_flags = (flags & HASH_ZERO) ? GFP_ATOMIC | __GFP_ZERO : GFP_ATOMIC;
+
+	size = bucketsize << log2qty;
+
+	table = __vmalloc(size, gfp_flags, PAGE_KERNEL);
+
+	if (!table)
+		panic("Failed to allocate %s hash table\n", tablename);
+
+	pr_info("%s hash table entries: %ld (order: %d, %lu bytes, %s)\n",
+		tablename, 1UL << log2qty, ilog2(size) - PAGE_SHIFT, size,
+		"vmalloc");
+
+	if (_hash_shift)
+		*_hash_shift = log2qty;
+	if (_hash_mask)
+		*_hash_mask = (1 << log2qty) - 1;
+
+	return table;
+}
+
 static __initdata unsigned long uhash_entries;
 static int __init set_uhash_entries(char *str)
 {
@@ -2914,7 +2958,8 @@ void __init dcacp_table_init(struct udp_table *table, const char *name)
 {
 	unsigned int i;
 	printk("allocate hash table \n");
-	table->hash = alloc_large_system_hash(name,
+	printk("uhash entry count: %lu \n", uhash_entries);
+	table->hash = allocate_hash_table(name,
 					      2 * sizeof(struct udp_hslot),
 					      uhash_entries,
 					      21, /* one slot per 2 MB */
