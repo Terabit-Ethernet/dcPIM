@@ -3044,7 +3044,56 @@ void __init dcacp_init(void)
 		panic("DCACP: failed to init sysctl parameters.\n");
 	printk("DCACP init complete\n");
 }
+void dcacp_table_destroy(struct udp_table *table) {
+	struct sock *sk;
+	struct hlist_node *tmp;
+	int i = 0;
+	for (i = 0; i <= table->mask; i++) {
+		spin_lock(&table->hash[i].lock);
+		sk_for_each_safe(sk, tmp, &table->hash[i].head) {
+			struct udp_hslot *hslot2;
+			hslot2 = udp_hashslot2(table, dcacp_sk(sk)->dcacp_portaddr_hash);
+			if (rcu_access_pointer(sk->sk_reuseport_cb))
+				reuseport_detach_sock(sk);
+			if (sk_del_node_init_rcu(sk)) {
+				table->hash[i].count--;
+				inet_sk(sk)->inet_num = 0;
+				sock_prot_inuse_add(sock_net(sk), sk->sk_prot, -1);
 
+				spin_lock(&hslot2->lock);
+				hlist_del_init_rcu(&dcacp_sk(sk)->dcacp_portaddr_node);
+				hslot2->count--;
+				spin_unlock(&hslot2->lock);
+			}
+			// need to consult Jaehyun what is the right way to clean socket
+			dcacp_destroy_sock(sk);
+			dcacp_destruct_sock(sk);
+			kfree(sk);
+		}
+		spin_unlock(&table->hash[i].lock);
+	}
+	vfree(table->hash);
+	printk("delete hash table 1\n");
+	for (i = 0; i <= table->mask; i++) {
+		spin_lock(&table->hash2[i].lock);
+		sk_for_each_safe(sk, tmp, &table->hash[i].head) {
+			if (rcu_access_pointer(sk->sk_reuseport_cb))
+				reuseport_detach_sock(sk);
+			inet_sk(sk)->inet_num = 0;
+			sock_prot_inuse_add(sock_net(sk), sk->sk_prot, -1);
+			hlist_del_init_rcu(&dcacp_sk(sk)->dcacp_portaddr_node);
+			table->hash2[i].count--;
+
+			dcacp_destroy_sock(sk);
+			dcacp_destruct_sock(sk);
+			kfree(sk);
+		}
+		spin_unlock(&table->hash2[i].lock);
+	}
+	printk("delete hash table 2\n");
+	vfree(table->hash2);
+}
 void dcacp_destroy() {
-
+	dcacp_table_destroy(&dcacp_table);
+	kfree(dcacp_busylocks);
 }
