@@ -789,10 +789,10 @@ void test_dcacpstream(char *server_name, int port)
 		printf("Couldn't open client socket: %s\n", strerror(errno));
 		return;
 	}
-	int gso_size = ETH_DATA_LEN - sizeof(struct iphdr) - sizeof(struct udphdr);
-	if (setsockopt(fd, SOL_UDP, UDP_SEGMENT, &gso_size, sizeof(gso_size))) {
-		return;
-	}
+	// int gso_size = ETH_DATA_LEN - sizeof(struct iphdr) - sizeof(struct udphdr);
+	// if (setsockopt(fd, SOL_UDP, UDP_SEGMENT, &gso_size, sizeof(gso_size))) {
+	// 	return;
+	// }
 	buffer[0] = -1;
 	std::chrono::steady_clock::time_point start_clock = std::chrono::steady_clock::now();
 
@@ -824,7 +824,7 @@ void test_dcacpstream(char *server_name, int port)
 		// }
 		elapsed = to_seconds(rdtsc() - start_cycles);
 		rate = ((double) bytes_sent - start_bytes) / elapsed;
-		printf("UDP throughput using %d byte buffers: %.2f Gb/sec\n",
+		printf("DCACP throughput using %d byte buffers: %.2f Gb/sec\n",
 			length, rate * 1e-09 * 8);	
 	}
 }
@@ -986,13 +986,13 @@ void test_udpclose()
 
 int main(int argc, char** argv)
 {
-	int fd, status, port, nextArg;
-	struct sockaddr_in addr_in;
-	struct addrinfo *matching_addresses;
-	struct sockaddr *dest;
-	struct addrinfo hints;
+	int port, nextArg;
+	// struct sockaddr_in addr_in;
+	// struct addrinfo *matching_addresses;
+	// struct sockaddr *dest;
+	// struct addrinfo hints;
 	char *host, *port_name;
-	char buffer[1000000];
+	// char buffer[1000000];
 	
 	if ((argc >= 2) && (strcmp(argv[1], "--help") == 0)) {
 		print_help(argv[0]);
@@ -1056,39 +1056,39 @@ int main(int argc, char** argv)
 			exit(1);
 		}
 	}
-	// get destination address
-	memset(&hints, 0, sizeof(struct addrinfo));
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_DGRAM;
-	status = getaddrinfo(host, "80", &hints, &matching_addresses);
-	if (status != 0) {
-		printf("Couldn't look up address for %s: %s\n",
-				host, gai_strerror(status));
-		exit(1);
-	}
-	dest = matching_addresses->ai_addr;
-	((struct sockaddr_in *) dest)->sin_port = htons(port);
-	int *ibuf = reinterpret_cast<int *>(buffer);
-	ibuf[0] = ibuf[1] = length;
-	seed_buffer(&ibuf[2], sizeof32(buffer) - 2*sizeof32(int), seed);
+	// // get destination address
+	// memset(&hints, 0, sizeof(struct addrinfo));
+	// hints.ai_family = AF_INET;
+	// hints.ai_socktype = SOCK_DGRAM;
+	// status = getaddrinfo(host, "80", &hints, &matching_addresses);
+	// if (status != 0) {
+	// 	printf("Couldn't look up address for %s: %s\n",
+	// 			host, gai_strerror(status));
+	// 	exit(1);
+	// }
+	// dest = matching_addresses->ai_addr;
+	// ((struct sockaddr_in *) dest)->sin_port = htons(port);
+	// int *ibuf = reinterpret_cast<int *>(buffer);
+	// ibuf[0] = ibuf[1] = length;
+	// seed_buffer(&ibuf[2], sizeof32(buffer) - 2*sizeof32(int), seed);
 	
 
-	fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_DCACP);
-	if (fd < 0) {
-		printf("Couldn't open Homa socket: %s\n", strerror(errno));
-	}
-	memset(&addr_in, 0, sizeof(addr_in));
-	addr_in.sin_family = AF_INET;
-	addr_in.sin_port = htons(4000);
-	inet_pton(AF_INET, "192.168.10.115", &addr_in.sin_addr);
+	// fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_DCACP);
+	// if (fd < 0) {
+	// 	printf("Couldn't open Homa socket: %s\n", strerror(errno));
+	// }
+	// memset(&addr_in, 0, sizeof(addr_in));
+	// addr_in.sin_family = AF_INET;
+	// addr_in.sin_port = htons(4000);
+	// inet_pton(AF_INET, "192.168.10.115", &addr_in.sin_addr);
 	// inet_aton("10.0.0.10", &addr_in.sin_addr);
 	// addr_in.sin_addr.s_addr = INADDR_ANY;
 
-	if (bind(fd, (struct sockaddr *) &addr_in, sizeof(addr_in)) != 0) {
-		printf("Couldn't bind socket to Homa port %d: %s\n", port,
-				strerror(errno));
-		return -1;
-	}
+	// if (bind(fd, (struct sockaddr *) &addr_in, sizeof(addr_in)) != 0) {
+	// 	printf("Couldn't bind socket to Homa port %d: %s\n", port,
+	// 			strerror(errno));
+	// 	return -1;
+	// }
 	for ( ; nextArg < argc; nextArg++) {
 		// if (strcmp(argv[nextArg], "close") == 0) {
 		// 	test_close();
@@ -1126,7 +1126,7 @@ int main(int argc, char** argv)
 			exit(1);
 		}
 	}
-	close(fd);
+	// close(fd);
 	exit(0);
 }
 

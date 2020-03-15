@@ -928,7 +928,7 @@ int dcacp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 	struct sk_buff *skb;
 	struct ip_options_data opt_copy;
 
-	printk("dcacp sendmsg");
+	// printk_once("dcacp sendmsg");
 
 	if (len > 0xFFFF)
 		return -EMSGSIZE;
