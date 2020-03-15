@@ -622,3 +622,8 @@ int __init dcacpv4_offload_init(void)
 {
 	return inet_add_offload(&dcacpv4_offload, IPPROTO_DCACP);
 }
+
+int dcacpv4_offload_end(void)
+{
+        return inet_del_offload(&dcacpv4_offload, IPPROTO_DCACP);
+}

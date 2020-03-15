@@ -928,6 +928,8 @@ int dcacp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 	struct sk_buff *skb;
 	struct ip_options_data opt_copy;
 
+	printk("dcacp sendmsg");
+
 	if (len > 0xFFFF)
 		return -EMSGSIZE;
 
@@ -2919,7 +2921,7 @@ void* allocate_hash_table(const char *tablename,
 
 	size = bucketsize << log2qty;
 
-	table = __vmalloc(size, gfp_flags, PAGE_KERNEL);
+	table = vmalloc(size);
 
 	if (!table)
 		panic("Failed to allocate %s hash table\n", tablename);
@@ -3072,7 +3074,6 @@ void dcacp_table_destroy(struct udp_table *table) {
 		}
 		spin_unlock(&table->hash[i].lock);
 	}
-	vfree(table->hash);
 	printk("delete hash table 1\n");
 	for (i = 0; i <= table->mask; i++) {
 		spin_lock(&table->hash2[i].lock);
@@ -3091,7 +3092,9 @@ void dcacp_table_destroy(struct udp_table *table) {
 		spin_unlock(&table->hash2[i].lock);
 	}
 	printk("delete hash table 2\n");
-	vfree(table->hash2);
+	vfree(table->hash);
+
+	// vfree(table->hash2);
 }
 void dcacp_destroy() {
 	dcacp_table_destroy(&dcacp_table);

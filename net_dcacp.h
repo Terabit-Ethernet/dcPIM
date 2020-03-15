@@ -455,7 +455,7 @@ void dcacp4_proc_exit(void);
 #endif /* CONFIG_PROC_FS */
 
 int dcacpv4_offload_init(void);
-
+int dcacpv4_offload_end(void);
 void dcacp_init(void);
 
 void dcacp_destroy(void);
