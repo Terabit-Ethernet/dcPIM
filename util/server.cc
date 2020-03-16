@@ -436,7 +436,7 @@ void dcacp_server(int port)
 
 			start_cycle = rdtsc();
 			if(count != 0) {
-				printf("UDP throughput: "
+				printf("DCACP throughput: "
 				"%.2f Gbps\n", rate * 1e-09 * 8);
 			}
 		}
