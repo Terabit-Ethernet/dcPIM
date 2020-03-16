@@ -829,6 +829,73 @@ void test_dcacpstream(char *server_name, int port)
 	}
 }
 
+void test_dcacpping(char *server_name, int port)
+{
+	struct addrinfo hints;
+	struct addrinfo *matching_addresses;
+	struct sockaddr *dest;
+	int status;
+	char buffer[1000] = "abcdefgh\n";
+	// int64_t bytes_sent = 0;
+	// int64_t start_bytes = 0;
+	// uint64_t start_cycles = 0;
+	// double elapsed, rate;
+	
+	memset(&hints, 0, sizeof(struct addrinfo));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_DGRAM;
+	status = getaddrinfo(server_name, "80", &hints, &matching_addresses);
+	if (status != 0) {
+		printf("Couldn't look up address for %s: %s\n",
+				server_name, gai_strerror(status));
+		return;
+	}
+	dest = matching_addresses->ai_addr;
+	((struct sockaddr_in *) dest)->sin_port = htons(port);
+	
+	int fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCACP);
+	if (fd == -1) {
+		printf("Couldn't open client socket: %s\n", strerror(errno));
+		return;
+	}
+	// int gso_size = ETH_DATA_LEN - sizeof(struct iphdr) - sizeof(struct udphdr);
+	// if (setsockopt(fd, SOL_UDP, UDP_SEGMENT, &gso_size, sizeof(gso_size))) {
+	// 	return;
+	// }
+	// std::chrono::steady_clock::time_point start_clock = std::chrono::steady_clock::now();
+
+	// while (1) {
+	// 	start_bytes = bytes_sent = 0;
+	//     start_cycles = rdtsc();
+
+	// 	// if (bytes_sent > 1010000000)
+	// 	// 	break;
+	// 	if(std::chrono::steady_clock::now() - start_clock > std::chrono::seconds(60)) 
+	//             break;
+
+	    // for (int i = 0; i < count * 100; i++) {
+	    	int result = sendto(fd, buffer, sizeof(buffer), MSG_CONFIRM, dest, sizeof(struct sockaddr_in));			
+			if( result < 0 ) {
+				printf("Socket write failed: %s %d\n", strerror(errno), result);
+
+				return;
+			}
+			// bytes_sent += result;
+
+	    // }
+		/* Don't start timing until we've sent a few bytes to warm
+		 * everything up.
+		 */
+		// if ((start_bytes == 0) && (bytes_sent > 10000000)) {
+		// 	start_bytes = bytes_sent;
+		// 	start_cycles = rdtsc();
+		// }
+	// 	elapsed = to_seconds(rdtsc() - start_cycles);
+	// 	rate = ((double) bytes_sent - start_bytes) / elapsed;
+	// 	printf("DCACP throughput using %d byte buffers: %.2f Gb/sec\n",
+	// 		length, rate * 1e-09 * 8);	
+	// }
+}
 
 /**
  * tcp_ping() - Send a request on a TCP socket and wait for the

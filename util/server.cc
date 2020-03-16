@@ -418,6 +418,7 @@ void dcacp_server(int port)
 		result = recvfrom(listen_fd, (char *)buffer, sizeof(buffer),  
                 MSG_WAITALL, ( struct sockaddr *) &client_addr, 
                 &addr_len);
+		printf("%s", buffer);
 		if (result < 0) {
 			if (errno == ECONNRESET)
 				break;
