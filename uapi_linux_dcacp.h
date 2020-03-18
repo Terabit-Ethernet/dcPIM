@@ -20,11 +20,68 @@
 
 #include <linux/types.h>
 
+/**
+ * enum dcacp_packet_type - Defines the possible types of DCACP packets.
+ * 
+ * See the xxx_header structs below for more information about each type.
+ */
+enum dcacp_packet_type {
+	// For Phost
+	DATA               = 20,
+	TOKEN              = 21,
+	NOTIFICATION	   = 22,
+
+	//For PIM
+	RTS                = 23,
+	GRANT			   = 24,
+	ACCEPT			   = 25,
+
+	BOGUS              = 26,      /* Used only in unit tests. */
+	/* If you add a new type here, you must also do the following:
+	 * 1. Change BOGUS so it is the highest opcode
+	 * 2. Add support for the new opcode in homa_print_packet,
+	 *    homa_print_packet_short, homa_symbol_for_type, and mock_skb_new.q
+	 */
+};
+
 struct dcacphdr {
 	__be16	source;
 	__be16	dest;
 	__be16	len;
 	__sum16	check;
+	__u8 type;
+};
+struct dcacp_data_hdr {
+	struct dcacphdr common;
+	__u8 free_token;
+	__u8 priority;
+	__u8 message_id;
+	/* token seq number */
+	__be32 seq_no;
+	__be32 data_seq_no;
+};
+
+struct dcacp_token_hdr {
+	struct dcacphdr common;
+	__u8 free_token;
+	__u8 priority;
+	__be32 message_id;
+	/* token seq number */
+	__be32 seq_no;
+	__be32 data_seq_no;
+	__be32 remaining_size;
+};
+
+struct dcacp_flow_sync_hdr {
+	struct dcacphdr common;
+	__be32 message_id;
+	__be32 message_size;
+	__be64 start_time;
+};
+
+struct dcacp_ack_hdr {
+	struct dcacphdr common;
+	__be32 message_id;
 };
 
 enum {

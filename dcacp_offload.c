@@ -585,7 +585,7 @@ INDIRECT_CALLABLE_SCOPE int dcacp4_gro_complete(struct sk_buff *skb, int nhoff)
 {
 	const struct iphdr *iph = ip_hdr(skb);
 	struct dcacphdr *uh = (struct dcacphdr *)(skb->data + nhoff);
-
+	printk("dcacp gro complete\n");
 	if (NAPI_GRO_CB(skb)->is_flist) {
 		uh->len = htons(skb->len - nhoff);
 

@@ -1398,7 +1398,6 @@ int __dcacp_enqueue_schedule_skb(struct sock *sk, struct sk_buff *skb)
 	int rmem, delta, amt, err = -ENOMEM;
 	spinlock_t *busy = NULL;
 	int size;
-
 	/* try to avoid the costly atomic add/sub pair when the receive
 	 * queue is full; always allow at least a packet
 	 */
@@ -1457,9 +1456,11 @@ int __dcacp_enqueue_schedule_skb(struct sock *sk, struct sk_buff *skb)
 	return 0;
 
 uncharge_drop:
+	printk("uncharge_drop\n");
 	atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 
 drop:
+	// printk("packet is being dropped\n");
 	atomic_inc(&sk->sk_drops);
 	busylock_release(busy);
 	return err;
@@ -1976,8 +1977,8 @@ static int dcacp_queue_rcv_one_skb(struct sock *sk, struct sk_buff *skb)
 			int ret;
 
 			/* Verify checksum before giving to encap */
-			if (dcacp_lib_checksum_complete(skb))
-				goto csum_error;
+			// if (dcacp_lib_checksum_complete(skb))
+			// 	goto csum_error;
 
 			ret = encap_rcv(sk, skb);
 			if (ret <= 0) {
@@ -2026,9 +2027,9 @@ static int dcacp_queue_rcv_one_skb(struct sock *sk, struct sk_buff *skb)
 	}
 
 	prefetch(&sk->sk_rmem_alloc);
-	if (rcu_access_pointer(sk->sk_filter) &&
-	    dcacp_lib_checksum_complete(skb))
-			goto csum_error;
+	// if (rcu_access_pointer(sk->sk_filter) &&
+	//     dcacp_lib_checksum_complete(skb))
+	// 		goto csum_error;
 
 	if (sk_filter_trim_cap(sk, skb, sizeof(struct dcacphdr)))
 		goto drop;
@@ -2038,8 +2039,8 @@ static int dcacp_queue_rcv_one_skb(struct sock *sk, struct sk_buff *skb)
 	ipv4_pktinfo_prepare(sk, skb);
 	return __dcacp_queue_rcv_skb(sk, skb);
 
-csum_error:
-	__UDP_INC_STATS(sock_net(sk), UDP_MIB_CSUMERRORS, is_dcacplite);
+// csum_error:
+// 	__UDP_INC_STATS(sock_net(sk), UDP_MIB_CSUMERRORS, is_dcacplite);
 drop:
 	__UDP_INC_STATS(sock_net(sk), UDP_MIB_INERRORS, is_dcacplite);
 	atomic_inc(&sk->sk_drops);
@@ -2180,8 +2181,17 @@ static inline int dcacp4_csum_init(struct sk_buff *skb, struct dcacphdr *uh,
 	/* Note, we are only interested in != 0 or == 0, thus the
 	 * force to int.
 	 */
+	// struct iphdr* iph = ip_hdr(skb);
+	// printk("uh checksum: %u\n", uh->check);
+	// printk("uh proto: %d\n", proto);
+	// printk("skb len: %d\n", skb->len);
+	// printk("skb->ip_summed == CHECKSUM_COMPLETE: %d\n", skb->ip_summed == CHECKSUM_COMPLETE);
+	// printk("!csum_tcpudp_magic(iph->saddr, iph->daddr, skb->len, proto, skb->csum): %d\n",
+	// 	!csum_tcpudp_magic(iph->saddr, iph->daddr, skb->len, proto, skb->csum));
 	err = (__force int)skb_checksum_init_zero_check(skb, proto, uh->check,
 							inet_compute_pseudo);
+	// printk("error is err:%d\n", __LINE__);
+
 	if (err)
 		return err;
 
@@ -2207,7 +2217,6 @@ static int dcacp_unicast_rcv_skb(struct sock *sk, struct sk_buff *skb,
 			       struct dcacphdr *uh)
 {
 	int ret;
-
 	if (inet_get_convert_csum(sk) && uh->check && !IS_DCACPLITE(sk))
 		skb_checksum_try_convert(skb, IPPROTO_DCACP, inet_compute_pseudo);
 
@@ -2255,10 +2264,10 @@ int __dcacp4_lib_rcv(struct sk_buff *skb, struct udp_table *dcacptable,
 			goto short_packet;
 		uh = dcacp_hdr(skb);
 	}
-
-	if (dcacp4_csum_init(skb, uh, proto))
-		goto csum_error;
-
+	// printk("saddr: %u\n LINE: %d", saddr, __LINE__);
+	// if (dcacp4_csum_init(skb, uh, proto))
+	// 	goto csum_error;
+	// printk("reach skb:%d\n", __LINE__);
 	sk = skb_steal_sock(skb);
 	if (sk) {
 		struct dst_entry *dst = skb_dst(skb);
@@ -2285,8 +2294,8 @@ int __dcacp4_lib_rcv(struct sk_buff *skb, struct udp_table *dcacptable,
 	nf_reset_ct(skb);
 
 	/* No socket. Drop packet silently, if checksum is wrong */
-	if (dcacp_lib_checksum_complete(skb))
-		goto csum_error;
+	// if (dcacp_lib_checksum_complete(skb))
+	// 	goto csum_error;
 
 	__UDP_INC_STATS(net, UDP_MIB_NOPORTS, proto == IPPROTO_DCACPLITE);
 	icmp_send(skb, ICMP_DEST_UNREACH, ICMP_PORT_UNREACH, 0);
@@ -2299,6 +2308,8 @@ int __dcacp4_lib_rcv(struct sk_buff *skb, struct udp_table *dcacptable,
 	return 0;
 
 short_packet:
+	// printk("short packet\n");
+
 	net_dbg_ratelimited("DCACP%s: short packet: From %pI4:%u %d/%d to %pI4:%u\n",
 			    proto == IPPROTO_DCACPLITE ? "Lite" : "",
 			    &saddr, ntohs(uh->source),
@@ -2306,17 +2317,23 @@ short_packet:
 			    &daddr, ntohs(uh->dest));
 	goto drop;
 
-csum_error:
-	/*
-	 * RFC1122: OK.  Discards the bad packet silently (as far as
-	 * the network is concerned, anyway) as per 4.1.3.4 (MUST).
-	 */
-	net_dbg_ratelimited("DCACP%s: bad checksum. From %pI4:%u to %pI4:%u ulen %d\n",
-			    proto == IPPROTO_DCACPLITE ? "Lite" : "",
-			    &saddr, ntohs(uh->source), &daddr, ntohs(uh->dest),
-			    ulen);
-	__UDP_INC_STATS(net, UDP_MIB_CSUMERRORS, proto == IPPROTO_DCACPLITE);
+// csum_error:
+// 	/*
+// 	 * RFC1122: OK.  Discards the bad packet silently (as far as
+// 	 * the network is concerned, anyway) as per 4.1.3.4 (MUST).
+// 	 */
+// 	printk("checksum error\n");
+// 	printk("DCACP%s: bad checksum. From %pI4:%u to %pI4:%u ulen %d\n",
+// 			    proto == IPPROTO_DCACPLITE ? "Lite" : "",
+// 			    &saddr, ntohs(uh->source), &daddr, ntohs(uh->dest),
+// 			    ulen);
+// 	net_dbg_ratelimited("DCACP%s: bad checksum. From %pI4:%u to %pI4:%u ulen %d\n",
+// 			    proto == IPPROTO_DCACPLITE ? "Lite" : "",
+// 			    &saddr, ntohs(uh->source), &daddr, ntohs(uh->dest),
+// 			    ulen);
+// 	__UDP_INC_STATS(net, UDP_MIB_CSUMERRORS, proto == IPPROTO_DCACPLITE);
 drop:
+	printk("packet is dropped\n");
 	__UDP_INC_STATS(net, UDP_MIB_INERRORS, proto == IPPROTO_DCACPLITE);
 	kfree_skb(skb);
 	return 0;
@@ -2448,6 +2465,8 @@ int dcacp_v4_early_demux(struct sk_buff *skb)
 
 int dcacp_rcv(struct sk_buff *skb)
 {
+	// printk("receive dcacp rcv\n");
+	// skb_dump(KERN_WARNING, skb, false);
 	return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
 }
 
@@ -2959,8 +2978,6 @@ __setup("uhash_entries=", set_uhash_entries);
 void __init dcacp_table_init(struct udp_table *table, const char *name)
 {
 	unsigned int i;
-	printk("allocate hash table \n");
-	printk("uhash entry count: %lu \n", uhash_entries);
 	table->hash = allocate_hash_table(name,
 					      2 * sizeof(struct udp_hslot),
 					      uhash_entries,
@@ -2970,7 +2987,6 @@ void __init dcacp_table_init(struct udp_table *table, const char *name)
 					      &table->mask,
 					      DCACP_HTABLE_SIZE_MIN,
 					      64 * 1024);
-	printk("allocate hash table done\n");
 	table->hash2 = table->hash + (table->mask + 1);
 	for (i = 0; i <= table->mask; i++) {
 		INIT_HLIST_HEAD(&table->hash[i].head);
@@ -3022,7 +3038,6 @@ void __init dcacp_init(void)
 	printk("try to add dcacp table \n");
 
 	dcacp_table_init(&dcacp_table, "DCACP");
-	printk("add dcacp table finishes \n");
 
 	limit = nr_free_buffer_pages() / 8;
 	limit = max(limit, 128UL);
@@ -3031,7 +3046,6 @@ void __init dcacp_init(void)
 	sysctl_dcacp_mem[2] = sysctl_dcacp_mem[0] * 2;
 
 	__dcacp_sysctl_init(&init_net);
-	printk("dcacp add sys ctl \n");
 
 	/* 16 spinlocks per cpu */
 	dcacp_busylocks_log = ilog2(nr_cpu_ids) + 4;
@@ -3041,7 +3055,6 @@ void __init dcacp_init(void)
 		panic("DCACP: failed to alloc dcacp_busylocks\n");
 	for (i = 0; i < (1U << dcacp_busylocks_log); i++)
 		spin_lock_init(dcacp_busylocks + i);
-	printk("dcacp init lock\n");
 	if (register_pernet_subsys(&dcacp_sysctl_ops)) 
 		panic("DCACP: failed to init sysctl parameters.\n");
 	printk("DCACP init complete\n");
@@ -3074,7 +3087,6 @@ void dcacp_table_destroy(struct udp_table *table) {
 		}
 		spin_unlock(&table->hash[i].lock);
 	}
-	printk("delete hash table 1\n");
 	for (i = 0; i <= table->mask; i++) {
 		spin_lock(&table->hash2[i].lock);
 		sk_for_each_safe(sk, tmp, &table->hash[i].head) {
@@ -3091,7 +3103,6 @@ void dcacp_table_destroy(struct udp_table *table) {
 		}
 		spin_unlock(&table->hash2[i].lock);
 	}
-	printk("delete hash table 2\n");
 	vfree(table->hash);
 
 	// vfree(table->hash2);

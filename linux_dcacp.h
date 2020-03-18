@@ -18,6 +18,19 @@
 #include <net/netns/hash.h>
 #include "uapi_linux_dcacp.h"
 
+#define DCACP_MESSAGE_BUCKETS 1024
+
+struct message_hslot {
+	struct hlist_head	head;
+	int			count;
+	spinlock_t		lock;
+
+}__attribute__((aligned(2 * sizeof(long))));
+
+struct message_table {
+	struct message_hslot* hash;
+};
+
 static inline struct dcacphdr *dcacp_hdr(const struct sk_buff *skb)
 {
 	return (struct dcacphdr *)skb_transport_header(skb);
@@ -89,6 +102,11 @@ struct dcacp_sock {
 
 	/* This field is dirtied by dcacp_recvmsg() */
 	int		forward_deficit;
+
+	/* DCACP message hash table */
+	struct message_table mesg_in_table;
+
+	struct message_table mesg_out_table;
 };
 
 #define DCACP_MAX_SEGMENTS	(1 << 6UL)

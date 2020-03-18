@@ -75,6 +75,7 @@ struct dcacp_skb_cb {
 // 	unsigned int		mask;
 // 	unsigned int		log;
 // };
+
 extern struct udp_table dcacp_table;
 void dcacp_table_init(struct udp_table *, const char *);
 // static inline struct dcacp_hslot *dcacp_hashslot(struct dcacp_table *table,
@@ -356,7 +357,8 @@ static inline unsigned int dcacp_skb_len(struct sk_buff *skb)
 
 static inline bool dcacp_skb_csum_unnecessary(struct sk_buff *skb)
 {
-	return dcacp_skb_scratch(skb)->csum_unnecessary;
+	return true;
+	// return dcacp_skb_scratch(skb)->csum_unnecessary;
 }
 
 static inline bool dcacp_skb_is_linear(struct sk_buff *skb)
