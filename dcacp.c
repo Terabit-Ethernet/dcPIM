@@ -757,7 +757,7 @@ void dcacp_set_csum(bool nocheck, struct sk_buff *skb,
 EXPORT_SYMBOL(dcacp_set_csum);
 
 static int dcacp_send_skb(struct sk_buff *skb, struct flowi4 *fl4,
-			struct inet_cork *cork)
+			struct inet_cork *cork, enum dcacp_packet_type type)
 {
 	struct sock *sk = skb->sk;
 	struct inet_sock *inet = inet_sk(sk);
@@ -777,7 +777,7 @@ static int dcacp_send_skb(struct sk_buff *skb, struct flowi4 *fl4,
 	uh->dest = fl4->fl4_dport;
 	uh->len = htons(len);
 	uh->check = 0;
-
+	uh->type = type;
 	if (cork->gso_size) {
 		const int hlen = skb_network_header_len(skb) +
 				 sizeof(struct dcacphdr);
@@ -861,7 +861,7 @@ int dcacp_push_pending_frames(struct sock *sk)
 	if (!skb)
 		goto out;
 
-	err = dcacp_send_skb(skb, fl4, &inet->cork.base);
+	err = dcacp_send_skb(skb, fl4, &inet->cork.base, DATA);
 
 out:
 	up->len = 0;
@@ -1123,7 +1123,7 @@ back_from_confirm:
 				  &cork, msg->msg_flags);
 		err = PTR_ERR(skb);
 		if (!IS_ERR_OR_NULL(skb))
-			err = dcacp_send_skb(skb, fl4, &cork);
+			err = dcacp_send_skb(skb, fl4, &cork, DATA);
 		goto out;
 	}
 
@@ -2467,7 +2467,11 @@ int dcacp_rcv(struct sk_buff *skb)
 {
 	// printk("receive dcacp rcv\n");
 	// skb_dump(KERN_WARNING, skb, false);
-	return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
+	struct dcacphdr* dh   = dcacp_hdr(skb);
+	if(dh->type == DATA) {
+		return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
+	} 
+	// return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
 }
 
 void dcacp_destroy_sock(struct sock *sk)
