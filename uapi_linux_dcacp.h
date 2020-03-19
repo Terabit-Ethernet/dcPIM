@@ -30,13 +30,13 @@ enum dcacp_packet_type {
 	DATA               = 20,
 	TOKEN              = 21,
 	NOTIFICATION	   = 22,
-
+	ACK  			   = 23,
 	//For PIM
-	RTS                = 23,
-	GRANT			   = 24,
-	ACCEPT			   = 25,
+	RTS                = 24,
+	GRANT			   = 25,
+	ACCEPT			   = 26,
 
-	BOGUS              = 26,      /* Used only in unit tests. */
+	BOGUS              = 27,      /* Used only in unit tests. */
 	/* If you add a new type here, you must also do the following:
 	 * 1. Change BOGUS so it is the highest opcode
 	 * 2. Add support for the new opcode in homa_print_packet,
@@ -49,7 +49,7 @@ struct dcacphdr {
 	__be16	dest;
 	__be16	len;
 	__sum16	check;
-	__u8 type;
+	// __u8 type;
 };
 struct dcacp_data_hdr {
 	struct dcacphdr common;
