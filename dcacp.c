@@ -777,7 +777,7 @@ static int dcacp_send_skb(struct sk_buff *skb, struct flowi4 *fl4,
 	uh->dest = fl4->fl4_dport;
 	uh->len = htons(len);
 	uh->check = 0;
-	// uh->type = type;
+	uh->type = type;
 	if (cork->gso_size) {
 		const int hlen = skb_network_header_len(skb) +
 				 sizeof(struct dcacphdr);
@@ -2480,22 +2480,22 @@ int dcacp_rcv(struct sk_buff *skb)
 
 	if (!pskb_may_pull(skb, sizeof(struct dcacphdr)))
 		goto drop;		/* No space for header. */
-
 	struct dcacphdr* dh = dcacp_hdr(skb);
-	unsigned short len = ntohs(dh->len);
-	return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
+	if(dh->type == DATA) {
+		return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
+	} else if (dh->type == NOTIFICATION) {
+		return dcacp_handle_notification_pkt();
+	} else if (dh->type == TOKEN) {
+		return dcacp_handle_token_pkt();
+	} else if (dh->type == ACK) {
+		return dcacp_handle_ack_pkt();
+	}
+
 
 drop:
 	kfree_skb(skb);
 	return 0;
-	// if(dh->type == DATA) {
-	// } else if (dh->type == NOTIFICATION) {
-	// 	return dcacp_handle_notification_pkt();
-	// } else if (dh->type == TOKEN) {
-	// 	return dcacp_handle_token_pkt();
-	// } else if (dh->type == ACK) {
-	// 	return dcacp_handle_ack_pkt();
-	// }
+
 	return 0;
 	// return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
 }
