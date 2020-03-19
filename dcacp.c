@@ -825,7 +825,6 @@ csum_partial:
 
 	} else
 		csum = dcacp_csum(skb);
-
 	/* add protocol-dependent pseudo-header */
 	uh->check = csum_tcpudp_magic(fl4->saddr, fl4->daddr, len,
 				      sk->sk_protocol, csum);
@@ -1756,7 +1755,6 @@ try_again:
 
 	if (dcacp_sk(sk)->gro_enabled)
 		dcacp_cmsg_recv(msg, sk, skb);
-
 	if (inet->cmsg_flags)
 		ip_cmsg_recv_offset(msg, sk, skb, sizeof(struct dcacphdr), off);
 
@@ -1773,6 +1771,7 @@ csum_copy_err:
 		UDP_INC_STATS(sock_net(sk), UDP_MIB_CSUMERRORS, is_dcacplite);
 		UDP_INC_STATS(sock_net(sk), UDP_MIB_INERRORS, is_dcacplite);
 	}
+	printk("copy error:%d\n", __LINE__);
 	kfree_skb(skb);
 
 	/* starting over for a new packet, but check if we need to yield */
@@ -2254,7 +2253,6 @@ int __dcacp4_lib_rcv(struct sk_buff *skb, struct udp_table *dcacptable,
 	ulen = ntohs(uh->len);
 	saddr = ip_hdr(skb)->saddr;
 	daddr = ip_hdr(skb)->daddr;
-
 	if (ulen > skb->len)
 		goto short_packet;
 
@@ -2479,11 +2477,18 @@ int dcacp_rcv(struct sk_buff *skb)
 {
 	// printk("receive dcacp rcv\n");
 	// skb_dump(KERN_WARNING, skb, false);
-	struct dcacphdr* dh = dcacp_hdr(skb);
 
-	printk("receive pkt len: %u\n", dh->len);
+	if (!pskb_may_pull(skb, sizeof(struct dcacphdr)))
+		goto drop;		/* No space for header. */
+
+	struct dcacphdr* dh = dcacp_hdr(skb);
+	unsigned short len = ntohs(dh->len);
+	return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
+
+drop:
+	kfree_skb(skb);
+	return 0;
 	// if(dh->type == DATA) {
-		return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
 	// } else if (dh->type == NOTIFICATION) {
 	// 	return dcacp_handle_notification_pkt();
 	// } else if (dh->type == TOKEN) {
