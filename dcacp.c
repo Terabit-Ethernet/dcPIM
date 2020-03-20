@@ -913,8 +913,8 @@ int dcacp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 {
 	struct inet_sock *inet = inet_sk(sk);
 	struct dcacp_sock *up = dcacp_sk(sk);
+	struct dcacp_peer* peer;
 	DECLARE_SOCKADDR(struct sockaddr_in *, usin, msg->msg_name);
-	struct dcacp_peer peer;
 	struct flowi4 fl4_stack;
 	struct flowi4 *fl4;
 	int ulen = len;
@@ -932,7 +932,6 @@ int dcacp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 	struct ip_options_data opt_copy;
 
 	// printk_once("dcacp sendmsg");
-
 	if (len > 0xFFFF)
 		return -EMSGSIZE;
 
@@ -988,7 +987,8 @@ int dcacp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 		 */
 		connected = 1;
 	}
-
+	peer =  dcacp_peer_find(&dcacp_peers_table, daddr, inet);
+	dcacp_xmit_control(construct_flow_sync_pkt(up, 1, 2, 3), peer, up);
 	ipcm_init_sk(&ipc, inet);
 	ipc.gso_size = up->gso_size;
 
@@ -2465,15 +2465,24 @@ int dcacp_v4_early_demux(struct sk_buff *skb)
 	return 0;
 }
 
-int dcacp_handle_notification_pkt(void) {
+int dcacp_handle_notification_pkt(struct sk_buff *skb) {
+	printk("receive notification pkt\n");
+	kfree_skb(skb);
+
 	return 0;
 }
 
-int dcacp_handle_token_pkt(void) {
+int dcacp_handle_token_pkt(struct sk_buff *skb) {
+	printk("receive token pkt\n");
+	kfree_skb(skb);
+
 	return 0;
 }
 
-int dcacp_handle_ack_pkt(void) {
+int dcacp_handle_ack_pkt(struct sk_buff *skb) {
+	printk("receive ack pkt\n");
+	kfree_skb(skb);
+
 	return 0;
 }
 
@@ -2481,18 +2490,18 @@ int dcacp_rcv(struct sk_buff *skb)
 {
 	// printk("receive dcacp rcv\n");
 	// skb_dump(KERN_WARNING, skb, false);
+	struct dcacphdr* dh = dcacp_hdr(skb);
 
 	if (!pskb_may_pull(skb, sizeof(struct dcacphdr)))
 		goto drop;		/* No space for header. */
-	struct dcacphdr* dh = dcacp_hdr(skb);
 	if(dh->type == DATA) {
 		return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
 	} else if (dh->type == NOTIFICATION) {
-		return dcacp_handle_notification_pkt();
+		return dcacp_handle_notification_pkt(skb);
 	} else if (dh->type == TOKEN) {
-		return dcacp_handle_token_pkt();
+		return dcacp_handle_token_pkt(skb);
 	} else if (dh->type == ACK) {
-		return dcacp_handle_ack_pkt();
+		return dcacp_handle_ack_pkt(skb);
 	}
 
 
