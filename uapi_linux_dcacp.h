@@ -20,6 +20,7 @@
 
 #include <linux/types.h>
 
+#define DCACP_HEADER_MAX_SIZE 40
 /**
  * enum dcacp_packet_type - Defines the possible types of DCACP packets.
  * 
