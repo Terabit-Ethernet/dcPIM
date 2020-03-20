@@ -67,7 +67,7 @@ struct sk_buff* __construct_control_skb(struct sock* sk) {
 	skb->sk = sk;
 	// int extra_bytes;
 	if (unlikely(!skb))
-		return -ENOBUFS;
+		return NULL;
 	skb_reserve(skb, sizeof(struct iphdr));
 	skb_reset_transport_header(skb);
 	// h = (struct dcacp_hdr *) skb_put(skb, length);
@@ -81,13 +81,19 @@ struct sk_buff* __construct_control_skb(struct sock* sk) {
 	return skb;
 }
 
-struct sk_buff* __construct_flow_sync_pkt(struct dcacp_sock* d_sk, int message_id, 
+struct sk_buff* construct_flow_sync_pkt(struct dcacp_sock* d_sk, int message_id, 
 	int message_size, uint64_t start_time) {
-	int extra_bytes = 0;
-	struct sk_buff* skb = __construct_control_skb(d_sk);
-	struct dcacp_flow_sync_hdr* fh = (struct dcacp_flow_sync_hdr *) skb_put(skb, length);
-	struct dcacp_hdrr* dh = (struct dcacp_hdr*) fh->common;
+	// int extra_bytes = 0;
+	struct sk_buff* skb = __construct_control_skb((struct sock*)d_sk);
+	struct dcacp_flow_sync_hdr* fh;
+	struct dcacphdr* dh; 
+	if(unlikely(!skb)) {
+		return NULL;
+	}
+	fh = (struct dcacp_flow_sync_hdr *) skb_put(skb, sizeof(struct dcacp_flow_sync_hdr));
+	dh = (struct dcacphdr*) (&fh->common);
 	dh->len = sizeof(struct dcacp_flow_sync_hdr);
+	dh->type = NOTIFICATION;
 	fh->message_id = message_id;
 	fh->message_size = message_size;
 	fh->start_time = start_time;
@@ -147,19 +153,21 @@ struct sk_buff* __construct_flow_sync_pkt(struct dcacp_sock* d_sk, int message_i
  * Return:     Either zero (for success), or a negative errno value if there
  *             was a problem.
  */
-int __dcacp_xmit_control(struct skb_buff* skb, struct dcacp_peer *peer, struct dcacp_sock *dcacp_sk)
+int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct dcacp_sock *dcacp_sk)
 {
 	// struct dcacp_hdr *h;
 	int result;
 	struct sock* sk = (struct sock*)dcacp_sk;
-
-	sk->priority = skb->priority = 7;
+	if(!skb) {
+		return -1;
+	}
+	sk->sk_priority = skb->priority = 7;
 	dst_hold(peer->dst);
 	skb_dst_set(skb, peer->dst);
 	skb_get(skb);
 	result = ip_queue_xmit(sk, skb, &peer->flow);
 	if (unlikely(result != 0)) {
-		INC_METRIC(control_xmit_errors, 1);
+		// INC_METRIC(control_xmit_errors, 1);
 		
 		/* It appears that ip_queue_xmit frees skbuffs after
 		 * errors; the following code is to raise an alert if
