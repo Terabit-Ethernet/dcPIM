@@ -61,6 +61,9 @@
 struct udp_table dcacp_table __read_mostly;
 EXPORT_SYMBOL(dcacp_table);
 
+struct dcacp_peertab dcacp_peers_table;
+EXPORT_SYMBOL(dcacp_peers_table);
+
 long sysctl_dcacp_mem[3] __read_mostly;
 EXPORT_SYMBOL(sysctl_dcacp_mem);
 
@@ -911,6 +914,7 @@ int dcacp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 	struct inet_sock *inet = inet_sk(sk);
 	struct dcacp_sock *up = dcacp_sk(sk);
 	DECLARE_SOCKADDR(struct sockaddr_in *, usin, msg->msg_name);
+	struct dcacp_peer peer;
 	struct flowi4 fl4_stack;
 	struct flowi4 *fl4;
 	int ulen = len;
@@ -3087,7 +3091,10 @@ void __init dcacp_init(void)
 		spin_lock_init(dcacp_busylocks + i);
 	if (register_pernet_subsys(&dcacp_sysctl_ops)) 
 		panic("DCACP: failed to init sysctl parameters.\n");
+
+	dcacp_peertab_init(&dcacp_peers_table);
 	printk("DCACP init complete\n");
+
 }
 void dcacp_table_destroy(struct udp_table *table) {
 	struct sock *sk;
@@ -3138,6 +3145,7 @@ void dcacp_table_destroy(struct udp_table *table) {
 	// vfree(table->hash2);
 }
 void dcacp_destroy() {
+	dcacp_peertab_destroy(&dcacp_peers_table);
 	dcacp_table_destroy(&dcacp_table);
 	kfree(dcacp_busylocks);
 }

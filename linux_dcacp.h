@@ -19,6 +19,59 @@
 #include "uapi_linux_dcacp.h"
 
 #define DCACP_MESSAGE_BUCKETS 1024
+/**
+ * define DCACP_PEERTAB_BUCKETS - Number of bits in the bucket index for a
+ * dcacp_peertab.  Should be large enough to hold an entry for every server
+ * in a datacenter without long hash chains.
+ */
+#define DCACP_PEERTAB_BUCKET_BITS 20
+/** define DCACP_PEERTAB_BUCKETS - Number of buckets in a dcacp_peertab. */
+#define DCACP_PEERTAB_BUCKETS (1 << DCACP_PEERTAB_BUCKET_BITS)
+
+/**
+ * struct dcacp_peertab - A hash table that maps from IPV4 addresses
+ * to dcacp_peer objects. Entries are gradually added to this table,
+ * but they are never removed except when the entire table is deleted.
+ * We can't safely delete because results returned by dcacp_peer_find
+ * may be retained indefinitely.
+ *
+ * This table is managed exclusively by dcacp_peertab.c, using RCU to
+ * permit efficient lookups.
+ */
+struct dcacp_peertab {
+	/**
+	 * @write_lock: Synchronizes addition of new entries; not needed
+	 * for lookups (RCU is used instead).
+	 */
+	struct spinlock write_lock;
+	
+	/**
+	 * @buckets: Pointer to heads of chains of dcacp_peers for each bucket.
+	 * Malloc-ed, and must eventually be freed. NULL means this structure
+	 * has not been initialized.
+	 */
+	struct hlist_head *buckets;
+};
+
+struct dcacp_peer {
+	/** @daddr: IPV4 address for the machine. */
+	__be32 addr;
+	
+	/** @flow: Addressing info needed to send packets. */
+	struct flowi flow;
+	
+	/**
+	 * @dst: Used to route packets to this peer; we own a reference
+	 * to this, which we must eventually release.
+	 */
+	struct dst_entry *dst;
+	/**
+	 * @peertab_links: Links this object into a bucket of its
+	 * dcacp_peertab.
+	 */
+	struct hlist_node peertab_links;
+};
+
 
 struct message_hslot {
 	struct hlist_head	head;
@@ -31,10 +84,109 @@ struct message_table {
 	struct message_hslot* hash;
 };
 
+struct dcacp_message_in {
+    uint32_t id;
+	/**
+	 * @packets: DATA packets received for this message so far. The list
+	 * is sorted in order of offset (head is lowest offset), but
+	 * packets can be received out of order, so there may be times
+	 * when there are holes in the list. Packets in this list contain
+	 * exactly one data_segment.
+	 */
+	struct sk_buff_head packets;
+	/**
+	 * @num_skbs:  Total number of buffers in @packets. Will be 0 if
+	 * @total_length is less than 0.
+	 */
+	int num_skbs;
+
+	/**
+ 	 * retransmission list of tokens
+	 */
+	struct list_head rtx_list;
+
+	/**
+	 * size of message in bytes
+	 */
+    uint64_t total_length;
+
+    struct dcacp_peer* peer;
+    uint32_t received_bytes;
+    uint32_t received_count;
+    uint32_t recv_till;
+    // uint32_t max_seq_no_recv;
+	/** @priority: Priority level to include in future GRANTS. */
+	int priority;
+
+    bool flow_sync_received;
+ 	bool finished_at_receiver;
+    int last_token_data_seq_sent;
+
+    int token_count;
+    int token_goal;
+    int largest_token_seq_received;
+    int largest_token_data_seq_received;
+	/* DCACP metric */
+    uint64_t latest_token_sent_time;
+    double first_byte_receive_time;
+
+};
+
+struct dcacp_message_out {
+    uint32_t id;
+	/**
+	 * @packets: singly-linked list of all packets in message, linked
+	 * using dcacp_next_skb. The list is in order of offset in the message
+	 * (offset 0 first); each sk_buff can potentially contain multiple
+	 * data_segments, which will be split into separate packets by GSO.
+	 */
+	struct sk_buff *packets;
+	
+	/**
+	 * @num_skbs:  Total number of buffers in @packets. Will be 0 if
+	 * @length is less than 0.
+	 */
+	int num_skbs;
+	/**
+	 * @next_packet: Pointer within @token of the next packet to transmit.
+	 * 
+	 * All packets before this one have already been sent. NULL means
+	 * entire message has been sent.
+	 */
+	struct sk_buff *next_packet;
+	/**
+	 * size of message in bytes
+	 */
+    uint64_t total_length;
+
+    struct dcacp_peer* peer;
+
+    uint32_t total_bytes_sent;
+
+	/** @priority: Priority level to include in future GRANTS. */
+	int priority;
+
+    int remaining_pkts_at_sender;
+
+	/* DCACP metric */
+    uint64_t first_byte_send_time;
+
+    uint64_t start_time;
+    uint64_t finish_time;
+    double latest_data_pkt_sent_time;
+
+};
+
 static inline struct dcacphdr *dcacp_hdr(const struct sk_buff *skb)
 {
 	return (struct dcacphdr *)skb_transport_header(skb);
 }
+
+static inline struct dcacp_data_hdr *dcacp_data_hdr(const struct sk_buff *skb)
+{
+	return (struct dcacp_data_hdr *)skb_transport_header(skb);
+}
+
 
 static inline struct dcacphdr *inner_dcacp_hdr(const struct sk_buff *skb)
 {

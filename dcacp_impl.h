@@ -9,6 +9,11 @@
 #include "net_dcacp.h"
 #include "net_dcacplite.h"
 
+int dcacp_peertab_init(struct dcacp_peertab *peertab);
+void dcacp_peertab_destroy(struct dcacp_peertab *peertab);
+struct dcacp_peer *dcacp_peer_find(struct dcacp_peertab *peertab, __be32 addr,
+	struct inet_sock *inet);
+
 int __dcacp4_lib_rcv(struct sk_buff *, struct udp_table *, int);
 int __dcacp4_lib_err(struct sk_buff *, u32, struct udp_table *);
 

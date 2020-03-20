@@ -1,7 +1,8 @@
 # Makefile to build DCACP as a Linux module.
 
 obj-m += dcacp_module.o
-dcacp_module-y = dcacp_tunnel.o \
+dcacp_module-y = dcacp_peertab.o \
+				 dcacp_tunnel.o \
 				 dcacp.o \
 				 dcacplite.o \
 				 dcacp_offload.o\
