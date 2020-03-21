@@ -14,8 +14,11 @@ void dcacp_peertab_destroy(struct dcacp_peertab *peertab);
 struct dcacp_peer *dcacp_peer_find(struct dcacp_peertab *peertab, __be32 addr,
 	struct inet_sock *inet);
 
-struct sk_buff* construct_flow_sync_pkt(struct dcacp_sock* d_sk, int message_id, 
-	int message_size, uint64_t start_time);
+
+struct sk_buff* construct_flow_sync_pkt(struct dcacp_sock* d_sk, __u64 message_id, 
+	int message_size, __u64 start_time);
+struct sk_buff* construct_token_pkt(struct dcacp_sock* d_sk, bool free_token, unsigned short priority,
+	 __u64 message_id, __u32 seq_no, __u32 data_seq_no, __u32 remaining_size);
 int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct dcacp_sock *dcacp_sk);
 
 int __dcacp4_lib_rcv(struct sk_buff *, struct udp_table *, int);

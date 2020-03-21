@@ -2466,7 +2466,14 @@ int dcacp_v4_early_demux(struct sk_buff *skb)
 }
 
 int dcacp_handle_notification_pkt(struct sk_buff *skb) {
+	struct dcacphdr* dh   = dcacp_hdr(skb);
+	struct sock* sk = skb_steal_sock(skb);
+
 	printk("receive notification pkt\n");
+	printk("source port: %u\n", dh->source);
+	printk("dest port: %u\n", dh->dest);
+	printk("socket is NULL?: %d\n", sk == NULL);
+
 	kfree_skb(skb);
 
 	return 0;

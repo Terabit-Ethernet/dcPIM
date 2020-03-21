@@ -70,6 +70,7 @@ struct sk_buff* __construct_control_skb(struct sock* sk) {
 		return NULL;
 	skb_reserve(skb, sizeof(struct iphdr));
 	skb_reset_transport_header(skb);
+
 	// h = (struct dcacp_hdr *) skb_put(skb, length);
 	// memcpy(h, contents, length);
 	// if (extra_bytes > 0)
@@ -81,8 +82,8 @@ struct sk_buff* __construct_control_skb(struct sock* sk) {
 	return skb;
 }
 
-struct sk_buff* construct_flow_sync_pkt(struct dcacp_sock* d_sk, int message_id, 
-	int message_size, uint64_t start_time) {
+struct sk_buff* construct_flow_sync_pkt(struct dcacp_sock* d_sk, __u64 message_id, 
+	int message_size, __u64 start_time) {
 	// int extra_bytes = 0;
 	struct sk_buff* skb = __construct_control_skb((struct sock*)d_sk);
 	struct dcacp_flow_sync_hdr* fh;
@@ -103,6 +104,30 @@ struct sk_buff* construct_flow_sync_pkt(struct dcacp_sock* d_sk, int message_id,
 	return skb;
 }
 
+struct sk_buff* construct_token_pkt(struct dcacp_sock* d_sk, bool free_token, unsigned short priority,
+	 __u64 message_id, __u32 seq_no, __u32 data_seq_no, __u32 remaining_size) {
+	// int extra_bytes = 0;
+	struct sk_buff* skb = __construct_control_skb((struct sock*)d_sk);
+	struct dcacp_token_hdr* fh;
+	struct dcacphdr* dh; 
+	if(unlikely(!skb)) {
+		return NULL;
+	}
+	fh = (struct dcacp_token_hdr *) skb_put(skb, sizeof(struct dcacp_token_hdr));
+	dh = (struct dcacphdr*) (&fh->common);
+	dh->len = sizeof(struct dcacp_token_hdr);
+	dh->type = TOKEN;
+	fh->free_token = free_token;
+	fh->priority = priority;
+	fh->message_id = message_id;
+	fh->seq_no = seq_no;
+	fh->data_seq_no = data_seq_no;
+	fh->remaining_size = remaining_size;
+	// extra_bytes = DCACP_HEADER_MAX_SIZE - length;
+	// if (extra_bytes > 0)
+	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
+	return skb;
+}
 
 /**
  * dcacp_xmit_control() - Send a control packet to the other end of an RPC.
@@ -157,10 +182,18 @@ int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct dcac
 {
 	// struct dcacp_hdr *h;
 	int result;
+	struct dcacphdr* dh;
 	struct sock* sk = (struct sock*)dcacp_sk;
+	struct inet_sock *inet = inet_sk(sk);
+	struct flowi4 *fl4 = &peer->flow.u.ip4;
+
 	if(!skb) {
 		return -1;
 	}
+	dh = dcacp_hdr(skb);
+	dh->source = inet->inet_sport;
+	dh->dest = fl4->fl4_dport;
+	dh->check = 0;
 	sk->sk_priority = skb->priority = 7;
 	dst_hold(peer->dst);
 	skb_dst_set(skb, peer->dst);
