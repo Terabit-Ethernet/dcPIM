@@ -931,6 +931,7 @@ int dcacp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 	int (*getfrag)(void *, char *, int, int, int, struct sk_buff *);
 	struct sk_buff *skb;
 	struct ip_options_data opt_copy;
+	struct message_hslot *slot;
 
 	// printk_once("dcacp sendmsg");
 	if (len > 0xFFFF)
@@ -1128,7 +1129,12 @@ back_from_confirm:
 		mesg = dcacp_message_out_init(peer, up, skb, 
 		atomic64_fetch_add(1, &up->next_outgoing_id), ulen, dport);
 		/* transmit the flow sync packet */
-		dcacp_xmit_control(construct_flow_sync_pkt(up, mesg->id, ulen, 0), peer, up);
+		printk("try to send notification pkt\n");
+		dcacp_xmit_control(construct_flow_sync_pkt(up, mesg->id, ulen, 0), peer, up); 
+		slot = dcacp_message_out_bucket(up, mesg->id);
+		spin_lock_bh(&slot->lock);
+		add_dcacp_message_out(up, mesg);
+		spin_unlock_bh(&slot->lock);
 		err = PTR_ERR(skb);
 		if (!IS_ERR_OR_NULL(skb))
 			err = dcacp_send_skb(skb, fl4, &cork, DATA);
@@ -1492,7 +1498,7 @@ void dcacp_destruct_sock(struct sock *sk)
 		struct message_hslot *slot = &dsk->mesg_in_table[i];
 		spin_lock_bh(&slot->lock);
 		hlist_for_each_entry_safe(out, n, &slot->head, sk_table_link) {
-			dcacp_message_out_destroy(out);
+			dcacp_message_in_destroy(out);
 		}
 		spin_unlock_bh(&slot->lock);
 		slot->count = 0;
@@ -1501,7 +1507,7 @@ void dcacp_destruct_sock(struct sock *sk)
 		struct message_hslot *slot = &dsk->mesg_out_table[i];
 		spin_lock_bh(&slot->lock);
 		hlist_for_each_entry_safe(in, n, &slot->head, sk_table_link) {
-			dcacp_message_in_destroy(in);
+			dcacp_message_out_destroy(in);
 		}
 		spin_unlock_bh(&slot->lock);
 		slot->count = 0;
