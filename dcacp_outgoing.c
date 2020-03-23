@@ -199,7 +199,7 @@ struct sk_buff* construct_ack_pkt(struct dcacp_sock* d_sk, __u64 message_id) {
  * Return:     Either zero (for success), or a negative errno value if there
  *             was a problem.
  */
-int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct dcacp_sock *dcacp_sk)
+int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct dcacp_sock *dcacp_sk, int dport)
 {
 	// struct dcacp_hdr *h;
 	int result;
@@ -212,9 +212,8 @@ int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct dcac
 		return -1;
 	}
 	dh = dcacp_hdr(skb);
-	printk("src port: %d\n", ntohs(inet->inet_sport));
 	dh->source = inet->inet_sport;
-	dh->dest = 4000;
+	dh->dest = dport;
 	dh->check = 0;
 	sk->sk_priority = skb->priority = 7;
 	dst_hold(peer->dst);

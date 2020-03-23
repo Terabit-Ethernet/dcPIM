@@ -218,6 +218,16 @@ static inline struct dcacp_data_hdr *dcacp_data_hdr(const struct sk_buff *skb)
 	return (struct dcacp_data_hdr *)skb_transport_header(skb);
 }
 
+static inline struct dcacp_ack_hdr *dcacp_ack_hdr(const struct sk_buff *skb)
+{
+	return (struct dcacp_ack_hdr *)skb_transport_header(skb);
+}
+
+
+static inline struct dcacp_flow_sync_hdr *dcacp_flow_sync_hdr(const struct sk_buff *skb)
+{
+	return (struct dcacp_flow_sync_hdr *)skb_transport_header(skb);
+}
 
 static inline struct dcacphdr *inner_dcacp_hdr(const struct sk_buff *skb)
 {
@@ -326,6 +336,7 @@ static inline void add_dcacp_message_out(struct dcacp_sock *dsk, struct dcacp_me
 	slot = dcacp_message_out_bucket(dsk, mesg->id);
 	// spin_lock_bh(&slot->lock);
 	hlist_add_head(&mesg->sk_table_link, &slot->head);
+	slot->count++;
 	// spin_unlock_bh(&slot->lock);
 }
 
@@ -334,6 +345,7 @@ static inline void delete_dcacp_message_out(struct dcacp_sock *dsk, struct dcacp
 	slot = dcacp_message_out_bucket(dsk, mesg->id);
 	// spin_lock_bh(&slot->lock);
 	hlist_del(&mesg->sk_table_link);
+	slot->count--;
 	// spin_unlock_bh(&slot->lock);
 }
 
@@ -368,6 +380,7 @@ static inline void add_dcacp_message_in(struct dcacp_sock *dsk, struct dcacp_mes
 	slot = dcacp_message_in_bucket(dsk, mesg->id);
 	// spin_lock_bh(&slot->lock);
 	hlist_add_head(&mesg->sk_table_link, &slot->head);
+	slot->count++;
 	// spin_unlock_bh(&slot->lock);
 }
 
@@ -376,6 +389,7 @@ static inline void delete_dcacp_message_in(struct dcacp_sock *dsk, struct dcacp_
 	slot = dcacp_message_in_bucket(dsk, mesg->id);
 	// spin_lock_bh(&slot->lock);
 	hlist_del(&mesg->sk_table_link);
+	slot->count--;
 	// spin_unlock_bh(&slot->lock);
 }
 

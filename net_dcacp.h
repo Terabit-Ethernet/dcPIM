@@ -139,7 +139,7 @@ static inline int dcacp_lib_checksum_complete(struct sk_buff *skb)
 static inline __wsum dcacp_csum(struct sk_buff *skb)
 {
 	__wsum csum = csum_partial(skb_transport_header(skb),
-				   sizeof(struct dcacphdr), skb->csum);
+				   sizeof(struct dcacp_data_hdr), skb->csum);
 
 	for (skb = skb_shinfo(skb)->frag_list; skb; skb = skb->next) {
 		csum = csum_add(csum, skb->csum);
@@ -159,10 +159,10 @@ void dcacp_set_csum(bool nocheck, struct sk_buff *skb,
 static inline void dcacp_csum_pull_header(struct sk_buff *skb)
 {
 	if (!skb->csum_valid && skb->ip_summed == CHECKSUM_NONE)
-		skb->csum = csum_partial(skb->data, sizeof(struct dcacphdr),
+		skb->csum = csum_partial(skb->data, sizeof(struct dcacp_data_hdr),
 					 skb->csum);
-	skb_pull_rcsum(skb, sizeof(struct dcacphdr));
-	DCACP_SKB_CB(skb)->cscov -= sizeof(struct dcacphdr);
+	skb_pull_rcsum(skb, sizeof(struct dcacp_data_hdr));
+	DCACP_SKB_CB(skb)->cscov -= sizeof(struct dcacp_data_hdr);
 }
 
 typedef struct sock *(*dcacp_lookup_t)(struct sk_buff *skb, __be16 sport,

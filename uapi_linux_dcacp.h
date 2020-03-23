@@ -54,8 +54,8 @@ struct dcacphdr {
 };
 struct dcacp_data_hdr {
 	struct dcacphdr common;
-	__u8 free_token;
-	__u8 priority;
+	// __u8 free_token;
+	// __u8 priority;
 	__be64 message_id;
 	/* token seq number */
 	__be32 seq_no;

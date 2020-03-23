@@ -100,8 +100,10 @@ void dcacp_message_out_destroy(struct dcacp_message_out *msgout)
 	// struct sk_buff *skb, *next;
 	if (msgout->total_length < 0)
 		return;
-	kfree_skb(msgout->packets);
+	// kfree_skb(msgout->packets);
 	delete_dcacp_message_out(msgout->dsk, msgout);
+	printk("call destroy message out in function \n");
+
 	// for (skb = msgout->packets; skb !=  NULL; skb = next) {
 	// 	next = *dcacp_next_skb(skb);
 	// 	kfree_skb(skb);
@@ -156,11 +158,13 @@ void dcacp_message_in_destroy(struct dcacp_message_in *msg)
 	// struct sk_buff *skb, *next;
 	if (msg->total_length < 0)
 		return;
-	skb_queue_walk_safe(&msg->packets, skb, next)
+	skb_queue_walk_safe(&msg->packets, skb, next) {
+		// printk("try to fee one packet skb\n");
 		kfree_skb(skb);
+	}
 	__skb_queue_head_init(&msg->packets);
 	msg->total_length = -1;
-
+	printk("call destroy message in function \n");
 	delete_dcacp_message_in(msg->dsk, msg);
 
 	kfree(msg);
@@ -168,4 +172,15 @@ void dcacp_message_in_destroy(struct dcacp_message_in *msg)
 	// 	next = *dcacp_next_skb(skb);
 	// 	kfree_skb(skb);
 	// }
+}
+
+void dcacp_message_in_finish(struct dcacp_message_in *msg) {
+	struct message_hslot *slot;
+	// send an ack packet to the sender
+	dcacp_xmit_control(construct_ack_pkt(msg->dsk, msg->id), msg->peer, msg->dsk, msg->dport);
+	// deete message
+	slot = dcacp_message_in_bucket(msg->dsk, msg->id);
+	// spin_lock_bh(&slot->lock);
+	dcacp_message_in_destroy(msg);
+	// spin_unlock_bh(&slot->lock);
 }

@@ -12,6 +12,7 @@
 
 struct dcacp_message_in* dcacp_message_in_init(struct dcacp_peer *peer, 
 	struct dcacp_sock *sock, __u64 message_id, int message_size, int sport);
+void dcacp_message_in_finish(struct dcacp_message_in *msg);
 void dcacp_message_in_destroy(struct dcacp_message_in *msg);
 
 struct dcacp_message_out* dcacp_message_out_init(struct dcacp_peer *peer, 
@@ -29,7 +30,7 @@ struct sk_buff* construct_flow_sync_pkt(struct dcacp_sock* d_sk, __u64 message_i
 struct sk_buff* construct_token_pkt(struct dcacp_sock* d_sk, bool free_token, unsigned short priority,
 	 __u64 message_id, __u32 seq_no, __u32 data_seq_no, __u32 remaining_size);
 struct sk_buff* construct_ack_pkt(struct dcacp_sock* d_sk, __u64 message_id);
-int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct dcacp_sock *dcacp_sk);
+int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct dcacp_sock *dcacp_sk, int dport);
 
 int __dcacp4_lib_rcv(struct sk_buff *, struct udp_table *, int);
 int __dcacp4_lib_err(struct sk_buff *, u32, struct udp_table *);
