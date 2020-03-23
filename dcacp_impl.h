@@ -9,6 +9,15 @@
 #include "net_dcacp.h"
 #include "net_dcacplite.h"
 
+
+struct dcacp_message_in* dcacp_message_in_init(struct dcacp_peer *peer, 
+	struct dcacp_sock *sock, __u64 message_id, int message_size, int sport);
+void dcacp_message_in_destroy(struct dcacp_message_in *msg);
+
+struct dcacp_message_out* dcacp_message_out_init(struct dcacp_peer *peer, 
+	struct dcacp_sock *sock, struct sk_buff* skb, __u64 message_id, int message_size, int dport);
+void dcacp_message_out_destroy(struct dcacp_message_out *msg);
+
 int dcacp_peertab_init(struct dcacp_peertab *peertab);
 void dcacp_peertab_destroy(struct dcacp_peertab *peertab);
 struct dcacp_peer *dcacp_peer_find(struct dcacp_peertab *peertab, __be32 addr,
@@ -19,6 +28,7 @@ struct sk_buff* construct_flow_sync_pkt(struct dcacp_sock* d_sk, __u64 message_i
 	int message_size, __u64 start_time);
 struct sk_buff* construct_token_pkt(struct dcacp_sock* d_sk, bool free_token, unsigned short priority,
 	 __u64 message_id, __u32 seq_no, __u32 data_seq_no, __u32 remaining_size);
+struct sk_buff* construct_ack_pkt(struct dcacp_sock* d_sk, __u64 message_id);
 int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct dcacp_sock *dcacp_sk);
 
 int __dcacp4_lib_rcv(struct sk_buff *, struct udp_table *, int);

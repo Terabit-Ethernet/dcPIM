@@ -914,6 +914,7 @@ int dcacp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 	struct inet_sock *inet = inet_sk(sk);
 	struct dcacp_sock *up = dcacp_sk(sk);
 	struct dcacp_peer* peer;
+	struct dcacp_message_out* mesg;
 	DECLARE_SOCKADDR(struct sockaddr_in *, usin, msg->msg_name);
 	struct flowi4 fl4_stack;
 	struct flowi4 *fl4;
@@ -987,8 +988,7 @@ int dcacp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 		 */
 		connected = 1;
 	}
-	peer =  dcacp_peer_find(&dcacp_peers_table, daddr, inet);
-	dcacp_xmit_control(construct_flow_sync_pkt(up, 1, 2, 3), peer, up);
+
 	ipcm_init_sk(&ipc, inet);
 	ipc.gso_size = up->gso_size;
 
@@ -1124,6 +1124,11 @@ back_from_confirm:
 		skb = ip_make_skb(sk, fl4, getfrag, msg, ulen,
 				  sizeof(struct dcacphdr), &ipc, &rt,
 				  &cork, msg->msg_flags);
+		peer =  dcacp_peer_find(&dcacp_peers_table, daddr, inet);
+		mesg = dcacp_message_out_init(peer, up, skb, 
+		atomic64_fetch_add(1, &up->next_outgoing_id), ulen, dport);
+		/* transmit the flow sync packet */
+		dcacp_xmit_control(construct_flow_sync_pkt(up, mesg->id, ulen, 0), peer, up);
 		err = PTR_ERR(skb);
 		if (!IS_ERR_OR_NULL(skb))
 			err = dcacp_send_skb(skb, fl4, &cork, DATA);
@@ -1472,13 +1477,39 @@ EXPORT_SYMBOL_GPL(__dcacp_enqueue_schedule_skb);
 
 void dcacp_destruct_sock(struct sock *sk)
 {
+
 	/* reclaim completely the forward allocated memory */
-	struct dcacp_sock *up = dcacp_sk(sk);
+	struct dcacp_sock *dsk = dcacp_sk(sk);
+	struct dcacp_message_out *out;
+	struct dcacp_message_in* in;
+	struct hlist_node *n;
 	unsigned int total = 0;
 	struct sk_buff *skb;
-
-	skb_queue_splice_tail_init(&sk->sk_receive_queue, &up->reader_queue);
-	while ((skb = __skb_dequeue(&up->reader_queue)) != NULL) {
+	int i;
+	struct udp_hslot* hslot = udp_hashslot(sk->sk_prot->h.udp_table, sock_net(sk),
+					     dcacp_sk(sk)->dcacp_port_hash);
+	for (i = 0; i < DCACP_MESSAGE_BUCKETS; i++) {
+		struct message_hslot *slot = &dsk->mesg_in_table[i];
+		spin_lock_bh(&slot->lock);
+		hlist_for_each_entry_safe(out, n, &slot->head, sk_table_link) {
+			dcacp_message_out_destroy(out);
+		}
+		spin_unlock_bh(&slot->lock);
+		slot->count = 0;
+	}
+	for (i = 0; i < DCACP_MESSAGE_BUCKETS; i++) {
+		struct message_hslot *slot = &dsk->mesg_out_table[i];
+		spin_lock_bh(&slot->lock);
+		hlist_for_each_entry_safe(in, n, &slot->head, sk_table_link) {
+			dcacp_message_in_destroy(in);
+		}
+		spin_unlock_bh(&slot->lock);
+		slot->count = 0;
+	}
+	kfree(dsk->mesg_out_table);
+	kfree(dsk->mesg_in_table);
+	skb_queue_splice_tail_init(&sk->sk_receive_queue, &dsk->reader_queue);
+	while ((skb = __skb_dequeue(&dsk->reader_queue)) != NULL) {
 		total += skb->truesize;
 		kfree_skb(skb);
 	}
@@ -1490,7 +1521,25 @@ EXPORT_SYMBOL_GPL(dcacp_destruct_sock);
 
 int dcacp_init_sock(struct sock *sk)
 {
+	struct dcacp_sock* dsk = dcacp_sk(sk);
+	int i;
 	skb_queue_head_init(&dcacp_sk(sk)->reader_queue);
+	dsk->mesg_out_table = kmalloc(sizeof(struct message_hslot) * DCACP_MESSAGE_BUCKETS, GFP_KERNEL);
+	dsk->mesg_in_table = kmalloc(sizeof(struct message_hslot) * DCACP_MESSAGE_BUCKETS, GFP_KERNEL);
+	for (i = 0; i < DCACP_MESSAGE_BUCKETS; i++) {
+		struct message_hslot *slot = &dsk->mesg_in_table[i];
+		spin_lock_init(&slot->lock);
+		INIT_HLIST_HEAD(&slot->head);
+		slot->count = 0;
+	}
+	for (i = 0; i < DCACP_MESSAGE_BUCKETS; i++) {
+		struct message_hslot *slot = &dsk->mesg_out_table[i];
+		spin_lock_init(&slot->lock);
+		INIT_HLIST_HEAD(&slot->head);
+		slot->count = 0;
+	}
+	atomic64_set(&dsk->next_outgoing_id, 1);
+
 	sk->sk_destruct = dcacp_destruct_sock;
 	return 0;
 }
@@ -2522,6 +2571,8 @@ drop:
 
 void dcacp_destroy_sock(struct sock *sk)
 {
+	struct udp_hslot* hslot = udp_hashslot(sk->sk_prot->h.udp_table, sock_net(sk),
+					     dcacp_sk(sk)->dcacp_port_hash);
 	struct dcacp_sock *up = dcacp_sk(sk);
 	bool slow = lock_sock_fast(sk);
 	dcacp_flush_pending_frames(sk);

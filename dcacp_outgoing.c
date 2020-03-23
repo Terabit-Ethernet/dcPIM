@@ -61,6 +61,8 @@
 #include "dcacp_impl.h"
 
 
+
+
 struct sk_buff* __construct_control_skb(struct sock* sk) {
 	struct sk_buff *skb = alloc_skb(sizeof(struct iphdr) + DCACP_HEADER_MAX_SIZE, 
 		GFP_KERNEL);
@@ -129,6 +131,25 @@ struct sk_buff* construct_token_pkt(struct dcacp_sock* d_sk, bool free_token, un
 	return skb;
 }
 
+struct sk_buff* construct_ack_pkt(struct dcacp_sock* d_sk, __u64 message_id) {
+	// int extra_bytes = 0;
+	struct sk_buff* skb = __construct_control_skb((struct sock*)d_sk);
+	struct dcacp_ack_hdr* fh;
+	struct dcacphdr* dh; 
+	if(unlikely(!skb)) {
+		return NULL;
+	}
+	fh = (struct dcacp_ack_hdr *) skb_put(skb, sizeof(struct dcacp_ack_hdr));
+	dh = (struct dcacphdr*) (&fh->common);
+	dh->len = sizeof(struct dcacp_ack_hdr);
+	dh->type = ACK;
+	fh->message_id = message_id;
+	// extra_bytes = DCACP_HEADER_MAX_SIZE - length;
+	// if (extra_bytes > 0)
+	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
+	return skb;
+}
+
 /**
  * dcacp_xmit_control() - Send a control packet to the other end of an RPC.
  * @type:      Packet type, such as NOTIFICATION.
@@ -191,8 +212,9 @@ int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct dcac
 		return -1;
 	}
 	dh = dcacp_hdr(skb);
+	printk("src port: %d\n", ntohs(inet->inet_sport));
 	dh->source = inet->inet_sport;
-	dh->dest = fl4->fl4_dport;
+	dh->dest = 4000;
 	dh->check = 0;
 	sk->sk_priority = skb->priority = 7;
 	dst_hold(peer->dst);

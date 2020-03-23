@@ -2,6 +2,7 @@
 
 obj-m += dcacp_module.o
 dcacp_module-y = dcacp_peertab.o \
+				 dcacp_message.o\
 				 dcacp_outgoing.o \
 				 dcacp_tunnel.o \
 				 dcacp.o \

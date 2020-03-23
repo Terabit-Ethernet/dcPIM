@@ -28,6 +28,7 @@
 /** define DCACP_PEERTAB_BUCKETS - Number of buckets in a dcacp_peertab. */
 #define DCACP_PEERTAB_BUCKETS (1 << DCACP_PEERTAB_BUCKET_BITS)
 
+struct dcacp_sock;
 /**
  * struct dcacp_peertab - A hash table that maps from IPV4 addresses
  * to dcacp_peer objects. Entries are gradually added to this table,
@@ -80,12 +81,15 @@ struct message_hslot {
 
 }__attribute__((aligned(2 * sizeof(long))));
 
-struct message_table {
-	struct message_hslot* hash;
-};
+// struct message_table {
+// 	struct message_hslot* hash;
+// };
 
 struct dcacp_message_in {
-    uint32_t id;
+    __u64 id;
+
+    /* message out id from the sender; */
+    __u64 message_out_id;
 	/**
 	 * @packets: DATA packets received for this message so far. The list
 	 * is sorted in order of offset (head is lowest offset), but
@@ -100,11 +104,21 @@ struct dcacp_message_in {
 	 */
 	int num_skbs;
 
+	/** @lock: Used to synchronize modifications to this structure;
+	 * points to the lock in hsk->client_rpc_buckets or
+	 * hsk->server_rpc_buckets.
+	 */
+	struct spinlock lock;
+
 	/**
  	 * retransmission list of tokens
 	 */
 	struct list_head rtx_list;
 
+	/* DCACP socket */
+	struct dcacp_sock* dsk;
+
+	__u32 dport;
 	/**
 	 * size of message in bytes
 	 */
@@ -130,10 +144,12 @@ struct dcacp_message_in {
     uint64_t latest_token_sent_time;
     double first_byte_receive_time;
 
+	struct hlist_node sk_table_link;
+
 };
 
 struct dcacp_message_out {
-    uint32_t id;
+    __u64 id;
 	/**
 	 * @packets: singly-linked list of all packets in message, linked
 	 * using dcacp_next_skb. The list is in order of offset in the message
@@ -147,6 +163,19 @@ struct dcacp_message_out {
 	 * @length is less than 0.
 	 */
 	int num_skbs;
+
+	
+	/** @lock: Used to synchronize modifications to this structure;
+	 * points to the lock in hsk->client_rpc_buckets or
+	 * hsk->server_rpc_buckets.
+	 */
+	struct spinlock lock;
+
+	/* DCACP socket */
+	struct dcacp_sock* dsk;
+
+	__u32 dport;
+
 	/**
 	 * @next_packet: Pointer within @token of the next packet to transmit.
 	 * 
@@ -174,6 +203,8 @@ struct dcacp_message_out {
     uint64_t start_time;
     uint64_t finish_time;
     double latest_data_pkt_sent_time;
+
+	struct hlist_node sk_table_link;
 
 };
 
@@ -256,10 +287,97 @@ struct dcacp_sock {
 	int		forward_deficit;
 
 	/* DCACP message hash table */
-	struct message_table mesg_in_table;
+	struct message_hslot* mesg_in_table;
 
-	struct message_table mesg_out_table;
+	struct message_hslot* mesg_out_table;
+
+	atomic64_t next_outgoing_id;
+
 };
+
+/* DCACP message hslot handling function */
+static inline struct message_hslot *dcacp_message_out_bucket(
+		struct dcacp_sock *dsk, __u64 id)
+{
+	 // Each client allocates message ids sequentially, so they will
+	 // * naturally distribute themselves across the hash space.
+	 // * Thus we can use the id directly as hash.
+	 
+	return &dsk->mesg_out_table[id & (DCACP_MESSAGE_BUCKETS - 1)];
+}
+
+static inline struct dcacp_message_out * get_dcacp_message_out(struct dcacp_sock *dsk, __u64 id) {
+	struct dcacp_message_out *mesg;
+	struct message_hslot *slot;
+	slot = dcacp_message_out_bucket(dsk, id);
+	// spin_lock_bh(&slot->lock);
+	hlist_for_each_entry(mesg, &slot->head, sk_table_link) {
+		if(mesg->id == id) {
+			// spin_unlock_bh(&slot->lock);
+			return mesg;
+		}
+	}
+	// spin_unlock_bh(&slot->lock);
+	return NULL;
+}
+
+static inline void add_dcacp_message_out(struct dcacp_sock *dsk, struct dcacp_message_out *mesg) {
+	struct message_hslot *slot;
+	slot = dcacp_message_out_bucket(dsk, mesg->id);
+	// spin_lock_bh(&slot->lock);
+	hlist_add_head(&mesg->sk_table_link, &slot->head);
+	// spin_unlock_bh(&slot->lock);
+}
+
+static inline void delete_dcacp_message_out(struct dcacp_sock *dsk, struct dcacp_message_out *mesg) {
+	struct message_hslot *slot;
+	slot = dcacp_message_out_bucket(dsk, mesg->id);
+	// spin_lock_bh(&slot->lock);
+	hlist_del(&mesg->sk_table_link);
+	// spin_unlock_bh(&slot->lock);
+}
+
+static inline struct message_hslot *dcacp_message_in_bucket(
+		struct dcacp_sock *dsk, __u64 id)
+{
+	 // Each client allocates message ids sequentially, so they will
+	 // * naturally distribute themselves across the hash space.
+	 // * Thus we can use the id directly as hash.
+	 
+	return &dsk->mesg_in_table[id & (DCACP_MESSAGE_BUCKETS - 1)];
+}
+
+static inline struct dcacp_message_in * get_dcacp_message_in(struct dcacp_sock *dsk, 
+ __be32 saddr, __u16 sport, __u64 id) {
+	struct dcacp_message_in *mesg;
+	struct message_hslot *slot;
+	slot = dcacp_message_in_bucket(dsk, id);
+	// spin_lock_bh(&slot->lock);
+	hlist_for_each_entry(mesg, &slot->head, sk_table_link) {
+		if((mesg->id == id) && (mesg->dport == sport) && (mesg->peer->addr == saddr)) {
+			// spin_unlock_bh(&slot->lock);
+			return mesg;
+		}
+	}
+	// spin_unlock_bh(&slot->lock);
+	return NULL;
+}
+
+static inline void add_dcacp_message_in(struct dcacp_sock *dsk, struct dcacp_message_in *mesg) {
+	struct message_hslot *slot;
+	slot = dcacp_message_in_bucket(dsk, mesg->id);
+	// spin_lock_bh(&slot->lock);
+	hlist_add_head(&mesg->sk_table_link, &slot->head);
+	// spin_unlock_bh(&slot->lock);
+}
+
+static inline void delete_dcacp_message_in(struct dcacp_sock *dsk, struct dcacp_message_in *mesg) {
+	struct message_hslot *slot;
+	slot = dcacp_message_in_bucket(dsk, mesg->id);
+	// spin_lock_bh(&slot->lock);
+	hlist_del(&mesg->sk_table_link);
+	// spin_unlock_bh(&slot->lock);
+}
 
 #define DCACP_MAX_SEGMENTS	(1 << 6UL)
 
