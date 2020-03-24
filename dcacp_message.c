@@ -98,6 +98,8 @@ struct dcacp_message_out* dcacp_message_out_init(struct dcacp_peer *peer,
 void dcacp_message_out_destroy(struct dcacp_message_out *msgout)
 {
 	// struct sk_buff *skb, *next;
+	if(msgout == NULL)
+		return;
 	if (msgout->total_length < 0)
 		return;
 	// kfree_skb(msgout->packets);
@@ -156,8 +158,11 @@ void dcacp_message_in_destroy(struct dcacp_message_in *msg)
 
 	struct sk_buff *skb, *next;
 	// struct sk_buff *skb, *next;
+	if(msg == NULL)
+		return;
 	if (msg->total_length < 0)
 		return;
+
 	skb_queue_walk_safe(&msg->packets, skb, next) {
 		// printk("try to fee one packet skb\n");
 		kfree_skb(skb);
@@ -176,6 +181,8 @@ void dcacp_message_in_destroy(struct dcacp_message_in *msg)
 
 void dcacp_message_in_finish(struct dcacp_message_in *msg) {
 	struct message_hslot *slot;
+	if(msg == NULL)
+		return;
 	// send an ack packet to the sender
 	dcacp_xmit_control(construct_ack_pkt(msg->dsk, msg->id), msg->peer, msg->dsk, msg->dport);
 	// deete message

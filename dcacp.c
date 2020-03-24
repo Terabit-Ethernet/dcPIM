@@ -787,8 +787,8 @@ static int dcacp_send_skb(struct sk_buff *skb, struct flowi4 *fl4,
 	}
 	if (cork->gso_size) {
 		const int hlen = skb_network_header_len(skb) +
-				 sizeof(struct dcacphdr);
-
+				 sizeof(struct dcacp_data_hdr);
+		printk("try to do gso \n");
 		if (hlen + cork->gso_size > cork->fragsize) {
 			kfree_skb(skb);
 			return -EINVAL;
@@ -966,7 +966,7 @@ int dcacp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 		}
 		release_sock(sk);
 	}
-	ulen += sizeof(struct dcacphdr);
+	ulen += sizeof(struct dcacp_data_hdr);
 
 	/*
 	 *	Get and verify the address.
@@ -2491,7 +2491,7 @@ int dcacp_v4_early_demux(struct sk_buff *skb)
 	int ours;
 
 	/* validate the packet */
-	if (!pskb_may_pull(skb, skb_transport_offset(skb) + sizeof(struct dcacphdr)))
+	if (!pskb_may_pull(skb, skb_transport_offset(skb) + DCACP_HEADER_MAX_SIZE))
 		return 0;
 
 	iph = ip_hdr(skb);
