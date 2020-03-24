@@ -770,17 +770,21 @@ static int dcacp_send_skb(struct sk_buff *skb, struct flowi4 *fl4,
 	int offset = skb_transport_offset(skb);
 	int len = skb->len - offset;
 	int datalen = len - sizeof(*uh);
-	__wsum csum = 0;
+	// __wsum csum = 0;
 
 	/*
 	 * Create a DCACP header
 	 */
+	skb_dump(KERN_WARNING, skb, false);
+
 	uh = dcacp_data_hdr(skb);
 	uh->common.source = inet->inet_sport;
 	uh->common.dest = fl4->fl4_dport;
 	uh->common.len = htons(len);
 	uh->common.check = 0;
 	uh->common.type = type;
+	skb_dump(KERN_WARNING, skb, false);
+
 	if(mesg != NULL) {
 		uh->message_id = mesg->id;
 		uh->data_seq_no = 0;
@@ -813,32 +817,33 @@ static int dcacp_send_skb(struct sk_buff *skb, struct flowi4 *fl4,
 			skb_shinfo(skb)->gso_segs = DIV_ROUND_UP(datalen,
 								 cork->gso_size);
 		}
-		goto csum_partial;
+		// goto csum_partial;
 	}
 
-	if (is_dcacplite)  				 /*     DCACP-Lite      */
-		csum = dcacplite_csum(skb);
+// 	if (is_dcacplite)  				 /*     DCACP-Lite      */
+// 		csum = dcacplite_csum(skb);
 
-	else if (sk->sk_no_check_tx) {			 /* DCACP csum off */
+// 	else if (sk->sk_no_check_tx) {			 /* DCACP csum off */
 
-		skb->ip_summed = CHECKSUM_NONE;
-		goto send;
+// 		skb->ip_summed = CHECKSUM_NONE;
+// 		goto send;
 
-	} else if (skb->ip_summed == CHECKSUM_PARTIAL) { /* DCACP hardware csum */
-csum_partial:
+// 	} else if (skb->ip_summed == CHECKSUM_PARTIAL) { /* DCACP hardware csum */
+// csum_partial:
 
-		dcacp4_hwcsum(skb, fl4->saddr, fl4->daddr);
-		goto send;
+// 		dcacp4_hwcsum(skb, fl4->saddr, fl4->daddr);
+// 		goto send;
 
-	} else
-		csum = dcacp_csum(skb);
-	/* add protocol-dependent pseudo-header */
-	uh->common.check = csum_tcpudp_magic(fl4->saddr, fl4->daddr, len,
-				      sk->sk_protocol, csum);
-	if (uh->common.check == 0)
-		uh->common.check = CSUM_MANGLED_0;
+// 	} else
+// 		csum = dcacp_csum(skb);
+// 	/* add protocol-dependent pseudo-header */
+// 	uh->common.check = csum_tcpudp_magic(fl4->saddr, fl4->daddr, len,
+// 				      sk->sk_protocol, csum);
+// 	if (uh->common.check == 0)
+// 		uh->common.check = CSUM_MANGLED_0;
 
-send:
+// send:
+	printk("size of data pkt header: %d\n", sizeof(struct dcacp_data_hdr));
 	err = ip_send_skb(sock_net(sk), skb);
 	if (err) {
 		if (err == -ENOBUFS && !inet->recverr) {
@@ -1139,10 +1144,12 @@ back_from_confirm:
 		dcacp_xmit_control(construct_flow_sync_pkt(up, mesg->id, ulen, 0), peer, up, mesg->dport); 
 		spin_lock_bh(&slot->lock);
 		add_dcacp_message_out(up, mesg);
-		// skb_get(skb);
+		skb_get(skb);
 
 		spin_unlock_bh(&slot->lock);
 		err = PTR_ERR(skb);
+		skb_dump(KERN_WARNING, skb, false);
+
 		if (!IS_ERR_OR_NULL(skb))
 			err = dcacp_send_skb(skb, fl4, &cork, DATA, mesg);
 		goto out;

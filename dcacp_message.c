@@ -102,7 +102,7 @@ void dcacp_message_out_destroy(struct dcacp_message_out *msgout)
 		return;
 	if (msgout->total_length < 0)
 		return;
-	// kfree_skb(msgout->packets);
+	kfree_skb(msgout->packets);
 	delete_dcacp_message_out(msgout->dsk, msgout);
 	printk("call destroy message out in function \n");
 
