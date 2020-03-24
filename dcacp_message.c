@@ -126,6 +126,7 @@ struct dcacp_message_in* dcacp_message_in_init(struct dcacp_peer *peer,
 	skb_queue_head_init(&msg->packets);
 
 	msg->dport = sport;
+	msg->dsk = sock;
 	msg->id = message_id;
     msg->peer = peer;
     msg->num_skbs = 0;
@@ -157,6 +158,7 @@ void dcacp_message_in_destroy(struct dcacp_message_in *msg)
 {
 
 	struct sk_buff *skb, *next;
+	printk("start to destroy \n");
 	// struct sk_buff *skb, *next;
 	if(msg == NULL)
 		return;
@@ -169,7 +171,7 @@ void dcacp_message_in_destroy(struct dcacp_message_in *msg)
 	}
 	__skb_queue_head_init(&msg->packets);
 	msg->total_length = -1;
-	printk("call destroy message in function \n");
+	// printk("call destroy message in function \n");
 	delete_dcacp_message_in(msg->dsk, msg);
 
 	kfree(msg);
@@ -184,10 +186,16 @@ void dcacp_message_in_finish(struct dcacp_message_in *msg) {
 	if(msg == NULL)
 		return;
 	// send an ack packet to the sender
+	// printk("transmit the ack packet \n");
+	// printk("message id:%llu\n", msg->id);
+	// printk("dsk address: %p LINE:%d\n", msg->dsk, __LINE__);
 	dcacp_xmit_control(construct_ack_pkt(msg->dsk, msg->id), msg->peer, msg->dsk, msg->dport);
+	// printk("finish transmitting \n");
+
 	// deete message
 	slot = dcacp_message_in_bucket(msg->dsk, msg->id);
 	// spin_lock_bh(&slot->lock);
 	dcacp_message_in_destroy(msg);
+	// printk("end destroy\n");
 	// spin_unlock_bh(&slot->lock);
 }
