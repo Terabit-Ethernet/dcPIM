@@ -1136,12 +1136,12 @@ back_from_confirm:
 				  &cork, msg->msg_flags);
 		peer =  dcacp_peer_find(&dcacp_peers_table, daddr, inet);
 		mesg = dcacp_message_out_init(peer, up, skb, 
-		atomic64_fetch_add(1, &up->next_outgoing_id), ulen, dport);
+		atomic64_fetch_add(1, &up->next_outgoing_id), len, dport);
 		/* transmit the flow sync packet */
 		printk("try to send notification pkt\n");
 		printk("saddr:%d\n", saddr);
 		slot = dcacp_message_out_bucket(up, mesg->id);
-		dcacp_xmit_control(construct_flow_sync_pkt(up, mesg->id, ulen, 0), peer, up, mesg->dport); 
+		dcacp_xmit_control(construct_flow_sync_pkt(up, mesg->id, len, 0), peer, up, mesg->dport); 
 		spin_lock_bh(&slot->lock);
 		add_dcacp_message_out(up, mesg);
 		skb_get(skb);
@@ -2324,8 +2324,9 @@ int __dcacp4_lib_rcv(struct sk_buff *skb, struct udp_table *dcacptable,
 	/*
 	 *  Validate the packet.
 	 */
-	// if (!pskb_may_pull(skb, sizeof(struct dcacphdr)))
-	// 	goto drop;		/* No space for header. */
+	printk("lib rcv\n");
+	if (!pskb_may_pull(skb, sizeof(struct dcacp_data_hdr)))
+		goto drop;		/* No space for header. */
 
 	uh   = dcacp_hdr(skb);
 	dh = dcacp_data_hdr(skb);
@@ -2346,13 +2347,17 @@ int __dcacp4_lib_rcv(struct sk_buff *skb, struct udp_table *dcacptable,
 	// 	goto csum_error;
 	// printk("reach skb:%d\n", __LINE__);
 	sk = skb_steal_sock(skb);
+	printk("reach here 1\n");
 
 	if (sk) {
 		struct dst_entry *dst = skb_dst(skb);
 		int ret;
+		printk("reach here 2\n");
 		slot = dcacp_message_in_bucket(dcacp_sk(sk), dh->message_id);
 		spin_lock_bh(&slot->lock);
 		msg = get_dcacp_message_in(dcacp_sk(sk), saddr, dh->common.source, dh->message_id);
+		printk("msg address: %p LINE:%d\n", msg, __LINE__);
+
 		dcacp_message_in_finish(msg);
 		spin_unlock_bh(&slot->lock);
 		if (unlikely(sk->sk_rx_dst != dst))
@@ -2363,20 +2368,24 @@ int __dcacp4_lib_rcv(struct sk_buff *skb, struct udp_table *dcacptable,
 		return ret;
 	}
 
-
+	printk("reach here 3\n");
 	if (rt->rt_flags & (RTCF_BROADCAST|RTCF_MULTICAST))
 		return __dcacp4_lib_mcast_deliver(net, skb, uh,
 						saddr, daddr, dcacptable, proto);
+	printk("reach here 4\n");
 
 	sk = __dcacp4_lib_lookup_skb(skb, uh->source, uh->dest, dcacptable);
 	if (sk) {
+		printk("dsk address: %p LINE:%d\n", dcacp_sk(sk), __LINE__);
 		slot = dcacp_message_in_bucket(dcacp_sk(sk), dh->message_id);
 		spin_lock_bh(&slot->lock);
 		msg = get_dcacp_message_in(dcacp_sk(sk), saddr, dh->common.source, dh->message_id);
+		printk("msg address: %p LINE:%d\n", msg, __LINE__);
 		dcacp_message_in_finish(msg);
 		spin_unlock_bh(&slot->lock);
 		return dcacp_unicast_rcv_skb(sk, skb, uh);
 	}
+	printk("reach here 5\n");
 
 	if (!xfrm4_policy_check(NULL, XFRM_POLICY_IN, skb))
 		goto drop;
@@ -2498,7 +2507,8 @@ int dcacp_v4_early_demux(struct sk_buff *skb)
 	int ours;
 
 	/* validate the packet */
-	if (!pskb_may_pull(skb, skb_transport_offset(skb) + DCACP_HEADER_MAX_SIZE))
+	printk("early demux");
+	if (!pskb_may_pull(skb, skb_transport_offset(skb) + sizeof(struct dcacphdr)))
 		return 0;
 
 	iph = ip_hdr(skb);
@@ -2559,26 +2569,36 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 	struct dcacp_peer *peer;
 	struct iphdr *iph;
 	struct message_hslot* slot;
-	struct dcacp_flow_sync_hdr *fh = dcacp_flow_sync_hdr(skb);
-	struct sock *sk = skb_steal_sock(skb);
-
-	if(!sk)
+	struct dcacp_flow_sync_hdr *fh;
+	struct sock *sk;
+	if (!pskb_may_pull(skb, sizeof(struct dcacp_flow_sync_hdr)))
+		goto drop;		/* No space for header. */
+	fh =  dcacp_flow_sync_hdr(skb);
+	sk = skb_steal_sock(skb);
+	if(!sk) {
 		sk = __dcacp4_lib_lookup_skb(skb, fh->common.source, fh->common.dest, &dcacp_table);
-	dsk = dcacp_sk(sk);
-	inet = inet_sk(sk);
-	iph = ip_hdr(skb);
+		dsk = dcacp_sk(sk);
+		inet = inet_sk(sk);
+		iph = ip_hdr(skb);
+		printk("dsk address: %p LINE:%d\n", dsk, __LINE__);
 
-	peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet);
-	msg = dcacp_message_in_init(peer, dsk, fh->message_id, fh->message_size, fh->common.source);
-	slot = dcacp_message_in_bucket(dsk, fh->message_id);
-	spin_lock_bh(&slot->lock);
-	add_dcacp_message_in(dsk, msg);
-	spin_unlock_bh(&slot->lock);
-	printk("receive notification pkt\n");
-	printk("source port: %u\n", fh->common.source);
-	printk("dest port: %u\n", fh->common.dest);
-	printk("socket is NULL?: %d\n", sk == NULL);
+		peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet);
+		msg = dcacp_message_in_init(peer, dsk, fh->message_id, fh->message_size, fh->common.source);
+		slot = dcacp_message_in_bucket(dsk, fh->message_id);
+		spin_lock_bh(&slot->lock);
+		add_dcacp_message_in(dsk, msg);
+		spin_unlock_bh(&slot->lock);
+		printk("receive notification pkt\n");
+		printk("msg address: %p LINE:%d\n", msg, __LINE__);
+		printk("fh->message_id:%d\n", msg->id);
+		printk("fh->message_size:%d\n", msg->total_length);
+		printk("source port: %u\n", fh->common.source);
+		printk("dest port: %u\n", fh->common.dest);
+		printk("socket is NULL?: %d\n", sk == NULL);
+	}
 
+
+drop:
 	kfree_skb(skb);
 
 	return 0;
@@ -2600,17 +2620,19 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb) {
 	struct message_hslot* slot;
 	struct dcacp_ack_hdr *ah = dcacp_ack_hdr(skb);
 	struct sock *sk = skb_steal_sock(skb);
+
+
+	if(!sk) {
+		sk = __dcacp4_lib_lookup_skb(skb, ah->common.source, ah->common.dest, &dcacp_table);
+		dsk = dcacp_sk(sk);
+		slot = dcacp_message_out_bucket(dsk, ah->message_id);
+		spin_lock_bh(&slot->lock);
+		msg = get_dcacp_message_out(dsk, ah->message_id);
+		dcacp_message_out_destroy(msg);
+		spin_unlock_bh(&slot->lock);
+	}
 	printk("receive ack pkt\n");
 	kfree_skb(skb);
-
-	if(!sk)
-		sk = __dcacp4_lib_lookup_skb(skb, ah->common.source, ah->common.dest, &dcacp_table);
-	dsk = dcacp_sk(sk);
-	slot = dcacp_message_out_bucket(dsk, ah->message_id);
-	spin_lock_bh(&slot->lock);
-	msg = get_dcacp_message_out(dsk, ah->message_id);
-	dcacp_message_out_destroy(msg);
-	spin_unlock_bh(&slot->lock);
 
 	return 0;
 }
@@ -2619,13 +2641,19 @@ int dcacp_rcv(struct sk_buff *skb)
 {
 	// printk("receive dcacp rcv\n");
 	// skb_dump(KERN_WARNING, skb, false);
-	struct dcacphdr* dh = dcacp_hdr(skb);
-
-	if (!pskb_may_pull(skb, DCACP_HEADER_MAX_SIZE))
+	struct dcacphdr* dh;
+	printk("skb->len:%d\n", skb->len);
+	if (!pskb_may_pull(skb, sizeof(struct dcacphdr)))
 		goto drop;		/* No space for header. */
+	dh = dcacp_hdr(skb);
+	printk("dh == NULL?: %d\n", dh == NULL);
+	printk("receive pkt: %d\n", dh->type);
+	printk("end ref \n");
+
 	if(dh->type == DATA) {
 		return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
 	} else if (dh->type == NOTIFICATION) {
+		printk("receive notification \n");
 		return dcacp_handle_flow_sync_pkt(skb);
 	} else if (dh->type == TOKEN) {
 		return dcacp_handle_token_pkt(skb);
@@ -2635,6 +2663,8 @@ int dcacp_rcv(struct sk_buff *skb)
 
 
 drop:
+	printk("drop packet:\n");
+
 	kfree_skb(skb);
 	return 0;
 
