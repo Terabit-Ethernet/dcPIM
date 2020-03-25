@@ -20,7 +20,7 @@
 
 #include <linux/types.h>
 
-#define DCACP_HEADER_MAX_SIZE 40
+#define DCACP_HEADER_MAX_SIZE 64
 /**
  * enum dcacp_packet_type - Defines the possible types of DCACP packets.
  * 
@@ -48,19 +48,85 @@ enum dcacp_packet_type {
 struct dcacphdr {
 	__be16	source;
 	__be16	dest;
-	__be16	len;
-	__sum16	check;
+	/**
+	 * @unused1: corresponds to the sequence number field in TCP headers;
+	 * must not be used by DCACP, in case it gets incremented during TCP
+	 * offload.
+	 */
+	__be32 unused1;
+	
+	__be32 unused2;
+
+	/**
+	 * @doff: High order 4 bits holds the number of 4-byte chunks in a
+	 * data_header (low-order bits unused). Used only for DATA packets;
+	 * must be in the same position as the data offset in a TCP header.
+	 */
+	__u8 doff;
+
+	/** @type: One of the values of &enum packet_type. */
 	__u8 type;
-};
+
+	/**
+	 * @gro_count: value on the wire is undefined. Used only by
+	 * dcacp_offload.c (it counts the total number of packets aggregated
+	 * into this packet, including the top-level packet). Unused for now
+	 */
+	__u16 gro_count;
+	
+	/**
+	 * @checksum: not used by Homa, but must occupy the same bytes as
+	 * the checksum in a TCP header (TSO may modify this?).*/
+	__be16 check;
+
+	__be16 len;
+	// *
+	//  * @priority: the priority at which the packet was set; used
+	//  * only for debugging.
+	 
+	// __u16 priority;
+}__attribute__((packed));
+
+/** 
+ * struct data_segment - Wire format for a chunk of data that is part of
+ * a DATA packet. A single sk_buff can hold multiple data_segments in order
+ * to enable send and receive offload (the idea is to carry many network
+ * packets of info in a single traversal of the Linux networking stack).
+ * A DATA sk_buff contains a data_header followed by any number of
+ * data_segments.
+ */
+struct data_segment {
+	/**
+	 * @offset: Offset within message of the first byte of data in
+	 * this segment. Segments within an sk_buff are not guaranteed
+	 * to be in order.
+	 */
+	__be32 offset;
+	
+	/** @segment_length: Number of bytes of data in this segment. */
+	__be32 segment_length;
+	
+	/** @data: the payload of this segment. */
+	char data[0];
+} __attribute__((packed));
+
 struct dcacp_data_hdr {
 	struct dcacphdr common;
 	// __u8 free_token;
 	// __u8 priority;
 	__be64 message_id;
 	/* token seq number */
-	__be32 seq_no;
-	__be32 data_seq_no;
-};
+	// __be32 seq_no;
+	// __be32 data_seq_no;
+} __attribute__((packed));
+
+_Static_assert(sizeof(struct dcacp_data_hdr) <= DCACP_HEADER_MAX_SIZE,
+		"data_header too large");
+
+_Static_assert(((sizeof(struct dcacp_data_hdr) - sizeof(struct data_segment))
+		& 0x3) == 0,
+		" data_header length not a multiple of 4 bytes (required "
+		"for TCP/TSO compatibility");
 
 struct dcacp_token_hdr {
 	struct dcacphdr common;
@@ -73,17 +139,24 @@ struct dcacp_token_hdr {
 	__be32 remaining_size;
 };
 
+_Static_assert(sizeof(struct dcacp_token_hdr) <= DCACP_HEADER_MAX_SIZE,
+		"token_header too large");
+
 struct dcacp_flow_sync_hdr {
 	struct dcacphdr common;
 	__be32 message_id;
 	__be32 message_size;
 	__be64 start_time;
 };
+_Static_assert(sizeof(struct dcacp_flow_sync_hdr) <= DCACP_HEADER_MAX_SIZE,
+		"flow_sync_header too large");
 
 struct dcacp_ack_hdr {
 	struct dcacphdr common;
 	__be32 message_id;
 };
+_Static_assert(sizeof(struct dcacp_ack_hdr) <= DCACP_HEADER_MAX_SIZE,
+		"dcacp_ack_header too large");
 
 enum {
 	SKB_GSO_DCACP = 1 << 16,

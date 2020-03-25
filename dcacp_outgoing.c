@@ -216,6 +216,7 @@ int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct dcac
 	dh->dest = dport;
 	dh->check = 0;
 	sk->sk_priority = skb->priority = 7;
+	dst_confirm_neigh(peer->dst, &fl4->daddr);
 	dst_hold(peer->dst);
 	skb_dst_set(skb, peer->dst);
 	skb_get(skb);

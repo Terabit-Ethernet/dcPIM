@@ -169,7 +169,7 @@ out:
 }
 
 /**
- * homa_unload() - invoked when this module is unloaded from the Linux kernel.
+ * dcacp_unload() - invoked when this module is unloaded from the Linux kernel.
  */
 static void __exit dcacp_unload(void) {
         printk(KERN_NOTICE "DCACP module unloading\n");

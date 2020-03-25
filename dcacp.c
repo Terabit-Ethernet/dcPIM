@@ -775,7 +775,6 @@ static int dcacp_send_skb(struct sk_buff *skb, struct flowi4 *fl4,
 	/*
 	 * Create a DCACP header
 	 */
-	skb_dump(KERN_WARNING, skb, false);
 
 	uh = dcacp_data_hdr(skb);
 	uh->common.source = inet->inet_sport;
@@ -783,11 +782,10 @@ static int dcacp_send_skb(struct sk_buff *skb, struct flowi4 *fl4,
 	uh->common.len = htons(len);
 	uh->common.check = 0;
 	uh->common.type = type;
-	skb_dump(KERN_WARNING, skb, false);
 
 	if(mesg != NULL) {
 		uh->message_id = mesg->id;
-		uh->data_seq_no = 0;
+		// uh->data_seq_no = 0;
 	}
 	if (cork->gso_size) {
 		const int hlen = skb_network_header_len(skb) +
@@ -1142,13 +1140,15 @@ back_from_confirm:
 		printk("saddr:%d\n", saddr);
 		slot = dcacp_message_out_bucket(up, mesg->id);
 		dcacp_xmit_control(construct_flow_sync_pkt(up, mesg->id, len, 0), peer, up, mesg->dport); 
+
+		printk("socket address: %p LINE:%d\n", up,  __LINE__);
+
 		spin_lock_bh(&slot->lock);
 		add_dcacp_message_out(up, mesg);
 		skb_get(skb);
 
 		spin_unlock_bh(&slot->lock);
 		err = PTR_ERR(skb);
-		skb_dump(KERN_WARNING, skb, false);
 
 		if (!IS_ERR_OR_NULL(skb))
 			err = dcacp_send_skb(skb, fl4, &cork, DATA, mesg);
@@ -2613,19 +2613,24 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb) {
 	struct dcacp_ack_hdr *ah = dcacp_ack_hdr(skb);
 	struct sock *sk = skb_steal_sock(skb);
 	printk("receive ack pkt\n");
-
+	printk("source port: %d\n", ah->common.source);
+	printk("dst port: %d\n", ah->common.dest);
 
 	if(!sk) {
 		sk = __dcacp4_lib_lookup_skb(skb, ah->common.source, ah->common.dest, &dcacp_table);
 	}
 	if(sk) {
 		dsk = dcacp_sk(sk);
+		printk("socket address: %p LINE:%d\n", dsk,  __LINE__);
 		slot = dcacp_message_out_bucket(dsk, ah->message_id);
 		spin_lock_bh(&slot->lock);
 		msg = get_dcacp_message_out(dsk, ah->message_id);
 		dcacp_message_out_destroy(msg);
 		spin_unlock_bh(&slot->lock);
+	} else {
+		printk("doesn't find dsk address LINE:%d\n", __LINE__);
 	}
+
 	kfree_skb(skb);
 
 	return 0;
