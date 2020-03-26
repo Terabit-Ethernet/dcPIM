@@ -1770,7 +1770,7 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int noblock,
 
 // try_again:
 	mesg = dcacp_wait_for_message(dcacp_sk(sk), flags, &err);
-	if(!msg) {
+	if(!mesg) {
 		return err;
 	}
 	err = dcacp_message_in_copy_data(mesg, &msg->msg_iter, len);
