@@ -60,6 +60,148 @@
 #include "uapi_linux_dcacp.h"
 #include "dcacp_impl.h"
 
+/**
+ * dcacp_fill_packets() - Create one or more packets and fill them with
+ * data from user space.
+ * @homa:    Overall data about the DCACP protocol implementation.
+ * @peer:    Peer to which the packets will be sent (needed for things like
+ *           the MTU).
+ * @from:    Address of the user-space source buffer.
+ * @len:     Number of bytes of user data.
+ * 
+ * Return:   Address of the first packet in a list of packets linked through
+ *           dcacp_next_skb, or a negative errno if there was an error. No
+ *           fields are set in the packet headers except for type, incoming,
+ *           offset, and length information. dcacp_message_out_init will fill
+ *           in the other fields.
+ */
+struct sk_buff *dcacp_fill_packets(struct dcacp_peer *peer,
+		struct msghdr *msg, size_t len)
+{
+	/* Note: this function is separate from dcacp_message_out_init
+	 * because it must be invoked without holding an RPC lock, and
+	 * dcacp_message_out_init must sometimes be called with the lock
+	 * held.
+	 */
+	int bytes_left, unsched;
+	struct sk_buff *skb;
+	struct sk_buff *first = NULL;
+	int err, mtu, max_pkt_data, gso_size, max_gso_data, rtt_bytes;
+	struct sk_buff **last_link;
+	rtt_bytes = 10000;
+	if (unlikely((len > DCACP_MAX_MESSAGE_LENGTH) || (len == 0))) {
+		err = -EINVAL;
+		goto error;
+	}
+	
+	mtu = dst_mtu(peer->dst);
+	max_pkt_data = mtu - sizeof(struct iphdr) - sizeof(struct dcacp_data_hdr);
+	if (len <= max_pkt_data) {
+		unsched = max_gso_data = len;
+		gso_size = mtu;
+	} else {
+		int bufs_per_gso;
+		
+		gso_size = peer->dst->dev->gso_max_size;
+		// if (gso_size > homa->max_gso_size)
+		// 	gso_size = homa->max_gso_size;
+		
+		/* Round gso_size down to an even # of mtus. */
+		bufs_per_gso = gso_size / mtu;
+		if (bufs_per_gso == 0) {
+			bufs_per_gso = 1;
+			mtu = gso_size;
+			max_pkt_data = mtu - sizeof(struct iphdr)
+					- sizeof(struct dcacp_data_hdr);
+		}
+		max_gso_data = bufs_per_gso * max_pkt_data;
+		gso_size = bufs_per_gso * mtu;
+		
+		/* Round unscheduled bytes *up* to an even number of gsos. */
+		unsched = rtt_bytes + max_gso_data - 1;
+		unsched -= unsched % max_gso_data;
+		if (unsched > len)
+			unsched = len;
+	}
+	
+	/* Copy message data from user space and form sk_buffs. Each
+	 * sk_buff may contain multiple data_segments, each of which will
+	 * turn into a separate packet, using either TSO in the NIC or
+	 * GSO in software.
+	 */
+	for (bytes_left = len, last_link = &first; bytes_left > 0; ) {
+		struct dcacp_data_hdr *h;
+		struct data_segment *seg;
+		int available, last_pkt_length;
+		
+		/* The sizeof(void*) creates extra space for dcacp_next_skb. */
+		skb = alloc_skb(gso_size + sizeof(void*),
+				GFP_KERNEL);
+		if (unlikely(!skb)) {
+			err = -ENOMEM;
+			goto error;
+		}
+		if ((bytes_left > max_pkt_data)
+				&& (max_gso_data > max_pkt_data)) {
+			// printk("unlikely is triggered:%d\n", __LINE__);
+			skb_shinfo(skb)->gso_size = sizeof(struct data_segment)
+					+ max_pkt_data;
+			skb_shinfo(skb)->gso_type = SKB_GSO_TCPV4;
+		}
+		skb_shinfo(skb)->gso_segs = 0;
+			
+		skb_reserve(skb, sizeof(struct iphdr));
+		skb_reset_transport_header(skb);
+		h = (struct dcacp_data_hdr *) skb_put(skb,
+				sizeof(*h) - sizeof(struct data_segment));
+		h->common.type = DATA;
+		available = max_gso_data;
+		h->common.len = available > bytes_left? htonl(bytes_left) :htonl(available);
+		
+		/* Each iteration of the following loop adds one segment
+		 * to the buffer.
+		 */
+		do {
+			int seg_size;
+			seg = (struct data_segment *) skb_put(skb, sizeof(*seg));
+			seg->offset = htonl(len - bytes_left);
+			if (bytes_left <= max_pkt_data)
+				seg_size = bytes_left;
+			else
+				seg_size = max_pkt_data;
+			seg->segment_length = htonl(seg_size);
+			if (!copy_from_iter_full(skb_put(skb, seg_size),
+					seg_size, &msg->msg_iter)) {
+				err = -EFAULT;
+				kfree_skb(skb);
+				goto error;
+			}
+			bytes_left -= seg_size;
+			printk("seg size: %d\n", seg_size);
+			printk("offset: %d\n",  ntohl(seg->offset));
+			// buffer += seg_size;
+			(skb_shinfo(skb)->gso_segs)++;
+			available -= seg_size;
+		} while ((available > 0) && (bytes_left > 0));
+		// h->incoming = htonl(((len - bytes_left) > unsched) ?
+		// 		(len - bytes_left) : unsched);
+		
+		/* Make sure that the last segment won't result in a
+		 * packet that's too small.
+		 */
+		last_pkt_length = htonl(seg->segment_length) + sizeof(*h);
+		if (unlikely(last_pkt_length < DCACP_HEADER_MAX_SIZE))
+			skb_put(skb, DCACP_HEADER_MAX_SIZE - last_pkt_length);
+		*last_link = skb;
+		last_link = dcacp_next_skb(skb);
+		*last_link = NULL;
+	}
+	return first;
+	
+    error:
+	dcacp_free_skbs(first);
+	return ERR_PTR(err);
+}
 
 
 struct dcacp_message_out* dcacp_message_out_init(struct dcacp_peer *peer, 
@@ -74,6 +216,7 @@ struct dcacp_message_out* dcacp_message_out_init(struct dcacp_peer *peer,
 	msg->dsk = sock;
     msg->peer = peer;
     msg->packets = skb;
+    msg->next_packet = skb;
     msg->num_skbs = 1;
     msg->total_length = message_size;
 
@@ -90,6 +233,23 @@ struct dcacp_message_out* dcacp_message_out_init(struct dcacp_peer *peer,
     msg->finish_time = 0;
     msg->latest_data_pkt_sent_time = 0;
 
+	/* Must scan the packets to fill in header fields that weren't
+	 * known when the packets were allocated.
+	 */
+	while (skb) {
+		struct dcacp_data_hdr *h = (struct dcacp_data_hdr *)
+				skb_transport_header(skb);
+		msg->num_skbs++;
+		h->common.source = inet_sk((struct sock*)sock)->inet_sport;
+		h->common.dest =dport;
+		dcacp_set_doff(h);
+		h->message_id = msg->id;
+		printk("doffset: %d\n", h->common.doff);
+		// h->message_length = htonl(len);
+		// h->cutoff_version = rpc->peer->cutoff_version;
+		// h->retransmit = 0;
+		skb = *dcacp_next_skb(skb);
+	}
 	// int priority;
     return msg;
 
@@ -102,7 +262,8 @@ void dcacp_message_out_destroy(struct dcacp_message_out *msgout)
 		return;
 	if (msgout->total_length < 0)
 		return;
-	kfree_skb(msgout->packets);
+	dcacp_free_skbs(msgout->packets);
+	// kfree_skb(msgout->packets);
 	delete_dcacp_message_out(msgout->dsk, msgout);
 	printk("call destroy message out in function \n");
 
@@ -124,7 +285,7 @@ struct dcacp_message_in* dcacp_message_in_init(struct dcacp_peer *peer,
 
 	spin_lock_init(&msg->lock);
 	skb_queue_head_init(&msg->packets);
-
+	
 	msg->dport = sport;
 	msg->dsk = sock;
 	msg->id = message_id;

@@ -77,6 +77,7 @@ struct sk_buff* __construct_control_skb(struct sock* sk) {
 	// memcpy(h, contents, length);
 	// if (extra_bytes > 0)
 	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
+	// ((struct inet_sock *) sk)->tos = TOS_7;
 	// skb->priority = sk.sk_priority = 7;
 	// dst_hold(peer->dst);
 	// skb_dst_set(skb, peer->dst);
@@ -215,7 +216,7 @@ int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct dcac
 	dh->source = inet->inet_sport;
 	dh->dest = dport;
 	dh->check = 0;
-	sk->sk_priority = skb->priority = 7;
+	inet->tos = TOS_7;
 	dst_confirm_neigh(peer->dst, &fl4->daddr);
 	dst_hold(peer->dst);
 	skb_dst_set(skb, peer->dst);
@@ -234,9 +235,119 @@ int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct dcac
 		 */
 		if (refcount_read(&skb->users) > 1)
 			printk(KERN_NOTICE "ip_queue_xmit didn't free "
-					"Homa control packet after error\n");
+					"DCACP control packet after error\n");
 	}
 	kfree_skb(skb);
 	// INC_METRIC(packets_sent[h->type - DATA], 1);
 	return result;
 }
+
+/**
+ * dcacp_xmit_data() - If an message_out has outbound data packets that are permitted
+ * to be transmitted according to the scheduling mechanism, arrange for
+ * them to be sent (some may be sent immediately; others may be sent
+ * later by the pacer thread).
+ * @mesg:       message_out to check for transmittable packets. Must be locked by
+ *             caller.
+ * @force:     True means send at least one packet, even if the NIC queue
+ *             is too long. False means that zero packets may be sent, if
+ *             the NIC queue is sufficiently long.
+ */
+void dcacp_xmit_data(struct dcacp_message_out* msg, bool force)
+{
+	while (msg->next_packet) {
+		// int priority = TOS_1;
+		struct sk_buff *skb = msg->next_packet;
+		// struct dcacp_sock* dsk = msg->dsk;
+		// int offset = homa_data_offset(skb);
+		
+		// if (homa == NULL) {
+		// 	printk(KERN_NOTICE "NULL homa pointer in homa_xmit_"
+		// 		"data, state %d, shutdown %d, id %llu, socket %d",
+		// 		rpc->state, rpc->hsk->shutdown, rpc->id,
+		// 		rpc->hsk->client_port);
+		// 	BUG();
+		// }
+		
+		// if (offset >= rpc->msgout.granted)
+		// 	break;
+		
+		// if ((rpc->msgout.length - offset) >= homa->throttle_min_bytes) {
+		// 	if (!homa_check_nic_queue(homa, skb, force)) {
+		// 		homa_add_to_throttled(rpc);
+		// 		break;
+		// 	}
+		// }
+		
+		// if (offset < rpc->msgout.unscheduled) {
+		// 	priority = homa_unsched_priority(homa, rpc->peer,
+		// 			rpc->msgout.length);
+		// } else {
+		// 	priority = rpc->msgout.sched_priority;
+		// }
+		msg->next_packet = *dcacp_next_skb(skb);
+		
+		skb_get(skb);
+		__dcacp_xmit_data(skb, msg->peer, msg->dsk, msg->dport);
+		force = false;
+	}
+}
+
+/**
+ * __homa_xmit_data() - Handles packet transmission stuff that is common
+ * to homa_xmit_data and homa_resend_data.
+ * @skb:      Packet to be sent. The packet will be freed after transmission
+ *            (and also if errors prevented transmission).
+ * @rpc:      Information about the RPC that the packet belongs to.
+ * @priority: Priority level at which to transmit the packet.
+ */
+void __dcacp_xmit_data(struct sk_buff *skb,  struct dcacp_peer* peer, struct dcacp_sock* dsk, int dport)
+{
+	int err;
+	// struct dcacp_data_hder *h = (struct dcacp_data_hder *)
+	// 		skb_transport_header(skb);
+	struct sock* sk = (struct sock*)dsk;
+	struct inet_sock *inet = inet_sk(sk);
+	// struct dcacphdr* dh;
+
+	// dh = dcacp_hdr(skb);
+
+	// dh->source = inet->inet_sport;
+
+	// dh->dest = dport;
+
+	inet->tos = TOS_1;
+
+	// set_priority(skb, rpc->hsk, priority);
+
+	/* Update cutoff_version in case it has changed since the
+	 * message was initially created.
+	 */
+	
+	dst_hold(peer->dst);
+	skb_dst_set(skb, peer->dst);
+	skb->ip_summed = CHECKSUM_PARTIAL;
+	skb->csum_start = skb_transport_header(skb) - skb->head;
+	skb->csum_offset = offsetof(struct dcacphdr, check);
+
+	err = ip_queue_xmit((struct sock *) dsk, skb, &peer->flow);
+//	tt_record4("Finished queueing packet: rpc id %llu, offset %d, len %d, "
+//			"next_offset %d",
+//			h->common.id, ntohl(h->seg.offset), skb->len,
+//			rpc->msgout.next_offset);
+	if (err) {
+		// INC_METRIC(data_xmit_errors, 1);
+		
+		/* It appears that ip_queue_xmit frees skbuffs after
+		 * errors; the following code raises an alert if this
+		 * isn't actually the case.
+		 */
+		if (refcount_read(&skb->users) > 1) {
+			printk(KERN_NOTICE "ip_queue_xmit didn't free "
+					"DCACP data packet after error\n");
+			kfree_skb(skb);
+		}
+	}
+	// INC_METRIC(packets_sent[0], 1);
+}
+

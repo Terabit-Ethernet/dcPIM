@@ -145,6 +145,7 @@ struct dcacp_message_in {
     double first_byte_receive_time;
 
 	struct hlist_node sk_table_link;
+	struct list_head ready_link;
 
 };
 
@@ -229,6 +230,16 @@ static inline struct dcacp_flow_sync_hdr *dcacp_flow_sync_hdr(const struct sk_bu
 	return (struct dcacp_flow_sync_hdr *)skb_transport_header(skb);
 }
 
+/**
+ * dcacp_set_doff() - Fills in the doff TCP header field for a Homa packet.
+ * @h:   Packet header whose doff field is to be set.
+ */
+static inline void dcacp_set_doff(struct dcacp_data_hdr *h)
+{
+        h->common.doff = (sizeof(struct dcacp_data_hdr)
+                        - sizeof(struct data_segment)) << 2;
+}
+
 static inline struct dcacphdr *inner_dcacp_hdr(const struct sk_buff *skb)
 {
 	return (struct dcacphdr *)skb_inner_transport_header(skb);
@@ -303,6 +314,9 @@ struct dcacp_sock {
 
 	atomic64_t next_outgoing_id;
 
+	struct spinlock ready_queue_lock;
+
+	struct list_head ready_message_queue;
 };
 
 /* DCACP message hslot handling function */

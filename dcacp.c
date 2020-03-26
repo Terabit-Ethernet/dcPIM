@@ -1129,15 +1129,16 @@ back_from_confirm:
 	if (!corkreq) {
 		struct inet_cork cork;
 
-		skb = ip_make_skb(sk, fl4, getfrag, msg, ulen,
-				  sizeof(struct dcacp_data_hdr), &ipc, &rt,
-				  &cork, msg->msg_flags);
+		// skb = ip_make_skb(sk, fl4, getfrag, msg, ulen,
+		// 		  sizeof(struct dcacp_data_hdr), &ipc, &rt,
+		// 		  &cork, msg->msg_flags);
 		peer =  dcacp_peer_find(&dcacp_peers_table, daddr, inet);
+		skb = dcacp_fill_packets(peer, msg, len);
 		mesg = dcacp_message_out_init(peer, up, skb, 
 		atomic64_fetch_add(1, &up->next_outgoing_id), len, dport);
 		/* transmit the flow sync packet */
 		printk("try to send notification pkt\n");
-		printk("saddr:%d\n", saddr);
+		printk("saddr:%hu\n", saddr);
 		slot = dcacp_message_out_bucket(up, mesg->id);
 		dcacp_xmit_control(construct_flow_sync_pkt(up, mesg->id, len, 0), peer, up, mesg->dport); 
 
@@ -1145,13 +1146,15 @@ back_from_confirm:
 
 		spin_lock_bh(&slot->lock);
 		add_dcacp_message_out(up, mesg);
-		skb_get(skb);
+		// skb_get(skb);
 
 		spin_unlock_bh(&slot->lock);
-		err = PTR_ERR(skb);
-
-		if (!IS_ERR_OR_NULL(skb))
-			err = dcacp_send_skb(skb, fl4, &cork, DATA, mesg);
+		// err = PTR_ERR(skb);
+		dcacp_xmit_data(mesg, true);
+		err = 0;
+		// if (!IS_ERR_OR_NULL(skb))
+		// 	err = dcacp_send_skb(skb, fl4, &cork, DATA, mesg);
+		// printk("err:%d\n", err);
 		goto out;
 	}
 
@@ -1559,8 +1562,11 @@ int dcacp_init_sock(struct sock *sk)
 		INIT_HLIST_HEAD(&slot->head);
 		slot->count = 0;
 	}
+	// next_going_id 
 	atomic64_set(&dsk->next_outgoing_id, 1);
-
+	// initialize the ready queue and its lock
+	spin_lock_init(&dsk->ready_queue_lock);
+	INIT_LIST_HEAD(&dsk->ready_message_queue);
 	sk->sk_destruct = dcacp_destruct_sock;
 	return 0;
 }
@@ -1670,6 +1676,7 @@ int dcacp_ioctl(struct sock *sk, int cmd, unsigned long arg)
 	return 0;
 }
 EXPORT_SYMBOL(dcacp_ioctl);
+
 
 struct sk_buff *__skb_recv_dcacp(struct sock *sk, unsigned int flags,
 			       int noblock, int *off, int *err)

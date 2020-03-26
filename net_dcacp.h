@@ -29,6 +29,16 @@
 #include <linux/poll.h>
 
 #include "linux_dcacp.h"
+
+#define TOS_7 0xE0
+#define TOS_6 0xC0
+#define TOS_5 0xA0
+#define TOS_4 0x80
+#define TOS_3 0x60
+#define TOS_2 0x40
+#define TOS_1 0x20
+#define TOS_0 0x00
+
 /**
  *	struct dcacp_skb_cb  -  DCACP(-Lite) private variables
  *
@@ -48,6 +58,33 @@ struct dcacp_skb_cb {
 };
 #define DCACP_SKB_CB(__skb)	((struct dcacp_skb_cb *)((__skb)->cb))
 
+/**
+ * dcacp_next_skb() - Compute address of DCACP's private link field in @skb.
+ * @skb:     Socket buffer containing private link field.
+ * 
+ * DCACP needs to keep a list of buffers in a message, but it can't use the
+ * links built into sk_buffs because DCACP wants to retain its list even
+ * after sending the packet, and the built-in links get used during sending.
+ * Thus we allocate extra space at the very end of the packet's data
+ * area to hold a forward pointer for a list.
+ */
+static inline struct sk_buff **dcacp_next_skb(struct sk_buff *skb)
+{
+	return (struct sk_buff **) (skb_end_pointer(skb) - sizeof(char*));
+}
+
+/**
+ * dcacp_free_skbs() - Free all of the skbs in a list.
+ * @head:    First in a list of socket buffers linked through dcacp_next_skb.
+ */
+static inline void dcacp_free_skbs(struct sk_buff *head)
+{
+        while (head) {
+                struct sk_buff *next = *dcacp_next_skb(head);
+                kfree_skb(head);
+                head = next;
+        }
+}
 // /**
 //  *	struct dcacp_hslot - DCACP hash slot
 //  *
