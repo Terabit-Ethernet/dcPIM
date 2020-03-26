@@ -1755,74 +1755,82 @@ EXPORT_SYMBOL(__skb_recv_dcacp);
 int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int noblock,
 		int flags, int *addr_len)
 {
-	struct inet_sock *inet = inet_sk(sk);
+	// struct inet_sock *inet = inet_sk(sk);
+	struct dcacp_message_in* mesg;
 	DECLARE_SOCKADDR(struct sockaddr_in *, sin, msg->msg_name);
 	struct sk_buff *skb;
-	unsigned int ulen, copied;
-	int off, err, peeking = flags & MSG_PEEK;
-	int is_dcacplite = IS_DCACPLITE(sk);
-	bool checksum_valid = false;
+	int err;
+	// unsigned int ulen, copied;
+	// int off, peeking = flags & MSG_PEEK;
+	// int is_dcacplite = IS_DCACPLITE(sk);
+	// bool checksum_valid = false;
 
 	if (flags & MSG_ERRQUEUE)
 		return ip_recv_error(sk, msg, len, addr_len);
 
-try_again:
-	off = sk_peek_offset(sk, flags);
-	skb = __skb_recv_dcacp(sk, flags, noblock, &off, &err);
-	if (!skb)
-		return err;
-
-	ulen = dcacp_skb_len(skb);
-	copied = len;
-	if (copied > ulen - off)
-		copied = ulen - off;
-	else if (copied < ulen)
-		msg->msg_flags |= MSG_TRUNC;
-
-	/*
-	 * If checksum is needed at all, try to do it while copying the
-	 * data.  If the data is truncated, or if we only want a partial
-	 * coverage checksum (DCACP-Lite), do it before the copy.
-	 */
-
-	if (copied < ulen || peeking ||
-	    (is_dcacplite && DCACP_SKB_CB(skb)->partial_cov)) {
-		checksum_valid =dcacp_skb_csum_unnecessary(skb) ||
-				!__dcacp_lib_checksum_complete(skb);
-		if (!checksum_valid)
-			goto csum_copy_err;
-	}
-
-	if (checksum_valid || dcacp_skb_csum_unnecessary(skb)) {
-		if (dcacp_skb_is_linear(skb))
-			err = copy_linear_skb(skb, copied, off, &msg->msg_iter);
-		else
-			err = skb_copy_datagram_msg(skb, off, msg, copied);
-	} else {
-		err = skb_copy_and_csum_datagram_msg(skb, off, msg);
-
-		if (err == -EINVAL)
-			goto csum_copy_err;
-	}
-
-	if (unlikely(err)) {
-		if (!peeking) {
-			atomic_inc(&sk->sk_drops);
-			UDP_INC_STATS(sock_net(sk),
-				      UDP_MIB_INERRORS, is_dcacplite);
-		}
-		kfree_skb(skb);
+// try_again:
+	mesg = dcacp_wait_for_message(dcacp_sk(sk), flags, &err);
+	if(!msg) {
 		return err;
 	}
+	err = dcacp_message_in_copy_data(mesg, &msg->msg_iter, len);
+	skb = skb_peek(&mesg->packets);
+	// off = sk_peek_offset(sk, flags);
+	// skb = __skb_recv_dcacp(sk, flags, noblock, &off, &err);
+	// if (!skb)
+		// return err;
 
-	if (!peeking)
-		UDP_INC_STATS(sock_net(sk),
-			      UDP_MIB_INDATAGRAMS, is_dcacplite);
+	// ulen = dcacp_skb_len(skb);
+	// copied = len;
+	// if (copied > ulen - off)
+	// 	copied = ulen - off;
+	// else if (copied < ulen)
+	// 	msg->msg_flags |= MSG_TRUNC;
 
-	sock_recv_ts_and_drops(msg, sk, skb);
+	// /*
+	//  * If checksum is needed at all, try to do it while copying the
+	//  * data.  If the data is truncated, or if we only want a partial
+	//  * coverage checksum (DCACP-Lite), do it before the copy.
+	//  */
+
+	// if (copied < ulen || peeking ||
+	//     (is_dcacplite && DCACP_SKB_CB(skb)->partial_cov)) {
+	// 	checksum_valid =dcacp_skb_csum_unnecessary(skb) ||
+	// 			!__dcacp_lib_checksum_complete(skb);
+	// 	if (!checksum_valid)
+	// 		goto csum_copy_err;
+	// }
+
+	// if (checksum_valid || dcacp_skb_csum_unnecessary(skb)) {
+	// 	if (dcacp_skb_is_linear(skb))
+	// 		err = copy_linear_skb(skb, copied, off, &msg->msg_iter);
+	// 	else
+	// 		err = skb_copy_datagram_msg(skb, off, msg, copied);
+	// } else {
+	// 	err = skb_copy_and_csum_datagram_msg(skb, off, msg);
+
+	// 	if (err == -EINVAL)
+	// 		goto csum_copy_err;
+	// }
+
+	// if (unlikely(err)) {
+	// 	if (!peeking) {
+	// 		atomic_inc(&sk->sk_drops);
+	// 		UDP_INC_STATS(sock_net(sk),
+	// 			      UDP_MIB_INERRORS, is_dcacplite);
+	// 	}
+	// 	kfree_skb(skb);
+	// 	return err;
+	// }
+
+	// if (!peeking)
+	// 	UDP_INC_STATS(sock_net(sk),
+	// 		      UDP_MIB_INDATAGRAMS, is_dcacplite);
+
+	// sock_recv_ts_and_drops(msg, sk, skb);
 
 	/* Copy the address. */
-	if (sin) {
+	if (sin && skb) {
 		sin->sin_family = AF_INET;
 		sin->sin_port = dcacp_hdr(skb)->source;
 		sin->sin_addr.s_addr = ip_hdr(skb)->saddr;
@@ -1833,32 +1841,32 @@ try_again:
 			BPF_CGROUP_RUN_PROG_UDP4_RECVMSG_LOCK(sk,
 							(struct sockaddr *)sin);
 	}
-
-	if (dcacp_sk(sk)->gro_enabled)
-		dcacp_cmsg_recv(msg, sk, skb);
-	if (inet->cmsg_flags)
-		ip_cmsg_recv_offset(msg, sk, skb, sizeof(struct dcacphdr), off);
-
-	err = copied;
-	if (flags & MSG_TRUNC)
-		err = ulen;
-
-	skb_consume_dcacp(sk, skb, peeking ? -err : err);
 	return err;
+// 	if (dcacp_sk(sk)->gro_enabled)
+// 		dcacp_cmsg_recv(msg, sk, skb);
+// 	if (inet->cmsg_flags)
+// 		ip_cmsg_recv_offset(msg, sk, skb, sizeof(struct dcacphdr), off);
 
-csum_copy_err:
-	if (!__sk_queue_drop_skb(sk, &dcacp_sk(sk)->reader_queue, skb, flags,
-				 dcacp_skb_destructor)) {
-		UDP_INC_STATS(sock_net(sk), UDP_MIB_CSUMERRORS, is_dcacplite);
-		UDP_INC_STATS(sock_net(sk), UDP_MIB_INERRORS, is_dcacplite);
-	}
-	printk("copy error:%d\n", __LINE__);
-	kfree_skb(skb);
+// 	err = copied;
+// 	if (flags & MSG_TRUNC)
+// 		err = ulen;
 
-	/* starting over for a new packet, but check if we need to yield */
-	cond_resched();
-	msg->msg_flags &= ~MSG_TRUNC;
-	goto try_again;
+// 	skb_consume_dcacp(sk, skb, peeking ? -err : err);
+// 	return err;
+
+// csum_copy_err:
+// 	if (!__sk_queue_drop_skb(sk, &dcacp_sk(sk)->reader_queue, skb, flags,
+// 				 dcacp_skb_destructor)) {
+// 		UDP_INC_STATS(sock_net(sk), UDP_MIB_CSUMERRORS, is_dcacplite);
+// 		UDP_INC_STATS(sock_net(sk), UDP_MIB_INERRORS, is_dcacplite);
+// 	}
+// 	printk("copy error:%d\n", __LINE__);
+// 	kfree_skb(skb);
+
+// 	/* starting over for a new packet, but check if we need to yield */
+// 	cond_resched();
+// 	msg->msg_flags &= ~MSG_TRUNC;
+// 	goto try_again;
 }
 
 int dcacp_pre_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
@@ -2560,88 +2568,6 @@ int dcacp_v4_early_demux(struct sk_buff *skb)
 	return 0;
 }
 
-int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
-	struct dcacp_sock *dsk;
-	struct inet_sock *inet;
-	struct dcacp_message_in *msg;
-	struct dcacp_peer *peer;
-	struct iphdr *iph;
-	struct message_hslot* slot;
-	struct dcacp_flow_sync_hdr *fh;
-	struct sock *sk;
-	if (!pskb_may_pull(skb, sizeof(struct dcacp_flow_sync_hdr)))
-		goto drop;		/* No space for header. */
-	fh =  dcacp_flow_sync_hdr(skb);
-	sk = skb_steal_sock(skb);
-	if(!sk) {
-		sk = __dcacp4_lib_lookup_skb(skb, fh->common.source, fh->common.dest, &dcacp_table);
-	}
-	if(sk) {
-		dsk = dcacp_sk(sk);
-		inet = inet_sk(sk);
-		iph = ip_hdr(skb);
-
-		peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet);
-		msg = dcacp_message_in_init(peer, dsk, fh->message_id, fh->message_size, fh->common.source);
-		slot = dcacp_message_in_bucket(dsk, fh->message_id);
-		spin_lock_bh(&slot->lock);
-		add_dcacp_message_in(dsk, msg);
-		spin_unlock_bh(&slot->lock);
-		// printk("receive notification pkt\n");
-		// printk("msg address: %p LINE:%d\n", msg, __LINE__);
-		// printk("fh->message_id:%d\n", msg->id);
-		// printk("fh->message_size:%d\n", msg->total_length);
-		// printk("source port: %u\n", fh->common.source);
-		// printk("dest port: %u\n", fh->common.dest);
-		// printk("socket is NULL?: %d\n", sk == NULL);
-	}
-
-
-drop:
-	kfree_skb(skb);
-
-	return 0;
-}
-
-int dcacp_handle_token_pkt(struct sk_buff *skb) {
-	printk("receive token pkt\n");
-	kfree_skb(skb);
-
-	return 0;
-}
-
-int dcacp_handle_ack_pkt(struct sk_buff *skb) {
-	struct dcacp_sock *dsk;
-	// struct inet_sock *inet;
-	struct dcacp_message_out *msg;
-	// struct dcacp_peer *peer;
-	// struct iphdr *iph;
-	struct message_hslot* slot;
-	struct dcacp_ack_hdr *ah = dcacp_ack_hdr(skb);
-	struct sock *sk = skb_steal_sock(skb);
-	printk("receive ack pkt\n");
-	printk("source port: %d\n", ah->common.source);
-	printk("dst port: %d\n", ah->common.dest);
-
-	if(!sk) {
-		sk = __dcacp4_lib_lookup_skb(skb, ah->common.source, ah->common.dest, &dcacp_table);
-	}
-	if(sk) {
-		dsk = dcacp_sk(sk);
-		printk("socket address: %p LINE:%d\n", dsk,  __LINE__);
-		slot = dcacp_message_out_bucket(dsk, ah->message_id);
-		spin_lock_bh(&slot->lock);
-		msg = get_dcacp_message_out(dsk, ah->message_id);
-		dcacp_message_out_destroy(msg);
-		spin_unlock_bh(&slot->lock);
-	} else {
-		printk("doesn't find dsk address LINE:%d\n", __LINE__);
-	}
-
-	kfree_skb(skb);
-
-	return 0;
-}
 
 int dcacp_rcv(struct sk_buff *skb)
 {
@@ -2657,7 +2583,8 @@ int dcacp_rcv(struct sk_buff *skb)
 	// printk("end ref \n");
 
 	if(dh->type == DATA) {
-		return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
+		return dcacp_handle_data_pkt(skb);
+		// return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
 	} else if (dh->type == NOTIFICATION) {
 		return dcacp_handle_flow_sync_pkt(skb);
 	} else if (dh->type == TOKEN) {

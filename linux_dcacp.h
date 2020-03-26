@@ -88,8 +88,8 @@ struct message_hslot {
 struct dcacp_message_in {
     __u64 id;
 
-    /* message out id from the sender; */
-    __u64 message_out_id;
+    //  message out id from the sender; 
+    // __u64 message_out_id;
 	/**
 	 * @packets: DATA packets received for this message so far. The list
 	 * is sorted in order of offset (head is lowest offset), but

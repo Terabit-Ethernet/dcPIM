@@ -26,10 +26,16 @@ void dcacp_peertab_destroy(struct dcacp_peertab *peertab);
 struct dcacp_peer *dcacp_peer_find(struct dcacp_peertab *peertab, __be32 addr,
 	struct inet_sock *inet);
 
-
+struct dcacp_message_in *dcacp_wait_for_message(struct dcacp_sock *dsk, unsigned flags, int *err);
+int dcacp_message_in_copy_data(struct dcacp_message_in *msg,
+		struct iov_iter *iter, int max_bytes);
 void dcacp_msg_ready(struct dcacp_message_in *msg);
 void dcacp_add_packet(struct dcacp_message_in *msg, struct sk_buff *skb);
-int dcacp_data_pkt(struct sk_buff *skb, struct dcacp_message_in *msg);
+int dcacp_handle_data_pkt(struct sk_buff *skb);
+int dcacp_handle_flow_sync_pkt(struct sk_buff *skb);
+int dcacp_handle_token_pkt(struct sk_buff *skb);
+int dcacp_handle_ack_pkt(struct sk_buff *skb);
+
 struct sk_buff* construct_flow_sync_pkt(struct dcacp_sock* d_sk, __u64 message_id, 
 	int message_size, __u64 start_time);
 struct sk_buff* construct_token_pkt(struct dcacp_sock* d_sk, bool free_token, unsigned short priority,
