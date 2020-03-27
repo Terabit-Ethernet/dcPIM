@@ -248,7 +248,7 @@ struct dcacp_message_in *dcacp_wait_for_message(struct dcacp_sock *dsk, unsigned
 			spin_lock_bh(&dsk->ready_queue_lock);
 			if(!list_empty(&dsk->ready_message_queue)) {
 				msg = list_first_entry(&dsk->ready_message_queue, struct dcacp_message_in, ready_link);
-				list_del_init(&dsk->ready_message_queue);
+				list_del_init(&msg->ready_link);
 				spin_unlock_bh(&dsk->ready_queue_lock);
 				return msg;
 			}
@@ -348,7 +348,7 @@ void dcacp_msg_ready(struct dcacp_message_in *msg)
 	spin_lock_bh(&dsk->waiting_thread_queue_lock);
 	thread = list_first_entry_or_null(&dsk->waiting_thread_queue, struct dcacp_waiting_thread, wait_link);
 	if(thread) {
-		list_del_init(&dsk->waiting_thread_queue);
+		list_del_init(&thread->wait_link);
 		wake_up_process(thread->thread);
 	}
 	spin_unlock_bh(&dsk->waiting_thread_queue_lock);
