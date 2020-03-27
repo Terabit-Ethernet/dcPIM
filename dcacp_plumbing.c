@@ -133,7 +133,7 @@ static int __init dcacp_load(void) {
         //         goto out_cleanup;
         // }
         
-        status = dcacpv4_offload_init();
+        // status = dcacpv4_offload_init();
         printk("init the offload\n");
         if (status != 0) {
                 printk(KERN_ERR "DCACP couldn't init offloads\n");
@@ -154,8 +154,8 @@ static int __init dcacp_load(void) {
 out_cleanup:
         // unregister_net_sysctl_table(homa_ctl_header);
         // proc_remove(metrics_dir_entry);
-        if (dcacpv4_offload_end() != 0)
-                printk(KERN_ERR "DCACP couldn't stop offloads\n");
+        // if (dcacpv4_offload_end() != 0)
+        //         printk(KERN_ERR "DCACP couldn't stop offloads\n");
         dcacp_destroy();
         inet_del_protocol(&dcacp_protocol, IPPROTO_DCACP);
         printk("inet delete protocol\n");
@@ -191,8 +191,8 @@ static void __exit dcacp_unload(void) {
         //         printk(KERN_ERR "Homa couldn't stop offloads\n");
         // unregister_net_sysctl_table(homa_ctl_header);
         // proc_remove(metrics_dir_entry);
-        if (dcacpv4_offload_end() != 0)
-                printk(KERN_ERR "DCACP couldn't stop offloads\n");
+        // if (dcacpv4_offload_end() != 0)
+        //         printk(KERN_ERR "DCACP couldn't stop offloads\n");
         dcacp_destroy();
         inet_del_protocol(&dcacp_protocol, IPPROTO_DCACP);
         inet_unregister_protosw(&dcacp_protosw);

@@ -29,6 +29,15 @@
 #define DCACP_PEERTAB_BUCKETS (1 << DCACP_PEERTAB_BUCKET_BITS)
 
 struct dcacp_sock;
+
+struct dcacp_waiting_thread {
+	struct task_struct *thread;
+	/**
+	 * @wait_links: For linking this object into
+	 * &dcacp_sock.waiting_thread_queue.
+	 */
+	struct list_head wait_link;
+};
 /**
  * struct dcacp_peertab - A hash table that maps from IPV4 addresses
  * to dcacp_peer objects. Entries are gradually added to this table,
@@ -317,6 +326,10 @@ struct dcacp_sock {
 	struct spinlock ready_queue_lock;
 
 	struct list_head ready_message_queue;
+
+	struct spinlock waiting_thread_queue_lock;
+
+	struct list_head waiting_thread_queue;
 };
 
 /* DCACP message hslot handling function */

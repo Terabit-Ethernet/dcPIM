@@ -1567,6 +1567,8 @@ int dcacp_init_sock(struct sock *sk)
 	// initialize the ready queue and its lock
 	spin_lock_init(&dsk->ready_queue_lock);
 	INIT_LIST_HEAD(&dsk->ready_message_queue);
+	spin_lock_init(&dsk->waiting_thread_queue_lock);
+	INIT_LIST_HEAD(&dsk->waiting_thread_queue);
 	sk->sk_destruct = dcacp_destruct_sock;
 	return 0;
 }

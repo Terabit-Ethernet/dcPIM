@@ -97,6 +97,7 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 		iph = ip_hdr(skb);
 
 		peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet);
+		printk("message size:%d\n", fh->message_size);
 		msg = dcacp_message_in_init(peer, dsk, fh->message_id, fh->message_size, fh->common.source);
 		slot = dcacp_message_in_bucket(dsk, fh->message_id);
 		spin_lock_bh(&slot->lock);
@@ -226,6 +227,10 @@ struct dcacp_message_in *dcacp_wait_for_message(struct dcacp_sock *dsk, unsigned
 	struct dcacp_message_in *msg = NULL;
 	int error = 0;
 	struct sock* sk = (struct sock*) dsk;
+	struct dcacp_waiting_thread* thread = kmalloc(sizeof(struct dcacp_waiting_thread), GFP_KERNEL);
+	// long timeo = sock_rcvtimeo(sk, flags & MSG_DONTWAIT);
+	// timeo = 3;
+	// printk("timeo:%ld\n", timeo);
 	// struct dcacp_rpc *result = NULL;
 	// struct dcacp_interest interest;
 	// int sock_locked = 0;
@@ -239,8 +244,8 @@ struct dcacp_message_in *dcacp_wait_for_message(struct dcacp_sock *dsk, unsigned
 		if (error) {
 			break;
 		}
-		spin_lock_bh(&dsk->ready_queue_lock);
-		do{
+		while(1){
+			spin_lock_bh(&dsk->ready_queue_lock);
 			if(!list_empty(&dsk->ready_message_queue)) {
 				msg = list_first_entry(&dsk->ready_message_queue, struct dcacp_message_in, ready_link);
 				list_del_init(&dsk->ready_message_queue);
@@ -251,19 +256,36 @@ struct dcacp_message_in *dcacp_wait_for_message(struct dcacp_sock *dsk, unsigned
 			if (!sk_can_busy_loop(sk))
 				break;
 			sk_busy_loop(sk, flags & MSG_DONTWAIT);
-			// get the lock first before chekcing list empty
+
  		    spin_lock_bh(&dsk->ready_queue_lock);
-		} while(!list_empty(&dsk->ready_message_queue));
+ 		    if(list_empty(&dsk->ready_message_queue)) {
+	 			spin_unlock_bh(&dsk->ready_queue_lock);
+ 		    	break;
+ 		    }
+ 			spin_unlock_bh(&dsk->ready_queue_lock);
+		} 
 		/* Now it's time to sleep. */
+		thread->thread = current;
+		spin_lock_bh(&dsk->waiting_thread_queue_lock);
+		list_add_tail(&thread->wait_link, &dsk->waiting_thread_queue);
+		spin_unlock_bh(&dsk->waiting_thread_queue_lock);
+
 		set_current_state(TASK_INTERRUPTIBLE);
 		// if (!atomic_long_read(&interest.id) && !hsk->shutdown) {
 			// __u64 start = get_cycles();
+		// __u64 start = get_cycles();
+		// schedule_timeout(timeo);
 		schedule();
+		// printk("time diff:%llu\n", get_cycles() - start);
 			// INC_METRIC(blocked_cycles, get_cycles() - start);
 		// }
 		__set_current_state(TASK_RUNNING);
+		if (signal_pending(current)) {
+			error = -EINTR;
+			goto err_handling;
+		}
 	}
-
+err_handling:
 	*err = error;
 	return NULL;
 }
@@ -280,8 +302,11 @@ void dcacp_msg_ready(struct dcacp_message_in *msg)
 {
 
 // 	struct homa_interest *interest;
+	struct dcacp_sock* dsk;
 	struct sock *sk;
-	
+	struct dcacp_waiting_thread* thread;
+
+	dsk = msg->dsk;
 // 	rpc->state = RPC_READY;
 	
 // 	/* First, see if someone is interested in this RPC specifically.
@@ -298,7 +323,12 @@ void dcacp_msg_ready(struct dcacp_message_in *msg)
 // 				struct homa_interest, response_links);
 // 		if (interest)
 // 			goto handoff;
-		list_add_tail(&msg->ready_link, &msg->dsk->ready_message_queue);
+	printk("add ready message to the queue\n");
+	spin_lock_bh(&dsk->ready_queue_lock);
+	list_add_tail(&msg->ready_link, &dsk->ready_message_queue);
+
+	spin_unlock_bh(&dsk->ready_queue_lock);
+
 // 	} else {
 // 		interest = list_first_entry_or_null(
 // 				&rpc->hsk->request_interests,
@@ -315,6 +345,14 @@ void dcacp_msg_ready(struct dcacp_message_in *msg)
 	/* Notify the poll mechanism. */
 	sk = (struct sock *) msg->dsk;
 	sk->sk_data_ready(sk);
+	spin_lock_bh(&dsk->waiting_thread_queue_lock);
+	thread = list_first_entry_or_null(&dsk->waiting_thread_queue, struct dcacp_waiting_thread, wait_link);
+	if(thread) {
+		list_del_init(&dsk->waiting_thread_queue);
+		wake_up_process(thread->thread);
+	}
+	spin_unlock_bh(&dsk->waiting_thread_queue_lock);
+	kfree(thread);
 	return;
 	
 // handoff:
@@ -399,6 +437,7 @@ void dcacp_add_packet(struct dcacp_message_in *msg, struct sk_buff *skb)
 	__skb_insert(skb, skb2, skb2->next, &msg->packets);
 	msg->received_bytes += (ceiling - floor);
 	msg->num_skbs++;
+	printk("the number of received skb:%d\n", msg->num_skbs);
 }
 
 /**
@@ -420,6 +459,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	struct message_hslot* slot;
 	struct iphdr *iph;
 	struct dcacp_message_in *msg = NULL;
+	printk("receive data pkt\n");
 	if (!pskb_may_pull(skb, sizeof(struct dcacp_data_hdr)))
 		goto drop;		/* No space for header. */
 	dh =  dcacp_data_hdr(skb);
@@ -492,10 +532,9 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	// 		dcacp_rpc_ready(rpc);
 	// 	dcacp_sock_unlock(rpc->hsk);
 	// } else {
+		printk("number of recv bytes: %d\n", msg->received_bytes);
 		if (msg->received_bytes == msg->total_length) {
-			spin_lock_bh(&msg->dsk->ready_queue_lock);
 			dcacp_msg_ready(msg);
-			spin_unlock_bh(&msg->dsk->ready_queue_lock);
 		}
 	// }
 	// if (ntohs(h->cutoff_version) != dcacp->cutoff_version) {
@@ -520,6 +559,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	// 		rpc->peer->last_update_jiffies = jiffies;
 	// 	}
 	// }
+		return 0;
 	}
 drop:
 	kfree_skb(skb);
