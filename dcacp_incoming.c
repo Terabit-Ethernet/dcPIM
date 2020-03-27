@@ -228,6 +228,7 @@ struct dcacp_message_in *dcacp_wait_for_message(struct dcacp_sock *dsk, unsigned
 	int error = 0;
 	struct sock* sk = (struct sock*) dsk;
 	struct dcacp_waiting_thread* thread = kmalloc(sizeof(struct dcacp_waiting_thread), GFP_KERNEL);
+	INIT_LIST_HEAD(&thread->wait_link);
 	// long timeo = sock_rcvtimeo(sk, flags & MSG_DONTWAIT);
 	// timeo = 3;
 	// printk("timeo:%ld\n", timeo);

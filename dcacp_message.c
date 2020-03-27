@@ -285,7 +285,8 @@ struct dcacp_message_in* dcacp_message_in_init(struct dcacp_peer *peer,
 
 	spin_lock_init(&msg->lock);
 	skb_queue_head_init(&msg->packets);
-	
+	INIT_LIST_HEAD(&msg->ready_link);
+
 	msg->dport = sport;
 	msg->dsk = sock;
 	msg->id = message_id;
@@ -354,7 +355,7 @@ void dcacp_message_in_finish(struct dcacp_message_in *msg) {
 	// printk("finish transmitting \n");
 
 	// deete message
-	slot = dcacp_message_in_bucket(msg->dsk, msg->id);
+	// slot = dcacp_message_in_bucket(msg->dsk, msg->id);
 	// spin_lock_bh(&slot->lock);
 	dcacp_message_in_destroy(msg);
 	// printk("end destroy\n");
