@@ -10,22 +10,33 @@
 #include "net_dcacplite.h"
 
 
+
+void dcacp_pq_init(struct dcacp_pq* pq, bool(*comp)(const struct list_head*, const struct list_head*));
+bool dcacp_pq_empty(struct dcacp_pq* pq);
+struct list_head* dcacp_pq_pop(struct dcacp_pq* pq);
+void dcacp_pq_push(struct dcacp_pq* pq, struct list_head* node);
+struct list_head* dcacp_pq_peek(struct dcacp_pq* pq); 
+
+/* DCACP message_in definition */
 struct dcacp_message_in* dcacp_message_in_init(struct dcacp_peer *peer, 
 	struct dcacp_sock *sock, __u64 message_id, int message_size, int sport);
 void dcacp_message_in_finish(struct dcacp_message_in *msg);
 void dcacp_message_in_destroy(struct dcacp_message_in *msg);
-
 struct sk_buff *dcacp_fill_packets(struct dcacp_peer *peer,
 		struct msghdr *msg, size_t len);
+
+/*DCACP message out definition */
 struct dcacp_message_out* dcacp_message_out_init(struct dcacp_peer *peer, 
 	struct dcacp_sock *sock, struct sk_buff* skb, __u64 message_id, int message_size, int dport);
 void dcacp_message_out_destroy(struct dcacp_message_out *msg);
 
+/*DCACP peer table*/
 int dcacp_peertab_init(struct dcacp_peertab *peertab);
 void dcacp_peertab_destroy(struct dcacp_peertab *peertab);
 struct dcacp_peer *dcacp_peer_find(struct dcacp_peertab *peertab, __be32 addr,
 	struct inet_sock *inet);
 
+/*DCACP incoming function*/
 struct dcacp_message_in *dcacp_wait_for_message(struct dcacp_sock *dsk, unsigned flags, int *err);
 int dcacp_message_in_copy_data(struct dcacp_message_in *msg,
 		struct iov_iter *iter, int max_bytes);
@@ -36,6 +47,7 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb);
 int dcacp_handle_token_pkt(struct sk_buff *skb);
 int dcacp_handle_ack_pkt(struct sk_buff *skb);
 
+/*DCACP outgoing function*/
 struct sk_buff* construct_flow_sync_pkt(struct dcacp_sock* d_sk, __u64 message_id, 
 	int message_size, __u64 start_time);
 struct sk_buff* construct_token_pkt(struct dcacp_sock* d_sk, bool free_token, unsigned short priority,

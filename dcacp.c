@@ -1759,6 +1759,7 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int noblock,
 {
 	// struct inet_sock *inet = inet_sk(sk);
 	struct dcacp_message_in* mesg;
+	struct message_hslot *slot;
 	DECLARE_SOCKADDR(struct sockaddr_in *, sin, msg->msg_name);
 	struct sk_buff *skb;
 	int err;
@@ -1843,6 +1844,11 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int noblock,
 			BPF_CGROUP_RUN_PROG_UDP4_RECVMSG_LOCK(sk,
 							(struct sockaddr *)sin);
 	}
+
+	slot = dcacp_message_in_bucket(dcacp_sk(sk), mesg->id);
+	spin_lock_bh(&slot->lock);
+	dcacp_message_in_finish(mesg);
+	spin_unlock_bh(&slot->lock);
 	return err;
 // 	if (dcacp_sk(sk)->gro_enabled)
 // 		dcacp_cmsg_recv(msg, sk, skb);

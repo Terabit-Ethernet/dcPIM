@@ -30,6 +30,14 @@
 
 struct dcacp_sock;
 
+
+struct dcacp_pq {
+	struct list_head list;
+	struct spinlock lock;
+	int count;
+	bool (*comp)(const struct list_head*, const struct list_head*);
+};
+
 struct dcacp_waiting_thread {
 	struct task_struct *thread;
 	/**
