@@ -1137,12 +1137,12 @@ back_from_confirm:
 		mesg = dcacp_message_out_init(peer, up, skb, 
 		atomic64_fetch_add(1, &up->next_outgoing_id), len, dport);
 		/* transmit the flow sync packet */
-		printk("try to send notification pkt\n");
-		printk("saddr:%hu\n", saddr);
+		// printk("try to send notification pkt\n");
+		// printk("saddr:%hu\n", saddr);
 		slot = dcacp_message_out_bucket(up, mesg->id);
 		dcacp_xmit_control(construct_flow_sync_pkt(up, mesg->id, len, 0), peer, up, mesg->dport); 
 
-		printk("socket address: %p LINE:%d\n", up,  __LINE__);
+		// printk("socket address: %p LINE:%d\n", up,  __LINE__);
 
 		spin_lock_bh(&slot->lock);
 		add_dcacp_message_out(up, mesg);
