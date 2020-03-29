@@ -177,8 +177,8 @@ struct sk_buff *dcacp_fill_packets(struct dcacp_peer *peer,
 				goto error;
 			}
 			bytes_left -= seg_size;
-			printk("seg size: %d\n", seg_size);
-			printk("offset: %d\n",  ntohl(seg->offset));
+			// printk("seg size: %d\n", seg_size);
+			// printk("offset: %d\n",  ntohl(seg->offset));
 			// buffer += seg_size;
 			(skb_shinfo(skb)->gso_segs)++;
 			available -= seg_size;
@@ -244,7 +244,7 @@ struct dcacp_message_out* dcacp_message_out_init(struct dcacp_peer *peer,
 		h->common.dest =dport;
 		dcacp_set_doff(h);
 		h->message_id = msg->id;
-		printk("doffset: %d\n", h->common.doff);
+		// printk("doffset: %d\n", h->common.doff);
 		// h->message_length = htonl(len);
 		// h->cutoff_version = rpc->peer->cutoff_version;
 		// h->retransmit = 0;
@@ -262,16 +262,19 @@ void dcacp_message_out_destroy(struct dcacp_message_out *msgout)
 		return;
 	if (msgout->total_length < 0)
 		return;
+	spin_lock_bh(&msgout->lock);
 	dcacp_free_skbs(msgout->packets);
 	// kfree_skb(msgout->packets);
 	delete_dcacp_message_out(msgout->dsk, msgout);
-	printk("call destroy message out in function \n");
+	// printk("call destroy message out in function \n");
 
 	// for (skb = msgout->packets; skb !=  NULL; skb = next) {
 	// 	next = *dcacp_next_skb(skb);
 	// 	kfree_skb(skb);
 	// }
 	msgout->packets = NULL;
+	spin_unlock_bh(&msgout->lock);
+
 	kfree(msgout);
 }
 
@@ -293,6 +296,7 @@ struct dcacp_message_in* dcacp_message_in_init(struct dcacp_peer *peer,
     msg->peer = peer;
     msg->num_skbs = 0;
     msg->total_length = message_size;
+    msg->is_ready = false;
 
     msg->received_bytes = 0;
     msg->received_count = 0;
@@ -326,6 +330,9 @@ void dcacp_message_in_destroy(struct dcacp_message_in *msg)
 		return;
 	if (msg->total_length < 0)
 		return;
+	spin_lock_bh(&msg->lock);
+
+	// delete_dcacp_message_in(msg->dsk, msg);
 
 	skb_queue_walk_safe(&msg->packets, skb, next) {
 		// printk("try to fee one packet skb\n");
@@ -334,7 +341,8 @@ void dcacp_message_in_destroy(struct dcacp_message_in *msg)
 	__skb_queue_head_init(&msg->packets);
 	msg->total_length = -1;
 	// printk("call destroy message in function \n");
-	delete_dcacp_message_in(msg->dsk, msg);
+
+	spin_unlock_bh(&msg->lock);
 
 	kfree(msg);
 	// for (skb = msgout->packets; skb !=  NULL; skb = next) {
@@ -351,13 +359,17 @@ void dcacp_message_in_finish(struct dcacp_message_in *msg) {
 	// printk("transmit the ack packet \n");
 	// printk("message id:%llu\n", msg->id);
 	// printk("dsk address: %p LINE:%d\n", msg->dsk, __LINE__);
-	dcacp_xmit_control(construct_ack_pkt(msg->dsk, msg->id), msg->peer, msg->dsk, msg->dport);
+	slot = dcacp_message_in_bucket(msg->dsk, msg->id);
+	spin_lock_bh(&slot->lock);
+	delete_dcacp_message_in(msg->dsk, msg);
+	spin_unlock_bh(&slot->lock);
+	dcacp_message_in_destroy(msg);
 	// printk("finish transmitting \n");
 
 	// deete message
 	// slot = dcacp_message_in_bucket(msg->dsk, msg->id);
 	// spin_lock_bh(&slot->lock);
-	dcacp_message_in_destroy(msg);
+	// dcacp_message_in_destroy(msg);
 	// printk("end destroy\n");
 	// spin_unlock_bh(&slot->lock);
 }

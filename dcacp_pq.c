@@ -51,11 +51,9 @@ void dcacp_pq_push(struct dcacp_pq* pq, struct list_head* node) {
 	list_for_each(pos, &pq->list) {
 		if(!pq->comp(node, pos)) {
 			list_add_tail(node, pos);
-			printk("pos:%p\n", pos);
 			pq->count++;
 			return;
 		}
-		printk("pos:%p\n", pos);
 	}
 	list_add_tail(node, &pq->list);
 	pq->count++;

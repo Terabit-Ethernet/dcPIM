@@ -127,6 +127,9 @@ struct dcacp_message_in {
 	 */
 	struct spinlock lock;
 
+	// struct spinlock* message_slot_lock;
+
+
 	/**
  	 * retransmission list of tokens
 	 */
@@ -148,7 +151,7 @@ struct dcacp_message_in {
     // uint32_t max_seq_no_recv;
 	/** @priority: Priority level to include in future GRANTS. */
 	int priority;
-
+	bool is_ready;
     bool flow_sync_received;
  	bool finished_at_receiver;
     int last_token_data_seq_sent;
@@ -338,6 +341,8 @@ struct dcacp_sock {
 	struct spinlock waiting_thread_queue_lock;
 
 	struct list_head waiting_thread_queue;
+
+	int unsolved;
 };
 
 /* DCACP message hslot handling function */

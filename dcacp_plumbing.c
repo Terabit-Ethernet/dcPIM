@@ -27,6 +27,20 @@ static bool exiting = false;
  * officially allocated slot).
  */
 
+// struct test_element{
+//     struct list_head node;
+//     int value;
+// };
+
+// bool test_compare(const struct list_head* node1, const struct list_head* node2) {
+//     struct test_element *e1, *e2;
+//     e1 = list_entry(node1, struct test_element, node);
+//     e2 = list_entry(node2, struct test_element, node);
+//     if(e1->value > e2->value)
+//         return true;
+//     return false;
+
+// }
 #define IPPROTO_DCACP 18
 #define IPPROTO_DCACPLITE 19
 
@@ -93,7 +107,28 @@ static struct net_protocol dcacp_protocol = {
 static int __init dcacp_load(void) {
         int status;
         // struct timespec ts;
-        
+        // struct test_element e1, e2, e3, e4, e5;
+        // struct test_element *temp;
+        // struct dcacp_pq pq;
+        // e1.value = 1;
+        // e2.value = 6;
+        // e3.value = 3;
+        // e4.value = 4;
+        // e5.value = 5;
+        // dcacp_pq_init(&pq, test_compare);
+        // dcacp_pq_push(&pq, &e5.node);
+        // dcacp_pq_push(&pq, &e4.node);
+        // dcacp_pq_push(&pq, &e3.node);
+        // dcacp_pq_push(&pq, &e2.node);
+        // dcacp_pq_push(&pq, &e1.node);
+        //     printk("e5 pos:%p\n", &e5.node);
+        // while(!dcacp_pq_empty(&pq)) {
+        //     struct list_head *head;
+        //     printk("num element:%d\n", pq.count);
+        //     head = dcacp_pq_pop(&pq);
+        //     temp = list_entry(head, struct test_element, node);
+        //     printk("value: %d\n", temp->value);
+        // }   
         printk(KERN_NOTICE "DCACP module loading\n");
         status = proto_register(&dcacp_prot, 1);
         if (status != 0) {

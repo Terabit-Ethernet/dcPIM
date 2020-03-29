@@ -1150,7 +1150,10 @@ back_from_confirm:
 
 		spin_unlock_bh(&slot->lock);
 		// err = PTR_ERR(skb);
+		spin_lock_bh(&mesg->lock);
 		dcacp_xmit_data(mesg, true);
+		spin_unlock_bh(&mesg->lock);
+
 		err = 0;
 		// if (!IS_ERR_OR_NULL(skb))
 		// 	err = dcacp_send_skb(skb, fl4, &cork, DATA, mesg);
@@ -1506,12 +1509,15 @@ void dcacp_destruct_sock(struct sock *sk)
 	struct dcacp_message_out *out;
 	struct dcacp_message_in* in;
 	struct hlist_node *n;
+	// struct dcacp_waiting_thread* thread;
 	unsigned int total = 0;
 	struct sk_buff *skb;
 	int i;
+	struct dcacp_waiting_thread *pos, *temp;
 	// struct udp_hslot* hslot = udp_hashslot(sk->sk_prot->h.udp_table, sock_net(sk),
 	// 				     dcacp_sk(sk)->dcacp_port_hash);
 	printk("call destruct sock \n");
+	/* clean the message*/
 	for (i = 0; i < DCACP_MESSAGE_BUCKETS; i++) {
 		struct message_hslot *slot = &dsk->mesg_out_table[i];
 		spin_lock_bh(&slot->lock);
@@ -1530,8 +1536,16 @@ void dcacp_destruct_sock(struct sock *sk)
 		spin_unlock_bh(&slot->lock);
 		slot->count = 0;
 	}
+	spin_lock_bh(&dsk->waiting_thread_queue_lock);
+
+	list_for_each_entry_safe(pos, temp, &dsk->waiting_thread_queue, wait_link) {
+		kfree(pos);
+	}
+	spin_unlock_bh(&dsk->waiting_thread_queue_lock);
+
 	kfree(dsk->mesg_out_table);
 	kfree(dsk->mesg_in_table);
+
 	skb_queue_splice_tail_init(&sk->sk_receive_queue, &dsk->reader_queue);
 	while ((skb = __skb_dequeue(&dsk->reader_queue)) != NULL) {
 		total += skb->truesize;
@@ -1570,6 +1584,7 @@ int dcacp_init_sock(struct sock *sk)
 	spin_lock_init(&dsk->waiting_thread_queue_lock);
 	INIT_LIST_HEAD(&dsk->waiting_thread_queue);
 	sk->sk_destruct = dcacp_destruct_sock;
+	dsk->unsolved = 0;
 	return 0;
 }
 EXPORT_SYMBOL_GPL(dcacp_init_sock);
@@ -1759,7 +1774,7 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int noblock,
 {
 	// struct inet_sock *inet = inet_sk(sk);
 	struct dcacp_message_in* mesg;
-	struct message_hslot *slot;
+	// struct message_hslot *slot;
 	DECLARE_SOCKADDR(struct sockaddr_in *, sin, msg->msg_name);
 	struct sk_buff *skb;
 	int err;
@@ -1772,12 +1787,16 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int noblock,
 		return ip_recv_error(sk, msg, len, addr_len);
 
 // try_again:
+	// TO DO: may have synchronization issue here
 	mesg = dcacp_wait_for_message(dcacp_sk(sk), flags, &err);
 	if(!mesg) {
 		return err;
 	}
+	spin_lock_bh(&mesg->lock);
+	dcacp_xmit_control(construct_ack_pkt(mesg->dsk, mesg->id), mesg->peer, mesg->dsk, mesg->dport);
 	err = dcacp_message_in_copy_data(mesg, &msg->msg_iter, len);
 	skb = skb_peek(&mesg->packets);
+
 	// off = sk_peek_offset(sk, flags);
 	// skb = __skb_recv_dcacp(sk, flags, noblock, &off, &err);
 	// if (!skb)
@@ -1844,11 +1863,14 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int noblock,
 			BPF_CGROUP_RUN_PROG_UDP4_RECVMSG_LOCK(sk,
 							(struct sockaddr *)sin);
 	}
+	spin_unlock_bh(&mesg->lock);
 
-	slot = dcacp_message_in_bucket(dcacp_sk(sk), mesg->id);
-	spin_lock_bh(&slot->lock);
+	// slot = dcacp_message_in_bucket(dcacp_sk(sk), mesg->id);
+	// spin_lock_bh(&slot->lock);
+	// delete_dcacp_message_in(msg->dsk, msg);
+	// spin_unlock_bh(&slot->lock);
+	// dcacp_message_in_destroy(msg);
 	dcacp_message_in_finish(mesg);
-	spin_unlock_bh(&slot->lock);
 	return err;
 // 	if (dcacp_sk(sk)->gro_enabled)
 // 		dcacp_cmsg_recv(msg, sk, skb);
@@ -2521,7 +2543,7 @@ int dcacp_v4_early_demux(struct sk_buff *skb)
 	int ours;
 
 	/* validate the packet */
-	printk("early demux");
+	// printk("early demux");
 	if (!pskb_may_pull(skb, skb_transport_offset(skb) + sizeof(struct dcacphdr)))
 		return 0;
 

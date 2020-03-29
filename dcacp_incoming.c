@@ -103,6 +103,7 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 		spin_lock_bh(&slot->lock);
 		add_dcacp_message_in(dsk, msg);
 		spin_unlock_bh(&slot->lock);
+		dsk->unsolved += 1;
 		// printk("receive notification pkt\n");
 		// printk("msg address: %p LINE:%d\n", msg, __LINE__);
 		// printk("fh->message_id:%d\n", msg->id);
@@ -287,6 +288,9 @@ struct dcacp_message_in *dcacp_wait_for_message(struct dcacp_sock *dsk, unsigned
 		}
 	}
 err_handling:
+	spin_lock_bh(&dsk->waiting_thread_queue_lock);
+	list_del(&thread->wait_link);
+	spin_unlock_bh(&dsk->waiting_thread_queue_lock);
 	*err = error;
 	return NULL;
 }
@@ -304,7 +308,7 @@ void dcacp_msg_ready(struct dcacp_message_in *msg)
 
 // 	struct homa_interest *interest;
 	struct dcacp_sock* dsk;
-	struct sock *sk;
+	// struct sock *sk;
 	struct dcacp_waiting_thread* thread;
 
 	dsk = msg->dsk;
@@ -324,12 +328,13 @@ void dcacp_msg_ready(struct dcacp_message_in *msg)
 // 				struct homa_interest, response_links);
 // 		if (interest)
 // 			goto handoff;
-	printk("add ready message to the queue\n");
+	// printk("add ready message to the queue\n");
 	spin_lock_bh(&dsk->ready_queue_lock);
 	list_add_tail(&msg->ready_link, &dsk->ready_message_queue);
 
 	spin_unlock_bh(&dsk->ready_queue_lock);
-
+	msg->dsk->unsolved -= 1;
+	printk("number of unsolved message: %d\n", msg->dsk->unsolved);
 // 	} else {
 // 		interest = list_first_entry_or_null(
 // 				&rpc->hsk->request_interests,
@@ -344,8 +349,8 @@ void dcacp_msg_ready(struct dcacp_message_in *msg)
 	 
 	
 	/* Notify the poll mechanism. */
-	sk = (struct sock *) msg->dsk;
-	sk->sk_data_ready(sk);
+	// sk = (struct sock *) msg->dsk;
+	// sk->sk_data_ready(sk);
 	spin_lock_bh(&dsk->waiting_thread_queue_lock);
 	thread = list_first_entry_or_null(&dsk->waiting_thread_queue, struct dcacp_waiting_thread, wait_link);
 	if(thread) {
@@ -438,7 +443,6 @@ void dcacp_add_packet(struct dcacp_message_in *msg, struct sk_buff *skb)
 	__skb_insert(skb, skb2, skb2->next, &msg->packets);
 	msg->received_bytes += (ceiling - floor);
 	msg->num_skbs++;
-	printk("the number of received skb:%d\n", msg->num_skbs);
 }
 
 /**
@@ -460,7 +464,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	struct message_hslot* slot;
 	struct iphdr *iph;
 	struct dcacp_message_in *msg = NULL;
-	printk("receive data pkt\n");
+	// printk("receive data pkt\n");
 	if (!pskb_may_pull(skb, sizeof(struct dcacp_data_hdr)))
 		goto drop;		/* No space for header. */
 	dh =  dcacp_data_hdr(skb);
@@ -475,9 +479,13 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 		slot = dcacp_message_in_bucket(dsk, dh->message_id);
 		spin_lock_bh(&slot->lock);
 		msg = get_dcacp_message_in(dsk, iph->saddr, dh->common.source, dh->message_id);
+		// get the message lock first before unlocking slot lock
+		spin_lock_bh(&msg->lock);
 		spin_unlock_bh(&slot->lock);
-		if(!msg)
+		if(!msg){
+			spin_unlock_bh(&msg->lock);
 			goto drop;
+		}
 	// struct dcacp *dcacp = rpc->hsk->dcacp;
 	// struct dcacp_data_hdr *h = dcacp_data_hdr(skb);
 	// int incoming = ntohl(h->incoming);
@@ -533,9 +541,9 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	// 		dcacp_rpc_ready(rpc);
 	// 	dcacp_sock_unlock(rpc->hsk);
 	// } else {
-		printk("number of recv bytes: %d\n", msg->received_bytes);
-		if (msg->received_bytes == msg->total_length) {
+		if (msg->received_bytes == msg->total_length && !msg->is_ready) {
 			dcacp_msg_ready(msg);
+			msg->is_ready = true;
 		}
 	// }
 	// if (ntohs(h->cutoff_version) != dcacp->cutoff_version) {
@@ -560,6 +568,8 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	// 		rpc->peer->last_update_jiffies = jiffies;
 	// 	}
 	// }
+		spin_unlock_bh(&msg->lock);
+
 		return 0;
 	}
 drop:
