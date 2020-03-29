@@ -324,7 +324,6 @@ void dcacp_message_in_destroy(struct dcacp_message_in *msg)
 {
 
 	struct sk_buff *skb, *next;
-	printk("start to destroy \n");
 	// struct sk_buff *skb, *next;
 	if(msg == NULL)
 		return;

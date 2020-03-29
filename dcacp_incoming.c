@@ -136,16 +136,13 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb) {
 	struct message_hslot* slot;
 	struct dcacp_ack_hdr *ah = dcacp_ack_hdr(skb);
 	struct sock *sk = skb_steal_sock(skb);
-	printk("receive ack pkt\n");
-	printk("source port: %d\n", ah->common.source);
-	printk("dst port: %d\n", ah->common.dest);
 
 	if(!sk) {
 		sk = __dcacp4_lib_lookup_skb(skb, ah->common.source, ah->common.dest, &dcacp_table);
 	}
 	if(sk) {
 		dsk = dcacp_sk(sk);
-		printk("socket address: %p LINE:%d\n", dsk,  __LINE__);
+		// printk("socket address: %p LINE:%d\n", dsk,  __LINE__);
 		slot = dcacp_message_out_bucket(dsk, ah->message_id);
 		spin_lock_bh(&slot->lock);
 		msg = get_dcacp_message_out(dsk, ah->message_id);
@@ -472,6 +469,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	if(!sk) {
 		sk = __dcacp4_lib_lookup_skb(skb, dh->common.source, dh->common.dest, &dcacp_table);
 	}
+	// it is unclear why UDP and Homa doesn't grab the socket lock
 	if(sk) {
 		dsk = dcacp_sk(sk);
 		iph = ip_hdr(skb);
@@ -480,6 +478,12 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 		spin_lock_bh(&slot->lock);
 		msg = get_dcacp_message_in(dsk, iph->saddr, dh->common.source, dh->message_id);
 		// get the message lock first before unlocking slot lock
+		// notification pkt may drop
+		if(msg == NULL) {
+			spin_unlock_bh(&slot->lock);
+			goto drop;
+
+		}
 		spin_lock_bh(&msg->lock);
 		spin_unlock_bh(&slot->lock);
 		if(!msg){
@@ -513,7 +517,9 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	// 			rpc->msgin.incoming = incoming;
 	// 	}
 	// }
-		dcacp_add_packet(msg, skb);
+		if(!msg->is_ready) {
+			dcacp_add_packet(msg, skb);
+		}
 	// if (rpc->msgin.scheduled)
 	// 	dcacp_check_grantable(dcacp, rpc);
 	// if (rpc->active_links.next == LIST_POISON1) {

@@ -1783,8 +1783,10 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int noblock,
 	// int is_dcacplite = IS_DCACPLITE(sk);
 	// bool checksum_valid = false;
 
-	if (flags & MSG_ERRQUEUE)
+	if (flags & MSG_ERRQUEUE) {
+		printk("ip recv error\n");
 		return ip_recv_error(sk, msg, len, addr_len);
+	}
 
 // try_again:
 	// TO DO: may have synchronization issue here
@@ -1794,6 +1796,8 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int noblock,
 	}
 	spin_lock_bh(&mesg->lock);
 	dcacp_xmit_control(construct_ack_pkt(mesg->dsk, mesg->id), mesg->peer, mesg->dsk, mesg->dport);
+	spin_unlock_bh(&mesg->lock);
+
 	err = dcacp_message_in_copy_data(mesg, &msg->msg_iter, len);
 	skb = skb_peek(&mesg->packets);
 
@@ -1863,7 +1867,6 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int noblock,
 			BPF_CGROUP_RUN_PROG_UDP4_RECVMSG_LOCK(sk,
 							(struct sockaddr *)sin);
 	}
-	spin_unlock_bh(&mesg->lock);
 
 	// slot = dcacp_message_in_bucket(dcacp_sk(sk), mesg->id);
 	// spin_lock_bh(&slot->lock);
@@ -2571,7 +2574,6 @@ int dcacp_v4_early_demux(struct sk_buff *skb)
 
 	if (!sk || !refcount_inc_not_zero(&sk->sk_refcnt))
 		return 0;
-
 	skb->sk = sk;
 	skb->destructor = sock_efree;
 	dst = READ_ONCE(sk->sk_rx_dst);
