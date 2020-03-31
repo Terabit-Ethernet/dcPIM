@@ -70,6 +70,10 @@ EXPORT_SYMBOL(sysctl_dcacp_mem);
 atomic_long_t dcacp_memory_allocated;
 EXPORT_SYMBOL(dcacp_memory_allocated);
 
+struct dcacp_match_tab dcacp_match_table;
+EXPORT_SYMBOL(dcacp_match_table);
+
+
 #define MAX_DCACP_PORTS 65536
 #define PORTS_PER_CHAIN (MAX_DCACP_PORTS / DCACP_HTABLE_SIZE_MIN)
 
@@ -1140,7 +1144,7 @@ back_from_confirm:
 		// printk("try to send notification pkt\n");
 		// printk("saddr:%hu\n", saddr);
 		slot = dcacp_message_out_bucket(up, mesg->id);
-		dcacp_xmit_control(construct_flow_sync_pkt(up, mesg->id, len, 0), peer, up, mesg->dport); 
+		dcacp_xmit_control(construct_flow_sync_pkt((struct sock*)up, mesg->id, len, 0), peer, (struct sock*)up, mesg->dport); 
 
 		// printk("socket address: %p LINE:%d\n", up,  __LINE__);
 
@@ -1795,7 +1799,7 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int noblock,
 		return err;
 	}
 	spin_lock_bh(&mesg->lock);
-	dcacp_xmit_control(construct_ack_pkt(mesg->dsk, mesg->id), mesg->peer, mesg->dsk, mesg->dport);
+	dcacp_xmit_control(construct_ack_pkt((struct sock*)mesg->dsk, mesg->id), mesg->peer, (struct sock*)mesg->dsk, mesg->dport);
 	spin_unlock_bh(&mesg->lock);
 
 	err = dcacp_message_in_copy_data(mesg, &msg->msg_iter, len);
@@ -2623,6 +2627,8 @@ int dcacp_rcv(struct sk_buff *skb)
 		return dcacp_handle_token_pkt(skb);
 	} else if (dh->type == ACK) {
 		return dcacp_handle_ack_pkt(skb);
+	} else if (dh->type == RTS) {
+		printk("receive RTS\n");
 	}
 
 
