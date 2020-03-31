@@ -20,7 +20,7 @@
 #include "dcacp_impl.h"
 
 void dcacp_pq_init(struct dcacp_pq* pq, bool(*comp)(const struct list_head*, const struct list_head*)) {
-	spin_lock_init(&pq->lock);
+	// spin_lock_init(&pq->lock);
 	INIT_LIST_HEAD(&pq->list);
 	pq->count = 0;
 	pq->comp = comp;
@@ -32,12 +32,23 @@ bool dcacp_pq_empty(struct dcacp_pq* pq) {
 	return pq->count == 0;
 }
 
+void dcacp_pq_delete(struct dcacp_pq* pq, struct list_head* node) {
+	// spin_lock_bh(&pq->lock);
+	/* list empty use is not traditional use of the function; 
+	it is checked whether this node has already been removed before */
+	if(pq->count > 0 && !list_empty(node)) {
+		list_del_init(node);
+		pq->count--;
+	}
+	// spin_unlock_bh(&pq->lock);
+	return; 
+}
 struct list_head* dcacp_pq_pop(struct dcacp_pq* pq) {
 	struct list_head *head = NULL;
 	// spin_lock_bh(&pq->lock);
 	if(pq->count > 0) {
 		head = pq->list.next;
-		list_del(head);
+		list_del_init(head);
 		pq->count--;
 		return head;
 	}

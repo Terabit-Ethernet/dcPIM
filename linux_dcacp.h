@@ -33,7 +33,7 @@ struct dcacp_sock;
 
 struct dcacp_pq {
 	struct list_head list;
-	struct spinlock lock;
+	// struct spinlock lock;
 	int count;
 	bool (*comp)(const struct list_head*, const struct list_head*);
 };
@@ -94,7 +94,7 @@ struct dcacp_peer {
 struct message_hslot {
 	struct hlist_head	head;
 	int			count;
-	spinlock_t		lock;
+	struct spinlock		lock;
 
 }__attribute__((aligned(2 * sizeof(long))));
 
@@ -167,6 +167,9 @@ struct dcacp_message_in {
 	struct hlist_node sk_table_link;
 	struct list_head ready_link;
 
+	// link for DCACP matching table
+	struct list_head match_link;
+
 };
 
 struct dcacp_message_out {
@@ -229,6 +232,88 @@ struct dcacp_message_out {
 
 };
 
+
+#define DCACP_MATCH_BUCKETS 1024
+
+struct dcacp_epoch {
+	uint32_t epoch;
+	uint32_t iter;
+	bool prompt;
+	__be32 match_src_addr;
+	__be32 match_dst_addr;
+	struct list_head rts_q;
+	struct list_head grants_q;
+	uint32_t grant_size;
+	uint32_t rts_size;
+	struct pim_rts *min_rts;
+	struct pim_grant *min_grant;
+	// struct rte_timer epoch_timer;
+	// struct rte_timer sender_iter_timers[10];
+	// struct rte_timer receiver_iter_timers[10];
+	// struct pim_timer_params pim_timer_params;
+	uint64_t start_cycle;
+
+	// current epoch and address
+	uint64_t cur_epoch;
+	uint32_t cur_match_src_addr;
+	struct spinlock lock;
+
+
+};
+
+// dcacp matching logic data structure
+struct dcacp_rts {
+    uint8_t iter;
+    __be32 src_addr;
+    int remaining_sz;
+ 	struct list_head list_link;
+
+};
+struct dcacp_grant {
+    bool prompt;
+    __be32 dst_addr;
+    int remaining_sz;
+	struct list_head list_link;
+};
+
+struct dcacp_match_entry {
+	struct spinlock lock;
+	struct dcacp_pq pq;
+	struct hlist_node hash_link;
+	struct list_head list_link;
+	// struct dcacp_peer *peer;
+	__be32 dst_addr;
+};
+
+struct dcacp_match_slot {
+	struct hlist_head head;
+	int	count;
+	struct spinlock	lock;
+};
+struct dcacp_match_tab {
+	/* hash table: matching ip_address => list pointer*/
+	struct dcacp_match_slot *buckets;
+
+	/* the lock is for the hash_list, not for buckets.*/
+	struct spinlock lock;
+	/* list of current active hash entry for iteration*/
+	struct list_head hash_list;
+	bool (*comp)(const struct list_head*, const struct list_head*);
+
+	// struct list_node rts_list;
+	// struct list_node grant_list;
+
+	// struct list_node *current_entry;
+	// struct list_node
+};
+/* DCACP match table slot */
+static inline struct dcacp_match_slot *dcacp_match_bucket(
+		struct dcacp_match_tab *table, __be32 addr)
+{
+	return &table->buckets[addr & (DCACP_MATCH_BUCKETS - 1)];
+}
+
+
 static inline struct dcacphdr *dcacp_hdr(const struct sk_buff *skb)
 {
 	return (struct dcacphdr *)skb_transport_header(skb);
@@ -248,6 +333,21 @@ static inline struct dcacp_ack_hdr *dcacp_ack_hdr(const struct sk_buff *skb)
 static inline struct dcacp_flow_sync_hdr *dcacp_flow_sync_hdr(const struct sk_buff *skb)
 {
 	return (struct dcacp_flow_sync_hdr *)skb_transport_header(skb);
+}
+
+static inline struct dcacp_rts_hdr *dcacp_rts_hdr(const struct sk_buff *skb)
+{
+	return (struct dcacp_rts_hdr *)skb_transport_header(skb);
+}
+
+static inline struct dcacp_grant_hdr *dcacp_grant_hdr(const struct sk_buff *skb)
+{
+	return (struct dcacp_grant_hdr *)skb_transport_header(skb);
+}
+
+static inline struct pim_accept_hdr *pim_accept_hdr(const struct sk_buff *skb)
+{
+	return (struct pim_accept_hdr *)skb_transport_header(skb);
 }
 
 /**

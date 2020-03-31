@@ -160,6 +160,28 @@ struct dcacp_ack_hdr {
 };
 // _Static_assert(sizeof(struct dcacp_ack_hdr) <= DCACP_HEADER_MAX_SIZE,
 // 		"dcacp_ack_header too large");
+struct dcacp_rts_hdr {
+	struct dcacphdr common;
+	__u8 iter;
+	__be32 epoch;
+	__be32 remaining_sz;
+};
+
+struct dcacp_grant_hdr {
+	struct dcacphdr common;
+	__u8 iter;
+	__be32 epoch;
+	__be32 remaining_sz;
+	__u8 prompt;
+};
+
+struct pim_accept_hdr {
+	struct dcacphdr common;
+	__u8 iter;
+	__be32 epoch;
+	// __u8 accept;
+
+};
 
 enum {
 	SKB_GSO_DCACP = 1 << 16,

@@ -11,11 +11,25 @@
 
 
 
+// DCACP matching logic
+// DCACP priority queue
 void dcacp_pq_init(struct dcacp_pq* pq, bool(*comp)(const struct list_head*, const struct list_head*));
 bool dcacp_pq_empty(struct dcacp_pq* pq);
 struct list_head* dcacp_pq_pop(struct dcacp_pq* pq);
 void dcacp_pq_push(struct dcacp_pq* pq, struct list_head* node);
 struct list_head* dcacp_pq_peek(struct dcacp_pq* pq); 
+void dcacp_pq_delete(struct dcacp_pq* pq, struct list_head* node);
+
+void dcacp_match_entry_init(struct dcacp_match_entry* entry, __be32 addr, 
+ bool(*comp)(const struct list_head*, const struct list_head*));
+void dcacp_mattab_init(struct dcacp_match_tab *table,
+	bool(*comp)(const struct list_head*, const struct list_head*));
+
+void dcacp_mattab_destroy(struct dcacp_match_tab *table);
+void dcacp_mattab_add_new_message(struct dcacp_match_tab *table, struct dcacp_message_in* msg);
+void dcacp_mattab_delete_message(struct dcacp_match_tab *table, struct dcacp_message_in* msg);
+
+void dcacp_mattab_delete_match_entry(struct dcacp_match_tab *table, struct dcacp_match_entry* entry);
 
 /* DCACP message_in definition */
 struct dcacp_message_in* dcacp_message_in_init(struct dcacp_peer *peer, 

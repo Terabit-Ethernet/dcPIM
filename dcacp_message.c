@@ -289,7 +289,7 @@ struct dcacp_message_in* dcacp_message_in_init(struct dcacp_peer *peer,
 	spin_lock_init(&msg->lock);
 	skb_queue_head_init(&msg->packets);
 	INIT_LIST_HEAD(&msg->ready_link);
-
+	INIT_LIST_HEAD(&msg->match_link);
 	msg->dport = sport;
 	msg->dsk = sock;
 	msg->id = message_id;

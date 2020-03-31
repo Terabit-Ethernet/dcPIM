@@ -151,6 +151,68 @@ struct sk_buff* construct_ack_pkt(struct dcacp_sock* d_sk, __u64 message_id) {
 	return skb;
 }
 
+struct sk_buff* construct_rts_pkt(struct dcacp_sock* d_sk, unsigned short iter, int epoch, int remaining_sz) {
+	// int extra_bytes = 0;
+	struct sk_buff* skb = __construct_control_skb((struct sock*)d_sk);
+	struct dcacp_rts_hdr* fh;
+	struct dcacphdr* dh; 
+	if(unlikely(!skb)) {
+		return NULL;
+	}
+	fh = (struct dcacp_rts_hdr *) skb_put(skb, sizeof(struct dcacp_rts_hdr));
+	dh = (struct dcacphdr*) (&fh->common);
+	dh->len = sizeof(struct dcacp_rts_hdr);
+	dh->type = RTS;
+	fh->iter = iter;
+	fh->epoch = epoch;
+	fh->remaining_sz = remaining_sz;
+	// extra_bytes = DCACP_HEADER_MAX_SIZE - length;
+	// if (extra_bytes > 0)
+	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
+	return skb;
+}
+
+struct sk_buff* construct_grant_pkt(struct dcacp_sock* d_sk, unsigned short iter, int epoch, int remaining_sz, bool prompt) {
+	// int extra_bytes = 0;
+	struct sk_buff* skb = __construct_control_skb((struct sock*)d_sk);
+	struct dcacp_rts_hdr* fh;
+	struct dcacphdr* dh; 
+	if(unlikely(!skb)) {
+		return NULL;
+	}
+	fh = (struct dcacp_grant_hdr *) skb_put(skb, sizeof(struct dcacp_grant_hdr));
+	dh = (struct dcacphdr*) (&fh->common);
+	dh->len = sizeof(struct dcacp_grant_hdr);
+	dh->type = GRANT;
+	fh->iter = iter;
+	fh->epoch = epoch;
+	fh->remaining_sz = remaining_sz;
+	fh->prompt = prompt;
+	// extra_bytes = DCACP_HEADER_MAX_SIZE - length;
+	// if (extra_bytes > 0)
+	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
+	return skb;
+}
+
+struct sk_buff* construct_accept_pkt(struct dcacp_sock* d_sk, unsigned short iter, int epoch) {
+	// int extra_bytes = 0;
+	struct sk_buff* skb = __construct_control_skb((struct sock*)d_sk);
+	struct dcacp_rts_hdr* fh;
+	struct dcacphdr* dh; 
+	if(unlikely(!skb)) {
+		return NULL;
+	}
+	fh = (struct dcacp_accept_hdr *) skb_put(skb, sizeof(struct dcacp_accept_hdr));
+	dh = (struct dcacphdr*) (&fh->common);
+	dh->len = sizeof(struct dcacp_accept_hdr);
+	dh->type = ACCEPT;
+	fh->iter = iter;
+	fh->epoch = epoch;
+	// extra_bytes = DCACP_HEADER_MAX_SIZE - length;
+	// if (extra_bytes > 0)
+	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
+	return skb;
+}
 /**
  * dcacp_xmit_control() - Send a control packet to the other end of an RPC.
  * @type:      Packet type, such as NOTIFICATION.
