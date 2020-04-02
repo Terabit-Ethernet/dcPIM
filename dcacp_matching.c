@@ -186,13 +186,14 @@ void dcacp_send_all_rts (struct dcacp_match_tab *table, struct dcacp_epoch* epoc
 // }
 
 int dcacp_handle_rts (struct sk_buff *skb, struct dcacp_match_tab *table, struct dcacp_epoch *epoch) {
-	struct dcacp_rts *rts = kmalloc(sizeof(struct dcacp_rts), GFP_KERNEL);
+	struct dcacp_rts *rts;
 
 	struct dcacp_rts_hdr *rh;
 	struct iphdr *iph;
 	if (!pskb_may_pull(skb, sizeof(struct dcacp_rts_hdr)))
 		goto drop;		/* No space for header. */
-	
+	rts = kmalloc(sizeof(struct dcacp_rts), GFP_KERNEL);
+	INIT_LIST_HEAD(&rts->list_link);
 	iph = ip_hdr(skb);
 	rh = dcacp_rts_hdr(skb);
 	rts->remaining_sz = rh->remaining_sz;
@@ -209,7 +210,6 @@ int dcacp_handle_rts (struct sk_buff *skb, struct dcacp_match_tab *table, struct
 
 drop:
 	kfree_skb(skb);
-
 	return 0;
 }
 
@@ -247,14 +247,17 @@ void dcacp_handle_all_rts(struct dcacp_match_tab* table, struct dcacp_epoch *epo
 
 
 int dcacp_handle_grant(struct sk_buff *skb, struct dcacp_match_tab *table, struct dcacp_epoch *epoch) {
-	struct dcacp_grant *grant = kmalloc(sizeof(struct dcacp_grant), GFP_KERNEL);
+	struct dcacp_grant *grant;
 
 	struct dcacp_grant_hdr *gh;
 	struct iphdr *iph;
 	if (!pskb_may_pull(skb, sizeof(struct dcacp_grant_hdr)))
 		goto drop;		/* No space for header. */
+	grant = kmalloc(sizeof(struct dcacp_grant), GFP_KERNEL);
+	INIT_LIST_HEAD(&grant->list_link);
 	iph = ip_hdr(skb);
 	gh = dcacp_grant_hdr(skb);
+
 	grant->remaining_sz = gh->remaining_sz;
 	// grant->epoch = gh->epoch; 
 	// grant->iter = gh->iter;
