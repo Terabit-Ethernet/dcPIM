@@ -186,8 +186,9 @@ void dcacp_sysctl_changed(struct dcacp_params *params)
         // tmp = (tmp*cpu_khz)/1000000;
         // homa->max_nic_queue_cycles = tmp;
     if(params->clean_match_sock == 1) {
-        sock_release(dcacp_match_table.sock);
-        dcacp_match_table.sock = NULL;
+        // sock_release(dcacp_match_table.sock);
+        // dcacp_match_table.sock = NULL;
+        dcacp_epoch_destroy(&dcacp_epoch);
         params->clean_match_sock = 0;
     }
 }
@@ -324,7 +325,7 @@ static void __exit dcacp_unload(void) {
         // if (dcacpv4_offload_end() != 0)
         //         printk(KERN_ERR "DCACP couldn't stop offloads\n");
         printk("start to unload\n");
-        dcacp_epoch_destroy(&dcacp_epoch);
+        // dcacp_epoch_destroy(&dcacp_epoch);
         unregister_net_sysctl_table(dcacp_ctl_header);
         printk("unregister sysctl table\n");
         dcacp_mattab_destroy(&dcacp_match_table);

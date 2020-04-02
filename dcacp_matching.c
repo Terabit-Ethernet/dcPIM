@@ -29,11 +29,6 @@ void dcacp_mattab_init(struct dcacp_match_tab *table,
 		INIT_HLIST_HEAD(&table->buckets[i].head);
 		table->buckets[i].count = 0;
 	}
-	ret = sock_create(AF_INET, SOCK_DGRAM, IPPROTO_DCACP, &table->sock);
-	if(ret) {
-		printk("fail to create socket\n");
-		return;
-	}
 	// inet = inet_sk(table->sock->sk);
 	// peer =  dcacp_peer_find(&dcacp_peers_table, 167772169, inet);
 	// dcacp_xmit_control(construct_rts_pkt(table->sock->sk, 1, 2, 3), peer, table->sock->sk, 3000);
@@ -124,6 +119,9 @@ void dcacp_mattab_delete_match_entry(struct dcacp_match_tab *table, struct dcacp
 	return;
 }
 void dcacp_epoch_init(struct dcacp_epoch *epoch) {
+	int ret;
+	struct inet_sock *inet;
+	struct dcacp_peer* peer;
 	epoch->epoch = 0;
 	epoch->iter = 0;
 	epoch->prompt = false;
@@ -145,23 +143,47 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 	epoch->cur_epoch = 0;
 	epoch->cur_match_src_addr = 0;
 	epoch->cur_match_dst_addr = 0;
+	ret = sock_create(AF_INET, SOCK_DGRAM, IPPROTO_DCACP, &epoch->sock);
+	inet = inet_sk(epoch->sock->sk);
+	peer =  dcacp_peer_find(&dcacp_peers_table, 167772169, inet);
+
+	if(ret) {
+		printk("fail to create socket\n");
+		return;
+	}
 	spin_lock_init(&epoch->lock);
 
 	hrtimer_init(&epoch->epoch_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
 	hrtimer_init(&epoch->sender_iter_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
 	hrtimer_init(&epoch->receiver_iter_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
-	hrtimer_start(&epoch->epoch_timer, ktime_set(0, 0), HRTIMER_MODE_ABS);
+	hrtimer_start(&epoch->epoch_timer, ktime_set(0, 5000000), HRTIMER_MODE_ABS);
 	epoch->epoch_timer.function = &dcacp_new_epoch;
 }
 
 void dcacp_epoch_destroy(struct dcacp_epoch *epoch) {
+	struct dcacp_rts *rts, *temp;
+	struct dcacp_grant *grant, *temp2;
 	hrtimer_cancel(&epoch->epoch_timer);
 	hrtimer_cancel(&epoch->sender_iter_timer);
 	hrtimer_cancel(&epoch->receiver_iter_timer);
+	spin_lock_bh(&epoch->lock);
+	list_for_each_entry_safe(rts, temp, &epoch->rts_q, list_link) {
+		kfree(rts);
+	}
+	list_for_each_entry_safe(grant, temp2, &epoch->grants_q, list_link) {
+		kfree(grant);
+	}
+    sock_release(epoch->sock);
+	spin_unlock_bh(&epoch->lock);
+
+
 }
 void dcacp_send_all_rts (struct dcacp_match_tab *table, struct dcacp_epoch* epoch) {
 	struct dcacp_match_entry *entry = NULL;
+ 	struct dcacp_peer *peer;
+	struct inet_sock *inet;
 	spin_lock(&table->lock);
+	struct sk_buff* pkt;
 	list_for_each_entry(entry, &table->hash_list, list_link) {
 		struct list_head *list_head = NULL;
 		struct dcacp_message_in *msg = NULL;
@@ -171,12 +193,22 @@ void dcacp_send_all_rts (struct dcacp_match_tab *table, struct dcacp_epoch* epoc
 			// don't need to hold msg lock, beacuase holding the priority lock
 			msg = list_entry(list_head, struct dcacp_message_in, match_link);
 			// send rts
-			dcacp_xmit_control(construct_rts_pkt(table->sock->sk, 
+			dcacp_xmit_control(construct_rts_pkt(epoch->sock->sk, 
 				epoch->iter, epoch->epoch, msg->total_length), 
-				msg->peer, table->sock->sk, dcacp_params.match_socket_port);
+				msg->peer, epoch->sock->sk, dcacp_params.match_socket_port);
 		}
 		spin_unlock(&entry->lock);
 	}
+	if(epoch->sock != NULL) {
+		inet = inet_sk(epoch->sock->sk);
+		// printk("inet is null: %d\n", inet == NULL);
+		peer =  dcacp_peer_find(&dcacp_peers_table, 167772169, inet);
+		pkt = construct_rts_pkt(epoch->sock->sk, epoch->iter, epoch->epoch, 3);
+		dcacp_xmit_control(pkt, peer, epoch->sock->sk, 3000);
+
+	}
+
+
 	spin_unlock(&table->lock);
 
 }
@@ -192,14 +224,20 @@ int dcacp_handle_rts (struct sk_buff *skb, struct dcacp_match_tab *table, struct
 	struct iphdr *iph;
 	if (!pskb_may_pull(skb, sizeof(struct dcacp_rts_hdr)))
 		goto drop;		/* No space for header. */
+	spin_lock_bh(&epoch->lock);
+	if(epoch->sock == NULL) {
+		spin_unlock_bh(&epoch->lock);
+		goto drop;
+	}
 	rts = kmalloc(sizeof(struct dcacp_rts), GFP_KERNEL);
 	INIT_LIST_HEAD(&rts->list_link);
 	iph = ip_hdr(skb);
 	rh = dcacp_rts_hdr(skb);
 	rts->remaining_sz = rh->remaining_sz;
+
 	// rts->epoch = rh->epoch; 
 	// rts->iter = rh->iter;
-	rts->peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet_sk(table->sock->sk));
+	rts->peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet_sk(epoch->sock->sk));
 	spin_lock_bh(&epoch->lock);
 	if (epoch->min_rts == NULL || epoch->min_rts->remaining_sz > rts->remaining_sz) {
 		epoch->min_rts = rts;
@@ -218,18 +256,18 @@ void dcacp_handle_all_rts(struct dcacp_match_tab* table, struct dcacp_epoch *epo
 	// spin_lock_bh(&epoch->lock);
 	if(epoch->match_dst_addr == 0  && epoch->rts_size > 0) {
 		if (dcacp_params.min_iter >= epoch->iter) {
-			dcacp_xmit_control(construct_grant_pkt(table->sock->sk, 
+			dcacp_xmit_control(construct_grant_pkt(epoch->sock->sk, 
 				epoch->iter, epoch->epoch, epoch->min_rts->remaining_sz, epoch->cur_match_dst_addr == 0), 
-				epoch->min_rts->peer, table->sock->sk, dcacp_params.match_socket_port);	
+				epoch->min_rts->peer, epoch->sock->sk, dcacp_params.match_socket_port);	
 		} else {
 			uint32_t index = 0;
 			uint32_t i = 0;
 			index = get_random_u32() % epoch->rts_size;
 			list_for_each_entry(rts, &epoch->rts_q, list_link) {
 				if (i == index) {
-					dcacp_xmit_control(construct_grant_pkt(table->sock->sk, 
+					dcacp_xmit_control(construct_grant_pkt(epoch->sock->sk, 
 						epoch->iter, epoch->epoch, rts->remaining_sz, epoch->cur_match_dst_addr == 0), 
-						rts->peer, table->sock->sk, dcacp_params.match_socket_port);
+						rts->peer, epoch->sock->sk, dcacp_params.match_socket_port);
 					break;
 				}
 				i += 1;
@@ -251,6 +289,7 @@ int dcacp_handle_grant(struct sk_buff *skb, struct dcacp_match_tab *table, struc
 
 	struct dcacp_grant_hdr *gh;
 	struct iphdr *iph;
+	printk("receive grant pkt\n");
 	if (!pskb_may_pull(skb, sizeof(struct dcacp_grant_hdr)))
 		goto drop;		/* No space for header. */
 	grant = kmalloc(sizeof(struct dcacp_grant), GFP_KERNEL);
@@ -261,8 +300,9 @@ int dcacp_handle_grant(struct sk_buff *skb, struct dcacp_match_tab *table, struc
 	grant->remaining_sz = gh->remaining_sz;
 	// grant->epoch = gh->epoch; 
 	// grant->iter = gh->iter;
+	printk("epoch:%llu\n", gh->epoch);
 	grant->prompt = gh->prompt;
-	grant->peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet_sk(table->sock->sk));
+	grant->peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet_sk(epoch->sock->sk));
 	spin_lock_bh(&epoch->lock);
 	if (epoch->min_grant == NULL || epoch->min_grant->remaining_sz > grant->remaining_sz) {
 		epoch->min_grant = grant;
@@ -280,11 +320,13 @@ drop:
 void dcacp_handle_all_grants(struct dcacp_match_tab *table, struct dcacp_epoch *epoch) {
 	struct dcacp_grant *grant, *temp, *resp = NULL;
 	// spin_lock_bh(&epoch->lock);
+	printk("call handle all grants\n");
 	if(epoch->match_src_addr == 0 && epoch->grant_size > 0) {
 		if (dcacp_params.min_iter >= epoch->iter) {
-			dcacp_xmit_control(construct_accept_pkt(table->sock->sk, 
+			printk("send accept pkt:%d\n", __LINE__);
+			dcacp_xmit_control(construct_accept_pkt(epoch->sock->sk, 
 				epoch->iter, epoch->epoch), 
-				epoch->min_grant->peer, table->sock->sk, dcacp_params.match_socket_port);
+				epoch->min_grant->peer, epoch->sock->sk, dcacp_params.match_socket_port);
 			resp = epoch->min_grant;
 		} else {
 			uint32_t index = 0;
@@ -292,9 +334,10 @@ void dcacp_handle_all_grants(struct dcacp_match_tab *table, struct dcacp_epoch *
 			index = get_random_u32() % epoch->grant_size;
 			list_for_each_entry(grant, &epoch->grants_q, list_link) {
 				if (i == index) {
-					dcacp_xmit_control(construct_accept_pkt(table->sock->sk, 
+					printk("send accept pkt:%d\n", __LINE__);
+					dcacp_xmit_control(construct_accept_pkt(epoch->sock->sk, 
 						epoch->iter, epoch->epoch), 
-						grant->peer, table->sock->sk, dcacp_params.match_socket_port);
+						grant->peer, epoch->sock->sk, dcacp_params.match_socket_port);
 					resp = grant;
 					break;
 				}
@@ -374,6 +417,7 @@ enum hrtimer_restart sender_iter_event(struct hrtimer *timer) {
 }
 
 enum hrtimer_restart dcacp_new_epoch(struct hrtimer *timer) {
+
  	hrtimer_forward(timer,hrtimer_cb_get_time(timer),ktime_set(0,dcacp_params.epoch_size));
 	dcacp_epoch.epoch += 1;
 	dcacp_epoch.iter = 0;
@@ -384,7 +428,6 @@ enum hrtimer_restart dcacp_new_epoch(struct hrtimer *timer) {
 	dcacp_epoch.receiver_iter_timer.function = &receiver_iter_event;
 	hrtimer_start(&dcacp_epoch.sender_iter_timer, ktime_set(0, dcacp_params.iter_size / 2), HRTIMER_MODE_ABS);
 	dcacp_epoch.sender_iter_timer.function = &sender_iter_event;
-	// dcacp_xmit_control(construct_rts_pkt(table->sock->sk, 1, 2, 3), peer, table->sock->sk, 3000);
 
 	return HRTIMER_RESTART;
 }

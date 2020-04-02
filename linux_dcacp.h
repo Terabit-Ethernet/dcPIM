@@ -283,6 +283,7 @@ struct dcacp_epoch {
 	struct hrtimer epoch_timer;
 	struct hrtimer sender_iter_timer;
 	struct hrtimer receiver_iter_timer;
+	struct socket *sock;
 
 };
 
@@ -324,7 +325,6 @@ struct dcacp_match_tab {
 	struct list_head hash_list;
 	bool (*comp)(const struct list_head*, const struct list_head*);
 
-	struct socket *sock;
 	// struct list_node rts_list;
 	// struct list_node grant_list;
 
