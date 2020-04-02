@@ -61,9 +61,6 @@
 #include "uapi_linux_dcacp.h"
 #include "dcacp_impl.h"
 
-extern struct dcacp_peertab dcacp_peers_table;
-
-
 static inline struct sock *__dcacp4_lib_lookup_skb(struct sk_buff *skb,
 						 __be16 sport, __be16 dport,
 						 struct udp_table *dcacptable)
@@ -134,9 +131,12 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb) {
 	// struct dcacp_peer *peer;
 	// struct iphdr *iph;
 	struct message_hslot* slot;
-	struct dcacp_ack_hdr *ah = dcacp_ack_hdr(skb);
-	struct sock *sk = skb_steal_sock(skb);
-
+	struct dcacp_ack_hdr *ah;
+	struct sock *sk;
+	if (!pskb_may_pull(skb, sizeof(struct dcacp_ack_hdr)))
+		goto drop;		/* No space for header. */
+	ah = dcacp_ack_hdr(skb);
+	sk = skb_steal_sock(skb);
 	if(!sk) {
 		sk = __dcacp4_lib_lookup_skb(skb, ah->common.source, ah->common.dest, &dcacp_table);
 	}
@@ -151,7 +151,7 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb) {
 	} else {
 		printk("doesn't find dsk address LINE:%d\n", __LINE__);
 	}
-
+drop:
 	kfree_skb(skb);
 
 	return 0;

@@ -163,22 +163,22 @@ struct dcacp_ack_hdr {
 struct dcacp_rts_hdr {
 	struct dcacphdr common;
 	__u8 iter;
-	__be32 epoch;
+	__be64 epoch;
 	__be32 remaining_sz;
 };
 
 struct dcacp_grant_hdr {
 	struct dcacphdr common;
 	__u8 iter;
-	__be32 epoch;
+	__be64 epoch;
 	__be32 remaining_sz;
 	__u8 prompt;
 };
 
-struct pim_accept_hdr {
+struct dcacp_accept_hdr {
 	struct dcacphdr common;
 	__u8 iter;
-	__be32 epoch;
+	__be64 epoch;
 	// __u8 accept;
 
 };

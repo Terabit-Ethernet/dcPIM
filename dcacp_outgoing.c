@@ -85,10 +85,10 @@ struct sk_buff* __construct_control_skb(struct sock* sk) {
 	return skb;
 }
 
-struct sk_buff* construct_flow_sync_pkt(struct dcacp_sock* d_sk, __u64 message_id, 
+struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id, 
 	int message_size, __u64 start_time) {
 	// int extra_bytes = 0;
-	struct sk_buff* skb = __construct_control_skb((struct sock*)d_sk);
+	struct sk_buff* skb = __construct_control_skb(sk);
 	struct dcacp_flow_sync_hdr* fh;
 	struct dcacphdr* dh; 
 	if(unlikely(!skb)) {
@@ -96,7 +96,7 @@ struct sk_buff* construct_flow_sync_pkt(struct dcacp_sock* d_sk, __u64 message_i
 	}
 	fh = (struct dcacp_flow_sync_hdr *) skb_put(skb, sizeof(struct dcacp_flow_sync_hdr));
 	dh = (struct dcacphdr*) (&fh->common);
-	dh->len = sizeof(struct dcacp_flow_sync_hdr);
+	dh->len = htons(sizeof(struct dcacp_flow_sync_hdr));
 	dh->type = NOTIFICATION;
 	fh->message_id = message_id;
 	fh->message_size = message_size;
@@ -107,10 +107,10 @@ struct sk_buff* construct_flow_sync_pkt(struct dcacp_sock* d_sk, __u64 message_i
 	return skb;
 }
 
-struct sk_buff* construct_token_pkt(struct dcacp_sock* d_sk, bool free_token, unsigned short priority,
+struct sk_buff* construct_token_pkt(struct sock* sk, bool free_token, unsigned short priority,
 	 __u64 message_id, __u32 seq_no, __u32 data_seq_no, __u32 remaining_size) {
 	// int extra_bytes = 0;
-	struct sk_buff* skb = __construct_control_skb((struct sock*)d_sk);
+	struct sk_buff* skb = __construct_control_skb(sk);
 	struct dcacp_token_hdr* fh;
 	struct dcacphdr* dh; 
 	if(unlikely(!skb)) {
@@ -118,7 +118,7 @@ struct sk_buff* construct_token_pkt(struct dcacp_sock* d_sk, bool free_token, un
 	}
 	fh = (struct dcacp_token_hdr *) skb_put(skb, sizeof(struct dcacp_token_hdr));
 	dh = (struct dcacphdr*) (&fh->common);
-	dh->len = sizeof(struct dcacp_token_hdr);
+	dh->len = htons(sizeof(struct dcacp_token_hdr));
 	dh->type = TOKEN;
 	fh->free_token = free_token;
 	fh->priority = priority;
@@ -132,9 +132,9 @@ struct sk_buff* construct_token_pkt(struct dcacp_sock* d_sk, bool free_token, un
 	return skb;
 }
 
-struct sk_buff* construct_ack_pkt(struct dcacp_sock* d_sk, __u64 message_id) {
+struct sk_buff* construct_ack_pkt(struct sock* sk, __u64 message_id) {
 	// int extra_bytes = 0;
-	struct sk_buff* skb = __construct_control_skb((struct sock*)d_sk);
+	struct sk_buff* skb = __construct_control_skb(sk);
 	struct dcacp_ack_hdr* fh;
 	struct dcacphdr* dh; 
 	if(unlikely(!skb)) {
@@ -142,7 +142,7 @@ struct sk_buff* construct_ack_pkt(struct dcacp_sock* d_sk, __u64 message_id) {
 	}
 	fh = (struct dcacp_ack_hdr *) skb_put(skb, sizeof(struct dcacp_ack_hdr));
 	dh = (struct dcacphdr*) (&fh->common);
-	dh->len = sizeof(struct dcacp_ack_hdr);
+	dh->len = htons(sizeof(struct dcacp_ack_hdr));
 	dh->type = ACK;
 	fh->message_id = message_id;
 	// extra_bytes = DCACP_HEADER_MAX_SIZE - length;
@@ -151,9 +151,9 @@ struct sk_buff* construct_ack_pkt(struct dcacp_sock* d_sk, __u64 message_id) {
 	return skb;
 }
 
-struct sk_buff* construct_rts_pkt(struct dcacp_sock* d_sk, unsigned short iter, int epoch, int remaining_sz) {
+struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz) {
 	// int extra_bytes = 0;
-	struct sk_buff* skb = __construct_control_skb((struct sock*)d_sk);
+	struct sk_buff* skb = __construct_control_skb(sk);
 	struct dcacp_rts_hdr* fh;
 	struct dcacphdr* dh; 
 	if(unlikely(!skb)) {
@@ -161,7 +161,7 @@ struct sk_buff* construct_rts_pkt(struct dcacp_sock* d_sk, unsigned short iter, 
 	}
 	fh = (struct dcacp_rts_hdr *) skb_put(skb, sizeof(struct dcacp_rts_hdr));
 	dh = (struct dcacphdr*) (&fh->common);
-	dh->len = sizeof(struct dcacp_rts_hdr);
+	dh->len = htons(sizeof(struct dcacp_rts_hdr));
 	dh->type = RTS;
 	fh->iter = iter;
 	fh->epoch = epoch;
@@ -172,17 +172,17 @@ struct sk_buff* construct_rts_pkt(struct dcacp_sock* d_sk, unsigned short iter, 
 	return skb;
 }
 
-struct sk_buff* construct_grant_pkt(struct dcacp_sock* d_sk, unsigned short iter, int epoch, int remaining_sz, bool prompt) {
+struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool prompt) {
 	// int extra_bytes = 0;
-	struct sk_buff* skb = __construct_control_skb((struct sock*)d_sk);
-	struct dcacp_rts_hdr* fh;
+	struct sk_buff* skb = __construct_control_skb(sk);
+	struct dcacp_grant_hdr* fh;
 	struct dcacphdr* dh; 
 	if(unlikely(!skb)) {
 		return NULL;
 	}
 	fh = (struct dcacp_grant_hdr *) skb_put(skb, sizeof(struct dcacp_grant_hdr));
 	dh = (struct dcacphdr*) (&fh->common);
-	dh->len = sizeof(struct dcacp_grant_hdr);
+	dh->len = htons(sizeof(struct dcacp_grant_hdr));
 	dh->type = GRANT;
 	fh->iter = iter;
 	fh->epoch = epoch;
@@ -194,17 +194,17 @@ struct sk_buff* construct_grant_pkt(struct dcacp_sock* d_sk, unsigned short iter
 	return skb;
 }
 
-struct sk_buff* construct_accept_pkt(struct dcacp_sock* d_sk, unsigned short iter, int epoch) {
+struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short iter, int epoch) {
 	// int extra_bytes = 0;
-	struct sk_buff* skb = __construct_control_skb((struct sock*)d_sk);
-	struct dcacp_rts_hdr* fh;
+	struct sk_buff* skb = __construct_control_skb(sk);
+	struct dcacp_accept_hdr* fh;
 	struct dcacphdr* dh; 
 	if(unlikely(!skb)) {
 		return NULL;
 	}
 	fh = (struct dcacp_accept_hdr *) skb_put(skb, sizeof(struct dcacp_accept_hdr));
 	dh = (struct dcacphdr*) (&fh->common);
-	dh->len = sizeof(struct dcacp_accept_hdr);
+	dh->len = htons(sizeof(struct dcacp_accept_hdr));
 	dh->type = ACCEPT;
 	fh->iter = iter;
 	fh->epoch = epoch;
@@ -262,12 +262,11 @@ struct sk_buff* construct_accept_pkt(struct dcacp_sock* d_sk, unsigned short ite
  * Return:     Either zero (for success), or a negative errno value if there
  *             was a problem.
  */
-int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct dcacp_sock *dcacp_sk, int dport)
+int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct sock *sk, int dport)
 {
 	// struct dcacp_hdr *h;
 	int result;
 	struct dcacphdr* dh;
-	struct sock* sk = (struct sock*)dcacp_sk;
 	struct inet_sock *inet = inet_sk(sk);
 	struct flowi4 *fl4 = &peer->flow.u.ip4;
 

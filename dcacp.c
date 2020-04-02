@@ -73,6 +73,12 @@ EXPORT_SYMBOL(dcacp_memory_allocated);
 struct dcacp_match_tab dcacp_match_table;
 EXPORT_SYMBOL(dcacp_match_table);
 
+struct dcacp_params dcacp_params;
+EXPORT_SYMBOL(dcacp_params);
+
+struct dcacp_epoch dcacp_epoch;
+EXPORT_SYMBOL(dcacp_epoch);
+
 
 #define MAX_DCACP_PORTS 65536
 #define PORTS_PER_CHAIN (MAX_DCACP_PORTS / DCACP_HTABLE_SIZE_MIN)
@@ -2628,7 +2634,14 @@ int dcacp_rcv(struct sk_buff *skb)
 	} else if (dh->type == ACK) {
 		return dcacp_handle_ack_pkt(skb);
 	} else if (dh->type == RTS) {
-		printk("receive RTS\n");
+		printk("receive rts pkt\n");
+		return dcacp_handle_rts(skb, &dcacp_match_table, &dcacp_epoch);
+	} else if (dh->type == GRANT) {
+		printk("receive grant pkt\n");
+		return dcacp_handle_grant(skb, &dcacp_match_table, &dcacp_epoch);
+	} else if (dh->type == ACCEPT) {
+		printk("receive accept pkt\n");
+		return dcacp_handle_accept(skb, &dcacp_match_table, &dcacp_epoch);
 	}
 
 
@@ -3220,7 +3233,6 @@ void __init dcacp_init(void)
 	sysctl_dcacp_mem[2] = sysctl_dcacp_mem[0] * 2;
 
 	__dcacp_sysctl_init(&init_net);
-
 	/* 16 spinlocks per cpu */
 	dcacp_busylocks_log = ilog2(nr_cpu_ids) + 4;
 	dcacp_busylocks = kmalloc(sizeof(spinlock_t) << dcacp_busylocks_log,
@@ -3244,6 +3256,8 @@ void dcacp_table_destroy(struct udp_table *table) {
 		spin_lock(&table->hash[i].lock);
 		sk_for_each_safe(sk, tmp, &table->hash[i].head) {
 			struct udp_hslot *hslot2;
+			printk("destruct socket here: 1\n");
+
 			hslot2 = udp_hashslot2(table, dcacp_sk(sk)->dcacp_portaddr_hash);
 			if (rcu_access_pointer(sk->sk_reuseport_cb))
 				reuseport_detach_sock(sk);
@@ -3267,6 +3281,7 @@ void dcacp_table_destroy(struct udp_table *table) {
 	for (i = 0; i <= table->mask; i++) {
 		spin_lock(&table->hash2[i].lock);
 		sk_for_each_safe(sk, tmp, &table->hash[i].head) {
+			printk("destruct socket here: 2\n");
 			if (rcu_access_pointer(sk->sk_reuseport_cb))
 				reuseport_detach_sock(sk);
 			inet_sk(sk)->inet_num = 0;
@@ -3285,7 +3300,9 @@ void dcacp_table_destroy(struct udp_table *table) {
 	// vfree(table->hash2);
 }
 void dcacp_destroy() {
+	printk("try to destroy peer table\n");
 	dcacp_peertab_destroy(&dcacp_peers_table);
+	printk("try to destroy dcacp socket table\n");
 	dcacp_table_destroy(&dcacp_table);
 	kfree(dcacp_busylocks);
 }

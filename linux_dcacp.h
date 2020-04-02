@@ -31,6 +31,25 @@
 struct dcacp_sock;
 
 
+
+struct dcacp_params {
+	int clean_match_sock;
+	int min_iter;
+	int match_socket_port;
+	double bandwidth;
+	// in microsecond
+	double rtt;
+	double control_pkt_rtt;
+	// matching related parameters
+	double alpha;
+	double beta;
+	int num_iters;
+	int epoch_size;
+	int iter_size;
+
+
+};
+
 struct dcacp_pq {
 	struct list_head list;
 	// struct spinlock lock;
@@ -236,7 +255,7 @@ struct dcacp_message_out {
 #define DCACP_MATCH_BUCKETS 1024
 
 struct dcacp_epoch {
-	uint32_t epoch;
+	uint64_t epoch;
 	uint32_t iter;
 	bool prompt;
 	__be32 match_src_addr;
@@ -245,8 +264,8 @@ struct dcacp_epoch {
 	struct list_head grants_q;
 	uint32_t grant_size;
 	uint32_t rts_size;
-	struct pim_rts *min_rts;
-	struct pim_grant *min_grant;
+	struct dcacp_rts *min_rts;
+	struct dcacp_grant *min_grant;
 	// struct rte_timer epoch_timer;
 	// struct rte_timer sender_iter_timers[10];
 	// struct rte_timer receiver_iter_timers[10];
@@ -256,22 +275,27 @@ struct dcacp_epoch {
 	// current epoch and address
 	uint64_t cur_epoch;
 	uint32_t cur_match_src_addr;
-	struct spinlock lock;
+	uint32_t cur_match_dst_addr;
 
+	struct spinlock lock;
+	// thread for running Matching logic
+	// struct task_struct thread;
+	struct hrtimer epoch_timer;
+	struct hrtimer sender_iter_timer;
+	struct hrtimer receiver_iter_timer;
 
 };
 
 // dcacp matching logic data structure
 struct dcacp_rts {
-    uint8_t iter;
-    __be32 src_addr;
+    struct dcacp_peer* peer;
     int remaining_sz;
  	struct list_head list_link;
 
 };
 struct dcacp_grant {
     bool prompt;
-    __be32 dst_addr;
+    struct dcacp_peer* peer;
     int remaining_sz;
 	struct list_head list_link;
 };
@@ -300,6 +324,7 @@ struct dcacp_match_tab {
 	struct list_head hash_list;
 	bool (*comp)(const struct list_head*, const struct list_head*);
 
+	struct socket *sock;
 	// struct list_node rts_list;
 	// struct list_node grant_list;
 
@@ -345,9 +370,9 @@ static inline struct dcacp_grant_hdr *dcacp_grant_hdr(const struct sk_buff *skb)
 	return (struct dcacp_grant_hdr *)skb_transport_header(skb);
 }
 
-static inline struct pim_accept_hdr *pim_accept_hdr(const struct sk_buff *skb)
+static inline struct dcacp_accept_hdr *dcacp_accept_hdr(const struct sk_buff *skb)
 {
-	return (struct pim_accept_hdr *)skb_transport_header(skb);
+	return (struct dcacp_accept_hdr *)skb_transport_header(skb);
 }
 
 /**

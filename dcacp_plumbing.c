@@ -21,7 +21,8 @@ MODULE_VERSION("0.01");
  */
 
 static bool exiting = false;
-
+int sysctl_dcacp_rmem_min __read_mostly;
+int sysctl_dcacp_wmem_min __read_mostly;
 
 /* DCACP's protocol number within the IP protocol space (this is not an
  * officially allocated slot).
@@ -66,8 +67,8 @@ struct proto dcacp_prot = {
     .get_port       = dcacp_v4_get_port,
     .memory_allocated   = &dcacp_memory_allocated,
     .sysctl_mem     = sysctl_dcacp_mem,
-    .sysctl_wmem_offset = offsetof(struct net, ipv4.sysctl_udp_wmem_min),
-    .sysctl_rmem_offset = offsetof(struct net, ipv4.sysctl_udp_rmem_min),
+    .sysctl_wmem = &sysctl_dcacp_wmem_min,
+    .sysctl_rmem = &sysctl_dcacp_rmem_min,
     .obj_size       = sizeof(struct dcacp_sock),
     .h.udp_table        = &dcacp_table,
 #ifdef CONFIG_COMPAT
@@ -100,6 +101,96 @@ static struct net_protocol dcacp_protocol = {
         .netns_ok =     1,
 };
 
+/* Used to configure sysctl access to Homa configuration parameters.*/
+static struct ctl_table dcacp_ctl_table[] = {
+        {
+                // this is only being called when unloading the module
+                .procname       = "clean_match_sock",
+                .data           = &dcacp_params.clean_match_sock,
+                .maxlen         = sizeof(int),
+                .mode           = 0644,
+                .proc_handler   = dcacp_dointvec
+        },
+        {}
+};
+
+
+/* Used to remove sysctl values when the module is unloaded. */
+static struct ctl_table_header *dcacp_ctl_header;
+
+void dcacp_params_init(struct dcacp_params* params) {
+    params->clean_match_sock = 0;
+    params->match_socket_port = 3000;
+    params->bandwidth = 10000000000;
+    params->control_pkt_rtt = 1.856;
+    params->rtt = 11.2;
+    // matchiing parameters
+    params->alpha = 1.5;
+    params->beta = 5;
+    params->min_iter = 1;
+    params->num_iters = 5;
+    params->iter_size = params->beta * params->control_pkt_rtt;
+    params->epoch_size = params->num_iters * params->iter_size * (1 + params->alpha);
+
+}
+/**
+ * dcacp_dointvec() - This function is a wrapper around proc_dointvec. It is
+ * invoked to read and write sysctl values and also update other values
+ * that depend on the modified value.
+ * @table:    sysctl table describing value to be read or written.
+ * @write:    Nonzero means value is being written, 0 means read.
+ * @buffer:   Address in user space of the input/output data.
+ * @lenp:     Not exactly sure.
+ * @ppos:     Not exactly sure.
+ * 
+ * Return: 0 for success, nonzero for error. 
+ */
+int dcacp_dointvec(struct ctl_table *table, int write,
+                void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+        int result;
+        result = proc_dointvec(table, write, buffer, lenp, ppos);
+        if (write) {
+                /* Don't worry which particular value changed; update
+                 * all info that is dependent on any sysctl value.
+                 */
+                dcacp_sysctl_changed(&dcacp_params);
+
+                // /* For this value, only call the method when this
+                //  * particular value was written (don't want to increment
+                //  * cutoff_version otherwise).
+                //  */
+                // if ((table->data == &homa_data.unsched_cutoffs)
+                //                 || (table->data == &homa_data.num_priorities)) {
+                //         homa_prios_changed(homa);
+                // }
+        }
+        return result;
+}
+
+/**
+ * dcacp_sysctl_changed() - Invoked whenever a sysctl value is changed;
+ * any output-related parameters that depend on sysctl-settable values.
+ * @params:    Overall data about the DCACP protocol implementation.
+ */
+void dcacp_sysctl_changed(struct dcacp_params *params)
+{
+        // __u64 tmp;
+
+        // /* Code below is written carefully to avoid integer underflow or
+        //  * overflow under expected usage patterns. Be careful when changing!
+        //  */
+        // homa->cycles_per_kbyte = (8*(__u64) cpu_khz)/homa->link_mbps;
+        // homa->cycles_per_kbyte = (105*homa->cycles_per_kbyte)/100;
+        // tmp = homa->max_nic_queue_ns;
+        // tmp = (tmp*cpu_khz)/1000000;
+        // homa->max_nic_queue_cycles = tmp;
+    if(params->clean_match_sock == 1) {
+        sock_release(dcacp_match_table.sock);
+        dcacp_match_table.sock = NULL;
+        params->clean_match_sock = 0;
+    }
+}
 /**
  * dcacp_load() - invoked when this module is loaded into the Linux kernel
  * Return: 0 on success, otherwise a negative errno.
@@ -147,8 +238,11 @@ static int __init dcacp_load(void) {
                     status);
                 goto out_cleanup;
         }
+        dcacp_params_init(&dcacp_params);
 
         dcacp_init();
+        dcacp_mattab_init(&dcacp_match_table, NULL);
+        dcacp_epoch_init(&dcacp_epoch);
         // if (status)
         //         goto out_cleanup;
         // dcacplite4_register();
@@ -160,13 +254,13 @@ static int __init dcacp_load(void) {
         //         goto out_cleanup;
         // }
 
-        // homa_ctl_header = register_net_sysctl(&init_net, "net/homa",
-        //                 homa_ctl_table);
-        // if (!homa_ctl_header) {
-        //         printk(KERN_ERR "couldn't register Homa sysctl parameters\n");
-        //         status = -ENOMEM;
-        //         goto out_cleanup;
-        // }
+        dcacp_ctl_header = register_net_sysctl(&init_net, "net/dcacp",
+                        dcacp_ctl_table);
+        if (!dcacp_ctl_header) {
+                printk(KERN_ERR "couldn't register DCACP sysctl parameters\n");
+                status = -ENOMEM;
+                goto out_cleanup;
+        }
         
         // status = dcacpv4_offload_init();
         printk("init the offload\n");
@@ -183,7 +277,6 @@ static int __init dcacp_load(void) {
         // hrtimer_start(&hrtimer, tick_interval, HRTIMER_MODE_REL);
         
         // tt_init("timetrace");
-        
         return 0;
 
 out_cleanup:
@@ -191,6 +284,8 @@ out_cleanup:
         // proc_remove(metrics_dir_entry);
         // if (dcacpv4_offload_end() != 0)
         //         printk(KERN_ERR "DCACP couldn't stop offloads\n");
+        dcacp_epoch_destroy(&dcacp_epoch);
+        unregister_net_sysctl_table(dcacp_ctl_header);
         dcacp_destroy();
         inet_del_protocol(&dcacp_protocol, IPPROTO_DCACP);
         printk("inet delete protocol\n");
@@ -228,10 +323,20 @@ static void __exit dcacp_unload(void) {
         // proc_remove(metrics_dir_entry);
         // if (dcacpv4_offload_end() != 0)
         //         printk(KERN_ERR "DCACP couldn't stop offloads\n");
+        printk("start to unload\n");
+        dcacp_epoch_destroy(&dcacp_epoch);
+        unregister_net_sysctl_table(dcacp_ctl_header);
+        printk("unregister sysctl table\n");
+        dcacp_mattab_destroy(&dcacp_match_table);
+        printk("remove match table\n");
+
         dcacp_destroy();
+        printk("remove dcacp table\n");
+
         inet_del_protocol(&dcacp_protocol, IPPROTO_DCACP);
         inet_unregister_protosw(&dcacp_protosw);
         proto_unregister(&dcacp_prot);
+
         // proto_unregister(&dcacplite_prot);
 }
 
