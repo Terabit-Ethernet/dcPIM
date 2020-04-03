@@ -2634,7 +2634,6 @@ int dcacp_rcv(struct sk_buff *skb)
 	} else if (dh->type == ACK) {
 		return dcacp_handle_ack_pkt(skb);
 	} else if (dh->type == RTS) {
-		printk("receive rts pkt\n");
 		return dcacp_handle_rts(skb, &dcacp_match_table, &dcacp_epoch);
 	} else if (dh->type == GRANT) {
 		return dcacp_handle_grant(skb, &dcacp_match_table, &dcacp_epoch);

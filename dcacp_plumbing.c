@@ -129,9 +129,10 @@ void dcacp_params_init(struct dcacp_params* params) {
     params->beta = 5;
     params->min_iter = 1;
     params->num_iters = 5;
-    params->iter_size = params->beta * params->control_pkt_rtt;
-    params->epoch_size = params->num_iters * params->iter_size * (1 + params->alpha);
-
+    params->iter_size = params->beta * params->control_pkt_rtt * 1000;
+    params->epoch_size = params->num_iters * params->iter_size * params->alpha;
+    printk("epoch size:%d\n",dcacp_params.epoch_size );
+    printk("dcacp iter:%d\n", dcacp_params.iter_size);
 }
 /**
  * dcacp_dointvec() - This function is a wrapper around proc_dointvec. It is
