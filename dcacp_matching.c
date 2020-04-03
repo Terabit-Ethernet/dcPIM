@@ -174,6 +174,7 @@ void dcacp_epoch_destroy(struct dcacp_epoch *epoch) {
 		kfree(grant);
 	}
     sock_release(epoch->sock);
+    epoch->sock = NULL;
 	spin_unlock_bh(&epoch->lock);
 
 
