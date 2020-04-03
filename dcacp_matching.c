@@ -181,8 +181,8 @@ void dcacp_epoch_destroy(struct dcacp_epoch *epoch) {
 }
 void dcacp_send_all_rts (struct dcacp_match_tab *table, struct dcacp_epoch* epoch) {
 	struct dcacp_match_entry *entry = NULL;
- 	struct dcacp_peer *peer;
-	struct inet_sock *inet;
+ // 	struct dcacp_peer *peer;
+	// struct inet_sock *inet;
 	spin_lock(&table->lock);
 	struct sk_buff* pkt;
 	list_for_each_entry(entry, &table->hash_list, list_link) {
@@ -200,14 +200,14 @@ void dcacp_send_all_rts (struct dcacp_match_tab *table, struct dcacp_epoch* epoc
 		}
 		spin_unlock(&entry->lock);
 	}
-	if(epoch->sock != NULL) {
-		inet = inet_sk(epoch->sock->sk);
-		// printk("inet is null: %d\n", inet == NULL);
-		peer =  dcacp_peer_find(&dcacp_peers_table, 167772169, inet);
-		pkt = construct_rts_pkt(epoch->sock->sk, epoch->iter, epoch->epoch, 3);
-		dcacp_xmit_control(pkt, peer, epoch->sock->sk, 3000);
+	// if(epoch->sock != NULL) {
+	// 	inet = inet_sk(epoch->sock->sk);
+	// 	// printk("inet is null: %d\n", inet == NULL);
+	// 	peer =  dcacp_peer_find(&dcacp_peers_table, 167772169, inet);
+	// 	pkt = construct_rts_pkt(epoch->sock->sk, epoch->iter, epoch->epoch, 3);
+	// 	dcacp_xmit_control(pkt, peer, epoch->sock->sk, 3000);
 
-	}
+	// }
 
 
 	spin_unlock(&table->lock);
@@ -290,7 +290,6 @@ int dcacp_handle_grant(struct sk_buff *skb, struct dcacp_match_tab *table, struc
 
 	struct dcacp_grant_hdr *gh;
 	struct iphdr *iph;
-	printk("receive grant pkt\n");
 	if (!pskb_may_pull(skb, sizeof(struct dcacp_grant_hdr)))
 		goto drop;		/* No space for header. */
 	spin_lock_bh(&epoch->lock);
@@ -306,7 +305,7 @@ int dcacp_handle_grant(struct sk_buff *skb, struct dcacp_match_tab *table, struc
 	grant->remaining_sz = gh->remaining_sz;
 	// grant->epoch = gh->epoch; 
 	// grant->iter = gh->iter;
-	printk("epoch:%llu\n", gh->epoch);
+	printk("ip src addr:%d\n", iph->saddr);
 	grant->prompt = gh->prompt;
 	grant->peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet_sk(epoch->sock->sk));
 	if (epoch->min_grant == NULL || epoch->min_grant->remaining_sz > grant->remaining_sz) {
@@ -325,7 +324,6 @@ drop:
 void dcacp_handle_all_grants(struct dcacp_match_tab *table, struct dcacp_epoch *epoch) {
 	struct dcacp_grant *grant, *temp, *resp = NULL;
 	// spin_lock_bh(&epoch->lock);
-	printk("call handle all grants\n");
 	if(epoch->match_src_addr == 0 && epoch->grant_size > 0) {
 		if (dcacp_params.min_iter >= epoch->iter) {
 			printk("send accept pkt:%d\n", __LINE__);
@@ -349,6 +347,7 @@ void dcacp_handle_all_grants(struct dcacp_match_tab *table, struct dcacp_epoch *
 				i += 1;
 			}
 		}
+		epoch->match_src_addr = resp->peer->addr;
 		if(resp != NULL && resp->prompt) {
 			epoch->cur_match_src_addr = resp->peer->addr;
 		}
@@ -372,8 +371,8 @@ int dcacp_handle_accept(struct sk_buff *skb, struct dcacp_match_tab *table, stru
 	ah = dcacp_accept_hdr(skb);
 
 	spin_lock_bh(&epoch->lock);
-	if(epoch->match_src_addr == 0)
-		epoch->match_src_addr = iph->saddr;
+	if(epoch->match_dst_addr == 0)
+		epoch->match_dst_addr = iph->saddr;
 	spin_unlock_bh(&epoch->lock);
 
 drop:
