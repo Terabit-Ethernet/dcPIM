@@ -86,7 +86,7 @@ void dcacp_mattab_add_new_message(struct dcacp_match_tab *table, struct dcacp_me
 	bucket->count += 1;
 	// add this entry to the hash list
 	spin_lock_bh(&table->lock);
-	list_add_tail(&table->hash_list, &match_entry->list_link);
+	list_add_tail(&match_entry->list_link, &table->hash_list);
 	spin_unlock_bh(&table->lock);
 
 	spin_unlock_bh(&bucket->lock);
@@ -181,8 +181,8 @@ void dcacp_epoch_destroy(struct dcacp_epoch *epoch) {
 }
 void dcacp_send_all_rts (struct dcacp_match_tab *table, struct dcacp_epoch* epoch) {
 	struct dcacp_match_entry *entry = NULL;
- // 	struct dcacp_peer *peer;
-	// struct inet_sock *inet;
+ 	struct dcacp_peer *peer;
+	struct inet_sock *inet;
 	spin_lock(&table->lock);
 	struct sk_buff* pkt;
 	list_for_each_entry(entry, &table->hash_list, list_link) {
@@ -200,14 +200,14 @@ void dcacp_send_all_rts (struct dcacp_match_tab *table, struct dcacp_epoch* epoc
 		}
 		spin_unlock(&entry->lock);
 	}
-	// if(epoch->sock != NULL) {
-	// 	inet = inet_sk(epoch->sock->sk);
-	// 	// printk("inet is null: %d\n", inet == NULL);
-	// 	peer =  dcacp_peer_find(&dcacp_peers_table, 167772169, inet);
-	// 	pkt = construct_rts_pkt(epoch->sock->sk, epoch->iter, epoch->epoch, 3);
-	// 	dcacp_xmit_control(pkt, peer, epoch->sock->sk, 3000);
+	if(epoch->sock != NULL) {
+		inet = inet_sk(epoch->sock->sk);
+		// printk("inet is null: %d\n", inet == NULL);
+		peer =  dcacp_peer_find(&dcacp_peers_table, 167772169, inet);
+		pkt = construct_rts_pkt(epoch->sock->sk, epoch->iter, epoch->epoch, 3);
+		dcacp_xmit_control(pkt, peer, epoch->sock->sk, 3000);
 
-	// }
+	}
 
 
 	spin_unlock(&table->lock);
@@ -243,7 +243,7 @@ int dcacp_handle_rts (struct sk_buff *skb, struct dcacp_match_tab *table, struct
 	if (epoch->min_rts == NULL || epoch->min_rts->remaining_sz > rts->remaining_sz) {
 		epoch->min_rts = rts;
 	}
-	list_add_tail(&epoch->rts_q, &rts->list_link);
+	list_add_tail(&rts->list_link, &epoch->rts_q);
 	epoch->rts_size += 1;
 	spin_unlock_bh(&epoch->lock);
 
@@ -305,13 +305,12 @@ int dcacp_handle_grant(struct sk_buff *skb, struct dcacp_match_tab *table, struc
 	grant->remaining_sz = gh->remaining_sz;
 	// grant->epoch = gh->epoch; 
 	// grant->iter = gh->iter;
-	printk("ip src addr:%d\n", iph->saddr);
 	grant->prompt = gh->prompt;
 	grant->peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet_sk(epoch->sock->sk));
 	if (epoch->min_grant == NULL || epoch->min_grant->remaining_sz > grant->remaining_sz) {
 		epoch->min_grant = grant;
 	}
-	list_add_tail(&epoch->grants_q, &grant->list_link);
+	list_add_tail(&grant->list_link, &epoch->grants_q);
 	epoch->grant_size += 1;
 	spin_unlock_bh(&epoch->lock);
 
@@ -324,9 +323,10 @@ drop:
 void dcacp_handle_all_grants(struct dcacp_match_tab *table, struct dcacp_epoch *epoch) {
 	struct dcacp_grant *grant, *temp, *resp = NULL;
 	// spin_lock_bh(&epoch->lock);
+
 	if(epoch->match_src_addr == 0 && epoch->grant_size > 0) {
 		if (dcacp_params.min_iter >= epoch->iter) {
-			printk("send accept pkt:%d\n", __LINE__);
+			// printk("send accept pkt:%d\n", __LINE__);
 			dcacp_xmit_control(construct_accept_pkt(epoch->sock->sk, 
 				epoch->iter, epoch->epoch), 
 				epoch->min_grant->peer, epoch->sock->sk, dcacp_params.match_socket_port);
@@ -336,8 +336,9 @@ void dcacp_handle_all_grants(struct dcacp_match_tab *table, struct dcacp_epoch *
 			uint32_t i = 0;
 			index = get_random_u32() % epoch->grant_size;
 			list_for_each_entry(grant, &epoch->grants_q, list_link) {
+				printk("i:%d\n", i);
 				if (i == index) {
-					printk("send accept pkt:%d\n", __LINE__);
+					// printk("send accept pkt:%d\n", __LINE__);
 					dcacp_xmit_control(construct_accept_pkt(epoch->sock->sk, 
 						epoch->iter, epoch->epoch), 
 						grant->peer, epoch->sock->sk, dcacp_params.match_socket_port);
@@ -352,10 +353,13 @@ void dcacp_handle_all_grants(struct dcacp_match_tab *table, struct dcacp_epoch *
 			epoch->cur_match_src_addr = resp->peer->addr;
 		}
 	}
+
 	epoch->grant_size = 0;
 	epoch->min_grant = NULL;
+
 	list_for_each_entry_safe(grant, temp, &epoch->grants_q, list_link) {
 		kfree(grant);
+
 	}
 	INIT_LIST_HEAD(&epoch->grants_q);
 	// spin_unlock_bh(&epoch->lock);

@@ -26,22 +26,22 @@ struct flow{
     // virtual double get_avg_queuing_delay_in_us();
 
     uint32_t id;
-    uint64_t start_time;
-    uint64_t finish_time;
     uint32_t size;
-    uint32_t src_addr;
-    uint32_t dst_addr;
-    struct ether_addr src_ether_addr;
-    struct ether_addr dst_ether_addr;
+    // uint32_t src_addr;
+    // uint32_t dst_addr;
+    // struct ether_addr src_ether_addr;
+    // struct ether_addr dst_ether_addr;
 
     uint32_t received_bytes;
     uint32_t received_count;
-    uint32_t sent_bytes;
     uint32_t recv_till;
     uint32_t max_seq_no_recv;
 
     uint32_t total_pkt_sent;
+    uint32_t sent_bytes;
+
     uint32_t size_in_pkt;
+
     // int pkt_drop;
     // int data_pkt_drop;
     // int ack_pkt_drop;
@@ -53,8 +53,11 @@ struct flow{
     bool finished;
     // double flow_completion_time;
     // double total_queuing_time;
+    // metric 
     uint64_t first_byte_send_time;
     double first_byte_receive_time;
+    uint64_t start_time;
+    uint64_t finish_time;
 
     uint8_t priority;
     struct rte_bitmap* bmp;

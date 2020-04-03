@@ -92,6 +92,95 @@ struct zedro_host{
 	uint64_t start_cycle;
 	uint64_t end_cycle;
 };
+
+struct dcacp_message_in {
+    uint32_t id;
+	/**
+	 * @packets: DATA packets received for this message so far. The list
+	 * is sorted in order of offset (head is lowest offset), but
+	 * packets can be received out of order, so there may be times
+	 * when there are holes in the list. Packets in this list contain
+	 * exactly one data_segment.
+	 */
+	struct sk_buff_head packets;
+	/**
+	 * @num_skbs:  Total number of buffers in @packets. Will be 0 if
+	 * @total_length is less than 0.
+	 */
+	int num_skbs;
+
+	/**
+ 	 * retransmission list of tokens
+	 */
+	struct list_head rtx_list;
+
+	/**
+	 * size of message in bytes
+	 */
+    uint64_t total_length;
+    uint32_t received_bytes;
+    uint32_t received_count;
+    uint32_t recv_till;
+    // uint32_t max_seq_no_recv;
+	/** @priority: Priority level to include in future GRANTS. */
+	int priority;
+
+    bool flow_sync_received;
+ 	bool finished_at_receiver;
+    int last_token_data_seq_sent;
+
+    int token_count;
+    int token_goal;
+    int largest_token_seq_received;
+    int largest_token_data_seq_received;
+	/* DCACP metric */
+    uint64_t latest_token_sent_time;
+    double first_byte_receive_time;
+
+};
+
+struct dcacp_message_out {
+    uint32_t id;
+	/**
+	 * @packets: singly-linked list of all packets in message, linked
+	 * using homa_next_skb. The list is in order of offset in the message
+	 * (offset 0 first); each sk_buff can potentially contain multiple
+	 * data_segments, which will be split into separate packets by GSO.
+	 */
+	struct sk_buff *packets;
+	
+	/**
+	 * @num_skbs:  Total number of buffers in @packets. Will be 0 if
+	 * @length is less than 0.
+	 */
+	int num_skbs;
+	/**
+	 * @next_packet: Pointer within @token of the next packet to transmit.
+	 * 
+	 * All packets before this one have already been sent. NULL means
+	 * entire message has been sent.
+	 */
+	struct sk_buff *next_packet;
+	/**
+	 * size of message in bytes
+	 */
+    uint64_t total_length;
+
+    uint32_t total_bytes_sent;
+
+	/** @priority: Priority level to include in future GRANTS. */
+	int priority;
+
+    int remaining_pkts_at_sender;
+
+	/* DCACP metric */
+    uint64_t first_byte_send_time;
+
+    uint64_t start_time;
+    uint64_t finish_time;
+    double latest_data_pkt_sent_time;
+
+};
 bool zedro_zflow_compare(const void *a, const void* b);
 
 void zedro_new_flow_comes(struct zedro_host * host, struct zedro_pacer* pacer, 

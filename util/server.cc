@@ -79,7 +79,7 @@ bool validate = false;
 // 		return;
 // 	}
 	
-// 	memset(&addr_in, 0, sizeof(addr_in));
+// 	mem(&addr_in, 0, sizeof(addr_in));
 // 	addr_in.sin_family = AF_INET;
 // 	addr_in.sin_port = htons(port);
 // 	inet_pton(AF_INET, ip.c_str(), &addr_in.sin_addr);
@@ -347,6 +347,8 @@ void udp_server(int port)
 		result = recvfrom(listen_fd, (char *)buffer, sizeof(buffer),  
                 MSG_WAITALL, ( struct sockaddr *) &client_addr, 
                 &addr_len);
+		printf("%s\n", buffer);
+		printf("%c\n", buffer[10000]);
 		if (result < 0) {
 			if (errno == ECONNRESET)
 				break;
@@ -392,7 +394,7 @@ void dcacp_server(int port)
 		exit(1);
 	}
 	int option_value = 1;
-	if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &option_value,
+	if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR | SO_NO_CHECK, &option_value,
 			sizeof(option_value)) != 0) {
 		printf("Couldn't set SO_REUSEADDR on listen socket: %s",
 			strerror(errno));
@@ -418,7 +420,9 @@ void dcacp_server(int port)
 		result = recvfrom(listen_fd, (char *)buffer, sizeof(buffer),  
                 MSG_WAITALL, ( struct sockaddr *) &client_addr, 
                 &addr_len);
-		printf("%s", buffer);
+		// printf("%s", buffer);
+		// printf("%c\n",  buffer[63999]);
+		// printf("len: %d\n", result);
 		if (result < 0) {
 			if (errno == ECONNRESET)
 				break;
