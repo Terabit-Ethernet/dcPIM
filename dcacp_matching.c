@@ -238,7 +238,7 @@ int dcacp_handle_rts (struct sk_buff *skb, struct dcacp_match_tab *table, struct
 	// rts->epoch = rh->epoch; 
 	// rts->iter = rh->iter;
 	rts->peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet_sk(epoch->sock->sk));
-	spin_lock_bh(&epoch->lock);
+	// spin_lock_bh(&epoch->lock);
 	if (epoch->min_rts == NULL || epoch->min_rts->remaining_sz > rts->remaining_sz) {
 		epoch->min_rts = rts;
 	}
@@ -292,6 +292,11 @@ int dcacp_handle_grant(struct sk_buff *skb, struct dcacp_match_tab *table, struc
 	printk("receive grant pkt\n");
 	if (!pskb_may_pull(skb, sizeof(struct dcacp_grant_hdr)))
 		goto drop;		/* No space for header. */
+	spin_lock_bh(&epoch->lock);
+	if(epoch->sock == NULL) {
+		spin_unlock_bh(&epoch->lock);
+		goto drop;
+	}
 	grant = kmalloc(sizeof(struct dcacp_grant), GFP_KERNEL);
 	INIT_LIST_HEAD(&grant->list_link);
 	iph = ip_hdr(skb);
@@ -303,7 +308,6 @@ int dcacp_handle_grant(struct sk_buff *skb, struct dcacp_match_tab *table, struc
 	printk("epoch:%llu\n", gh->epoch);
 	grant->prompt = gh->prompt;
 	grant->peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet_sk(epoch->sock->sk));
-	spin_lock_bh(&epoch->lock);
 	if (epoch->min_grant == NULL || epoch->min_grant->remaining_sz > grant->remaining_sz) {
 		epoch->min_grant = grant;
 	}
