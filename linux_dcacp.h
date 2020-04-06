@@ -284,6 +284,9 @@ struct dcacp_epoch {
 	struct hrtimer sender_iter_timer;
 	struct hrtimer receiver_iter_timer;
 	struct socket *sock;
+	struct workqueue_struct *wq;
+	struct work_struct sender_iter_struct;
+	struct work_struct receiver_iter_struct;
 
 };
 
