@@ -223,27 +223,25 @@ static int __init dcacp_load(void) {
         //     printk("value: %d\n", temp->value);
         // }   
         printk(KERN_NOTICE "DCACP module loading\n");
+        dcacp_params_init(&dcacp_params);
+
+        dcacp_init();
+        dcacp_mattab_init(&dcacp_match_table, NULL);
+        
         status = proto_register(&dcacp_prot, 1);
         if (status != 0) {
                 printk(KERN_ERR "proto_register failed in dcacp_init: %d\n",
                     status);
                 goto out;
         }
-        printk("dcacp protocol register\n");
         inet_register_protosw(&dcacp_protosw);
-        printk("dcacp protocol sw \n");
         status = inet_add_protocol(&dcacp_protocol, IPPROTO_DCACP);
-        printk("inet add dcacp\n");
 
         if (status != 0) {
                 printk(KERN_ERR "inet_add_protocol failed in dcacp_load: %d\n",
                     status);
                 goto out_cleanup;
         }
-        dcacp_params_init(&dcacp_params);
-
-        dcacp_init();
-        dcacp_mattab_init(&dcacp_match_table, NULL);
         dcacp_epoch_init(&dcacp_epoch);
         // if (status)
         //         goto out_cleanup;
