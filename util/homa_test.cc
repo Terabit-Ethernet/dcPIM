@@ -729,7 +729,6 @@ void test_udpstream(char *server_name, int port)
 		// 	break;
 		if(std::chrono::steady_clock::now() - start_clock > std::chrono::seconds(60)) 
 	            break;
-
 	    for (int i = 0; i < count * 100; i++) {
 	    	int result = sendto(fd, buffer, 64000, MSG_CONFIRM, dest, sizeof(struct sockaddr_in));			
 			if( result < 0 ) {
@@ -760,35 +759,35 @@ void test_udpstream(char *server_name, int port)
  * @server_name:  Name of the server machine.
  * @port:         Server port to connect to.
  */
-void test_dcacpstream(char *server_name, int port)
+void test_dcacpstream(int fd, struct sockaddr *dest, char* buffer)
 {
-	struct addrinfo hints;
-	struct addrinfo *matching_addresses;
-	struct sockaddr *dest;
-	int status;
-	int buffer[1000000];
+	// struct addrinfo hints;
+	// struct addrinfo *matching_addresses;
+	// struct sockaddr *dest;
+	// int status;
+	// int buffer[1000000];
 	int64_t bytes_sent = 0;
 	int64_t start_bytes = 0;
 	uint64_t start_cycles = 0;
 	double elapsed, rate;
 	
-	memset(&hints, 0, sizeof(struct addrinfo));
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_DGRAM;
-	status = getaddrinfo(server_name, "80", &hints, &matching_addresses);
-	if (status != 0) {
-		printf("Couldn't look up address for %s: %s\n",
-				server_name, gai_strerror(status));
-		return;
-	}
-	dest = matching_addresses->ai_addr;
-	((struct sockaddr_in *) dest)->sin_port = htons(port);
+	// memset(&hints, 0, sizeof(struct addrinfo));
+	// hints.ai_family = AF_INET;
+	// hints.ai_socktype = SOCK_DGRAM;
+	// status = getaddrinfo(server_name, "80", &hints, &matching_addresses);
+	// if (status != 0) {
+	// 	printf("Couldn't look up address for %s: %s\n",
+	// 			server_name, gai_strerror(status));
+	// 	return;
+	// }
+	// dest = matching_addresses->ai_addr;
+	// ((struct sockaddr_in *) dest)->sin_port = htons(port);
 	
-	int fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCACP);
-	if (fd == -1) {
-		printf("Couldn't open client socket: %s\n", strerror(errno));
-		return;
-	}
+	// int fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCACP);
+	// if (fd == -1) {
+	// 	printf("Couldn't open client socket: %s\n", strerror(errno));
+	// 	return;
+	// }
 	// int gso_size = ETH_DATA_LEN - sizeof(struct iphdr) - sizeof(struct udphdr);
 	// if (setsockopt(fd, SOL_UDP, UDP_SEGMENT, &gso_size, sizeof(gso_size))) {
 	// 	return;
@@ -829,35 +828,35 @@ void test_dcacpstream(char *server_name, int port)
 	}
 }
 
-void test_dcacpping(char *server_name, int port)
+void test_dcacpping(int fd, struct sockaddr *dest, char* buffer)
 {
-	struct addrinfo hints;
-	struct addrinfo *matching_addresses;
-	struct sockaddr *dest;
-	int status;
-	char buffer[1000] = "abcdefgh\n";
-	// int64_t bytes_sent = 0;
-	// int64_t start_bytes = 0;
-	// uint64_t start_cycles = 0;
-	// double elapsed, rate;
+	// struct addrinfo hints;
+	// struct addrinfo *matching_addresses;
+	// struct sockaddr *dest;
+	// int status;
+	// char buffer[1000] = "abcdefgh\n";
+	// // int64_t bytes_sent = 0;
+	// // int64_t start_bytes = 0;
+	// // uint64_t start_cycles = 0;
+	// // double elapsed, rate;
 	
-	memset(&hints, 0, sizeof(struct addrinfo));
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_DGRAM;
-	status = getaddrinfo(server_name, "80", &hints, &matching_addresses);
-	if (status != 0) {
-		printf("Couldn't look up address for %s: %s\n",
-				server_name, gai_strerror(status));
-		return;
-	}
-	dest = matching_addresses->ai_addr;
-	((struct sockaddr_in *) dest)->sin_port = htons(port);
+	// memset(&hints, 0, sizeof(struct addrinfo));
+	// hints.ai_family = AF_INET;
+	// hints.ai_socktype = SOCK_DGRAM;
+	// status = getaddrinfo(server_name, "80", &hints, &matching_addresses);
+	// if (status != 0) {
+	// 	printf("Couldn't look up address for %s: %s\n",
+	// 			server_name, gai_strerror(status));
+	// 	return;
+	// }
+	// dest = matching_addresses->ai_addr;
+	// ((struct sockaddr_in *) dest)->sin_port = htons(port);
 	
-	int fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCACP);
-	if (fd == -1) {
-		printf("Couldn't open client socket: %s\n", strerror(errno));
-		return;
-	}
+	// int fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCACP);
+	// if (fd == -1) {
+	// 	printf("Couldn't open client socket: %s\n", strerror(errno));
+	// 	return;
+	// }
 	// int gso_size = ETH_DATA_LEN - sizeof(struct iphdr) - sizeof(struct udphdr);
 	// if (setsockopt(fd, SOL_UDP, UDP_SEGMENT, &gso_size, sizeof(gso_size))) {
 	// 	return;
@@ -874,7 +873,7 @@ void test_dcacpping(char *server_name, int port)
 	//             break;
 
 	    // for (int i = 0; i < count * 100; i++) {
-	    	int result = sendto(fd, buffer, sizeof(buffer), MSG_CONFIRM, dest, sizeof(struct sockaddr_in));			
+	    	int result = sendto(fd, buffer, 64000, MSG_CONFIRM, dest, sizeof(struct sockaddr_in));			
 			if( result < 0 ) {
 				printf("Socket write failed: %s %d\n", strerror(errno), result);
 
@@ -1054,13 +1053,16 @@ void test_udpclose()
 int main(int argc, char** argv)
 {
 	int port, nextArg;
-	// struct sockaddr_in addr_in;
-	// struct addrinfo *matching_addresses;
-	// struct sockaddr *dest;
-	// struct addrinfo hints;
+	struct sockaddr_in addr_in;
+	struct addrinfo *matching_addresses;
+	struct sockaddr *dest;
+	struct addrinfo hints;
 	char *host, *port_name;
-	// char buffer[1000000];
-	
+	char buffer[1000000] = "abcdefgh\n";
+	buffer[63999] = 'H';
+	int status;
+	int fd;
+
 	if ((argc >= 2) && (strcmp(argv[1], "--help") == 0)) {
 		print_help(argv[0]);
 		exit(0);
@@ -1123,39 +1125,46 @@ int main(int argc, char** argv)
 			exit(1);
 		}
 	}
-	// // get destination address
-	// memset(&hints, 0, sizeof(struct addrinfo));
-	// hints.ai_family = AF_INET;
-	// hints.ai_socktype = SOCK_DGRAM;
-	// status = getaddrinfo(host, "80", &hints, &matching_addresses);
-	// if (status != 0) {
-	// 	printf("Couldn't look up address for %s: %s\n",
-	// 			host, gai_strerror(status));
-	// 	exit(1);
-	// }
-	// dest = matching_addresses->ai_addr;
-	// ((struct sockaddr_in *) dest)->sin_port = htons(port);
+	// get destination address
+	memset(&hints, 0, sizeof(struct addrinfo));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_DGRAM;
+	status = getaddrinfo(host, "80", &hints, &matching_addresses);
+	if (status != 0) {
+		printf("Couldn't look up address for %s: %s\n",
+				host, gai_strerror(status));
+		exit(1);
+	}
+	dest = matching_addresses->ai_addr;
+	((struct sockaddr_in *) dest)->sin_port = htons(port);
 	// int *ibuf = reinterpret_cast<int *>(buffer);
 	// ibuf[0] = ibuf[1] = length;
 	// seed_buffer(&ibuf[2], sizeof32(buffer) - 2*sizeof32(int), seed);
 	
 
-	// fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_DCACP);
-	// if (fd < 0) {
-	// 	printf("Couldn't open Homa socket: %s\n", strerror(errno));
-	// }
-	// memset(&addr_in, 0, sizeof(addr_in));
-	// addr_in.sin_family = AF_INET;
-	// addr_in.sin_port = htons(4000);
-	// inet_pton(AF_INET, "192.168.10.115", &addr_in.sin_addr);
-	// inet_aton("10.0.0.10", &addr_in.sin_addr);
-	// addr_in.sin_addr.s_addr = INADDR_ANY;
-
-	// if (bind(fd, (struct sockaddr *) &addr_in, sizeof(addr_in)) != 0) {
-	// 	printf("Couldn't bind socket to Homa port %d: %s\n", port,
-	// 			strerror(errno));
+	fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_DCACP);
+	if (fd < 0) {
+		printf("Couldn't open DCACP socket: %s\n", strerror(errno));
+	}
+	// int option = 1;
+	// if (setsockopt(fd, SOL_DCACP, SO_NO_CHECK, (void*)&option, sizeof(option))) {
 	// 	return -1;
 	// }
+	memset(&addr_in, 0, sizeof(addr_in));
+	addr_in.sin_family = AF_INET;
+	addr_in.sin_port = htons(4000);
+	addr_in.sin_addr.s_addr = inet_addr("9.0.0.10");
+	// inet_pton(AF_INET, "9.0.0.10", &addr_in.sin_addr);
+
+	// inet_aton("9.0.0.10", &addr_in.sin_addr);
+
+	// addr_in.sin_addr.s_addr = INADDR_ANY;
+
+	if (bind(fd, (struct sockaddr *) &addr_in, sizeof(addr_in)) != 0) {
+		printf("Couldn't bind socket to DCACP port %d: %s\n", port,
+				strerror(errno));
+		return -1;
+	}
 	for ( ; nextArg < argc; nextArg++) {
 		// if (strcmp(argv[nextArg], "close") == 0) {
 		// 	test_close();
@@ -1187,8 +1196,11 @@ int main(int argc, char** argv)
 		} else if (strcmp(argv[nextArg], "udpstream") == 0) {
 			test_udpstream(host, port);
 		} else if (strcmp(argv[nextArg], "dcacpstream") == 0) {
-			test_dcacpstream(host, port);
-		} else {
+			test_dcacpstream(fd, dest, buffer);
+		} else if (strcmp(argv[nextArg], "dcacpping") == 0) {
+			test_dcacpping(fd, dest, buffer);
+		}
+		 else {
 			printf("Unknown operation '%s'\n", argv[nextArg]);
 			exit(1);
 		}
