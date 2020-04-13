@@ -8,13 +8,25 @@
 
 #include "net_dcacp.h"
 #include "net_dcacplite.h"
-
-
+#include "dcacp_hashtables.h"
+#include "dcacp_sock.h"
+extern struct inet_hashinfo dcacp_hashinfo;
 extern struct dcacp_peertab dcacp_peers_table;
 extern struct dcacp_match_tab dcacp_match_table;
 
 extern struct dcacp_params dcacp_params;
 extern struct dcacp_epoch dcacp_epoch;
+
+
+void* allocate_hash_table(const char *tablename,
+				     unsigned long bucketsize,
+				     unsigned long numentries,
+				     int scale,
+				     int flags,
+				     unsigned int *_hash_shift,
+				     unsigned int *_hash_mask,
+				     unsigned long low_limit,
+				     unsigned long high_limit);
 int dcacp_dointvec(struct ctl_table *table, int write,
                 void __user *buffer, size_t *lenp, loff_t *ppos);
 void dcacp_sysctl_changed(struct dcacp_params *params);

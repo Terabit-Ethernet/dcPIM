@@ -268,21 +268,22 @@ int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct sock
 	int result;
 	struct dcacphdr* dh;
 	struct inet_sock *inet = inet_sk(sk);
-	struct flowi4 *fl4 = &peer->flow.u.ip4;
+	// struct flowi4 *fl4 = &peer->flow.u.ip4;
 
 	if(!skb) {
 		return -1;
 	}
 	dh = dcacp_hdr(skb);
 	dh->source = inet->inet_sport;
-	dh->dest = dport;
+	dh->dest = inet->inet_dport;
 	dh->check = 0;
 	inet->tos = TOS_7;
-	dst_confirm_neigh(peer->dst, &fl4->daddr);
-	dst_hold(peer->dst);
-	skb_dst_set(skb, peer->dst);
+	skb->sk = sk;
+	// dst_confirm_neigh(peer->dst, &fl4->daddr);
+	// dst_hold(peer->dst);
+	// skb_dst_set(skb, __sk_dst_get(sk));
 	skb_get(skb);
-	result = ip_queue_xmit(sk, skb, &peer->flow);
+	result = ip_queue_xmit(sk, skb, &inet->cork.fl);
 	if (unlikely(result != 0)) {
 		// INC_METRIC(control_xmit_errors, 1);
 		

@@ -45,13 +45,43 @@ int sysctl_dcacp_wmem_min __read_mostly;
 #define IPPROTO_DCACP 18
 #define IPPROTO_DCACPLITE 19
 
+const struct proto_ops dcacp_dgram_ops = {
+    .family        = PF_INET,
+    .owner         = THIS_MODULE,
+    .release       = inet_release,
+    .bind          = inet_bind,
+    .connect       = inet_dgram_connect,
+    .socketpair    = sock_no_socketpair,
+    .accept        = inet_accept,
+    .getname       = inet_getname,
+    .poll          = udp_poll,
+    .ioctl         = inet_ioctl,
+    .gettstamp     = sock_gettstamp,
+    .listen        = dcacp_listen,
+    .shutdown      = inet_shutdown,
+    .setsockopt    = sock_common_setsockopt,
+    .getsockopt    = sock_common_getsockopt,
+    .sendmsg       = inet_sendmsg,
+    .recvmsg       = inet_recvmsg,
+    .mmap          = sock_no_mmap,
+    .sendpage      = inet_sendpage,
+    .set_peek_off      = sk_set_peek_off,
+// #ifdef CONFIG_COMPAT
+//     .compat_setsockopt = compat_sock_common_setsockopt,
+//     .compat_getsockopt = compat_sock_common_getsockopt,
+//     // .compat_ioctl      = inet_compat_ioctl,
+// #endif
+};
+// EXPORT_SYMBOL(inet_dgram_ops);
+
 struct proto dcacp_prot = {
     .name           = "DCACP",
     .owner          = THIS_MODULE,
     .close          = dcacp_lib_close,
-    .pre_connect        = dcacp_pre_connect,
-    .connect        = ip4_datagram_connect,
+    .pre_connect    = dcacp_pre_connect,
+    .connect        = dcacp_v4_connect,
     .disconnect     = dcacp_disconnect,
+    .accept         = dcacp_sk_accept,
     .ioctl          = dcacp_ioctl,
     .init           = dcacp_init_sock,
     .destroy        = dcacp_destroy_sock,
@@ -61,16 +91,17 @@ struct proto dcacp_prot = {
     .recvmsg        = dcacp_recvmsg,
     .sendpage       = dcacp_sendpage,
     .release_cb     = ip4_datagram_release_cb,
-    .hash           = dcacp_lib_hash,
-    .unhash         = dcacp_lib_unhash,
-    .rehash         = dcacp_v4_rehash,
-    .get_port       = dcacp_v4_get_port,
+    .hash           = dcacp_hash,
+    .unhash         = dcacp_unhash,
+    // .rehash         = dcacp_v4_rehash,
+    .get_port       = dcacp_sk_get_port,
     .memory_allocated   = &dcacp_memory_allocated,
     .sysctl_mem     = sysctl_dcacp_mem,
     .sysctl_wmem = &sysctl_dcacp_wmem_min,
     .sysctl_rmem = &sysctl_dcacp_rmem_min,
     .obj_size       = sizeof(struct dcacp_sock),
-    .h.udp_table        = &dcacp_table,
+    .h.hashinfo     = &dcacp_hashinfo,
+    // .h.udp_table        = &dcacp_table,
 #ifdef CONFIG_COMPAT
     .compat_setsockopt  = compat_dcacp_setsockopt,
     .compat_getsockopt  = compat_dcacp_getsockopt,
@@ -85,7 +116,7 @@ struct inet_protosw dcacp_protosw = {
         .type              = SOCK_DGRAM,
         .protocol          = IPPROTO_DCACP,
         .prot              = &dcacp_prot,
-        .ops               = &inet_dgram_ops,
+        .ops               = &dcacp_dgram_ops,
         .flags             = INET_PROTOSW_REUSE,
 };
 
@@ -113,6 +144,16 @@ static struct ctl_table dcacp_ctl_table[] = {
         },
         {}
 };
+
+// struct request_sock_ops dcacp_request_sock_ops __read_mostly = {
+//         .family         =       PF_INET,
+//         .obj_size       =       sizeof(struct dcacp_request_sock),
+//         .rtx_syn_ack    =       dcacp_rtx_synack,
+//         .send_ack       =       dcacp_v4_reqsk_send_ack,
+//         .destructor     =       dcacp_v4_reqsk_destructor,
+//         .send_reset     =       dcacp_v4_send_reset,
+//         .syn_ack_timeout =      dcacp_syn_ack_timeout,
+// };
 
 
 /* Used to remove sysctl values when the module is unloaded. */
@@ -227,7 +268,7 @@ static int __init dcacp_load(void) {
 
         dcacp_init();
         dcacp_mattab_init(&dcacp_match_table, NULL);
-        
+
         status = proto_register(&dcacp_prot, 1);
         if (status != 0) {
                 printk(KERN_ERR "proto_register failed in dcacp_init: %d\n",
@@ -263,11 +304,11 @@ static int __init dcacp_load(void) {
         }
         
         // status = dcacpv4_offload_init();
-        printk("init the offload\n");
-        if (status != 0) {
-                printk(KERN_ERR "DCACP couldn't init offloads\n");
-                goto out_cleanup;
-        }
+        // printk("init the offload\n");
+        // if (status != 0) {
+        //         printk(KERN_ERR "DCACP couldn't init offloads\n");
+        //         goto out_cleanup;
+        // }
         // tasklet_init(&timer_tasklet, homa_tasklet_handler, 0);
         // hrtimer_init(&hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
         // hrtimer.function = &homa_hrtimer;

@@ -176,10 +176,16 @@ void tcp_connection(int fd, struct sockaddr_in source)
 	uint64_t count = 0;
 	uint64_t total_length = 0;
 	uint64_t start_cycle = 0, end_cycle = 0;
+	struct sockaddr_in sin;
+	socklen_t len = sizeof(sin);
 	int *int_buffer = reinterpret_cast<int*>(buffer);
 	if (verbose)
 		printf("New TCP socket from %s\n", print_address(&source));
 	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
+	if (getsockname(fd, (struct sockaddr *)&sin, &len) == -1)
+	    perror("getsockname");
+	else
+	    printf("port number %d\n", ntohs(sin.sin_port));
 	while (1) {
 		int result = read(fd, buffer + cur_length,
 				sizeof(buffer) - cur_length);
@@ -304,6 +310,106 @@ void tcp_server(int port)
 }
 
 /**
+ * dcacp_connection() - Handles messages arriving on a given socket.
+ * @fd:           File descriptor for the socket over which messages
+ *                will arrive.
+ * @client_addr:  Information about the client (for messages).
+ */
+void dcacp_connection(int fd, struct sockaddr_in source)
+{
+	// int flag = 1;
+	// char buffer[1000000];
+	// int cur_length = 0;
+	// bool streaming = false;
+	// uint64_t count = 0;
+	// uint64_t total_length = 0;
+	// uint64_t start_cycle = 0, end_cycle = 0;
+	struct sockaddr_in sin;
+	socklen_t len = sizeof(sin);
+	// int *int_buffer = reinterpret_cast<int*>(buffer);
+	if (verbose)
+		printf("New DCACP socket from %s\n", print_address(&source));
+	// setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
+	if (getsockname(fd, (struct sockaddr *)&sin, &len) == -1)
+	    perror("getsockname");
+	else
+	    printf("port number %d\n", ntohs(sin.sin_port));
+	while (1) {
+		// int result = read(fd, buffer + cur_length,
+		// 		sizeof(buffer) - cur_length);
+		// if (result < 0) {
+		// 	if (errno == ECONNRESET)
+		// 		break;
+		// 	printf("Read error on socket: %s", strerror(errno));
+		// 	exit(1);
+		// }
+		// total_length += result;
+		// count++;
+		// if (result == 0)
+		// 	break;
+		// if(count % 1000 == 0) {
+		// 	end_cycle = rdtsc();
+			
+		// 	double rate = ((double) total_length)/ to_seconds(
+		// 		end_cycle - start_cycle);
+		// 	total_length = 0;
+
+		// 	start_cycle = rdtsc();
+		// 	if(count != 0) {
+		// 		printf("TCP throughput: "
+		// 		"%.2f Gbps\n", rate * 1e-09 * 8);
+		// 	}
+		// }
+		// /* The connection can be used in two modes. If the first
+		//  * word received is -1, then the connection is in streaming
+		//  * mode: we just read bytes and throw them away. If the
+		//  * first word isn't -1, then it's in message mode: we read
+		//  * full messages and respond to them.
+		//  */
+		// if (streaming)
+		// 	continue;
+		// if (int_buffer[0] < 0) {
+		// 	streaming = true;
+		// 	continue;
+		// }
+		// cur_length += result;
+
+		// /* First word of request contains expected length in bytes. */
+		// if ((cur_length >= 2*sizeof32(int))
+		// 		&& (cur_length >= int_buffer[0])) {
+		// 	if (cur_length != int_buffer[0])
+		// 		printf("Received %d bytes but buffer[0] = %d, "
+		// 			"buffer[1] = %d\n",
+		// 			cur_length, int_buffer[0],
+		// 			int_buffer[1]);
+		// 	if (validate) {
+		// 		int seed = check_buffer(&int_buffer[2],
+		// 			int_buffer[0] - 2*sizeof32(int));
+		// 		if (verbose)
+		// 			printf("Received message from %s with "
+		// 				"%d bytes, seed %d\n",
+		// 				print_address(&source),
+		// 				int_buffer[0], seed);
+		// 	} else if (verbose)
+		// 		printf("Received message from %s with %d "
+		// 			"bytes\n",
+		// 			print_address(&source), int_buffer[0]);
+		// 	cur_length = 0;
+		// 	if (int_buffer[1] <= 0)
+		// 		continue;
+		// 	if (write(fd, buffer, int_buffer[1]) != int_buffer[1]) {
+		// 		printf("Socket write failed: %s\n",
+		// 				strerror(errno));
+		// 		exit(1);
+		// 	};
+		// }
+	}
+	if (verbose)
+		printf("Closing TCP socket from %s\n", print_address(&source));
+	close(fd);
+}
+
+/**
  * udp_server()
  *
  */
@@ -382,11 +488,11 @@ void udp_server(int port)
  */
 void dcacp_server(int port)
 {
-	char buffer[1000000];
-	int result = 0;
-	uint64_t start_cycle = 0, end_cycle = 0;
-	uint64_t total_length = 0;
-	int count = 0;
+	// char buffer[1000000];
+	// int result = 0;
+	// uint64_t start_cycle = 0, end_cycle = 0;
+	// uint64_t total_length = 0;
+	// int count = 0;
 
 	int listen_fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCACP);
 	if (listen_fd == -1) {
@@ -416,37 +522,55 @@ void dcacp_server(int port)
 	while (1) {
 		struct sockaddr_in client_addr;
 		socklen_t addr_len = sizeof(client_addr);
-
-		result = recvfrom(listen_fd, (char *)buffer, sizeof(buffer),  
-                MSG_WAITALL, ( struct sockaddr *) &client_addr, 
-                &addr_len);
-		// printf("%s", buffer);
-		// printf("%c\n",  buffer[63999]);
-		// printf("len: %d\n", result);
-		if (result < 0) {
-			if (errno == ECONNRESET)
-				break;
-			printf("Read error on socket: %s", strerror(errno));
+		if (listen(listen_fd, 1000) == -1) {
+			printf("Couldn't listen on socket: %s", strerror(errno));
 			exit(1);
 		}
-		if (result == 0)
-			break;
-		if(count % 50000 == 0) {
-			end_cycle = rdtsc();
-			
-			double rate = ((double) total_length)/ to_seconds(
-				end_cycle - start_cycle);
-			total_length = 0;
-
-			start_cycle = rdtsc();
-			if(count != 0) {
-				printf("DCACP throughput: "
-				"%.2f Gbps\n", rate * 1e-09 * 8);
-			}
+		int stream = accept(listen_fd,
+				reinterpret_cast<sockaddr *>(&client_addr),
+				&addr_len);
+		if (stream < 0) {
+			printf("Couldn't accept incoming connection: %s",
+				strerror(errno));
+			exit(1);
 		}
-		total_length += result;
-		count += 1;
+		std::thread thread(tcp_connection, stream, client_addr);
+		thread.detach();
 	}
+	// while (1) {
+	// 	struct sockaddr_in client_addr;
+	// 	socklen_t addr_len = sizeof(client_addr);
+
+	// 	result = recvfrom(listen_fd, (char *)buffer, sizeof(buffer),  
+ //                MSG_WAITALL, ( struct sockaddr *) &client_addr, 
+ //                &addr_len);
+	// 	// printf("%s", buffer);
+	// 	// printf("%c\n",  buffer[63999]);
+	// 	// printf("len: %d\n", result);
+	// 	if (result < 0) {
+	// 		if (errno == ECONNRESET)
+	// 			break;
+	// 		printf("Read error on socket: %s", strerror(errno));
+	// 		exit(1);
+	// 	}
+	// 	if (result == 0)
+	// 		break;
+	// 	if(count % 50000 == 0) {
+	// 		end_cycle = rdtsc();
+			
+	// 		double rate = ((double) total_length)/ to_seconds(
+	// 			end_cycle - start_cycle);
+	// 		total_length = 0;
+
+	// 		start_cycle = rdtsc();
+	// 		if(count != 0) {
+	// 			printf("DCACP throughput: "
+	// 			"%.2f Gbps\n", rate * 1e-09 * 8);
+	// 		}
+	// 	}
+	// 	total_length += result;
+	// 	count += 1;
+	// }
 
 }
 

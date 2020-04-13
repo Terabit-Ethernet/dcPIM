@@ -241,7 +241,7 @@ struct dcacp_message_out* dcacp_message_out_init(struct dcacp_peer *peer,
 				skb_transport_header(skb);
 		msg->num_skbs++;
 		h->common.source = inet_sk((struct sock*)sock)->inet_sport;
-		h->common.dest =dport;
+		h->common.dest = dport;
 		dcacp_set_doff(h);
 		h->message_id = msg->id;
 		// printk("doffset: %d\n", h->common.doff);

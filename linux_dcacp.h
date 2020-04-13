@@ -31,6 +31,20 @@
 struct dcacp_sock;
 
 
+enum {
+	/* The initial state is TCP_CLOSE */
+	DCACP_ESTABLISHED = 1,
+	DCACP_LISTEN,
+	/* use TCP_CLOSE because of inet_bind use TCP_CLOSE to
+	 check whether the port should be assigned TCP CLOSE = 7;*/ 
+	// RCP_CLOSE,
+};
+
+enum {
+	// DCACPF_NEW = (1 << DCACP_NEW),
+	DCACPF_ESTABLISHED = (1 << DCACP_ESTABLISHED),
+	DCACPF_LISTEN	 = (1 << DCACP_LISTEN),
+};
 
 struct dcacp_params {
 	int clean_match_sock;
@@ -385,7 +399,12 @@ static inline struct dcacp_accept_hdr *dcacp_accept_hdr(const struct sk_buff *sk
 static inline void dcacp_set_doff(struct dcacp_data_hdr *h)
 {
         h->common.doff = (sizeof(struct dcacp_data_hdr)
-                        - sizeof(struct data_segment)) << 2;
+                        - sizeof(struct data_segment)) >> 2;
+}
+
+static inline unsigned int __dcacp_hdrlen(const struct dcacphdr *dh)
+{
+	return dh->doff * 4;
 }
 
 static inline struct dcacphdr *inner_dcacp_hdr(const struct sk_buff *skb)
@@ -406,6 +425,12 @@ struct dcacp_sock {
 #define dcacp_port_hash		inet.sk.__sk_common.skc_u16hashes[0]
 #define dcacp_portaddr_hash	inet.sk.__sk_common.skc_u16hashes[1]
 #define dcacp_portaddr_node	inet.sk.__sk_common.skc_portaddr_node
+
+	struct inet_bind_bucket	  *icsk_bind_hash;
+	struct hlist_node         icsk_listen_portaddr_node;
+	struct request_sock_queue icsk_accept_queue;
+	struct dcacp_peer* peer;
+
 	int		 pending;	/* Any pending frames ? */
 	unsigned int	 corkflag;	/* Cork is required */
 	__u8		 encap_type;	/* Is this an Encapsulation socket? */
@@ -472,6 +497,24 @@ struct dcacp_sock {
 
 	int unsolved;
 };
+
+struct dcacp_request_sock {
+	struct inet_request_sock 	req;
+	// const struct tcp_request_sock_ops *af_specific;
+	// u64				snt_synack;  first SYNACK sent time 
+	// bool				tfo_listener;
+	// bool				is_mptcp;
+	// u32				txhash;
+	// u32				rcv_isn;
+	// u32				snt_isn;
+	// u32				ts_off;
+	// u32				last_oow_ack_time;  last SYNACK 
+	// u32				rcv_nxt; /* the ack # by SYNACK. For
+	// 					  * FastOpen it's the seq#
+	// 					  * after data-in-SYN.
+	// 					  */
+};
+
 
 /* DCACP message hslot handling function */
 static inline struct message_hslot *dcacp_message_out_bucket(

@@ -17,7 +17,7 @@ void dcacp_match_entry_init(struct dcacp_match_entry* entry, __be32 addr,
 void dcacp_mattab_init(struct dcacp_match_tab *table,
 	bool(*comp)(const struct list_head*, const struct list_head*)) {
 	int i;
-	int ret, opt;
+	// int ret, opt;
 	// struct dcacp_peer *peer;
 	// struct inet_sock *inet;
 	spin_lock_init(&table->lock);
@@ -122,8 +122,8 @@ void dcacp_mattab_delete_match_entry(struct dcacp_match_tab *table, struct dcacp
 }
 void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 	int ret;
-	struct inet_sock *inet;
-	struct dcacp_peer* peer;
+	// struct inet_sock *inet;
+	// struct dcacp_peer* peer;
 	epoch->epoch = 0;
 	epoch->iter = 0;
 	epoch->prompt = false;
@@ -146,8 +146,8 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 	epoch->cur_match_src_addr = 0;
 	epoch->cur_match_dst_addr = 0;
 	ret = sock_create(AF_INET, SOCK_DGRAM, IPPROTO_DCACP, &epoch->sock);
-	inet = inet_sk(epoch->sock->sk);
-	peer =  dcacp_peer_find(&dcacp_peers_table, 167772169, inet);
+	// inet = inet_sk(epoch->sock->sk);
+	// peer =  dcacp_peer_find(&dcacp_peers_table, 167772169, inet);
 
 	if(ret) {
 		printk("fail to create socket\n");
@@ -190,8 +190,9 @@ void dcacp_send_all_rts (struct dcacp_match_tab *table, struct dcacp_epoch* epoc
 	struct dcacp_match_entry *entry = NULL;
  	struct dcacp_peer *peer;
 	struct inet_sock *inet;
-	spin_lock(&table->lock);
 	struct sk_buff* pkt;
+
+	spin_lock(&table->lock);
 	list_for_each_entry(entry, &table->hash_list, list_link) {
 		struct list_head *list_head = NULL;
 		struct dcacp_message_in *msg = NULL;
@@ -207,14 +208,14 @@ void dcacp_send_all_rts (struct dcacp_match_tab *table, struct dcacp_epoch* epoc
 		}
 		spin_unlock(&entry->lock);
 	}
-	if(epoch->sock != NULL) {
-		inet = inet_sk(epoch->sock->sk);
-		// printk("inet is null: %d\n", inet == NULL);
-		peer =  dcacp_peer_find(&dcacp_peers_table, 167772169, inet);
-		pkt = construct_rts_pkt(epoch->sock->sk, epoch->iter, epoch->epoch, 3);
-		dcacp_xmit_control(pkt, peer, epoch->sock->sk, 3000);
+	// if(epoch->sock != NULL) {
+	// 	inet = inet_sk(epoch->sock->sk);
+	// 	// printk("inet is null: %d\n", inet == NULL);
+	// 	peer =  dcacp_peer_find(&dcacp_peers_table, 167772169, inet);
+	// 	pkt = construct_rts_pkt(epoch->sock->sk, epoch->iter, epoch->epoch, 3);
+	// 	dcacp_xmit_control(pkt, peer, epoch->sock->sk, 3000);
 
-	}
+	// }
 
 
 	spin_unlock(&table->lock);
@@ -380,7 +381,7 @@ int dcacp_handle_accept(struct sk_buff *skb, struct dcacp_match_tab *table, stru
 		goto drop;		/* No space for header. */
 	iph = ip_hdr(skb);
 	ah = dcacp_accept_hdr(skb);
-
+	printk("receive accept pkt: %llu\n", ah->epoch);
 	spin_lock_bh(&epoch->lock);
 	if(epoch->match_dst_addr == 0)
 		epoch->match_dst_addr = iph->saddr;

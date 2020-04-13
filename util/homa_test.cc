@@ -68,7 +68,7 @@ int seed = 12345;
  */
 void close_fd(int fd)
 {
-	sleep(1);
+	// sleep(1);
 	if (close(fd) >= 0) {
 		printf("Closed fd %d\n", fd);
 	} else {
@@ -830,6 +830,14 @@ void test_dcacpstream(int fd, struct sockaddr *dest, char* buffer)
 
 void test_dcacpping(int fd, struct sockaddr *dest, char* buffer)
 {
+	struct sockaddr_in* in = (struct sockaddr_in*) dest;
+
+	uint32_t flow_size = 64000;
+
+	in->sin_zero[0] = flow_size >> 24 & 0xFF;
+	in->sin_zero[1] = flow_size >> 16 & 0xFF;
+	in->sin_zero[2] = flow_size >> 8 & 0xFF;
+	in->sin_zero[3] = flow_size & 0xFF;
 	// struct addrinfo hints;
 	// struct addrinfo *matching_addresses;
 	// struct sockaddr *dest;
@@ -871,14 +879,17 @@ void test_dcacpping(int fd, struct sockaddr *dest, char* buffer)
 	// 	// 	break;
 	// 	if(std::chrono::steady_clock::now() - start_clock > std::chrono::seconds(60)) 
 	//             break;
-
+	if (connect(fd, dest, sizeof(struct sockaddr_in)) == -1) {
+		printf("Couldn't connect to dest %s\n", strerror(errno));
+		exit(1);
+	}
 	    // for (int i = 0; i < count * 100; i++) {
-	    	int result = sendto(fd, buffer, 64000, MSG_CONFIRM, dest, sizeof(struct sockaddr_in));			
-			if( result < 0 ) {
-				printf("Socket write failed: %s %d\n", strerror(errno), result);
+	  //   	int result = sendto(fd, buffer, 64000, MSG_CONFIRM, dest, sizeof(struct sockaddr_in));			
+			// if( result < 0 ) {
+			// 	printf("Socket write failed: %s %d\n", strerror(errno), result);
 
-				return;
-			}
+			// 	return;
+			// }
 			// bytes_sent += result;
 
 	    // }
@@ -1062,7 +1073,6 @@ int main(int argc, char** argv)
 	buffer[63999] = 'H';
 	int status;
 	int fd;
-
 	if ((argc >= 2) && (strcmp(argv[1], "--help") == 0)) {
 		print_help(argv[0]);
 		exit(0);
@@ -1153,7 +1163,9 @@ int main(int argc, char** argv)
 	memset(&addr_in, 0, sizeof(addr_in));
 	addr_in.sin_family = AF_INET;
 	addr_in.sin_port = htons(4000);
-	addr_in.sin_addr.s_addr = inet_addr("9.0.0.10");
+	addr_in.sin_addr.s_addr = inet_addr("10.0.0.10");
+
+
 	// inet_pton(AF_INET, "9.0.0.10", &addr_in.sin_addr);
 
 	// inet_aton("9.0.0.10", &addr_in.sin_addr);
@@ -1165,6 +1177,7 @@ int main(int argc, char** argv)
 				strerror(errno));
 		return -1;
 	}
+
 	for ( ; nextArg < argc; nextArg++) {
 		// if (strcmp(argv[nextArg], "close") == 0) {
 		// 	test_close();
@@ -1205,7 +1218,7 @@ int main(int argc, char** argv)
 			exit(1);
 		}
 	}
-	// close(fd);
+	close(fd);
 	exit(0);
 }
 
