@@ -60,47 +60,52 @@
 // #include "net_dcacplite.h"
 #include "uapi_linux_dcacp.h"
 #include "dcacp_impl.h"
+// #include "dcacp_hashtables.h"
+// static inline struct sock *__dcacp4_lib_lookup_skb(struct sk_buff *skb,
+// 						 __be16 sport, __be16 dport,
+// 						 struct udp_table *dcacptable)
+// {
+// 	const struct iphdr *iph = ip_hdr(skb);
 
-static inline struct sock *__dcacp4_lib_lookup_skb(struct sk_buff *skb,
-						 __be16 sport, __be16 dport,
-						 struct udp_table *dcacptable)
-{
-	const struct iphdr *iph = ip_hdr(skb);
-
-	return __dcacp4_lib_lookup(dev_net(skb->dev), iph->saddr, sport,
-				 iph->daddr, dport, inet_iif(skb),
-				 inet_sdif(skb), dcacptable, skb);
-}
+// 	return __dcacp4_lib_lookup(dev_net(skb->dev), iph->saddr, sport,
+// 				 iph->daddr, dport, inet_iif(skb),
+// 				 inet_sdif(skb), dcacptable, skb);
+// }
 
 int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
-	struct dcacp_sock *dsk;
-	struct inet_sock *inet;
-	struct dcacp_message_in *msg;
-	struct dcacp_peer *peer;
-	struct iphdr *iph;
-	struct message_hslot* slot;
+	// struct dcacp_sock *dsk;
+	// struct inet_sock *inet;
+	// struct dcacp_message_in *msg;
+	// struct dcacp_peer *peer;
+	// struct iphdr *iph;
+	// struct message_hslot* slot;
 	struct dcacp_flow_sync_hdr *fh;
 	struct sock *sk;
+	int sdif = inet_sdif(skb);
+	bool refcounted = false;
 	if (!pskb_may_pull(skb, sizeof(struct dcacp_flow_sync_hdr)))
 		goto drop;		/* No space for header. */
 	fh =  dcacp_flow_sync_hdr(skb);
-	sk = skb_steal_sock(skb);
-	if(!sk) {
-		sk = __dcacp4_lib_lookup_skb(skb, fh->common.source, fh->common.dest, &dcacp_table);
-	}
+	// sk = skb_steal_sock(skb);
+	// if(!sk) {
+	sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&fh->common), fh->common.source,
+            fh->common.dest, sdif, &refcounted);
+		// sk = __dcacp4_lib_lookup_skb(skb, fh->common.source, fh->common.dest, &dcacp_table);
+	// }
 	if(sk) {
-		dsk = dcacp_sk(sk);
-		inet = inet_sk(sk);
-		iph = ip_hdr(skb);
+		dcacp_conn_request(sk, skb);
+		// dsk = dcacp_sk(sk);
+		// inet = inet_sk(sk);
+		// iph = ip_hdr(skb);
 
-		peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet);
-		printk("message size:%d\n", fh->message_size);
-		msg = dcacp_message_in_init(peer, dsk, fh->message_id, fh->message_size, fh->common.source);
-		slot = dcacp_message_in_bucket(dsk, fh->message_id);
-		spin_lock_bh(&slot->lock);
-		add_dcacp_message_in(dsk, msg);
-		spin_unlock_bh(&slot->lock);
-		dsk->unsolved += 1;
+		// peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet);
+		// printk("message size:%d\n", fh->message_size);
+		// msg = dcacp_message_in_init(peer, dsk, fh->message_id, fh->message_size, fh->common.source);
+		// slot = dcacp_message_in_bucket(dsk, fh->message_id);
+		// spin_lock_bh(&slot->lock);
+		// add_dcacp_message_in(dsk, msg);
+		// spin_unlock_bh(&slot->lock);
+		// dsk->unsolved += 1;
 		// printk("receive notification pkt\n");
 		// printk("msg address: %p LINE:%d\n", msg, __LINE__);
 		// printk("fh->message_id:%d\n", msg->id);
@@ -112,6 +117,9 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 
 
 drop:
+    if (refcounted) {
+        sock_put(sk);
+    }
 	kfree_skb(skb);
 
 	return 0;
@@ -133,13 +141,17 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb) {
 	struct message_hslot* slot;
 	struct dcacp_ack_hdr *ah;
 	struct sock *sk;
+	int sdif = inet_sdif(skb);
+	bool refcounted = false;
+
 	if (!pskb_may_pull(skb, sizeof(struct dcacp_ack_hdr)))
 		goto drop;		/* No space for header. */
 	ah = dcacp_ack_hdr(skb);
-	sk = skb_steal_sock(skb);
-	if(!sk) {
-		sk = __dcacp4_lib_lookup_skb(skb, ah->common.source, ah->common.dest, &dcacp_table);
-	}
+	// sk = skb_steal_sock(skb);
+	// if(!sk) {
+	sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&ah->common), ah->common.source,
+            ah->common.dest, sdif, &refcounted);
+    // }
 	if(sk) {
 		dsk = dcacp_sk(sk);
 		// printk("socket address: %p LINE:%d\n", dsk,  __LINE__);
@@ -152,6 +164,9 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb) {
 		printk("doesn't find dsk address LINE:%d\n", __LINE__);
 	}
 drop:
+    if (refcounted) {
+        sock_put(sk);
+    }
 	kfree_skb(skb);
 
 	return 0;
@@ -461,14 +476,18 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	struct message_hslot* slot;
 	struct iphdr *iph;
 	struct dcacp_message_in *msg = NULL;
+	int sdif = inet_sdif(skb);
+
+	bool refcounted = false;
 	// printk("receive data pkt\n");
 	if (!pskb_may_pull(skb, sizeof(struct dcacp_data_hdr)))
 		goto drop;		/* No space for header. */
 	dh =  dcacp_data_hdr(skb);
-	sk = skb_steal_sock(skb);
-	if(!sk) {
-		sk = __dcacp4_lib_lookup_skb(skb, dh->common.source, dh->common.dest, &dcacp_table);
-	}
+	// sk = skb_steal_sock(skb);
+	// if(!sk) {
+		sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&dh->common), dh->common.source,
+                dh->common.dest, sdif, &refcounted);
+    // }
 	// it is unclear why UDP and Homa doesn't grab the socket lock
 	if(sk) {
 		dsk = dcacp_sk(sk);
@@ -579,6 +598,9 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 		return 0;
 	}
 drop:
+    if (refcounted) {
+        sock_put(sk);
+    }
 	kfree_skb(skb);
 	return 0;
 }
