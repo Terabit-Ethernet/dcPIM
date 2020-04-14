@@ -334,6 +334,7 @@ void dcacp_connection(int fd, struct sockaddr_in source)
 	    perror("getsockname");
 	else
 	    printf("port number %d\n", ntohs(sin.sin_port));
+	printf("receive new connection\n");
 	while (1) {
 		// int result = read(fd, buffer + cur_length,
 		// 		sizeof(buffer) - cur_length);
@@ -530,11 +531,11 @@ void dcacp_server(int port)
 				reinterpret_cast<sockaddr *>(&client_addr),
 				&addr_len);
 		if (stream < 0) {
-			printf("Couldn't accept incoming connection: %s",
+			printf("Couldn't accept incoming connection: %s\n",
 				strerror(errno));
 			exit(1);
 		}
-		std::thread thread(tcp_connection, stream, client_addr);
+		std::thread thread(dcacp_connection, stream, client_addr);
 		thread.detach();
 	}
 	// while (1) {

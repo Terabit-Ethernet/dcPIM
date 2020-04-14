@@ -129,10 +129,11 @@ void dcacp_hashtable_init(struct inet_hashinfo* hashinfo, unsigned long thash_en
 }
 
 void dcacp_hashtable_destroy(struct inet_hashinfo* hashinfo) {
-	vfree(hashinfo->ehash);
 	vfree(hashinfo->bhash);
 	kmem_cache_destroy(hashinfo->bind_bucket_cachep);
 	vfree(hashinfo->lhash2);
+	vfree(hashinfo->ehash);
+	printk("hash table destroy finish\n");
 }
 /*
  * Caller must hold hashbucket lock for this tb with local BH disabled
@@ -318,19 +319,20 @@ static struct sock *inet_lhash2_lookup(struct net *net,
 				const int dif, const int sdif)
 {
 	bool exact_dif = inet_exact_dif_match(net, skb);
-	struct inet_connection_sock *icsk;
+	struct dcacp_sock *dsk;
 	struct sock *sk, *result = NULL;
 	int score, hiscore = 0;
 	u32 phash = 0;
 
-	inet_lhash2_for_each_icsk_rcu(icsk, &ilb2->head) {
-		sk = (struct sock *)icsk;
+	inet_lhash2_for_each_dsk_rcu(dsk, &ilb2->head) {
+		sk = (struct sock *)dsk;
 		score = compute_score(sk, net, hnum, daddr,
 				      dif, sdif, exact_dif);
 		if (score > hiscore) {
 			if (sk->sk_reuseport) {
 				phash = inet_ehashfn(net, daddr, hnum,
 						     saddr, sport);
+				printk("phash:%u\n", phash);
 				result = reuseport_select_sock(sk, phash,
 							       skb, doff);
 				if (result)
@@ -361,6 +363,7 @@ struct sock *__dcacp_lookup_listener(struct net *net,
 	result = inet_lhash2_lookup(net, ilb2, skb, doff,
 				    saddr, sport, daddr, hnum,
 				    dif, sdif);
+
 	if (result)
 		goto done;
 
@@ -374,6 +377,7 @@ struct sock *__dcacp_lookup_listener(struct net *net,
 done:
 	if (IS_ERR(result))
 		return NULL;
+
 	return result;
 }
 EXPORT_SYMBOL_GPL(__dcacp_lookup_listener);
@@ -444,6 +448,7 @@ begin:
 		goto begin;
 out:
 	sk = NULL;
+
 found:
 	return sk;
 }
@@ -603,12 +608,12 @@ int __dcacp_hash(struct sock *sk, struct sock *osk)
 	}
 	WARN_ON(!sk_unhashed(sk));
 	ilb = &hashinfo->listening_hash[inet_sk_listen_hashfn(sk)];
-
 	spin_lock(&ilb->lock);
 	if (sk->sk_reuseport) {
 		err = dcacp_reuseport_add_sock(sk, ilb);
-		if (err)
+		if (err){
 			goto unlock;
+		}
 	}
 	if (IS_ENABLED(CONFIG_IPV6) && sk->sk_reuseport &&
 		sk->sk_family == AF_INET6)

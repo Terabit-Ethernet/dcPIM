@@ -624,20 +624,14 @@ int dcacp_listen(struct socket *sock, int backlog)
 	unsigned char old_state;
 	int err;
 
-	printk("backlog num:%d\n", backlog);
 	lock_sock(sk);
 
 	err = -EINVAL;
-	printk("sock->state: %d\n", sock->state);
-	printk("compare 1: %d\n", (sock->state != SS_UNCONNECTED));
-	printk("compare 2: %d\n", (sock->type != SOCK_DGRAM));
 
 	if (sock->state != SS_UNCONNECTED || sock->type != SOCK_DGRAM)
 		goto out;
 
 	old_state = sk->sk_state;
-	printk("old state:%d\n", old_state);
-	printk("old state comparison 2:%d\n", ((1 << old_state) & (TCPF_CLOSE | DCACPF_LISTEN)));
 	if (!((1 << old_state) & (TCPF_CLOSE | DCACPF_LISTEN)))
 		goto out;
 
@@ -659,7 +653,6 @@ int dcacp_listen(struct socket *sock, int backlog)
 		// 	fastopen_queue_tune(sk, backlog);
 		// 	tcp_fastopen_init_key_once(sock_net(sk));
 		// }
-		printk("reach here:%d\n", __LINE__);
 		err = dcacp_listen_start(sk, backlog);
 		if (err)
 			goto out;
@@ -758,17 +751,22 @@ struct sock *dcacp_sk_accept(struct sock *sk, int flags, int *err, bool kern)
 	}
 	req = reqsk_queue_remove(queue, sk);
 	newsk = req->sk;
-	printk("src port:%d\n", inet_sk(newsk)->inet_num);
-	printk("src address:%d\n", inet_sk(newsk)->inet_saddr);
+	// printk("src port:%d\n", inet_sk(newsk)->inet_num);
+	// printk("src address:%d\n", inet_sk(newsk)->inet_saddr);
 
-	printk("dst address:%d\n", inet_sk(newsk)->inet_daddr);
-	printk("dst port:%d\n", ntohs(inet_sk(newsk)->inet_dport));
+	// printk("dst address:%d\n", inet_sk(newsk)->inet_daddr);
+	// printk("dst port:%d\n", ntohs(inet_sk(newsk)->inet_dport));
 out:
 	release_sock(sk);
-	if (req)
+	if (req){
+		printk("reference coun reqt:%d\n", refcount_read(&req->rsk_refcnt));
+		printk("reference count:%d\n", refcount_read(&sk->sk_refcnt));
+
 		reqsk_put(req);
+	}
 	return newsk;
 out_err:
+	release_sock(sk);
 	newsk = NULL;
 	req = NULL;
 	*err = error;
@@ -815,7 +813,7 @@ struct request_sock *dcacp_reqsk_alloc(const struct request_sock_ops *ops,
 		struct inet_request_sock *ireq = inet_rsk(req);
 		atomic64_set(&ireq->ir_cookie, 0);
 		// ireq->ireq_state = TCP_NEW_SYN_RECV;
-		// write_pnet(&ireq->ireq_net, sock_net(sk_listener));
+		write_pnet(&ireq->ireq_net, sock_net(sk_listener));
 		ireq->ireq_family = sk_listener->sk_family;
 	}
 
@@ -861,7 +859,6 @@ struct sock *dcacp_sk_reqsk_queue_add(struct sock *sk,
 		/* Remove step may change latter */
 		dcacp_sk_prepare_forced_close(child);
 		sock_put(child);
-		printk("NOT IN THE LISTEN STATE:%d\n", __LINE__);
 		child = NULL;
 	} else {
 		req->sk = child;
@@ -882,12 +879,19 @@ static void dcacp_v4_init_req(struct request_sock *req,
                             const struct sock *sk_listener,
                             struct sk_buff *skb)
 {
-        // struct inet_request_sock *ireq = inet_rsk(req);
-        // struct net *net = sock_net(sk_listener);
+	    struct inet_request_sock *ireq = inet_rsk(req);
+        struct net *net = sock_net(sk_listener);
 
         sk_rcv_saddr_set(req_to_sk(req), ip_hdr(skb)->daddr);
         sk_daddr_set(req_to_sk(req), ip_hdr(skb)->saddr);
-        // RCU_INIT_POINTER(ireq->ireq_opt, tcp_v4_save_options(net, skb));
+        ireq->ir_rmt_port = dcacp_hdr(skb)->source;
+        ireq->ir_num = ntohs(dcacp_hdr(skb)->dest);
+        ireq->ir_mark = inet_request_mark(sk_listener, skb);
+		ireq->no_srccheck = inet_sk(sk_listener)->transparent;
+		/* Note: tcp_v6_init_req() might override ir_iif for link locals */
+		ireq->ir_iif = inet_request_bound_dev_if(sk_listener, skb);
+        RCU_INIT_POINTER(ireq->ireq_opt, dcacp_v4_save_options(net, skb));
+		refcount_set(&req->rsk_refcnt, 1);
 }
 
 
@@ -923,6 +927,7 @@ struct sock *dcacp_sk_clone_lock(const struct sock *sk,
 		newsk->sk_mark = inet_rsk(req)->ir_mark;
 		/* Deinitialize accept_queue to trap illegal accesses. */
 		memset(&dsk->icsk_accept_queue, 0, sizeof(dsk->icsk_accept_queue));
+
 	}
 	return newsk;
 }
@@ -940,6 +945,7 @@ struct sock *dcacp_create_openreq_child(const struct sock *sk,
 				      struct sk_buff *skb)
 {
 	struct sock *newsk = dcacp_sk_clone_lock(sk, req, GFP_ATOMIC);
+
 	// const struct inet_request_sock *ireq = inet_rsk(req);
 	// struct dcacp_sock *olddp, *newdp;
 	// u32 seq;
@@ -949,6 +955,45 @@ struct sock *dcacp_create_openreq_child(const struct sock *sk,
 	return newsk;
 }
 EXPORT_SYMBOL(dcacp_create_openreq_child);
+
+
+struct dst_entry *dcacp_sk_route_child_sock(const struct sock *sk,
+					    struct sock *newsk,
+					    const struct request_sock *req)
+{
+	const struct inet_request_sock *ireq = inet_rsk(req);
+	struct net *net = read_pnet(&ireq->ireq_net);
+	struct inet_sock *newinet = inet_sk(newsk);
+	struct ip_options_rcu *opt;
+	struct flowi4 *fl4;
+	struct rtable *rt;
+
+	opt = rcu_dereference(ireq->ireq_opt);
+	fl4 = &newinet->cork.fl.u.ip4;
+
+	flowi4_init_output(fl4, ireq->ir_iif, ireq->ir_mark,
+			   RT_CONN_FLAGS(sk), RT_SCOPE_UNIVERSE,
+			   sk->sk_protocol, inet_sk_flowi_flags(sk),
+			   (opt && opt->opt.srr) ? opt->opt.faddr : ireq->ir_rmt_addr,
+			   ireq->ir_loc_addr, ireq->ir_rmt_port,
+			   htons(ireq->ir_num), sk->sk_uid);
+
+	security_req_classify_flow(req, flowi4_to_flowi(fl4));
+	rt = ip_route_output_flow(net, fl4, sk);
+
+	if (IS_ERR(rt))
+		goto no_route;
+	if (opt && opt->opt.is_strictroute && rt->rt_uses_gateway)
+		goto route_err;
+	return &rt->dst;
+
+route_err:
+	ip_rt_put(rt);
+no_route:
+	__IP_INC_STATS(net, IPSTATS_MIB_OUTNOROUTES);
+	return NULL;
+}
+EXPORT_SYMBOL_GPL(dcacp_sk_route_child_sock);
 
 /*
  * Receive flow sync pkt: create new socket and push this to the accept queue
@@ -968,8 +1013,16 @@ struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
 		goto exit_overflow;
 
 	newsk = dcacp_create_openreq_child(sk, req, skb);
+
+	/* this init function may be used later */
+	dcacp_init_sock(newsk);
 	if (!newsk)
 		goto exit_nonewsk;
+ 	if(!dst) {
+ 		dst = dcacp_sk_route_child_sock(sk, newsk, req);
+	    if (!dst)
+	        goto put_and_exit;
+ 	}
 
 	newsk->sk_gso_type = SKB_GSO_TCPV4;
 	inet_sk_rx_dst_set(newsk, skb);
@@ -983,24 +1036,29 @@ struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
 	newinet->inet_saddr   = ireq->ir_loc_addr;
 	inet_opt	      = rcu_dereference(ireq->ireq_opt);
 	RCU_INIT_POINTER(newinet->inet_opt, inet_opt);
+
 	/* set up max gso segment */
 	sk_setup_caps(newsk, dst);
 
 	/* add new socket to binding table */
-	if (__inet_inherit_port(sk, newsk) < 0)
+	if (__dcacp_inherit_port(sk, newsk) < 0)
 		goto put_and_exit;
+
 	/* add socket to request queue */
     newsk = dcacp_sk_reqsk_queue_add(sk, req, newsk);
     if(newsk) {
 		/* Unlike TCP, req_sock will not be inserted in the ehash table initially.*/
+	    dcacp_set_state(newsk, DCACP_ESTABLISHED);
 		dcacp_ehash_nolisten(newsk, NULL);
     	sock_rps_save_rxhash(newsk, skb);
     } 
 	return newsk;
 
 exit_overflow:
+
 	NET_INC_STATS(sock_net(sk), LINUX_MIB_LISTENOVERFLOWS);
 exit_nonewsk:
+
 	dst_release(dst);
 exit:
 	// tcp_listendrop(sk);
@@ -1034,15 +1092,13 @@ int dcacp_conn_request(struct sock *sk, struct sk_buff *skb)
 	if (sk_acceptq_is_full(sk)) {
 		goto drop;
 	}
+
 	/* create the request sock and don't attach to the listener socket. */
-	req = dcacp_reqsk_alloc(NULL, sk, false);
+	req = dcacp_reqsk_alloc(&dcacp_request_sock_ops, sk, false);
+	printk("reference count req:%d  line: %d\n", refcount_read(&req->rsk_refcnt), __LINE__);
 	if (!req)
 		goto drop;
 
-	inet_rsk(req)->no_srccheck = inet_sk(sk)->transparent;
-
-	/* Note: tcp_v6_init_req() might override ir_iif for link locals */
-	inet_rsk(req)->ir_iif = inet_request_bound_dev_if(sk, skb);
 	/* Initialize the request sock `*/
 	dcacp_v4_init_req(req, sk, skb);
 
@@ -1052,6 +1108,7 @@ int dcacp_conn_request(struct sock *sk, struct sk_buff *skb)
 	// reqsk_put(req);
 
     child = dcacp_create_con_sock(sk, skb, req, NULL);
+
     if (!child){
     	goto drop_and_free;
     }
@@ -1062,6 +1119,7 @@ int dcacp_conn_request(struct sock *sk, struct sk_buff *skb)
 
 drop_and_free:
 	reqsk_free(req);
+
 drop:
 	return 0;
 }

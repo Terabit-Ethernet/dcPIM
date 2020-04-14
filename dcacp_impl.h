@@ -16,7 +16,7 @@ extern struct dcacp_match_tab dcacp_match_table;
 
 extern struct dcacp_params dcacp_params;
 extern struct dcacp_epoch dcacp_epoch;
-
+extern struct request_sock_ops dcacp_request_sock_ops;
 
 void* allocate_hash_table(const char *tablename,
 				     unsigned long bucketsize,

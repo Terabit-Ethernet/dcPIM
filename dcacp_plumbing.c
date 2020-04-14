@@ -100,6 +100,7 @@ struct proto dcacp_prot = {
     .sysctl_wmem = &sysctl_dcacp_wmem_min,
     .sysctl_rmem = &sysctl_dcacp_rmem_min,
     .obj_size       = sizeof(struct dcacp_sock),
+    .rsk_prot       = &dcacp_request_sock_ops,
     .h.hashinfo     = &dcacp_hashinfo,
     // .h.udp_table        = &dcacp_table,
 #ifdef CONFIG_COMPAT
@@ -145,15 +146,26 @@ static struct ctl_table dcacp_ctl_table[] = {
         {}
 };
 
-// struct request_sock_ops dcacp_request_sock_ops __read_mostly = {
-//         .family         =       PF_INET,
-//         .obj_size       =       sizeof(struct dcacp_request_sock),
-//         .rtx_syn_ack    =       dcacp_rtx_synack,
-//         .send_ack       =       dcacp_v4_reqsk_send_ack,
-//         .destructor     =       dcacp_v4_reqsk_destructor,
-//         .send_reset     =       dcacp_v4_send_reset,
-//         .syn_ack_timeout =      dcacp_syn_ack_timeout,
-// };
+/*
+ *      IPv4 request_sock destructor.
+ */
+static void dcacp_v4_reqsk_destructor(struct request_sock *req)
+{
+
+        printk("call reqsk destructor\n");
+        printk("ireq option is NULL:%d\n", inet_rsk(req)->ireq_opt == NULL);
+        kfree(rcu_dereference_protected(inet_rsk(req)->ireq_opt, 1));
+}
+
+struct request_sock_ops dcacp_request_sock_ops __read_mostly = {
+        .family         =       PF_INET,
+        .obj_size       =       sizeof(struct dcacp_request_sock),
+        .rtx_syn_ack    =       NULL,
+        .send_ack       =       NULL,
+        .destructor     =       dcacp_v4_reqsk_destructor,
+        .send_reset     =       NULL,
+        .syn_ack_timeout =      NULL,
+};
 
 
 /* Used to remove sysctl values when the module is unloaded. */
@@ -375,8 +387,12 @@ static void __exit dcacp_unload(void) {
         printk("remove dcacp table\n");
 
         inet_del_protocol(&dcacp_protocol, IPPROTO_DCACP);
+        printk("reach here:%d\n", __LINE__);
         inet_unregister_protosw(&dcacp_protosw);
+        printk("reach here:%d\n", __LINE__);
         proto_unregister(&dcacp_prot);
+        printk("reach here:%d\n", __LINE__);
+
 
         // proto_unregister(&dcacplite_prot);
 }

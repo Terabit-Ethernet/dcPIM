@@ -303,6 +303,9 @@ struct request_sock *dcacp_reqsk_alloc(const struct request_sock_ops *ops,
 // static void dcacp_v4_init_req(struct request_sock *req,
 //                             const struct sock *sk_listener,
 //                             struct sk_buff *skb);
+struct dst_entry *dcacp_sk_route_child_sock(const struct sock *sk,
+					    struct sock *newsk,
+					    const struct request_sock *req);
 struct sock *dcacp_sk_clone_lock(const struct sock *sk,
 				 const struct request_sock *req,
 				 const gfp_t priority);

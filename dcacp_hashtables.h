@@ -31,6 +31,11 @@
 #include <linux/refcount.h>
 #include <asm/byteorder.h>
 #include <net/inet_hashtables.h>
+
+
+#define inet_lhash2_for_each_dsk_rcu(__dsk, list) \
+	hlist_for_each_entry_rcu(__dsk, list, icsk_listen_portaddr_node)
+
 /* This is for all connections with a full identity, no wildcards.
  * The 'e' prefix stands for Establish, but we really put all sockets
  * but LISTEN ones.
@@ -342,9 +347,11 @@ static inline struct sock *__dcacp_lookup(struct net *net,
 	sk = __dcacp_lookup_established(net, hashinfo, saddr, sport,
 				       daddr, hnum, dif, sdif);
 	*refcounted = true;
+	printk("sk:%d LINE:%d\n", (sk == NULL), __LINE__);
 	if (sk)
 		return sk;
 	*refcounted = false;
+	printk("sk:%d LINE:%d\n", (sk == NULL), __LINE__);
 	return __dcacp_lookup_listener(net, hashinfo, skb, doff, saddr,
 				      sport, daddr, hnum, dif, sdif);
 }
@@ -379,6 +386,7 @@ static inline struct sock *__dcacp_lookup_skb(struct inet_hashinfo *hashinfo,
 	const struct iphdr *iph = ip_hdr(skb);
 
 	*refcounted = true;
+	printk("skb steal sk:%d\n", (sk == NULL));
 	if (sk)
 		return sk;
 

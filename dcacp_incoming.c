@@ -106,7 +106,6 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 		// add_dcacp_message_in(dsk, msg);
 		// spin_unlock_bh(&slot->lock);
 		// dsk->unsolved += 1;
-		// printk("receive notification pkt\n");
 		// printk("msg address: %p LINE:%d\n", msg, __LINE__);
 		// printk("fh->message_id:%d\n", msg->id);
 		// printk("fh->message_size:%d\n", msg->total_length);

@@ -1530,12 +1530,14 @@ void dcacp_destruct_sock(struct sock *sk)
 	for (i = 0; i < DCACP_MESSAGE_BUCKETS; i++) {
 		struct message_hslot *slot = &dsk->mesg_out_table[i];
 		spin_lock_bh(&slot->lock);
+
 		hlist_for_each_entry_safe(out, n, &slot->head, sk_table_link) {
 			dcacp_message_out_destroy(out);
 		}
 		spin_unlock_bh(&slot->lock);
 		slot->count = 0;
 	}
+
 	for (i = 0; i < DCACP_MESSAGE_BUCKETS; i++) {
 		struct message_hslot *slot = &dsk->mesg_in_table[i];
 		spin_lock_bh(&slot->lock);
@@ -1546,7 +1548,6 @@ void dcacp_destruct_sock(struct sock *sk)
 		slot->count = 0;
 	}
 	spin_lock_bh(&dsk->waiting_thread_queue_lock);
-
 	list_for_each_entry_safe(pos, temp, &dsk->waiting_thread_queue, wait_link) {
 		kfree(pos);
 	}
@@ -1560,8 +1561,8 @@ void dcacp_destruct_sock(struct sock *sk)
 		total += skb->truesize;
 		kfree_skb(skb);
 	}
-	dcacp_rmem_release(sk, total, 0, true);
 
+	dcacp_rmem_release(sk, total, 0, true);
 	inet_sock_destruct(sk);
 }
 EXPORT_SYMBOL_GPL(dcacp_destruct_sock);
@@ -2568,11 +2569,13 @@ int dcacp_v4_early_demux(struct sk_buff *skb)
 
     // if (th->doff < sizeof(struct tcphdr) / 4)
     //             return 0;
-
+	printk("look up early demux\n");
     sk = __dcacp_lookup_established(dev_net(skb->dev), &dcacp_hashinfo,
                                    iph->saddr, uh->source,
                                    iph->daddr, ntohs(uh->dest),
                                    skb->skb_iif, sdif);
+   	printk("sk is null:%d\n", (sk == NULL));
+   	printk("skb->sk :%d LINE:%d \n", (skb->sk == NULL), __LINE__);
     if (sk) {
             skb->sk = sk;
             skb->destructor = sock_edemux;
@@ -2602,6 +2605,7 @@ int dcacp_rcv(struct sk_buff *skb)
 	// printk("dh == NULL?: %d\n", dh == NULL);
 	// printk("receive pkt: %d\n", dh->type);
 	// printk("end ref \n");
+   	printk("skb->sk :%d LINE:%d \n", (skb->sk == NULL), __LINE__);
 
 	if(dh->type == DATA) {
 		return dcacp_handle_data_pkt(skb);
