@@ -84,231 +84,57 @@ EXPORT_SYMBOL(dcacp_hashinfo);
 #define MAX_DCACP_PORTS 65536
 #define PORTS_PER_CHAIN (MAX_DCACP_PORTS / DCACP_HTABLE_SIZE_MIN)
 
-static int dcacp_lib_lport_inuse(struct net *net, __u16 num,
-			       const struct udp_hslot *hslot,
-			       unsigned long *bitmap,
-			       struct sock *sk, unsigned int log)
-{
-	struct sock *sk2;
-	kuid_t uid = sock_i_uid(sk);
 
-	sk_for_each(sk2, &hslot->head) {
-		if (net_eq(sock_net(sk2), net) &&
-		    sk2 != sk &&
-		    (bitmap || dcacp_sk(sk2)->dcacp_port_hash == num) &&
-		    (!sk2->sk_reuse || !sk->sk_reuse) &&
-		    (!sk2->sk_bound_dev_if || !sk->sk_bound_dev_if ||
-		     sk2->sk_bound_dev_if == sk->sk_bound_dev_if) &&
-		    inet_rcv_saddr_equal(sk, sk2, true)) {
-			if (sk2->sk_reuseport && sk->sk_reuseport &&
-			    !rcu_access_pointer(sk->sk_reuseport_cb) &&
-			    uid_eq(uid, sock_i_uid(sk2))) {
-				if (!bitmap)
-					return 0;
-			} else {
-				if (!bitmap)
-					return 1;
-				__set_bit(dcacp_sk(sk2)->dcacp_port_hash >> log,
-					  bitmap);
-			}
-		}
-	}
-	return 0;
+void dcacp_rbtree_insert(struct rb_root *root, struct sk_buff *skb)
+{
+        struct rb_node **p = &root->rb_node;
+        struct rb_node *parent = NULL;
+        struct sk_buff *skb1;
+
+        while (*p) {
+                parent = *p;
+                skb1 = rb_to_skb(parent);
+                if (before(DCACP_SKB_CB(skb)->seq, DCACP_SKB_CB(skb1)->seq))
+                        p = &parent->rb_left;
+                else
+                        p = &parent->rb_right;
+        }
+        rb_link_node(&skb->rbnode, parent, p);
+        rb_insert_color(&skb->rbnode, root);
 }
 
-/*
- * Note: we still hold spinlock of primary hash chain, so no other writer
- * can insert/delete a socket with local_port == num
- */
-static int dcacp_lib_lport_inuse2(struct net *net, __u16 num,
-				struct udp_hslot *hslot2,
-				struct sock *sk)
+static void dcacp_rtx_queue_purge(struct sock *sk)
 {
-	struct sock *sk2;
-	kuid_t uid = sock_i_uid(sk);
-	int res = 0;
+	struct rb_node *p = rb_first(&sk->tcp_rtx_queue);
 
-	spin_lock(&hslot2->lock);
-	dcacp_portaddr_for_each_entry(sk2, &hslot2->head) {
-		if (net_eq(sock_net(sk2), net) &&
-		    sk2 != sk &&
-		    (dcacp_sk(sk2)->dcacp_port_hash == num) &&
-		    (!sk2->sk_reuse || !sk->sk_reuse) &&
-		    (!sk2->sk_bound_dev_if || !sk->sk_bound_dev_if ||
-		     sk2->sk_bound_dev_if == sk->sk_bound_dev_if) &&
-		    inet_rcv_saddr_equal(sk, sk2, true)) {
-			if (sk2->sk_reuseport && sk->sk_reuseport &&
-			    !rcu_access_pointer(sk->sk_reuseport_cb) &&
-			    uid_eq(uid, sock_i_uid(sk2))) {
-				res = 0;
-			} else {
-				res = 1;
-			}
-			break;
-		}
-	}
-	spin_unlock(&hslot2->lock);
-	return res;
-}
+	// dcacp_sk(sk)->highest_sack = NULL;
+	while (p) {
+		struct sk_buff *skb = rb_to_skb(p);
 
-static int dcacp_reuseport_add_sock(struct sock *sk, struct udp_hslot *hslot)
-{
-	struct net *net = sock_net(sk);
-	kuid_t uid = sock_i_uid(sk);
-	struct sock *sk2;
-
-	sk_for_each(sk2, &hslot->head) {
-		if (net_eq(sock_net(sk2), net) &&
-		    sk2 != sk &&
-		    sk2->sk_family == sk->sk_family &&
-		    ipv6_only_sock(sk2) == ipv6_only_sock(sk) &&
-		    (dcacp_sk(sk2)->dcacp_port_hash == dcacp_sk(sk)->dcacp_port_hash) &&
-		    (sk2->sk_bound_dev_if == sk->sk_bound_dev_if) &&
-		    sk2->sk_reuseport && uid_eq(uid, sock_i_uid(sk2)) &&
-		    inet_rcv_saddr_equal(sk, sk2, false)) {
-			return reuseport_add_sock(sk, sk2,
-						  inet_rcv_saddr_any(sk));
-		}
-	}
-
-	return reuseport_alloc(sk, inet_rcv_saddr_any(sk));
-}
-
-/**
- *  dcacp_lib_get_port  -  DCACP/-Lite port lookup for IPv4 and IPv6
- *
- *  @sk:          socket struct in question
- *  @snum:        port number to look up
- *  @hash2_nulladdr: AF-dependent hash value in secondary hash chains,
- *                   with NULL address
- */
-int dcacp_lib_get_port(struct sock *sk, unsigned short snum,
-		     unsigned int hash2_nulladdr)
-{
-	struct udp_hslot *hslot, *hslot2;
-	struct udp_table *dcacptable = sk->sk_prot->h.udp_table;
-	int    error = 1;
-	struct net *net = sock_net(sk);
-
-	if (!snum) {
-		int low, high, remaining;
-		unsigned int rand;
-		unsigned short first, last;
-		DECLARE_BITMAP(bitmap, PORTS_PER_CHAIN);
-
-		inet_get_local_port_range(net, &low, &high);
-		remaining = (high - low) + 1;
-
-		rand = prandom_u32();
-		first = reciprocal_scale(rand, remaining) + low;
-		/*
-		 * force rand to be an odd multiple of DCACP_HTABLE_SIZE
+		p = rb_next(p);
+		/* Since we are deleting whole queue, no need to
+		 * list_del(&skb->tcp_tsorted_anchor)
 		 */
-		rand = (rand | 1) * (dcacptable->mask + 1);
-		last = first + dcacptable->mask + 1;
-		do {
-			hslot = udp_hashslot(dcacptable, net, first);
-			bitmap_zero(bitmap, PORTS_PER_CHAIN);
-			spin_lock_bh(&hslot->lock);
-			dcacp_lib_lport_inuse(net, snum, hslot, bitmap, sk,
-					    dcacptable->log);
-
-			snum = first;
-			/*
-			 * Iterate on all possible values of snum for this hash.
-			 * Using steps of an odd multiple of DCACP_HTABLE_SIZE
-			 * give us randomization and full range coverage.
-			 */
-			do {
-				if (low <= snum && snum <= high &&
-				    !test_bit(snum >> dcacptable->log, bitmap) &&
-				    !inet_is_local_reserved_port(net, snum))
-					goto found;
-				snum += rand;
-			} while (snum != first);
-			spin_unlock_bh(&hslot->lock);
-			cond_resched();
-		} while (++first != last);
-		goto fail;
-	} else {
-		hslot = udp_hashslot(dcacptable, net, snum);
-		spin_lock_bh(&hslot->lock);
-		if (hslot->count > 10) {
-			int exist;
-			unsigned int slot2 = dcacp_sk(sk)->dcacp_portaddr_hash ^ snum;
-
-			slot2          &= dcacptable->mask;
-			hash2_nulladdr &= dcacptable->mask;
-
-			hslot2 = udp_hashslot2(dcacptable, slot2);
-			if (hslot->count < hslot2->count)
-				goto scan_primary_hash;
-
-			exist = dcacp_lib_lport_inuse2(net, snum, hslot2, sk);
-			if (!exist && (hash2_nulladdr != slot2)) {
-				hslot2 = udp_hashslot2(dcacptable, hash2_nulladdr);
-				exist = dcacp_lib_lport_inuse2(net, snum, hslot2,
-							     sk);
-			}
-			if (exist)
-				goto fail_unlock;
-			else
-				goto found;
-		}
-scan_primary_hash:
-		if (dcacp_lib_lport_inuse(net, snum, hslot, NULL, sk, 0))
-			goto fail_unlock;
+		dcacp_rtx_queue_unlink(skb, sk);
+		dcacp_wmem_free_skb(sk, skb);
 	}
-found:
-	inet_sk(sk)->inet_num = snum;
-	dcacp_sk(sk)->dcacp_port_hash = snum;
-	dcacp_sk(sk)->dcacp_portaddr_hash ^= snum;
-	if (sk_unhashed(sk)) {
-		if (sk->sk_reuseport &&
-		    dcacp_reuseport_add_sock(sk, hslot)) {
-			inet_sk(sk)->inet_num = 0;
-			dcacp_sk(sk)->dcacp_port_hash = 0;
-			dcacp_sk(sk)->dcacp_portaddr_hash ^= snum;
-			goto fail_unlock;
-		}
-
-		sk_add_node_rcu(sk, &hslot->head);
-		hslot->count++;
-		sock_prot_inuse_add(sock_net(sk), sk->sk_prot, 1);
-
-		hslot2 = udp_hashslot2(dcacptable, dcacp_sk(sk)->dcacp_portaddr_hash);
-		spin_lock(&hslot2->lock);
-		if (IS_ENABLED(CONFIG_IPV6) && sk->sk_reuseport &&
-		    sk->sk_family == AF_INET6)
-			hlist_add_tail_rcu(&dcacp_sk(sk)->dcacp_portaddr_node,
-					   &hslot2->head);
-		else
-			hlist_add_head_rcu(&dcacp_sk(sk)->dcacp_portaddr_node,
-					   &hslot2->head);
-		hslot2->count++;
-		spin_unlock(&hslot2->lock);
-	}
-	sock_set_flag(sk, SOCK_RCU_FREE);
-	error = 0;
-fail_unlock:
-	spin_unlock_bh(&hslot->lock);
-fail:
-	return error;
 }
-EXPORT_SYMBOL(dcacp_lib_get_port);
 
-int dcacp_v4_get_port(struct sock *sk, unsigned short snum)
+void dcacp_write_queue_purge(struct sock *sk)
 {
-	unsigned int hash2_nulladdr =
-		ipv4_portaddr_hash(sock_net(sk), htonl(INADDR_ANY), snum);
-	unsigned int hash2_partial =
-		ipv4_portaddr_hash(sock_net(sk), inet_sk(sk)->inet_rcv_saddr, 0);
+	struct sk_buff *skb;
 
-	/* precompute partial secondary hash */
-	dcacp_sk(sk)->dcacp_portaddr_hash = hash2_partial;
-	return dcacp_lib_get_port(sk, snum, hash2_nulladdr);
+	while ((skb = __skb_dequeue(&sk->sk_write_queue)) != NULL) {
+		dcacp_wmem_free_skb(sk, skb);
+	}
+	dcacp_rtx_queue_purge(sk);
+	skb = sk->sk_tx_skb_cache;
+	if (skb) {
+		__kfree_skb(skb);
+		sk->sk_tx_skb_cache = NULL;
+	}
+	sk_mem_reclaim(sk);
 }
-
 // static int compute_score(struct sock *sk, struct net *net,
 // 			 __be32 saddr, __be16 sport,
 // 			 __be32 daddr, unsigned short hnum,
@@ -498,185 +324,6 @@ void dcacp_encap_enable(void)
 	static_branch_inc(&dcacp_encap_needed_key);
 }
 EXPORT_SYMBOL(dcacp_encap_enable);
-
-/* Handler for tunnels with arbitrary destination ports: no socket lookup, go
- * through error handlers in encapsulations looking for a match.
- */
-// static int __dcacp4_lib_err_encap_no_sk(struct sk_buff *skb, u32 info)
-// {
-// 	int i;
-
-// 	for (i = 0; i < MAX_IPTUN_ENCAP_OPS; i++) {
-// 		int (*handler)(struct sk_buff *skb, u32 info);
-// 		const struct ip_tunnel_encap_ops *encap;
-
-// 		encap = rcu_dereference(iptun_encaps[i]);
-// 		if (!encap)
-// 			continue;
-// 		handler = encap->err_handler;
-// 		if (handler && !handler(skb, info))
-// 			return 0;
-// 	}
-
-// 	return -ENOENT;
-// }
-
-/* Try to match ICMP errors to DCACP tunnels by looking up a socket without
- * reversing source and destination port: this will match tunnels that force the
- * same destination port on both endpoints (e.g. VXLAN, GENEVE). Note that
- * lwtunnels might actually break this assumption by being configured with
- * different destination ports on endpoints, in this case we won't be able to
- * trace ICMP messages back to them.
- *
- * If this doesn't match any socket, probe tunnels with arbitrary destination
- * ports (e.g. FoU, GUE): there, the receiving socket is useless, as the port
- * we've sent packets to won't necessarily match the local destination port.
- *
- * Then ask the tunnel implementation to match the error against a valid
- * association.
- *
- * Return an error if we can't find a match, the socket if we need further
- * processing, zero otherwise.
- */
-// static struct sock *__dcacp4_lib_err_encap(struct net *net,
-// 					 const struct iphdr *iph,
-// 					 struct dcacphdr *uh,
-// 					 struct udp_table *dcacptable,
-// 					 struct sk_buff *skb, u32 info)
-// {
-// 	int network_offset, transport_offset;
-// 	struct sock *sk;
-
-// 	network_offset = skb_network_offset(skb);
-// 	transport_offset = skb_transport_offset(skb);
-
-// 	/* Network header needs to point to the outer IPv4 header inside ICMP */
-// 	skb_reset_network_header(skb);
-
-// 	/* Transport header needs to point to the DCACP header */
-// 	skb_set_transport_header(skb, iph->ihl << 2);
-
-// 	sk = __dcacp4_lib_lookup(net, iph->daddr, uh->source,
-// 			       iph->saddr, uh->dest, skb->dev->ifindex, 0,
-// 			       dcacptable, NULL);
-// 	if (sk) {
-// 		int (*lookup)(struct sock *sk, struct sk_buff *skb);
-// 		struct dcacp_sock *up = dcacp_sk(sk);
-
-// 		lookup = READ_ONCE(up->encap_err_lookup);
-// 		if (!lookup || lookup(sk, skb))
-// 			sk = NULL;
-// 	}
-
-// 	if (!sk)
-// 		sk = ERR_PTR(__dcacp4_lib_err_encap_no_sk(skb, info));
-
-// 	skb_set_transport_header(skb, transport_offset);
-// 	skb_set_network_header(skb, network_offset);
-
-// 	return sk;
-// }
-
-/*
- * This routine is called by the ICMP module when it gets some
- * sort of error condition.  If err < 0 then the socket should
- * be closed and the error returned to the user.  If err > 0
- * it's just the icmp type << 8 | icmp code.
- * Header points to the ip header of the error packet. We move
- * on past this. Then (as it used to claim before adjustment)
- * header points to the first 8 bytes of the dcacp header.  We need
- * to find the appropriate port.
- */
-
-// int __dcacp4_lib_err(struct sk_buff *skb, u32 info, struct udp_table *dcacptable)
-// {
-// 	struct inet_sock *inet;
-// 	const struct iphdr *iph = (const struct iphdr *)skb->data;
-// 	struct dcacphdr *uh = (struct dcacphdr *)(skb->data+(iph->ihl<<2));
-// 	const int type = icmp_hdr(skb)->type;
-// 	const int code = icmp_hdr(skb)->code;
-// 	bool tunnel = false;
-// 	struct sock *sk;
-// 	int harderr;
-// 	int err;
-// 	struct net *net = dev_net(skb->dev);
-
-// 	sk = __dcacp4_lib_lookup(net, iph->daddr, uh->dest,
-// 			       iph->saddr, uh->source, skb->dev->ifindex,
-// 			       inet_sdif(skb), dcacptable, NULL);
-// 	if (!sk) {
-// 		/* No socket for error: try tunnels before discarding */
-// 		sk = ERR_PTR(-ENOENT);
-// 		if (static_branch_unlikely(&dcacp_encap_needed_key)) {
-// 			sk = __dcacp4_lib_err_encap(net, iph, uh, dcacptable, skb,
-// 						  info);
-// 			if (!sk)
-// 				return 0;
-// 		}
-
-// 		if (IS_ERR(sk)) {
-// 			__ICMP_INC_STATS(net, ICMP_MIB_INERRORS);
-// 			return PTR_ERR(sk);
-// 		}
-
-// 		tunnel = true;
-// 	}
-
-// 	err = 0;
-// 	harderr = 0;
-// 	inet = inet_sk(sk);
-
-// 	switch (type) {
-// 	default:
-// 	case ICMP_TIME_EXCEEDED:
-// 		err = EHOSTUNREACH;
-// 		break;
-// 	case ICMP_SOURCE_QUENCH:
-// 		goto out;
-// 	case ICMP_PARAMETERPROB:
-// 		err = EPROTO;
-// 		harderr = 1;
-// 		break;
-// 	case ICMP_DEST_UNREACH:
-// 		if (code == ICMP_FRAG_NEEDED) { /* Path MTU discovery */
-// 			ipv4_sk_update_pmtu(skb, sk, info);
-// 			if (inet->pmtudisc != IP_PMTUDISC_DONT) {
-// 				err = EMSGSIZE;
-// 				harderr = 1;
-// 				break;
-// 			}
-// 			goto out;
-// 		}
-// 		err = EHOSTUNREACH;
-// 		if (code <= NR_ICMP_UNREACH) {
-// 			harderr = icmp_err_convert[code].fatal;
-// 			err = icmp_err_convert[code].errno;
-// 		}
-// 		break;
-// 	case ICMP_REDIRECT:
-// 		ipv4_sk_redirect(skb, sk);
-// 		goto out;
-// 	}
-
-// 	/*
-// 	 *      RFC1122: OK.  Passes ICMP errors back to application, as per
-// 	 *	4.1.3.3.
-// 	 */
-// 	if (tunnel) {
-// 		/* ...not for tunnels though: we don't have a sending socket */
-// 		goto out;
-// 	}
-// 	if (!inet->recverr) {
-// 		if (!harderr || sk->sk_state != TCP_ESTABLISHED)
-// 			goto out;
-// 	} else
-// 		ip_icmp_error(sk, skb, err, uh->dest, info, (u8 *)(uh+1));
-
-// 	sk->sk_err = err;
-// 	sk->sk_error_report(sk);
-// out:
-// 	return 0;
-// }
 
 int dcacp_err(struct sk_buff *skb, u32 info)
 {
@@ -928,308 +575,35 @@ int dcacp_cmsg_send(struct sock *sk, struct msghdr *msg, u16 *gso_size)
 }
 EXPORT_SYMBOL_GPL(dcacp_cmsg_send);
 
+int dcacp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
+	// DECLARE_SOCKADDR(struct sockaddr_in *, usin, msg->msg_name);
+	// int corkreq = up->corkflag || msg->msg_flags&MSG_MORE;
+	struct dcacp_sock *dsk = dcacp_sk(sk);
+	int sent_len = 0;
+	if (sk->sk_state != DCACP_SENDER) {
+		return -ENOTCONN;
+	}
+	/* the bytes from user larger than the flow size */
+	if (len + dsk->sender.write_seq > dsk->total_length) {
+		return -EMSGSIZE;
+	}
+	sent_len = dcacp_fill_packets(sk, msg, len);
+	if(dsk->total_length < dcacp_params.short_flow_size) {
+		if (!skb_queue_empty(&sk->sk_write_queue)) {
+			struct sk_buff *skb = dcacp_send_head(sk);
+			dcacp_xmit_data(skb, dsk, true);
+		}
+	}
+	return sent_len;
+}
+
 int dcacp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 {
-	struct inet_sock *inet = inet_sk(sk);
-	struct dcacp_sock *up = dcacp_sk(sk);
-	struct dcacp_peer* peer;
-	struct dcacp_message_out* mesg;
-	DECLARE_SOCKADDR(struct sockaddr_in *, usin, msg->msg_name);
-	struct flowi4 fl4_stack;
-	struct flowi4 *fl4;
-	int ulen = len;
-	struct ipcm_cookie ipc;
-	struct rtable *rt = NULL;
-	int free = 0;
-	int connected = 0;
-	__be32 daddr, faddr, saddr;
-	__be16 dport;
-	u8  tos;
-	int err;
-	int corkreq = up->corkflag || msg->msg_flags&MSG_MORE;
-	int (*getfrag)(void *, char *, int, int, int, struct sk_buff *);
-	struct sk_buff *skb;
-	struct ip_options_data opt_copy;
-	struct message_hslot *slot;
-
-	// printk_once("dcacp sendmsg");
-	if (len > 0xFFFF)
-		return -EMSGSIZE;
-
-	/*
-	 *	Check the flags.
-	 */
-
-	if (msg->msg_flags & MSG_OOB) /* Mirror BSD error message compatibility */
-		return -EOPNOTSUPP;
-
-	getfrag =  ip_generic_getfrag;
-
-	fl4 = &inet->cork.fl.u.ip4;
-	if (up->pending) {
-		/*
-		 * There are pending frames.
-		 * The socket lock must be held while it's corked.
-		 */
-		lock_sock(sk);
-		if (likely(up->pending)) {
-			if (unlikely(up->pending != AF_INET)) {
-				release_sock(sk);
-				return -EINVAL;
-			}
-			goto do_append_data;
-		}
-		release_sock(sk);
-	}
-	ulen += sizeof(struct dcacp_data_hdr);
-
-	/*
-	 *	Get and verify the address.
-	 */
-	if (usin) {
-		if (msg->msg_namelen < sizeof(*usin))
-			return -EINVAL;
-		if (usin->sin_family != AF_INET) {
-			if (usin->sin_family != AF_UNSPEC)
-				return -EAFNOSUPPORT;
-		}
-
-		daddr = usin->sin_addr.s_addr;
-		dport = usin->sin_port;
-		if (dport == 0)
-			return -EINVAL;
-	} else {
-		if (sk->sk_state != TCP_ESTABLISHED)
-			return -EDESTADDRREQ;
-		daddr = inet->inet_daddr;
-		dport = inet->inet_dport;
-		/* Open fast path for connected socket.
-		   Route will not be used, if at least one option is set.
-		 */
-		connected = 1;
-	}
-
-	ipcm_init_sk(&ipc, inet);
-	ipc.gso_size = up->gso_size;
-
-	if (msg->msg_controllen) {
-		err = dcacp_cmsg_send(sk, msg, &ipc.gso_size);
-		if (err > 0)
-			err = ip_cmsg_send(sk, msg, &ipc,
-					   sk->sk_family == AF_INET6);
-		if (unlikely(err < 0)) {
-			kfree(ipc.opt);
-			return err;
-		}
-		if (ipc.opt)
-			free = 1;
-		connected = 0;
-	}
-	if (!ipc.opt) {
-		struct ip_options_rcu *inet_opt;
-
-		rcu_read_lock();
-		inet_opt = rcu_dereference(inet->inet_opt);
-		if (inet_opt) {
-			memcpy(&opt_copy, inet_opt,
-			       sizeof(*inet_opt) + inet_opt->opt.optlen);
-			ipc.opt = &opt_copy.opt;
-		}
-		rcu_read_unlock();
-	}
-
-	if (cgroup_bpf_enabled && !connected) {
-		// To Do: may need to change in future
-		err = BPF_CGROUP_RUN_PROG_UDP4_SENDMSG_LOCK(sk,
-					    (struct sockaddr *)usin, &ipc.addr);
-		if (err)
-			goto out_free;
-		if (usin) {
-			if (usin->sin_port == 0) {
-				/* BPF program set invalid port. Reject it. */
-				err = -EINVAL;
-				goto out_free;
-			}
-			daddr = usin->sin_addr.s_addr;
-			dport = usin->sin_port;
-		}
-	}
-
-	saddr = ipc.addr;
-	ipc.addr = faddr = daddr;
-
-	if (ipc.opt && ipc.opt->opt.srr) {
-		if (!daddr) {
-			err = -EINVAL;
-			goto out_free;
-		}
-		faddr = ipc.opt->opt.faddr;
-		connected = 0;
-	}
-	tos = get_rttos(&ipc, inet);
-	if (sock_flag(sk, SOCK_LOCALROUTE) ||
-	    (msg->msg_flags & MSG_DONTROUTE) ||
-	    (ipc.opt && ipc.opt->opt.is_strictroute)) {
-		tos |= RTO_ONLINK;
-		connected = 0;
-	}
-
-	if (ipv4_is_multicast(daddr)) {
-		if (!ipc.oif || netif_index_is_l3_master(sock_net(sk), ipc.oif))
-			ipc.oif = inet->mc_index;
-		if (!saddr)
-			saddr = inet->mc_addr;
-		connected = 0;
-	} else if (!ipc.oif) {
-		ipc.oif = inet->uc_index;
-	} else if (ipv4_is_lbcast(daddr) && inet->uc_index) {
-		/* oif is set, packet is to local broadcast and
-		 * and uc_index is set. oif is most likely set
-		 * by sk_bound_dev_if. If uc_index != oif check if the
-		 * oif is an L3 master and uc_index is an L3 slave.
-		 * If so, we want to allow the send using the uc_index.
-		 */
-		if (ipc.oif != inet->uc_index &&
-		    ipc.oif == l3mdev_master_ifindex_by_index(sock_net(sk),
-							      inet->uc_index)) {
-			ipc.oif = inet->uc_index;
-		}
-	}
-
-	if (connected)
-		rt = (struct rtable *)sk_dst_check(sk, 0);
-
-	if (!rt) {
-		struct net *net = sock_net(sk);
-		__u8 flow_flags = inet_sk_flowi_flags(sk);
-
-		fl4 = &fl4_stack;
-
-		flowi4_init_output(fl4, ipc.oif, ipc.sockc.mark, tos,
-				   RT_SCOPE_UNIVERSE, sk->sk_protocol,
-				   flow_flags,
-				   faddr, saddr, dport, inet->inet_sport,
-				   sk->sk_uid);
-
-		security_sk_classify_flow(sk, flowi4_to_flowi(fl4));
-		rt = ip_route_output_flow(net, fl4, sk);
-		if (IS_ERR(rt)) {
-			err = PTR_ERR(rt);
-			rt = NULL;
-			if (err == -ENETUNREACH)
-				IP_INC_STATS(net, IPSTATS_MIB_OUTNOROUTES);
-			goto out;
-		}
-
-		err = -EACCES;
-		if ((rt->rt_flags & RTCF_BROADCAST) &&
-		    !sock_flag(sk, SOCK_BROADCAST))
-			goto out;
-		if (connected)
-			sk_dst_set(sk, dst_clone(&rt->dst));
-	}
-
-	if (msg->msg_flags&MSG_CONFIRM)
-		goto do_confirm;
-back_from_confirm:
-
-	saddr = fl4->saddr;
-	if (!ipc.addr)
-		daddr = ipc.addr = fl4->daddr;
-
-	/* Lockless fast path for the non-corking case. */
-	if (!corkreq) {
-		// struct inet_cork cork;
-
-		// skb = ip_make_skb(sk, fl4, getfrag, msg, ulen,
-		// 		  sizeof(struct dcacp_data_hdr), &ipc, &rt,
-		// 		  &cork, msg->msg_flags);
-		peer =  dcacp_peer_find(&dcacp_peers_table, daddr, inet);
-		skb = dcacp_fill_packets(peer, msg, len);
-		mesg = dcacp_message_out_init(peer, up, skb, 
-		atomic64_fetch_add(1, &up->next_outgoing_id), len, dport);
-		/* transmit the flow sync packet */
-		// printk("try to send notification pkt\n");
-		// printk("saddr:%hu\n", saddr);
-		slot = dcacp_message_out_bucket(up, mesg->id);
-		dcacp_xmit_control(construct_flow_sync_pkt((struct sock*)up, mesg->id, len, 0), peer, (struct sock*)up, mesg->dport); 
-
-		// printk("socket address: %p LINE:%d\n", up,  __LINE__);
-
-		spin_lock_bh(&slot->lock);
-		add_dcacp_message_out(up, mesg);
-		// skb_get(skb);
-
-		spin_unlock_bh(&slot->lock);
-		// err = PTR_ERR(skb);
-		spin_lock_bh(&mesg->lock);
-		dcacp_xmit_data(mesg, true);
-		spin_unlock_bh(&mesg->lock);
-
-		err = 0;
-		// if (!IS_ERR_OR_NULL(skb))
-		// 	err = dcacp_send_skb(skb, fl4, &cork, DATA, mesg);
-		// printk("err:%d\n", err);
-		goto out;
-	}
-
+	int ret;
 	lock_sock(sk);
-	if (unlikely(up->pending)) {
-		/* The socket is already corked while preparing it. */
-		/* ... which is an evident application bug. --ANK */
-		release_sock(sk);
-
-		net_dbg_ratelimited("socket already corked\n");
-		err = -EINVAL;
-		goto out;
-	}
-	/*
-	 *	Now cork the socket to pend data.
-	 */
-	fl4 = &inet->cork.fl.u.ip4;
-	fl4->daddr = daddr;
-	fl4->saddr = saddr;
-	fl4->fl4_dport = dport;
-	fl4->fl4_sport = inet->inet_sport;
-	up->pending = AF_INET;
-
-do_append_data:
-	up->len += ulen;
-	err = ip_append_data(sk, fl4, getfrag, msg, ulen,
-			     sizeof(struct dcacphdr), &ipc, &rt,
-			     corkreq ? msg->msg_flags|MSG_MORE : msg->msg_flags);
-	if (err)
-		dcacp_flush_pending_frames(sk);
-	else if (!corkreq)
-		err = dcacp_push_pending_frames(sk);
-	else if (unlikely(skb_queue_empty(&sk->sk_write_queue)))
-		up->pending = 0;
+	ret = dcacp_sendmsg_locked(sk, msg, len);
 	release_sock(sk);
-
-out:
-	ip_rt_put(rt);
-out_free:
-	if (free)
-		kfree(ipc.opt);
-	if (!err)
-		return len;
-	/*
-	 * ENOBUFS = no kernel mem, SOCK_NOSPACE = no sndbuf space.  Reporting
-	 * ENOBUFS might not be good (it's not tunable per se), but otherwise
-	 * we don't have a good statistic (IpOutDiscards but it can be too many
-	 * things).  We could add another new stat but at least for now that
-	 * seems like overkill.
-	 */
-
-	return err;
-
-do_confirm:
-	if (msg->msg_flags & MSG_PROBE)
-		dst_confirm_neigh(&rt->dst, &fl4->daddr);
-	if (!(msg->msg_flags&MSG_PROBE) || len)
-		goto back_from_confirm;
-	err = 0;
-	goto out;
+	return ret;
 }
 EXPORT_SYMBOL(dcacp_sendmsg);
 
@@ -1597,6 +971,14 @@ int dcacp_init_sock(struct sock *sk)
 	INIT_LIST_HEAD(&dsk->waiting_thread_queue);
 	sk->sk_destruct = dcacp_destruct_sock;
 	dsk->unsolved = 0;
+	WRITE_ONCE(dsk->sender.write_seq, 0);
+	WRITE_ONCE(dsk->sender.snd_nxt, 0);
+	WRITE_ONCE(sk->sk_sndbuf, dcacp_params.wmem_default);
+	WRITE_ONCE(sk->sk_rcvbuf, dcacp_params.rmem_default);
+	kfree_skb(sk->sk_tx_skb_cache);
+	sk->sk_tx_skb_cache = NULL;
+	/* reuse tcp rtx queue*/
+	sk->tcp_rtx_queue = RB_ROOT;
 	return 0;
 }
 EXPORT_SYMBOL_GPL(dcacp_init_sock);
@@ -1963,334 +1345,7 @@ int dcacp_disconnect(struct sock *sk, int flags)
 }
 EXPORT_SYMBOL(dcacp_disconnect);
 
-// void dcacp_lib_unhash(struct sock *sk)
-// {
-// 	if (sk_hashed(sk)) {
-// 		struct udp_table *dcacptable = sk->sk_prot->h.udp_table;
-// 		struct udp_hslot *hslot, *hslot2;
 
-// 		hslot  = udp_hashslot(dcacptable, sock_net(sk),
-// 				      dcacp_sk(sk)->dcacp_port_hash);
-// 		hslot2 = udp_hashslot2(dcacptable, dcacp_sk(sk)->dcacp_portaddr_hash);
-
-// 		spin_lock_bh(&hslot->lock);
-// 		if (rcu_access_pointer(sk->sk_reuseport_cb))
-// 			reuseport_detach_sock(sk);
-// 		if (sk_del_node_init_rcu(sk)) {
-// 			hslot->count--;
-// 			inet_sk(sk)->inet_num = 0;
-// 			sock_prot_inuse_add(sock_net(sk), sk->sk_prot, -1);
-
-// 			spin_lock(&hslot2->lock);
-// 			hlist_del_init_rcu(&dcacp_sk(sk)->dcacp_portaddr_node);
-// 			hslot2->count--;
-// 			spin_unlock(&hslot2->lock);
-// 		}
-// 		spin_unlock_bh(&hslot->lock);
-// 	}
-// }
-// EXPORT_SYMBOL(dcacp_lib_unhash);
-
-// /*
-//  * inet_rcv_saddr was changed, we must rehash secondary hash
-//  */
-// void dcacp_lib_rehash(struct sock *sk, u16 newhash)
-// {
-// 	if (sk_hashed(sk)) {
-// 		struct udp_table *dcacptable = sk->sk_prot->h.udp_table;
-// 		struct udp_hslot *hslot, *hslot2, *nhslot2;
-
-// 		hslot2 = udp_hashslot2(dcacptable, dcacp_sk(sk)->dcacp_portaddr_hash);
-// 		nhslot2 = udp_hashslot2(dcacptable, newhash);
-// 		dcacp_sk(sk)->dcacp_portaddr_hash = newhash;
-
-// 		if (hslot2 != nhslot2 ||
-// 		    rcu_access_pointer(sk->sk_reuseport_cb)) {
-// 			hslot = udp_hashslot(dcacptable, sock_net(sk),
-// 					     dcacp_sk(sk)->dcacp_port_hash);
-// 			/* we must lock primary chain too */
-// 			spin_lock_bh(&hslot->lock);
-// 			if (rcu_access_pointer(sk->sk_reuseport_cb))
-// 				reuseport_detach_sock(sk);
-
-// 			if (hslot2 != nhslot2) {
-// 				spin_lock(&hslot2->lock);
-// 				hlist_del_init_rcu(&dcacp_sk(sk)->dcacp_portaddr_node);
-// 				hslot2->count--;
-// 				spin_unlock(&hslot2->lock);
-
-// 				spin_lock(&nhslot2->lock);
-// 				hlist_add_head_rcu(&dcacp_sk(sk)->dcacp_portaddr_node,
-// 							 &nhslot2->head);
-// 				nhslot2->count++;
-// 				spin_unlock(&nhslot2->lock);
-// 			}
-
-// 			spin_unlock_bh(&hslot->lock);
-// 		}
-// 	}
-// }
-// EXPORT_SYMBOL(dcacp_lib_rehash);
-
-// void dcacp_v4_rehash(struct sock *sk)
-// {
-// 	u16 new_hash = ipv4_portaddr_hash(sock_net(sk),
-// 					  inet_sk(sk)->inet_rcv_saddr,
-// 					  inet_sk(sk)->inet_num);
-// 	dcacp_lib_rehash(sk, new_hash);
-// }
-
-// static int __dcacp_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
-// {
-// 	int rc;
-
-// 	if (inet_sk(sk)->inet_daddr) {
-// 		sock_rps_save_rxhash(sk, skb);
-// 		sk_mark_napi_id(sk, skb);
-// 		sk_incoming_cpu_update(sk);
-// 	} else {
-// 		sk_mark_napi_id_once(sk, skb);
-// 	}
-
-// 	rc = __dcacp_enqueue_schedule_skb(sk, skb);
-// 	if (rc < 0) {
-// 		int is_dcacplite = IS_DCACPLITE(sk);
-
-// 		/* Note that an ENOMEM error is charged twice */
-// 		if (rc == -ENOMEM)
-// 			UDP_INC_STATS(sock_net(sk), UDP_MIB_RCVBUFERRORS,
-// 					is_dcacplite);
-// 		UDP_INC_STATS(sock_net(sk), UDP_MIB_INERRORS, is_dcacplite);
-// 		kfree_skb(skb);
-// 		// trace_udp_fail_queue_rcv_skb(rc, sk);
-// 		return -1;
-// 	}
-
-// 	return 0;
-// }
-
-/* returns:
- *  -1: error
- *   0: success
- *  >0: "dcacp encap" protocol resubmission
- *
- * Note that in the success and error cases, the skb is assumed to
- * have either been requeued or freed.
- */
-// static int dcacp_queue_rcv_one_skb(struct sock *sk, struct sk_buff *skb)
-// {
-// 	struct dcacp_sock *up = dcacp_sk(sk);
-// 	int is_dcacplite = IS_DCACPLITE(sk);
-
-// 	/*
-// 	 *	Charge it to the socket, dropping if the queue is full.
-// 	 */
-// 	if (!xfrm4_policy_check(sk, XFRM_POLICY_IN, skb))
-// 		goto drop;
-// 	nf_reset_ct(skb);
-
-// 	if (static_branch_unlikely(&dcacp_encap_needed_key) && up->encap_type) {
-// 		int (*encap_rcv)(struct sock *sk, struct sk_buff *skb);
-
-// 		/*
-// 		 * This is an encapsulation socket so pass the skb to
-// 		 * the socket's dcacp_encap_rcv() hook. Otherwise, just
-// 		 * fall through and pass this up the DCACP socket.
-// 		 * up->encap_rcv() returns the following value:
-// 		 * =0 if skb was successfully passed to the encap
-// 		 *    handler or was discarded by it.
-// 		 * >0 if skb should be passed on to DCACP.
-// 		 * <0 if skb should be resubmitted as proto -N
-// 		 */
-
-// 		/* if we're overly short, let DCACP handle it */
-// 		encap_rcv = READ_ONCE(up->encap_rcv);
-// 		if (encap_rcv) {
-// 			int ret;
-
-// 			/* Verify checksum before giving to encap */
-// 			// if (dcacp_lib_checksum_complete(skb))
-// 			// 	goto csum_error;
-
-// 			ret = encap_rcv(sk, skb);
-// 			if (ret <= 0) {
-// 				__UDP_INC_STATS(sock_net(sk),
-// 						UDP_MIB_INDATAGRAMS,
-// 						is_dcacplite);
-// 				return -ret;
-// 			}
-// 		}
-
-// 		/* FALLTHROUGH -- it's a DCACP Packet */
-// 	}
-
-// 	/*
-// 	 * 	DCACP-Lite specific tests, ignored on DCACP sockets
-// 	 */
-// 	if ((is_dcacplite & DCACPLITE_RECV_CC)  &&  DCACP_SKB_CB(skb)->partial_cov) {
-
-		
-// 		 * MIB statistics other than incrementing the error count are
-// 		 * disabled for the following two types of errors: these depend
-// 		 * on the application settings, not on the functioning of the
-// 		 * protocol stack as such.
-// 		 *
-// 		 * RFC 3828 here recommends (sec 3.3): "There should also be a
-// 		 * way ... to ... at least let the receiving application block
-// 		 * delivery of packets with coverage values less than a value
-// 		 * provided by the application."
-		 
-// 		if (up->pcrlen == 0) {          /* full coverage was set  */
-// 			net_dbg_ratelimited("DCACPLite: partial coverage %d while full coverage %d requested\n",
-// 					    DCACP_SKB_CB(skb)->cscov, skb->len);
-// 			goto drop;
-// 		}
-// 		/* The next case involves violating the min. coverage requested
-// 		 * by the receiver. This is subtle: if receiver wants x and x is
-// 		 * greater than the buffersize/MTU then receiver will complain
-// 		 * that it wants x while sender emits packets of smaller size y.
-// 		 * Therefore the above ...()->partial_cov statement is essential.
-// 		 */
-// 		if (DCACP_SKB_CB(skb)->cscov  <  up->pcrlen) {
-// 			net_dbg_ratelimited("DCACPLite: coverage %d too small, need min %d\n",
-// 					    DCACP_SKB_CB(skb)->cscov, up->pcrlen);
-// 			goto drop;
-// 		}
-// 	}
-
-// 	prefetch(&sk->sk_rmem_alloc);
-// 	// if (rcu_access_pointer(sk->sk_filter) &&
-// 	//     dcacp_lib_checksum_complete(skb))
-// 	// 		goto csum_error;
-
-// 	if (sk_filter_trim_cap(sk, skb, sizeof(struct dcacphdr)))
-// 		goto drop;
-
-// 	dcacp_csum_pull_header(skb);
-
-// 	ipv4_pktinfo_prepare(sk, skb);
-// 	return __dcacp_queue_rcv_skb(sk, skb);
-
-// // csum_error:
-// // 	__UDP_INC_STATS(sock_net(sk), UDP_MIB_CSUMERRORS, is_dcacplite);
-// drop:
-// 	__UDP_INC_STATS(sock_net(sk), UDP_MIB_INERRORS, is_dcacplite);
-// 	atomic_inc(&sk->sk_drops);
-// 	kfree_skb(skb);
-// 	return -1;
-// }
-
-// static int dcacp_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
-// {
-// 	struct sk_buff *next, *segs;
-// 	int ret;
-
-// 	if (likely(!dcacp_unexpected_gso(sk, skb)))
-// 		return dcacp_queue_rcv_one_skb(sk, skb);
-
-// 	BUILD_BUG_ON(sizeof(struct dcacp_skb_cb) > SKB_SGO_CB_OFFSET);
-// 	__skb_push(skb, -skb_mac_offset(skb));
-// 	segs = dcacp_rcv_segment(sk, skb, true);
-// 	skb_list_walk_safe(segs, skb, next) {
-// 		__skb_pull(skb, skb_transport_offset(skb));
-// 		ret = dcacp_queue_rcv_one_skb(sk, skb);
-// 		if (ret > 0)
-// 			ip_protocol_deliver_rcu(dev_net(skb->dev), skb, -ret);
-// 	}
-// 	return 0;
-// }
-
-/* For TCP sockets, sk_rx_dst is protected by socket lock
- * For DCACP, we use xchg() to guard against concurrent changes.
- */
-// bool dcacp_sk_rx_dst_set(struct sock *sk, struct dst_entry *dst)
-// {
-// 	struct dst_entry *old;
-
-// 	if (dst_hold_safe(dst)) {
-// 		old = xchg(&sk->sk_rx_dst, dst);
-// 		dst_release(old);
-// 		return old != dst;
-// 	}
-// 	return false;
-// }
-// EXPORT_SYMBOL(dcacp_sk_rx_dst_set);
-
-/*
- *	Multicasts and broadcasts go to each listener.
- *
- *	Note: called only from the BH handler context.
- */
-// static int __dcacp4_lib_mcast_deliver(struct net *net, struct sk_buff *skb,
-// 				    struct dcacphdr  *uh,
-// 				    __be32 saddr, __be32 daddr,
-// 				    struct udp_table *dcacptable,
-// 				    int proto)
-// {
-// 	struct sock *sk, *first = NULL;
-// 	unsigned short hnum = ntohs(uh->dest);
-// 	struct udp_hslot *hslot = udp_hashslot(dcacptable, net, hnum);
-// 	unsigned int hash2 = 0, hash2_any = 0, use_hash2 = (hslot->count > 10);
-// 	unsigned int offset = offsetof(typeof(*sk), sk_node);
-// 	int dif = skb->dev->ifindex;
-// 	int sdif = inet_sdif(skb);
-// 	struct hlist_node *node;
-// 	struct sk_buff *nskb;
-
-// 	if (use_hash2) {
-// 		hash2_any = ipv4_portaddr_hash(net, htonl(INADDR_ANY), hnum) &
-// 			    dcacptable->mask;
-// 		hash2 = ipv4_portaddr_hash(net, daddr, hnum) & dcacptable->mask;
-// start_lookup:
-// 		hslot = &dcacptable->hash2[hash2];
-// 		offset = offsetof(typeof(*sk), __sk_common.skc_portaddr_node);
-// 	}
-
-// 	sk_for_each_entry_offset_rcu(sk, node, &hslot->head, offset) {
-// 		if (!__dcacp_is_mcast_sock(net, sk, uh->dest, daddr,
-// 					 uh->source, saddr, dif, sdif, hnum))
-// 			continue;
-
-// 		if (!first) {
-// 			first = sk;
-// 			continue;
-// 		}
-// 		nskb = skb_clone(skb, GFP_ATOMIC);
-
-// 		if (unlikely(!nskb)) {
-// 			atomic_inc(&sk->sk_drops);
-// 			__UDP_INC_STATS(net, UDP_MIB_RCVBUFERRORS,
-// 					IS_DCACPLITE(sk));
-// 			__UDP_INC_STATS(net, UDP_MIB_INERRORS,
-// 					IS_DCACPLITE(sk));
-// 			continue;
-// 		}
-// 		if (dcacp_queue_rcv_skb(sk, nskb) > 0)
-// 			consume_skb(nskb);
-// 	}
-
-// 	/* Also lookup *:port if we are using hash2 and haven't done so yet. */
-// 	if (use_hash2 && hash2 != hash2_any) {
-// 		hash2 = hash2_any;
-// 		goto start_lookup;
-// 	}
-
-// 	if (first) {
-// 		if (dcacp_queue_rcv_skb(first, skb) > 0)
-// 			consume_skb(skb);
-// 	} else {
-// 		kfree_skb(skb);
-// 		__UDP_INC_STATS(net, UDP_MIB_IGNOREDMULTI,
-// 				proto == IPPROTO_DCACPLITE);
-// 	}
-// 	return 0;
-// }
-
-/* Initialize DCACP checksum. If exited with zero value (success),
- * CHECKSUM_UNNECESSARY means, that no more checks are required.
- * Otherwise, csum completion requires checksumming packet body,
- * including DCACP header and folding it to skb->csum.
- */
 static inline int dcacp4_csum_init(struct sk_buff *skb, struct dcacphdr *uh,
 				 int proto)
 {
@@ -2642,7 +1697,8 @@ void dcacp_destroy_sock(struct sock *sk)
 	struct dcacp_sock *up = dcacp_sk(sk);
 	bool slow = lock_sock_fast(sk);
 	dcacp_set_state(sk, TCP_CLOSE);
-	dcacp_flush_pending_frames(sk);
+	// dcacp_flush_pending_frames(sk);
+	dcacp_write_queue_purge(sk);
 	unlock_sock_fast(sk, slow);
 	if (static_branch_unlikely(&dcacp_encap_needed_key)) {
 		if (up->encap_type) {
@@ -3229,57 +2285,7 @@ void __init dcacp_init(void)
 	printk("DCACP init complete\n");
 
 }
-// void dcacp_table_destroy(struct udp_table *table) {
-// 	struct sock *sk;
-// 	struct hlist_node *tmp;
-// 	int i = 0;
-// 	for (i = 0; i <= table->mask; i++) {
-// 		spin_lock(&table->hash[i].lock);
-// 		sk_for_each_safe(sk, tmp, &table->hash[i].head) {
-// 			struct udp_hslot *hslot2;
-// 			printk("destruct socket here: 1\n");
 
-// 			hslot2 = udp_hashslot2(table, dcacp_sk(sk)->dcacp_portaddr_hash);
-// 			if (rcu_access_pointer(sk->sk_reuseport_cb))
-// 				reuseport_detach_sock(sk);
-// 			if (sk_del_node_init_rcu(sk)) {
-// 				table->hash[i].count--;
-// 				inet_sk(sk)->inet_num = 0;
-// 				sock_prot_inuse_add(sock_net(sk), sk->sk_prot, -1);
-
-// 				spin_lock(&hslot2->lock);
-// 				hlist_del_init_rcu(&dcacp_sk(sk)->dcacp_portaddr_node);
-// 				hslot2->count--;
-// 				spin_unlock(&hslot2->lock);
-// 			}
-// 			// need to consult Jaehyun what is the right way to clean socket
-// 			dcacp_destroy_sock(sk);
-// 			dcacp_destruct_sock(sk);
-// 			kfree(sk);
-// 		}
-// 		spin_unlock(&table->hash[i].lock);
-// 	}
-// 	for (i = 0; i <= table->mask; i++) {
-// 		spin_lock(&table->hash2[i].lock);
-// 		sk_for_each_safe(sk, tmp, &table->hash[i].head) {
-// 			printk("destruct socket here: 2\n");
-// 			if (rcu_access_pointer(sk->sk_reuseport_cb))
-// 				reuseport_detach_sock(sk);
-// 			inet_sk(sk)->inet_num = 0;
-// 			sock_prot_inuse_add(sock_net(sk), sk->sk_prot, -1);
-// 			hlist_del_init_rcu(&dcacp_sk(sk)->dcacp_portaddr_node);
-// 			table->hash2[i].count--;
-
-// 			dcacp_destroy_sock(sk);
-// 			dcacp_destruct_sock(sk);
-// 			kfree(sk);
-// 		}
-// 		spin_unlock(&table->hash2[i].lock);
-// 	}
-// 	vfree(table->hash);
-
-// 	// vfree(table->hash2);
-// }
 void dcacp_destroy() {
 	printk("try to destroy peer table\n");
 	dcacp_peertab_destroy(&dcacp_peers_table);

@@ -98,8 +98,8 @@ struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id,
 	dh = (struct dcacphdr*) (&fh->common);
 	dh->len = htons(sizeof(struct dcacp_flow_sync_hdr));
 	dh->type = NOTIFICATION;
-	fh->message_id = message_id;
-	fh->message_size = message_size;
+	fh->flow_id = message_id;
+	fh->flow_size = message_size;
 	fh->start_time = start_time;
 	// extra_bytes = DCACP_HEADER_MAX_SIZE - length;
 	// if (extra_bytes > 0)
@@ -315,44 +315,64 @@ int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct sock
  *             is too long. False means that zero packets may be sent, if
  *             the NIC queue is sufficiently long.
  */
-void dcacp_xmit_data(struct dcacp_message_out* msg, bool force)
+void dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool force)
 {
-	while (msg->next_packet) {
-		// int priority = TOS_1;
-		struct sk_buff *skb = msg->next_packet;
-		// struct dcacp_sock* dsk = msg->dsk;
-		// int offset = homa_data_offset(skb);
+	struct sock* sk = (struct sock*)(dsk);
+	struct sk_buff* oskb;
+	oskb = skb;
+	if (unlikely(skb_cloned(oskb)))
+		skb = pskb_copy(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
+	else
+		skb = skb_clone(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
+	__dcacp_xmit_data(skb, dsk);
+	/* change the state of queue and metadata*/
+
+	dcacp_unlink_write_queue(oskb, sk);
+	dcacp_rbtree_insert(&sk->tcp_rtx_queue, oskb);
+	WRITE_ONCE(dsk->sender.snd_nxt, DCACP_SKB_CB(oskb)->end_seq);
+	// sk_wmem_queued_add(sk, -skb->truesize);
+
+	// if (!skb_queue_empty(&sk->sk_write_queue)) {
+	// 	struct sk_buff *skb = dcacp_send_head(sk);
+	// 	WRITE_ONCE(dsk->sender.snd_nxt, DCACP_SKB_CB(skb)->end_seq);
+	// 	__dcacp_xmit_data(skb, dsk);
+	// }
+	// while (msg->next_packet) {
+	// 	// int priority = TOS_1;
+	// 	struct sk_buff *skb = msg->next_packet;
+	// 	// struct dcacp_sock* dsk = msg->dsk;
+	// 	// int offset = homa_data_offset(skb);
 		
-		// if (homa == NULL) {
-		// 	printk(KERN_NOTICE "NULL homa pointer in homa_xmit_"
-		// 		"data, state %d, shutdown %d, id %llu, socket %d",
-		// 		rpc->state, rpc->hsk->shutdown, rpc->id,
-		// 		rpc->hsk->client_port);
-		// 	BUG();
-		// }
+	// 	// if (homa == NULL) {
+	// 	// 	printk(KERN_NOTICE "NULL homa pointer in homa_xmit_"
+	// 	// 		"data, state %d, shutdown %d, id %llu, socket %d",
+	// 	// 		rpc->state, rpc->hsk->shutdown, rpc->id,
+	// 	// 		rpc->hsk->client_port);
+	// 	// 	BUG();
+	// 	// }
 		
-		// if (offset >= rpc->msgout.granted)
-		// 	break;
+	// 	// if (offset >= rpc->msgout.granted)
+	// 	// 	break;
 		
-		// if ((rpc->msgout.length - offset) >= homa->throttle_min_bytes) {
-		// 	if (!homa_check_nic_queue(homa, skb, force)) {
-		// 		homa_add_to_throttled(rpc);
-		// 		break;
-		// 	}
-		// }
+	// 	// if ((rpc->msgout.length - offset) >= homa->throttle_min_bytes) {
+	// 	// 	if (!homa_check_nic_queue(homa, skb, force)) {
+	// 	// 		homa_add_to_throttled(rpc);
+	// 	// 		break;
+	// 	// 	}
+	// 	// }
 		
-		// if (offset < rpc->msgout.unscheduled) {
-		// 	priority = homa_unsched_priority(homa, rpc->peer,
-		// 			rpc->msgout.length);
-		// } else {
-		// 	priority = rpc->msgout.sched_priority;
-		// }
-		msg->next_packet = *dcacp_next_skb(skb);
+	// 	// if (offset < rpc->msgout.unscheduled) {
+	// 	// 	priority = homa_unsched_priority(homa, rpc->peer,
+	// 	// 			rpc->msgout.length);
+	// 	// } else {
+	// 	// 	priority = rpc->msgout.sched_priority;
+	// 	// }
+	// 	msg->next_packet = *dcacp_next_skb(skb);
 		
-		skb_get(skb);
-		__dcacp_xmit_data(skb, msg->peer, msg->dsk, msg->dport);
-		force = false;
-	}
+	// 	skb_get(skb);
+	// 	__dcacp_xmit_data(skb, dsk);
+	// 	force = false;
+	// }
 }
 
 /**
@@ -363,13 +383,15 @@ void dcacp_xmit_data(struct dcacp_message_out* msg, bool force)
  * @rpc:      Information about the RPC that the packet belongs to.
  * @priority: Priority level at which to transmit the packet.
  */
-void __dcacp_xmit_data(struct sk_buff *skb,  struct dcacp_peer* peer, struct dcacp_sock* dsk, int dport)
+void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk)
 {
 	int err;
 	// struct dcacp_data_hder *h = (struct dcacp_data_hder *)
 	// 		skb_transport_header(skb);
 	struct sock* sk = (struct sock*)dsk;
 	struct inet_sock *inet = inet_sk(sk);
+	struct dcacp_data_hdr *h = (struct dcacp_data_hdr *)
+				skb_transport_header(skb);
 	// struct dcacphdr* dh;
 
 	// dh = dcacp_hdr(skb);
@@ -386,13 +408,21 @@ void __dcacp_xmit_data(struct sk_buff *skb,  struct dcacp_peer* peer, struct dca
 	 * message was initially created.
 	 */
 	
-	dst_hold(peer->dst);
-	skb_dst_set(skb, peer->dst);
+	// dst_hold(peer->dst);
+	// skb_dst_set(skb, peer->dst);
+	skb->sk = sk;
+	skb_dst_set(skb, __sk_dst_get(sk));
 	skb->ip_summed = CHECKSUM_PARTIAL;
 	skb->csum_start = skb_transport_header(skb) - skb->head;
 	skb->csum_offset = offsetof(struct dcacphdr, check);
+	h->common.source = inet->inet_sport;
+	h->common.dest = inet->inet_dport;
+	printk("source port:%d\n", inet->inet_sport);
+	printk("dst port:%d\n", inet->inet_dport);
+	dcacp_set_doff(h);
 
-	err = ip_queue_xmit((struct sock *) dsk, skb, &peer->flow);
+	// h->common.seq = htonl(200);
+	err = ip_queue_xmit(sk, skb, &inet->cork.fl);
 //	tt_record4("Finished queueing packet: rpc id %llu, offset %d, len %d, "
 //			"next_offset %d",
 //			h->common.id, ntohl(h->seg.offset), skb->len,

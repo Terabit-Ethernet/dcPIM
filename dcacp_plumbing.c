@@ -143,6 +143,27 @@ static struct ctl_table dcacp_ctl_table[] = {
                 .mode           = 0644,
                 .proc_handler   = dcacp_dointvec
         },
+        {
+                .procname       = "rmem_default",
+                .data           = &dcacp_params.rmem_default,
+                .maxlen         = sizeof(int),
+                .mode           = 0644,
+                .proc_handler   = dcacp_dointvec
+        },
+        {
+                .procname       = "wmem_default",
+                .data           = &dcacp_params.wmem_default,
+                .maxlen         = sizeof(int),
+                .mode           = 0644,
+                .proc_handler   = dcacp_dointvec
+        },
+        {
+                .procname       = "short_flow_size",
+                .data           = &dcacp_params.short_flow_size,
+                .maxlen         = sizeof(int),
+                .mode           = 0644,
+                .proc_handler   = dcacp_dointvec
+        },
         {}
 };
 
@@ -174,16 +195,21 @@ static struct ctl_table_header *dcacp_ctl_header;
 void dcacp_params_init(struct dcacp_params* params) {
     params->clean_match_sock = 0;
     params->match_socket_port = 3000;
-    params->bandwidth = 10000000000;
-    params->control_pkt_rtt = 1.856;
-    params->rtt = 11.2;
+    params->bandwidth = 10;
+    params->control_pkt_rtt = 2;
+    params->rtt = 11;
+    params->bdp  = params->rtt * params->bandwidth / 8 * 1000;
+    printk("params.bdp:%d\n", params->bdp);
     // matchiing parameters
-    params->alpha = 1.5;
+    params->alpha = 2;
     params->beta = 5;
     params->min_iter = 1;
     params->num_iters = 5;
     params->iter_size = params->beta * params->control_pkt_rtt * 1000;
     params->epoch_size = params->num_iters * params->iter_size * params->alpha;
+    params->rmem_default = 131072;
+    params->wmem_default = 131072;
+    params->short_flow_size = params->bdp;
     printk("epoch size:%d\n",dcacp_params.epoch_size );
     printk("dcacp iter:%d\n", dcacp_params.iter_size);
 }

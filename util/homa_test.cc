@@ -884,12 +884,18 @@ void test_dcacpping(int fd, struct sockaddr *dest, char* buffer)
 		exit(1);
 	}
 	    // for (int i = 0; i < count * 100; i++) {
-	  //   	int result = sendto(fd, buffer, 64000, MSG_CONFIRM, dest, sizeof(struct sockaddr_in));			
-			// if( result < 0 ) {
-			// 	printf("Socket write failed: %s %d\n", strerror(errno), result);
+	    	int result = write(fd, buffer, 10000);			
+			if( result < 0 ) {
+				printf("Socket write failed: %s %d\n", strerror(errno), result);
 
-			// 	return;
-			// }
+				return;
+			}
+		    result = write(fd, buffer, 10000);			
+			if( result < 0 ) {
+				printf("Socket write failed: %s %d\n", strerror(errno), result);
+
+				return;
+			}
 			// bytes_sent += result;
 
 	    // }

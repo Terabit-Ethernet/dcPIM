@@ -67,7 +67,7 @@ struct dcacp_message_in* dcacp_message_in_init(struct dcacp_peer *peer,
 	struct dcacp_sock *sock, __u64 message_id, int message_size, int sport);
 void dcacp_message_in_finish(struct dcacp_message_in *msg);
 void dcacp_message_in_destroy(struct dcacp_message_in *msg);
-struct sk_buff *dcacp_fill_packets(struct dcacp_peer *peer,
+int dcacp_fill_packets(struct sock *sk,
 		struct msghdr *msg, size_t len);
 
 /*DCACP message out definition */
@@ -103,8 +103,8 @@ struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoc
 struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool prompt);
 struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short iter, int epoch);
 int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct sock *dcacp_sk, int dport);
-void dcacp_xmit_data(struct dcacp_message_out* msg, bool force);
-void __dcacp_xmit_data(struct sk_buff *skb,  struct dcacp_peer* peer, struct dcacp_sock* sock, int dport);
+void dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool force);
+void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk);
 
 int __dcacp4_lib_rcv(struct sk_buff *, struct udp_table *, int);
 int __dcacp4_lib_err(struct sk_buff *, u32, struct udp_table *);

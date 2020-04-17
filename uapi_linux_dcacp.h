@@ -55,7 +55,7 @@ struct dcacphdr {
 	 * must not be used by DCACP, in case it gets incremented during TCP
 	 * offload.
 	 */
-	__be32 unused1;
+	__be32 seq;
 	
 	__be32 unused2;
 
@@ -147,8 +147,8 @@ struct dcacp_token_hdr {
 
 struct dcacp_flow_sync_hdr {
 	struct dcacphdr common;
-	__be32 message_id;
-	__be32 message_size;
+	__be64 flow_id;
+	__be64 flow_size;
 	__be64 start_time;
 };
 // _Static_assert(sizeof(struct dcacp_flow_sync_hdr) <= DCACP_HEADER_MAX_SIZE,

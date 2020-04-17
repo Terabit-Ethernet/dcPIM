@@ -33,7 +33,9 @@ struct dcacp_sock;
 
 enum {
 	/* The initial state is TCP_CLOSE */
-	DCACP_ESTABLISHED = 1,
+	/* Sender and receiver state are easier to debug.*/
+	DCACP_SENDER = 1,
+	DCACP_RECEIVER = 2,
 	DCACP_LISTEN,
 	/* use TCP_CLOSE because of inet_bind use TCP_CLOSE to
 	 check whether the port should be assigned TCP CLOSE = 7;*/ 
@@ -42,7 +44,8 @@ enum {
 
 enum {
 	// DCACPF_NEW = (1 << DCACP_NEW),
-	DCACPF_ESTABLISHED = (1 << DCACP_ESTABLISHED),
+	DCACPF_SENDER = (1 << DCACP_SENDER),
+	DCACPF_RECEIVER = (1 << DCACP_RECEIVER),
 	DCACPF_LISTEN	 = (1 << DCACP_LISTEN),
 };
 
@@ -50,17 +53,21 @@ struct dcacp_params {
 	int clean_match_sock;
 	int min_iter;
 	int match_socket_port;
-	double bandwidth;
+	int bandwidth;
 	// in microsecond
-	double rtt;
-	double control_pkt_rtt;
+	int rtt;
+	int control_pkt_rtt;
+	int bdp;
+	int short_flow_size;
 	// matching related parameters
-	double alpha;
-	double beta;
+	int alpha;
+	int beta;
 	int num_iters;
 	int epoch_size;
 	int iter_size;
 
+	int rmem_default;
+	int wmem_default;
 
 };
 
@@ -399,7 +406,8 @@ static inline struct dcacp_accept_hdr *dcacp_accept_hdr(const struct sk_buff *sk
 static inline void dcacp_set_doff(struct dcacp_data_hdr *h)
 {
         h->common.doff = (sizeof(struct dcacp_data_hdr)
-                        - sizeof(struct data_segment)) >> 2;
+                        - sizeof(struct data_segment)) << 2;
+        printk("h->common.doff:%d\n", h->common.doff);
 }
 
 static inline unsigned int __dcacp_hdrlen(const struct dcacphdr *dh)
@@ -479,6 +487,67 @@ struct dcacp_sock {
 
 	/* This field is dirtied by dcacp_recvmsg() */
 	int		forward_deficit;
+
+	/**
+	 * size of flow in bytes
+	 */
+    uint64_t total_length;
+	
+	/**
+	 * flow id
+	 */
+    uint64_t flow_id;
+    /* sender */
+    struct dcacp_sender {
+	    /* forward sequence */
+	    uint32_t write_seq;
+	    /* forward sequence */
+	    uint32_t snd_nxt;
+	    // uint32_t total_bytes_sent;
+	    // uint32_t bytes_from_user;
+	    int remaining_pkts_at_sender;
+
+		/* DCACP metric */
+	    uint64_t first_byte_send_time;
+
+	    uint64_t start_time;
+	    uint64_t finish_time;
+	    double latest_data_pkt_sent_time;
+    } sender;
+    struct dcacp_receiver {
+		/**
+		 * size of message in bytes
+		 */
+		bool is_ready;
+	    bool flow_sync_received;
+	 	bool finished_at_receiver;
+	    uint32_t received_bytes;
+	    uint32_t received_count;
+	    uint32_t recv_till;
+	    /* current received bytes + 1*/
+	    uint32_t rcv_nxt;
+	    // uint32_t max_seq_no_recv;
+		/** @priority: Priority level to include in future GRANTS. */
+		int priority;
+	    int last_token_data_seq_sent;
+
+	    int token_count;
+	    int token_goal;
+	    int largest_token_seq_received;
+	    int largest_token_data_seq_received;
+		/* DCACP metric */
+	    uint64_t latest_token_sent_time;
+	    double first_byte_receive_time;
+
+		// struct list_head ready_link;
+
+		// link for DCACP matching table
+		struct list_head match_link;
+    } receiver;
+
+
+
+
 
 	/* DCACP message hash table */
 	struct message_hslot* mesg_in_table;

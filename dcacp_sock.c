@@ -19,7 +19,7 @@
 #include <net/route.h>
 #include <net/tcp_states.h>
 #include <net/xfrm.h>
-#include <net/tcp.h>
+// #include <net/tcp.h>
 #include <net/sock_reuseport.h>
 #include <net/addrconf.h>
 
@@ -113,11 +113,12 @@ void inet_sk_state_store(struct sock *sk, int newstate)
 void dcacp_set_state(struct sock* sk, int state) {
 	
 	switch (state) {
-	case DCACP_ESTABLISHED:
+	case DCACP_RECEIVER:
 		// if (oldstate != DCACP_ESTABLISHED)
 			// TCP_INC_STATS(sock_net(sk), TCP_MIB_CURRESTAB);
 		break;
-
+	case DCACP_SENDER:
+		break;
 	case TCP_CLOSE:
 		// if (oldstate == TCP_CLOSE_WAIT || oldstate == TCP_ESTABLISHED)
 		// 	TCP_INC_STATS(sock_net(sk), TCP_MIB_ESTABRESETS);
@@ -450,6 +451,7 @@ int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
       (uint32_t)usin->sin_zero[2] << 8  |
       (uint32_t)usin->sin_zero[3];	
     printk("flow len:%u\n", flow_len);
+    WARN_ON(sk->sk_state != TCP_CLOSE);
     if (addr_len < sizeof(struct sockaddr_in))
 		return -EINVAL;
 
@@ -515,7 +517,7 @@ int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	 * lock select source port, enter ourselves into the hash tables and
 	 * complete initialization after this.
 	 */
-	dcacp_set_state(sk, DCACP_ESTABLISHED);
+	dcacp_set_state(sk, DCACP_SENDER);
 	// source port is decided by bind; if not, set in hash_connect
 	err = dcacp_hash_connect(sk);
 	if (err)
@@ -558,11 +560,11 @@ int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	// err = tcp_connect(sk);
 
 	// send notification pkt
-	if(!dsk->peer)
-		dsk->peer = dcacp_peer_find(&dcacp_peers_table, daddr, inet);
+	// if(!dsk->peer)
+	// 	dsk->peer = dcacp_peer_find(&dcacp_peers_table, daddr, inet);
 
 	dcacp_xmit_control(construct_flow_sync_pkt(sk, 0, flow_len, 0), dsk->peer, sk, inet->inet_dport); 
-
+	dsk->total_length = flow_len;
 
 	if (err)
 		goto failure;
@@ -912,7 +914,6 @@ struct sock *dcacp_sk_clone_lock(const struct sock *sk,
 	if (newsk) {
 		struct dcacp_sock *dsk = dcacp_sk(newsk);
 
-		inet_sk_set_state(newsk, DCACP_ESTABLISHED);
 		dsk->icsk_bind_hash = NULL;
 
 		inet_sk(newsk)->inet_dport = inet_rsk(req)->ir_rmt_port;
@@ -995,6 +996,16 @@ no_route:
 }
 EXPORT_SYMBOL_GPL(dcacp_sk_route_child_sock);
 
+void inet_sk_rx_dst_set(struct sock *sk, const struct sk_buff *skb)
+{
+	struct dst_entry *dst = skb_dst(skb);
+
+	if (dst && dst_hold_safe(dst)) {
+		sk->sk_rx_dst = dst;
+		inet_sk(sk)->rx_dst_ifindex = skb->skb_iif;
+	}
+}
+
 /*
  * Receive flow sync pkt: create new socket and push this to the accept queue
  */
@@ -1006,9 +1017,9 @@ struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
 	struct inet_sock *newinet;
 	struct dcacp_sock *newdp;
 	struct sock *newsk;
-
+	struct dcacp_sock *dsk;
 	struct ip_options_rcu *inet_opt;
-
+	struct dcacp_flow_sync_hdr *fhdr = dcacp_flow_sync_hdr(skb);
 	if (sk_acceptq_is_full(sk))
 		goto exit_overflow;
 
@@ -1037,6 +1048,10 @@ struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
 	inet_opt	      = rcu_dereference(ireq->ireq_opt);
 	RCU_INIT_POINTER(newinet->inet_opt, inet_opt);
 
+	/* set up flow ID and flow size */
+	dsk = dcacp_sk(newsk);
+	dsk->flow_id = fhdr->flow_id;
+	dsk->total_length = fhdr->flow_size;
 	/* set up max gso segment */
 	sk_setup_caps(newsk, dst);
 
@@ -1048,7 +1063,7 @@ struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
     newsk = dcacp_sk_reqsk_queue_add(sk, req, newsk);
     if(newsk) {
 		/* Unlike TCP, req_sock will not be inserted in the ehash table initially.*/
-	    dcacp_set_state(newsk, DCACP_ESTABLISHED);
+	    dcacp_set_state(newsk, DCACP_RECEIVER);
 		dcacp_ehash_nolisten(newsk, NULL);
     	sock_rps_save_rxhash(newsk, skb);
     } 

@@ -47,6 +47,9 @@
  *	@partial_cov: if set indicates partial csum coverage
  */
 struct dcacp_skb_cb {
+	__u32 seq; /* Starting sequence number	*/
+	__u32		end_seq;	/* SEQ + datalen	*/
+
 	union {
 		struct inet_skb_parm	h4;
 #if IS_ENABLED(CONFIG_IPV6)
@@ -112,6 +115,128 @@ static inline void dcacp_free_skbs(struct sk_buff *head)
 // 	unsigned int		mask;
 // 	unsigned int		log;
 // };
+
+static inline bool inet_exact_dif_match(struct net *net, struct sk_buff *skb)
+{
+#if IS_ENABLED(CONFIG_NET_L3_MASTER_DEV)
+	if (!net->ipv4.sysctl_tcp_l3mdev_accept &&
+	    skb && ipv4_l3mdev_skb(IPCB(skb)->flags))
+		return true;
+#endif
+	return false;
+}
+/* DCACP write queue and rtx queue management. Copied from TCP */
+void dcacp_rbtree_insert(struct rb_root *root, struct sk_buff *skb);
+
+static inline struct sk_buff *dcacp_rtx_queue_head(const struct sock *sk)
+{
+	return skb_rb_first(&sk->tcp_rtx_queue);
+}
+
+static inline struct sk_buff *dcacp_rtx_queue_tail(const struct sock *sk)
+{
+	return skb_rb_last(&sk->tcp_rtx_queue);
+}
+
+static inline void dcacp_rtx_queue_unlink(struct sk_buff *skb, struct sock *sk)
+{
+	// tcp_skb_tsorted_anchor_cleanup(skb);
+	rb_erase(&skb->rbnode, &sk->tcp_rtx_queue);
+}
+
+static inline void dcacp_wmem_free_skb(struct sock *sk, struct sk_buff *skb)
+{
+	sock_set_flag(sk, SOCK_QUEUE_SHRUNK);
+	sk_wmem_queued_add(sk, -skb->truesize);
+	sk_mem_uncharge(sk, skb->truesize);
+	__kfree_skb(skb);
+}
+
+static inline void dcacp_rtx_queue_unlink_and_free(struct sk_buff *skb, struct sock *sk)
+{
+	// list_del(&skb->tcp_tsorted_anchor);
+	dcacp_rtx_queue_unlink(skb, sk);
+	dcacp_wmem_free_skb(sk, skb);
+}
+
+/* DCACP compartor */
+static inline bool before(__u32 seq1, __u32 seq2)
+{
+        return (__s32)(seq1-seq2) < 0;
+}
+
+static inline struct sk_buff *dcacp_write_queue_head(const struct sock *sk)
+{
+	return skb_peek(&sk->sk_write_queue);
+}
+
+static inline struct sk_buff *dcacp_write_queue_tail(const struct sock *sk)
+{
+	return skb_peek_tail(&sk->sk_write_queue);
+}
+
+#define dcacp_for_write_queue_from_safe(skb, tmp, sk)			\
+	skb_queue_walk_from_safe(&(sk)->sk_write_queue, skb, tmp)
+
+static inline struct sk_buff *dcacp_send_head(const struct sock *sk)
+{
+	return skb_peek(&sk->sk_write_queue);
+}
+
+static inline bool dcacp_skb_is_last(const struct sock *sk,
+				   const struct sk_buff *skb)
+{
+	return skb_queue_is_last(&sk->sk_write_queue, skb);
+}
+
+/**
+ * tcp_write_queue_empty - test if any payload (or FIN) is available in write queue
+ * @sk: socket
+ *
+ * Since the write queue can have a temporary empty skb in it,
+ * we must not use "return skb_queue_empty(&sk->sk_write_queue)"
+ */
+static inline bool dcacp_write_queue_empty(const struct sock *sk)
+{
+	const struct dcacp_sock *dp = dcacp_sk(sk);
+
+	return dp->sender.write_seq == dp->sender.snd_nxt;
+}
+
+static inline bool dcacp_rtx_queue_empty(const struct sock *sk)
+{
+	return RB_EMPTY_ROOT(&sk->tcp_rtx_queue);
+}
+
+static inline bool dcacp_rtx_and_write_queues_empty(const struct sock *sk)
+{
+	return dcacp_rtx_queue_empty(sk) && dcacp_write_queue_empty(sk);
+}
+
+static inline void dcacp_add_write_queue_tail(struct sock *sk, struct sk_buff *skb)
+{
+	__skb_queue_tail(&sk->sk_write_queue, skb);
+
+	// /* Queue it, remembering where we must start sending. */
+	// if (sk->sk_write_queue.next == skb)
+	// 	tcp_chrono_start(sk, TCP_CHRONO_BUSY);
+}
+
+/* Insert new before skb on the write queue of sk.  */
+static inline void dcacp_insert_write_queue_before(struct sk_buff *new,
+						  struct sk_buff *skb,
+						  struct sock *sk)
+{
+	__skb_queue_before(&sk->sk_write_queue, skb, new);
+}
+
+static inline void dcacp_unlink_write_queue(struct sk_buff *skb, struct sock *sk)
+{
+	// tcp_skb_tsorted_anchor_cleanup(skb);
+	__skb_unlink(skb, &sk->sk_write_queue);
+}
+
+
 
 extern struct udp_table dcacp_table;
 void dcacp_table_init(struct udp_table *, const char *);
@@ -226,14 +351,8 @@ static inline struct dcacphdr *dcacp_gro_dcacphdr(struct sk_buff *skb)
 	return uh;
 }
 
-/* hash routines shared between DCACPv4/6 and DCACP-Litev4/6 */
-static inline int dcacp_lib_hash(struct sock *sk)
-{
-	BUG();
-	return 0;
-}
 
-void dcacp_lib_unhash(struct sock *sk);
+
 // void dcacp_lib_rehash(struct sock *sk, u16 new_hash);
 
 static inline void dcacp_lib_close(struct sock *sk, long timeout)
@@ -242,8 +361,6 @@ static inline void dcacp_lib_close(struct sock *sk, long timeout)
 	sk_common_release(sk);
 }
 
-int dcacp_lib_get_port(struct sock *sk, unsigned short snum,
-		     unsigned int hash2_nulladdr);
 
 // u32 dcacp_flow_hashrnd(void);
 
