@@ -766,6 +766,7 @@ out:
 
 		reqsk_put(req);
 	}
+	printk("get the socket:%p\n", newsk);
 	return newsk;
 out_err:
 	release_sock(sk);

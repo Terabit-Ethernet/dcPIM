@@ -90,6 +90,7 @@ struct proto dcacp_prot = {
     .sendmsg        = dcacp_sendmsg,
     .recvmsg        = dcacp_recvmsg,
     .sendpage       = dcacp_sendpage,
+    .backlog_rcv    = dcacp_data_queue,
     .release_cb     = ip4_datagram_release_cb,
     .hash           = dcacp_hash,
     .unhash         = dcacp_unhash,

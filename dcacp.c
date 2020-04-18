@@ -971,14 +971,18 @@ int dcacp_init_sock(struct sock *sk)
 	INIT_LIST_HEAD(&dsk->waiting_thread_queue);
 	sk->sk_destruct = dcacp_destruct_sock;
 	dsk->unsolved = 0;
+
 	WRITE_ONCE(dsk->sender.write_seq, 0);
 	WRITE_ONCE(dsk->sender.snd_nxt, 0);
+	WRITE_ONCE(dsk->receiver.rcv_nxt, 0);
+	WRITE_ONCE(dsk->receiver.copied_seq, 0);
 	WRITE_ONCE(sk->sk_sndbuf, dcacp_params.wmem_default);
 	WRITE_ONCE(sk->sk_rcvbuf, dcacp_params.rmem_default);
 	kfree_skb(sk->sk_tx_skb_cache);
 	sk->sk_tx_skb_cache = NULL;
 	/* reuse tcp rtx queue*/
 	sk->tcp_rtx_queue = RB_ROOT;
+	dsk->out_of_order_queue = RB_ROOT;
 	return 0;
 }
 EXPORT_SYMBOL_GPL(dcacp_init_sock);
@@ -1163,136 +1167,275 @@ EXPORT_SYMBOL(__skb_recv_dcacp);
  * 	return it, otherwise we block.
  */
 
-int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int noblock,
+int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 		int flags, int *addr_len)
 {
-	// struct inet_sock *inet = inet_sk(sk);
-	struct dcacp_message_in* mesg;
-	// struct message_hslot *slot;
-	DECLARE_SOCKADDR(struct sockaddr_in *, sin, msg->msg_name);
-	struct sk_buff *skb;
+
+	struct dcacp_sock *dsk = dcacp_sk(sk);
+	int copied = 0;
+	// u32 peek_seq;
+	u32 *seq;
+	unsigned long used;
 	int err;
-	// unsigned int ulen, copied;
-	// int off, peeking = flags & MSG_PEEK;
-	// bool checksum_valid = false;
+	// int inq;
+	int target;		/* Read at least this many bytes */
+	long timeo;
+	struct sk_buff *skb, *last, *tmp;
+	// u32 urg_hole = 0;
+	// struct scm_timestamping_internal tss;
+	// int cmsg_flags;
 
-	if (flags & MSG_ERRQUEUE) {
-		printk("ip recv error\n");
-		return ip_recv_error(sk, msg, len, addr_len);
-	}
+	// if (unlikely(flags & MSG_ERRQUEUE))
+	// 	return inet_recv_error(sk, msg, len, addr_len);
+	printk("start recvmsg \n");
+	target = sock_rcvlowat(sk, flags & MSG_WAITALL, len);
+	printk("target bytes:%d\n", target);
 
-// try_again:
-	// TO DO: may have synchronization issue here
-	mesg = dcacp_wait_for_message(dcacp_sk(sk), flags, &err);
-	if(!mesg) {
-		return err;
-	}
-	spin_lock_bh(&mesg->lock);
-	dcacp_xmit_control(construct_ack_pkt((struct sock*)mesg->dsk, mesg->id), mesg->peer, (struct sock*)mesg->dsk, mesg->dport);
-	spin_unlock_bh(&mesg->lock);
+	if (sk_can_busy_loop(sk) && skb_queue_empty_lockless(&sk->sk_receive_queue) &&
+	    (sk->sk_state == DCACP_RECEIVER))
+		sk_busy_loop(sk, nonblock);
 
-	err = dcacp_message_in_copy_data(mesg, &msg->msg_iter, len);
-	skb = skb_peek(&mesg->packets);
+	lock_sock(sk);
 
-	// off = sk_peek_offset(sk, flags);
-	// skb = __skb_recv_dcacp(sk, flags, noblock, &off, &err);
-	// if (!skb)
-		// return err;
+	err = -ENOTCONN;
+	if (sk->sk_state == DCACP_LISTEN)
+		goto out;
 
-	// ulen = dcacp_skb_len(skb);
-	// copied = len;
-	// if (copied > ulen - off)
-	// 	copied = ulen - off;
-	// else if (copied < ulen)
-	// 	msg->msg_flags |= MSG_TRUNC;
+	// cmsg_flags = tp->recvmsg_inq ? 1 : 0;
+	timeo = sock_rcvtimeo(sk, nonblock);
 
-	// /*
-	//  * If checksum is needed at all, try to do it while copying the
-	//  * data.  If the data is truncated, or if we only want a partial
-	//  * coverage checksum (DCACP-Lite), do it before the copy.
-	//  */
+	/* Urgent data needs to be handled specially. */
+	// if (flags & MSG_OOB)
+	// 	goto recv_urg;
 
-	// if (copied < ulen || peeking ||
-	//     (is_dcacplite && DCACP_SKB_CB(skb)->partial_cov)) {
-	// 	checksum_valid =dcacp_skb_csum_unnecessary(skb) ||
-	// 			!__dcacp_lib_checksum_complete(skb);
-	// 	if (!checksum_valid)
-	// 		goto csum_copy_err;
+	// if (unlikely(tp->repair)) {
+	// 	err = -EPERM;
+		// if (!(flags & MSG_PEEK))
+		// 	goto out;
+
+		// if (tp->repair_queue == TCP_SEND_QUEUE)
+		// 	goto recv_sndq;
+
+		// err = -EINVAL;
+		// if (tp->repair_queue == TCP_NO_QUEUE)
+		// 	goto out;
+
+		/* 'common' recv queue MSG_PEEK-ing */
+//	}
+
+	seq = &dsk->receiver.copied_seq;
+	// if (flags & MSG_PEEK) {
+	// 	peek_seq = dsk->receiver.copied_seq;
+	// 	seq = &peek_seq;
 	// }
 
-	// if (checksum_valid || dcacp_skb_csum_unnecessary(skb)) {
-	// 	if (dcacp_skb_is_linear(skb))
-	// 		err = copy_linear_skb(skb, copied, off, &msg->msg_iter);
-	// 	else
-	// 		err = skb_copy_datagram_msg(skb, off, msg, copied);
-	// } else {
-	// 	err = skb_copy_and_csum_datagram_msg(skb, off, msg);
+	do {
+		u32 offset;
 
-	// 	if (err == -EINVAL)
-	// 		goto csum_copy_err;
-	// }
+		/* Are we at urgent data? Stop if we have read anything or have SIGURG pending. */
+		// if (tp->urg_data && tp->urg_seq == *seq) {
+		// 	if (copied)
+		// 		break;
+		// 	if (signal_pending(current)) {
+		// 		copied = timeo ? sock_intr_errno(timeo) : -EAGAIN;
+		// 		break;
+		// 	}
+		// }
 
-	// if (unlikely(err)) {
-	// 	if (!peeking) {
-	// 		atomic_inc(&sk->sk_drops);
-	// 		UDP_INC_STATS(sock_net(sk),
-	// 			      UDP_MIB_INERRORS, is_dcacplite);
+		/* Next get a buffer. */
+
+		last = skb_peek_tail(&sk->sk_receive_queue);
+		skb_queue_walk_safe(&sk->sk_receive_queue, skb, tmp) {
+			last = skb;
+			/* Now that we have two receive queues this
+			 * shouldn't happen.
+			 */
+			if (WARN(before(*seq, DCACP_SKB_CB(skb)->seq),
+				 "DCACP recvmsg seq # bug: copied %X, seq %X, rcvnxt %X, fl %X\n",
+				 *seq, DCACP_SKB_CB(skb)->seq, dsk->receiver.rcv_nxt,
+				 flags))
+				break;
+
+			offset = *seq - DCACP_SKB_CB(skb)->seq;
+			// if (unlikely(TCP_SKB_CB(skb)->tcp_flags & TCPHDR_SYN)) {
+			// 	pr_err_once("%s: found a SYN, please report !\n", __func__);
+			// 	offset--;
+			// }
+			if (offset < skb->len) {
+				goto found_ok_skb; 
+			}
+			else {
+				kfree_skb(skb);
+				atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+			}
+			// if (TCP_SKB_CB(skb)->tcp_flags & TCPHDR_FIN)
+			// 	goto found_fin_ok;
+			// WARN(!(flags & MSG_PEEK),
+			//      "TCP recvmsg seq # bug 2: copied %X, seq %X, rcvnxt %X, fl %X\n",
+			//      *seq, DCACP_SKB_CB(skb)->seq, dsk->receiver.rcv_nxt, flags);
+		}
+
+		/* Well, if we have backlog, try to process it now yet. */
+
+		if (copied >= target && !READ_ONCE(sk->sk_backlog.tail))
+			break;
+
+		if (copied) {
+			if (sk->sk_err ||
+			    sk->sk_state == TCP_CLOSE ||
+			    (sk->sk_shutdown & RCV_SHUTDOWN) ||
+			    !timeo ||
+			    signal_pending(current))
+				break;
+		} else {
+			if (sock_flag(sk, SOCK_DONE))
+				break;
+
+			if (sk->sk_err) {
+				copied = sock_error(sk);
+				break;
+			}
+
+			if (sk->sk_shutdown & RCV_SHUTDOWN)
+				break;
+
+			if (sk->sk_state == TCP_CLOSE) {
+				/* This occurs when user tries to read
+				 * from never connected socket.
+				 */
+				copied = -ENOTCONN;
+				break;
+			}
+
+			if (!timeo) {
+				copied = -EAGAIN;
+				break;
+			}
+
+			if (signal_pending(current)) {
+				copied = sock_intr_errno(timeo);
+				break;
+			}
+		}
+
+		// tcp_cleanup_rbuf(sk, copied);
+
+		if (copied >= target) {
+			/* Do not sleep, just process backlog. */
+			/* Release sock will handle the backlog */
+			release_sock(sk);
+			lock_sock(sk);
+		} else {
+			sk_wait_data(sk, &timeo, last);
+		}
+
+		// if ((flags & MSG_PEEK) &&
+		//     (peek_seq - copied - urg_hole != tp->copied_seq)) {
+		// 	net_dbg_ratelimited("TCP(%s:%d): Application bug, race in MSG_PEEK\n",
+		// 			    current->comm,
+		// 			    task_pid_nr(current));
+		// 	peek_seq = dsk->receiver.copied_seq;
+		// }
+		continue;
+
+found_ok_skb:
+		/* Ok so how much can we use? */
+		used = skb->len - offset;
+		if (len < used)
+			used = len;
+
+		/* Do we have urgent data here? */
+		// if (tp->urg_data) {
+		// 	u32 urg_offset = tp->urg_seq - *seq;
+		// 	if (urg_offset < used) {
+		// 		if (!urg_offset) {
+		// 			if (!sock_flag(sk, SOCK_URGINLINE)) {
+		// 				WRITE_ONCE(*seq, *seq + 1);
+		// 				urg_hole++;
+		// 				offset++;
+		// 				used--;
+		// 				if (!used)
+		// 					goto skip_copy;
+		// 			}
+		// 		} else
+		// 			used = urg_offset;
+		// 	}
+		// }
+
+		if (!(flags & MSG_TRUNC)) {
+			err = skb_copy_datagram_msg(skb, offset, msg, used);
+			if (err) {
+				/* Exception. Bailout! */
+				if (!copied)
+					copied = -EFAULT;
+				break;
+			}
+		}
+
+		WRITE_ONCE(*seq, *seq + used);
+		copied += used;
+		len -= used;
+		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+		kfree_skb(skb);
+		// tcp_rcv_space_adjust(sk);
+
+// skip_copy:
+		// if (tp->urg_data && after(tp->copied_seq, tp->urg_seq)) {
+		// 	tp->urg_data = 0;
+		// 	tcp_fast_path_check(sk);
+		// }
+		// if (used + offset < skb->len)
+		// 	continue;
+
+		// if (TCP_SKB_CB(skb)->has_rxtstamp) {
+		// 	tcp_update_recv_tstamps(skb, &tss);
+		// 	cmsg_flags |= 2;
+		// }
+		// if (TCP_SKB_CB(skb)->tcp_flags & TCPHDR_FIN)
+		// 	goto found_fin_ok;
+		// if (!(flags & MSG_PEEK))
+		// 	sk_eat_skb(sk, skb);
+		continue;
+
+// found_fin_ok:
+		/* Process the FIN. */
+		// WRITE_ONCE(*seq, *seq + 1);
+		// if (!(flags & MSG_PEEK))
+		// 	sk_eat_skb(sk, skb);
+		// break;
+	} while (len > 0);
+
+	/* According to UNIX98, msg_name/msg_namelen are ignored
+	 * on connected socket. I was just happy when found this 8) --ANK
+	 */
+
+	/* Clean up data we have read: This will do ACK frames. */
+	// tcp_cleanup_rbuf(sk, copied);
+
+	release_sock(sk);
+
+	// if (cmsg_flags) {
+	// 	if (cmsg_flags & 2)
+	// 		tcp_recv_timestamp(msg, sk, &tss);
+	// 	if (cmsg_flags & 1) {
+	// 		inq = tcp_inq_hint(sk);
+	// 		put_cmsg(msg, SOL_TCP, TCP_CM_INQ, sizeof(inq), &inq);
 	// 	}
-	// 	kfree_skb(skb);
-	// 	return err;
 	// }
 
-	// if (!peeking)
-	// 	UDP_INC_STATS(sock_net(sk),
-	// 		      UDP_MIB_INDATAGRAMS, is_dcacplite);
+	return copied;
 
-	// sock_recv_ts_and_drops(msg, sk, skb);
-
-	/* Copy the address. */
-	if (sin && skb) {
-		sin->sin_family = AF_INET;
-		sin->sin_port = dcacp_hdr(skb)->source;
-		sin->sin_addr.s_addr = ip_hdr(skb)->saddr;
-		memset(sin->sin_zero, 0, sizeof(sin->sin_zero));
-		*addr_len = sizeof(*sin);
-
-		if (cgroup_bpf_enabled)
-			BPF_CGROUP_RUN_PROG_UDP4_RECVMSG_LOCK(sk,
-							(struct sockaddr *)sin);
-	}
-
-	// slot = dcacp_message_in_bucket(dcacp_sk(sk), mesg->id);
-	// spin_lock_bh(&slot->lock);
-	// delete_dcacp_message_in(msg->dsk, msg);
-	// spin_unlock_bh(&slot->lock);
-	// dcacp_message_in_destroy(msg);
-	dcacp_message_in_finish(mesg);
+out:
+	release_sock(sk);
 	return err;
-// 	if (dcacp_sk(sk)->gro_enabled)
-// 		dcacp_cmsg_recv(msg, sk, skb);
-// 	if (inet->cmsg_flags)
-// 		ip_cmsg_recv_offset(msg, sk, skb, sizeof(struct dcacphdr), off);
 
-// 	err = copied;
-// 	if (flags & MSG_TRUNC)
-// 		err = ulen;
+// recv_urg:
+// 	err = tcp_recv_urg(sk, msg, len, flags);
+// 	goto out;
 
-// 	skb_consume_dcacp(sk, skb, peeking ? -err : err);
-// 	return err;
-
-// csum_copy_err:
-// 	if (!__sk_queue_drop_skb(sk, &dcacp_sk(sk)->reader_queue, skb, flags,
-// 				 dcacp_skb_destructor)) {
-// 		UDP_INC_STATS(sock_net(sk), UDP_MIB_CSUMERRORS, is_dcacplite);
-// 		UDP_INC_STATS(sock_net(sk), UDP_MIB_INERRORS, is_dcacplite);
-// 	}
-// 	printk("copy error:%d\n", __LINE__);
-// 	kfree_skb(skb);
-
-// 	/* starting over for a new packet, but check if we need to yield */
-// 	cond_resched();
-// 	msg->msg_flags &= ~MSG_TRUNC;
-// 	goto try_again;
+// recv_sndq:
+// 	// err = tcp_peek_sndq(sk, msg, len);
+// 	goto out;
 }
 
 int dcacp_pre_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
@@ -1624,13 +1767,11 @@ int dcacp_v4_early_demux(struct sk_buff *skb)
 
     // if (th->doff < sizeof(struct tcphdr) / 4)
     //             return 0;
-	printk("look up early demux\n");
     sk = __dcacp_lookup_established(dev_net(skb->dev), &dcacp_hashinfo,
                                    iph->saddr, uh->source,
                                    iph->daddr, ntohs(uh->dest),
                                    skb->skb_iif, sdif);
-   	printk("sk is null:%d\n", (sk == NULL));
-   	printk("skb->sk :%d LINE:%d \n", (skb->sk == NULL), __LINE__);
+
     if (sk) {
             skb->sk = sk;
             skb->destructor = sock_edemux;
@@ -1660,12 +1801,11 @@ int dcacp_rcv(struct sk_buff *skb)
 	// printk("dh == NULL?: %d\n", dh == NULL);
 	// printk("receive pkt: %d\n", dh->type);
 	// printk("end ref \n");
-   	printk("skb->sk :%d LINE:%d \n", (skb->sk == NULL), __LINE__);
-
 	if(dh->type == DATA) {
 		return dcacp_handle_data_pkt(skb);
 		// return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
 	} else if (dh->type == NOTIFICATION) {
+
 		return dcacp_handle_flow_sync_pkt(skb);
 	} else if (dh->type == TOKEN) {
 		return dcacp_handle_token_pkt(skb);

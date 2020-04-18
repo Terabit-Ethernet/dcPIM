@@ -34,8 +34,8 @@ struct dcacp_sock;
 enum {
 	/* The initial state is TCP_CLOSE */
 	/* Sender and receiver state are easier to debug.*/
-	DCACP_SENDER = 1,
-	DCACP_RECEIVER = 2,
+	DCACP_RECEIVER = 1,
+	DCACP_SENDER,
 	DCACP_LISTEN,
 	/* use TCP_CLOSE because of inet_bind use TCP_CLOSE to
 	 check whether the port should be assigned TCP CLOSE = 7;*/ 
@@ -488,6 +488,7 @@ struct dcacp_sock {
 	/* This field is dirtied by dcacp_recvmsg() */
 	int		forward_deficit;
 
+	struct rb_root	out_of_order_queue;
 	/**
 	 * size of flow in bytes
 	 */
@@ -521,9 +522,9 @@ struct dcacp_sock {
 		bool is_ready;
 	    bool flow_sync_received;
 	 	bool finished_at_receiver;
-	    uint32_t received_bytes;
+		uint32_t copied_seq;
+	    uint32_t bytes_received;
 	    uint32_t received_count;
-	    uint32_t recv_till;
 	    /* current received bytes + 1*/
 	    uint32_t rcv_nxt;
 	    // uint32_t max_seq_no_recv;

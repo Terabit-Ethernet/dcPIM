@@ -72,6 +72,229 @@
 // 				 inet_sdif(skb), dcacptable, skb);
 // }
 
+/* If we update dsk->receiver.rcv_nxt, also update dsk->receiver.bytes_received */
+static void dcacp_rcv_nxt_update(struct dcacp_sock *dsk, u32 seq)
+{
+	u32 delta = seq - dsk->receiver.rcv_nxt;
+	dsk->receiver.bytes_received += delta;
+	WRITE_ONCE(dsk->receiver.rcv_nxt, seq);
+}
+
+static void dcacp_drop(struct sock *sk, struct sk_buff *skb)
+{
+        sk_drops_add(sk, skb);
+        __kfree_skb(skb);
+}
+
+static void dcacp_v4_fill_cb(struct sk_buff *skb, const struct iphdr *iph,
+                           const struct dcacp_data_hdr *dh)
+{
+        /* This is tricky : We move IPCB at its correct location into TCP_SKB_CB()
+         * barrier() makes sure compiler wont play fool^Waliasing games.
+         */
+        memmove(&DCACP_SKB_CB(skb)->header.h4, IPCB(skb),
+                sizeof(struct inet_skb_parm));
+        barrier();
+
+        DCACP_SKB_CB(skb)->seq = ntohl(dh->seg.offset);
+        DCACP_SKB_CB(skb)->end_seq = (DCACP_SKB_CB(skb)->seq + ntohl(dh->seg.segment_length));
+        // TCP_SKB_CB(skb)->ack_seq = ntohl(th->ack_seq);
+        // TCP_SKB_CB(skb)->tcp_flags = tcp_flag_byte(th);
+        // TCP_SKB_CB(skb)->tcp_tw_isn = 0;
+        // TCP_SKB_CB(skb)->ip_dsfield = ipv4_get_dsfield(iph);
+        // TCP_SKB_CB(skb)->sacked  = 0;
+        // TCP_SKB_CB(skb)->has_rxtstamp =
+        //                 skb->tstamp || skb_hwtstamps(skb)->hwtstamp;
+}
+
+static int dcacp_data_queue_ofo(struct sock *sk, struct sk_buff *skb)
+{
+	struct dcacp_sock *dsk = dcacp_sk(sk);
+	struct rb_node **p, *parent;
+	struct sk_buff *skb1;
+	u32 seq, end_seq;
+	/* Disable header prediction. */
+	// tp->pred_flags = 0;
+	// inet_csk_schedule_ack(sk);
+
+	// tp->rcv_ooopack += max_t(u16, 1, skb_shinfo(skb)->gso_segs);
+	// NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPOFOQUEUE);
+	seq = DCACP_SKB_CB(skb)->seq;
+	end_seq = DCACP_SKB_CB(skb)->end_seq;
+
+	p = &dsk->out_of_order_queue.rb_node;
+	if (RB_EMPTY_ROOT(&dsk->out_of_order_queue)) {
+		/* Initial out of order segment, build 1 SACK. */
+		// if (tcp_is_sack(tp)) {
+		// 	tp->rx_opt.num_sacks = 1;
+		// 	tp->selective_acks[0].start_seq = seq;
+		// 	tp->selective_acks[0].end_seq = end_seq;
+		// }
+		rb_link_node(&skb->rbnode, NULL, p);
+		rb_insert_color(&skb->rbnode, &dsk->out_of_order_queue);
+		// tp->ooo_last_skb = skb;
+		goto end;
+	}
+
+	/* In the typical case, we are adding an skb to the end of the list.
+	 * Use of ooo_last_skb avoids the O(Log(N)) rbtree lookup.
+	 */
+// 	if (tcp_ooo_try_coalesce(sk, tp->ooo_last_skb,
+// 				 skb, &fragstolen)) {
+// coalesce_done:
+// 		tcp_grow_window(sk, skb);
+// 		kfree_skb_partial(skb, fragstolen);
+// 		skb = NULL;
+// 		goto add_sack;
+// 	}
+// 	 Can avoid an rbtree lookup if we are adding skb after ooo_last_skb 
+// 	if (!before(seq, TCP_SKB_CB(tp->ooo_last_skb)->end_seq)) {
+// 		parent = &tp->ooo_last_skb->rbnode;
+// 		p = &parent->rb_right;
+// 		goto insert;
+// 	}
+
+	/* Find place to insert this segment. Handle overlaps on the way. */
+	parent = NULL;
+	while (*p) {
+		parent = *p;
+		skb1 = rb_to_skb(parent);
+		if (before(seq, DCACP_SKB_CB(skb1)->seq)) {
+			p = &parent->rb_left;
+			continue;
+		}
+		if (before(seq, DCACP_SKB_CB(skb1)->end_seq)) {
+			if (!after(end_seq, DCACP_SKB_CB(skb1)->end_seq)) {
+				/* All the bits are present. Drop. */
+				atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+				dcacp_drop(sk, skb);
+				skb = NULL;
+
+				// tcp_dsack_set(sk, seq, end_seq);
+				goto add_sack;
+			}
+			if (after(seq, DCACP_SKB_CB(skb1)->seq)) {
+				/* Partial overlap. */
+				// tcp_dsack_set(sk, seq, TCP_SKB_CB(skb1)->end_seq);
+			} else {
+				/* skb's seq == skb1's seq and skb covers skb1.
+				 * Replace skb1 with skb.
+				 */
+				rb_replace_node(&skb1->rbnode, &skb->rbnode,
+						&dsk->out_of_order_queue);
+				// tcp_dsack_extend(sk,
+				// 		 TCP_SKB_CB(skb1)->seq,
+				// 		 TCP_SKB_CB(skb1)->end_seq);
+				// NET_INC_STATS(sock_net(sk),
+				// 	      LINUX_MIB_TCPOFOMERGE);
+				atomic_sub(skb1->truesize, &sk->sk_rmem_alloc);
+				dcacp_drop(sk, skb1);
+				goto merge_right;
+			}
+		} 
+		// else if (tcp_ooo_try_coalesce(sk, skb1,
+		// 				skb, &fragstolen)) {
+		// 	goto coalesce_done;
+		// }
+		p = &parent->rb_right;
+	}
+// insert:
+	/* Insert segment into RB tree. */
+	rb_link_node(&skb->rbnode, parent, p);
+	rb_insert_color(&skb->rbnode, &dsk->out_of_order_queue);
+merge_right:
+	/* Remove other segments covered by skb. */
+	while ((skb1 = skb_rb_next(skb)) != NULL) {
+		if (!after(end_seq, DCACP_SKB_CB(skb1)->seq))
+			break;
+		if (before(end_seq, DCACP_SKB_CB(skb1)->end_seq)) {
+			// tcp_dsack_extend(sk, TCP_SKB_CB(skb1)->seq,
+			// 		 end_seq);
+			break;
+		}
+		rb_erase(&skb1->rbnode, &dsk->out_of_order_queue);
+		// tcp_dsack_extend(sk, TCP_SKB_CB(skb1)->seq,
+		// 		 TCP_SKB_CB(skb1)->end_seq);
+		// NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPOFOMERGE);
+		atomic_sub(skb1->truesize, &sk->sk_rmem_alloc);
+		dcacp_drop(sk, skb1);
+
+	}
+	/* If there is no skb after us, we are the last_skb ! */
+	// if (!skb1)
+	// 	tp->ooo_last_skb = skb;
+end:
+add_sack:
+	return 0;
+	// if (tcp_is_sack(tp))
+	// 	tcp_sack_new_ofo_skb(sk, seq, end_seq);
+// end:
+	// if (skb) {
+	// 	tcp_grow_window(sk, skb);
+	// 	skb_condense(skb);
+	// 	skb_set_owner_r(skb, sk);
+	// }
+}
+
+static void dcacp_ofo_queue(struct sock *sk)
+{
+	struct dcacp_sock *dsk = dcacp_sk(sk);
+	// __u32 dsack_high = dcacp->receiver.rcv_nxt;
+	// bool fin, fragstolen, eaten;
+	struct sk_buff *skb;
+	struct rb_node *p;
+
+	p = rb_first(&dsk->out_of_order_queue);
+	while (p) {
+		skb = rb_to_skb(p);
+		if (after(DCACP_SKB_CB(skb)->seq, dsk->receiver.rcv_nxt))
+			break;
+
+		// if (before(DCACP_SKB_CB(skb)->seq, dsack_high)) {
+		// 	// __u32 dsack = dsack_high;
+		// 	// if (before(TCP_SKB_CB(skb)->end_seq, dsack_high))
+		// 	// 	dsack_high = TCP_SKB_CB(skb)->end_seq;
+		// 	// tcp_dsack_extend(sk, TCP_SKB_CB(skb)->seq, dsack);
+		// }
+		p = rb_next(p);
+		rb_erase(&skb->rbnode, &dsk->out_of_order_queue);
+
+		if (unlikely(!after(DCACP_SKB_CB(skb)->end_seq, dsk->receiver.rcv_nxt))) {
+			atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+			dcacp_drop(sk, skb);
+			continue;
+		}
+
+		// tail = skb_peek_tail(&sk->sk_receive_queue);
+		// eaten = tail && tcp_try_coalesce(sk, tail, skb, &fragstolen);
+		dcacp_rcv_nxt_update(dsk, DCACP_SKB_CB(skb)->end_seq);
+		// fin = TCP_SKB_CB(skb)->tcp_flags & TCPHDR_FIN;
+		// if (!eaten)
+			__skb_queue_tail(&sk->sk_receive_queue, skb);
+		// else
+		// 	kfree_skb_partial(skb, fragstolen);
+
+		// if (unlikely(fin)) {
+		// 	tcp_fin(sk);
+		// 	 tcp_fin() purges tp->out_of_order_queue,
+		// 	 * so we must end this loop right now.
+			 
+		// 	break;
+		// }
+	}
+}
+
+void dcacp_data_ready(struct sock *sk)
+{
+        const struct dcacp_sock *dsk = dcacp_sk(sk);
+        int avail = dsk->receiver.rcv_nxt - dsk->receiver.copied_seq;
+
+        if (avail < sk->sk_rcvlowat && !sock_flag(sk, SOCK_DONE))
+                return;
+
+        sk->sk_data_ready(sk);
+}
+
 int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 	// struct dcacp_sock *dsk;
 	// struct inet_sock *inet;
@@ -83,8 +306,14 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 	struct sock *sk;
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
-	if (!pskb_may_pull(skb, sizeof(struct dcacp_flow_sync_hdr)))
+	if (!pskb_may_pull(skb, sizeof(struct dcacp_flow_sync_hdr) - sizeof(struct dcacphdr))) {
+		printk("drop packet\n");
+		printk("size of header:%d\n", sizeof(struct dcacp_flow_sync_hdr));
+		printk("basic header:%d\n", sizeof(struct dcacphdr));
+		printk("skb->len:%d\n", skb->len);
+		printk("headlen:%d\n", skb_headlen(skb));
 		goto drop;		/* No space for header. */
+	}
 	fh =  dcacp_flow_sync_hdr(skb);
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
@@ -92,7 +321,9 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
             fh->common.dest, sdif, &refcounted);
 		// sk = __dcacp4_lib_lookup_skb(skb, fh->common.source, fh->common.dest, &dcacp_table);
 	// }
+	printk("receive flow sync\n");
 	if(sk) {
+		printk("call conn request\n");
 		dcacp_conn_request(sk, skb);
 		// dsk = dcacp_sk(sk);
 		// inet = inet_sk(sk);
@@ -171,291 +402,136 @@ drop:
 	return 0;
 }
 
-/**
- * dcacp_message_in_copy_data() - Extract the data from an incoming message
- * and copy it to buffer(s) in user space.
- * @msgin:      The message whose data should be extracted.
- * @iter:       Describes the available buffer space at user-level; message
- *              data gets copied here.
- * @max_bytes:  Total amount of space available via iter.
- * 
- * Return:      The number of bytes copied, or a negative errno.
- */
-int dcacp_message_in_copy_data(struct dcacp_message_in *msg,
-		struct iov_iter *iter, int max_bytes)
+
+// static void  dcacp_queue_rcv(struct sock *sk, struct sk_buff *skb)
+// {
+// 	// int eaten;
+// 	// struct sk_buff *tail = skb_peek_tail(&sk->sk_receive_queue);
+
+// 	// eaten = (tail &&
+// 	// 	 tcp_try_coalesce(sk, tail,
+// 	// 			  skb, fragstolen)) ? 1 : 0;
+// 	// tcp_rcv_nxt_update(tcp_sk(sk), TCP_SKB_CB(skb)->end_seq);
+// 	// if (!eaten) {
+// 		__skb_queue_tail(&sk->sk_receive_queue, skb);
+// 	// 	skb_set_owner_r(skb, sk);
+// 	// }
+// 	// return eaten;
+// }
+
+int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
 {
-	struct sk_buff *skb;
-	int offset;
-	int err;
-	int remaining = max_bytes;
-	
-	/* Do the right thing even if packets have overlapping ranges.
-	 * In practice, this shouldn't ever be necessary.
-	 */
-	offset = 0;
-	skb_queue_walk(&msg->packets, skb) {
-		struct dcacp_data_hdr *h = (struct dcacp_data_hdr *) skb->data;
-		int this_offset = ntohl(h->seg.offset);
-		int data_in_packet;
-		int this_size = msg->total_length - offset;
-		
-		data_in_packet = skb->len - sizeof(struct dcacp_data_hdr);
-		if (this_size > data_in_packet) {
-			this_size = data_in_packet;
-		}
-		if (offset > this_offset) {
-			this_size -= (offset - this_offset);
-		}
-		if (this_size > remaining) {
-			this_size =  remaining;
-		}
-		err = skb_copy_datagram_iter(skb,
-				sizeof(*h) + (offset - this_offset),
-				iter, this_size);
-		if (err) {
-			return err;
-		}
-		remaining -= this_size;
-		offset += this_size;
-		if (remaining == 0) {
-			break;
-		}
+	struct dcacp_sock *dsk = dcacp_sk(sk);
+	// bool fragstolen;
+	// int eaten;
+	if (DCACP_SKB_CB(skb)->seq == DCACP_SKB_CB(skb)->end_seq) {
+		__kfree_skb(skb);
+		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+		return 0;
 	}
-	return max_bytes - remaining;
-}
+	// skb_dst_drop(skb);
+	__skb_pull(skb, (dcacp_hdr(skb)->doff >> 2) + sizeof(struct data_segment));
 
-/**
- * @dcacp_wait_for_message() - Wait for an appropriate incoming message.
- * @hsk:     Socket where messages will arrive.
- * @flags:   Flags parameter from dcacp_recv; see manual entry for details.
- * @id:      If non-zero, then a response message will not be returned
- *           unless its RPC id matches this.
- *
- * Return:   Pointer to an RPC that matches @flags and @id, or a negative
- *           errno value. The RPC will be locked; the caller must unlock.
- */
-struct dcacp_message_in *dcacp_wait_for_message(struct dcacp_sock *dsk, unsigned flags, int *err)
-{
-	struct dcacp_message_in *msg = NULL;
-	int error = 0;
-	struct sock* sk = (struct sock*) dsk;
-	struct dcacp_waiting_thread* thread = kmalloc(sizeof(struct dcacp_waiting_thread), GFP_KERNEL);
-	INIT_LIST_HEAD(&thread->wait_link);
-	// long timeo = sock_rcvtimeo(sk, flags & MSG_DONTWAIT);
-	// timeo = 3;
-	// printk("timeo:%ld\n", timeo);
-	// struct dcacp_rpc *result = NULL;
-	// struct dcacp_interest interest;
-	// int sock_locked = 0;
-	
-	/* Normally this loop only gets executed once, but we may have
-	 * to start again if a "found" RPC gets deleted from underneath us.
+
+
+	/*  Queue data for delivery to the user.
+	 *  Packets in sequence go to the receive queue.
+	 *  Out of sequence packets to the out_of_order_queue.
 	 */
-	while (1) {
-
-		error = sock_error((struct sock*)dsk);
-		if (error) {
-			break;
-		}
-		while(1){
-			spin_lock_bh(&dsk->ready_queue_lock);
-			if(!list_empty(&dsk->ready_message_queue)) {
-				msg = list_first_entry(&dsk->ready_message_queue, struct dcacp_message_in, ready_link);
-				list_del_init(&msg->ready_link);
-				spin_unlock_bh(&dsk->ready_queue_lock);
-				return msg;
-			}
-			spin_unlock_bh(&dsk->ready_queue_lock);
-			if (!sk_can_busy_loop(sk))
-				break;
-			sk_busy_loop(sk, flags & MSG_DONTWAIT);
-
- 		    spin_lock_bh(&dsk->ready_queue_lock);
- 		    if(list_empty(&dsk->ready_message_queue)) {
-	 			spin_unlock_bh(&dsk->ready_queue_lock);
- 		    	break;
- 		    }
- 			spin_unlock_bh(&dsk->ready_queue_lock);
-		} 
-		/* Now it's time to sleep. */
-		thread->thread = current;
-		spin_lock_bh(&dsk->waiting_thread_queue_lock);
-		list_add_tail(&thread->wait_link, &dsk->waiting_thread_queue);
-		spin_unlock_bh(&dsk->waiting_thread_queue_lock);
-
-		set_current_state(TASK_INTERRUPTIBLE);
-		// if (!atomic_long_read(&interest.id) && !hsk->shutdown) {
-			// __u64 start = get_cycles();
-		// __u64 start = get_cycles();
-		// schedule_timeout(timeo);
-		schedule();
-		// printk("time diff:%llu\n", get_cycles() - start);
-			// INC_METRIC(blocked_cycles, get_cycles() - start);
+	if (DCACP_SKB_CB(skb)->seq == dsk->receiver.rcv_nxt) {
+		// if (tcp_receive_window(tp) == 0) {
+		// 	NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPZEROWINDOWDROP);
+		// 	goto out_of_window;
 		// }
-		__set_current_state(TASK_RUNNING);
-		if (signal_pending(current)) {
-			error = -EINTR;
-			goto err_handling;
+
+		/* Ok. In sequence. In window. */
+// queue_and_out:
+		// if (skb_queue_len(&sk->sk_receive_queue) == 0)
+		// 	sk_forced_mem_schedule(sk, skb->truesize);
+		// else if (tcp_try_rmem_schedule(sk, skb, skb->truesize)) {
+		// 	goto drop;
+		// }
+		__skb_queue_tail(&sk->sk_receive_queue, skb);
+		dcacp_rcv_nxt_update(dsk, DCACP_SKB_CB(skb)->end_seq);
+
+		// eaten = dcacp_queue_rcv(sk, skb, &fragstolen);
+
+		if (!RB_EMPTY_ROOT(&dsk->out_of_order_queue)) {
+			dcacp_ofo_queue(sk);
 		}
+		dcacp_data_ready(sk);
+		// 	/* RFC5681. 4.2. SHOULD send immediate ACK, when
+		// 	 * gap in queue is filled.
+		// 	 */
+		// 	if (RB_EMPTY_ROOT(&dsk->out_of_order_queue))
+		// 		inet_csk(sk)->icsk_ack.pending |= ICSK_ACK_NOW;
+		// }
+
+		// if (dsk->rx_opt.num_sacks)
+		// 	tcp_sack_remove(dsk);
+
+		// tcp_fast_path_check(sk);
+
+		// if (eaten > 0)
+		// 	kfree_skb_partial(skb, fragstolen);
+		// if (!sock_flag(sk, SOCK_DEAD))
+		// 	tcp_data_ready(sk);
+		return 0;
 	}
-err_handling:
-	spin_lock_bh(&dsk->waiting_thread_queue_lock);
-	list_del(&thread->wait_link);
-	spin_unlock_bh(&dsk->waiting_thread_queue_lock);
-	*err = error;
-	return NULL;
-}
-
-/**
- * @dcacp_msg_ready: This function is called when the input message for
- * an RPC becomes complete. It marks the RPC as READY and either notifies
- * a waiting reader or queues the RPC.
- * @rpc:                RPC that now has a complete input message;
- *                      must be locked. The caller must also have
- *                      locked the socket for this RPC.
- */
-void dcacp_msg_ready(struct dcacp_message_in *msg)
-{
-
-// 	struct homa_interest *interest;
-	struct dcacp_sock* dsk;
-	// struct sock *sk;
-	struct dcacp_waiting_thread* thread;
-
-	dsk = msg->dsk;
-// 	rpc->state = RPC_READY;
-	
-// 	/* First, see if someone is interested in this RPC specifically.
-// 	 */
-// 	if (rpc->interest) {
-// 		interest = rpc->interest;
-// 		goto handoff;
-// 	}
-	
-// 	/* Second, check the interest list for this type of RPC. */
-// 	if (rpc->is_client) {
-// 		interest = list_first_entry_or_null(
-// 				&rpc->hsk->response_interests,
-// 				struct homa_interest, response_links);
-// 		if (interest)
-// 			goto handoff;
-	// printk("add ready message to the queue\n");
-	spin_lock_bh(&dsk->ready_queue_lock);
-	list_add_tail(&msg->ready_link, &dsk->ready_message_queue);
-
-	spin_unlock_bh(&dsk->ready_queue_lock);
-	msg->dsk->unsolved -= 1;
-	printk("number of unsolved message: %d\n", msg->dsk->unsolved);
-// 	} else {
-// 		interest = list_first_entry_or_null(
-// 				&rpc->hsk->request_interests,
-// 				struct homa_interest, request_links);
-// 		if (interest)
-// 			goto handoff;
-// 		list_add_tail(&rpc->ready_links, &rpc->hsk->ready_requests);
-// 	}
-	
-// 	 If we get here, no-one is waiting for the RPC, so it has been
-// 	 * queued.
-	 
-	
-	/* Notify the poll mechanism. */
-	// sk = (struct sock *) msg->dsk;
-	// sk->sk_data_ready(sk);
-	spin_lock_bh(&dsk->waiting_thread_queue_lock);
-	thread = list_first_entry_or_null(&dsk->waiting_thread_queue, struct dcacp_waiting_thread, wait_link);
-	if(thread) {
-		list_del_init(&thread->wait_link);
-		wake_up_process(thread->thread);
+	if (!after(DCACP_SKB_CB(skb)->end_seq, dsk->receiver.rcv_nxt)) {
+		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+		dcacp_drop(sk, skb);
+		return 0;
 	}
-	spin_unlock_bh(&dsk->waiting_thread_queue_lock);
-	kfree(thread);
-	return;
-	
-// handoff:
-// 	/* We found a waiting thread. Wakeup the thread and cleanup its
-// 	 * interest info, so it won't have to acquire the socket lock
-// 	 * again.
-// 	 */
-// 	homa_interest_set(interest, rpc);
-// 	if (interest->reg_rpc) {
-// 		interest->reg_rpc->interest = NULL;
-// 		interest->reg_rpc = NULL;
-// 	}
-// 	if (interest->request_links.next != LIST_POISON1) {
-// 		list_del(&interest->request_links);
-// 		interest->request_links.next = LIST_POISON1;
-// 	}
-// 	if (interest->response_links.next != LIST_POISON1) {
-// 		list_del(&interest->response_links);
-// 		interest->response_links.next = LIST_POISON1;
-// 	}
-// 	wake_up_process(interest->thread);
-}
 
-/**
- * dcacp_add_packet() - Add an incoming packet to the contents of a
- * partially received message.
- * @msgin: Overall information about the incoming message.
- * @skb:   The new packet. This function takes ownership of the packet
- *         and will free it, if it doesn't get added to msgin (because
- *         it provides no new data).
- */
-void dcacp_add_packet(struct dcacp_message_in *msg, struct sk_buff *skb)
-{
-	struct dcacp_data_hdr *h = dcacp_data_hdr(skb);
-	int offset = ntohl(h->seg.offset);
-	int data_bytes = ntohl(h->seg.segment_length);
-	struct sk_buff *skb2;
-	
-	/* Any data from the packet with offset less than this is
-	 * of no value.*/
-	int floor = 0;
-	
-	/* Any data with offset >= this is useless. */
-	int ceiling = msg->total_length;
-	
-	/* Figure out where in the list of existing packets to insert the
-	 * new one. It doesn't necessarily go at the end, but it almost
-	 * always will in practice, so work backwards from the end of the
-	 * list.
-	 */
-	skb_queue_reverse_walk(&msg->packets, skb2) {
-		struct dcacp_data_hdr *h2 = dcacp_data_hdr(skb2);
-		int offset2 = ntohl(h2->seg.offset);
-		int data_bytes2 = skb2->len - sizeof(struct dcacp_data_hdr);
-		if (offset2 < offset) {
-			floor = offset2 + data_bytes2;
-			break;
+	/* Out of window. F.e. zero window probe. */
+	// if (!before(DCACP_SKB_CB(skb)->seq, dsk->rcv_nxt + tcp_receive_window(dsk)))
+	// 	goto out_of_window;
+
+	if (unlikely(before(DCACP_SKB_CB(skb)->seq, dsk->receiver.rcv_nxt))) {
+		/* Partial packet, seq < rcv_next < end_seq; unlikely */
+		// tcp_dsack_set(sk, DCACP_SKB_CB(skb)->seq, dsk->rcv_nxt);
+		__skb_queue_tail(&sk->sk_receive_queue, skb);
+		dcacp_rcv_nxt_update(dsk, DCACP_SKB_CB(skb)->end_seq);
+		if (!RB_EMPTY_ROOT(&dsk->out_of_order_queue)) {
+			dcacp_ofo_queue(sk);
 		}
-		ceiling = offset2;
-	} 
-		
-	/* New packet goes right after skb2 (which may refer to the header).
-	 * Packets shouldn't overlap in byte ranges, but the code below
-	 * assumes they might, so it computes how many non-overlapping bytes
-	 * are contributed by the new packet.
-	 */
-	if (unlikely(floor < offset)) {
-		floor = offset;
+		dcacp_data_ready(sk);
+
+		/* If window is closed, drop tail of packet. But after
+		 * remembering D-SACK for its head made in previous line.
+		 */
+		// if (!tcp_receive_window(dsk)) {
+		// 	NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPZEROWINDOWDROP);
+		// 	goto out_of_window;
+		// }
+		// goto queue_and_out;
+		return 0;
 	}
-	if (ceiling > offset + data_bytes) {
-		ceiling = offset + data_bytes;
-	}
-	if (floor >= ceiling) {
-		/* This packet is redundant. */
-//		char buffer[100];
-//		printk(KERN_NOTICE "redundant DCACP packet: %s\n",
-//			dcacp_print_packet(skb, buffer, sizeof(buffer)));
-		// INC_METRIC(redundant_packets, 1);
-		kfree_skb(skb);
-		return;
-	}
-	__skb_insert(skb, skb2, skb2->next, &msg->packets);
-	msg->received_bytes += (ceiling - floor);
-	msg->num_skbs++;
+
+	dcacp_data_queue_ofo(sk, skb);
+	return 0;
 }
 
+bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb)
+{
+        u32 limit = READ_ONCE(sk->sk_rcvbuf) + READ_ONCE(sk->sk_sndbuf);
+        
+        /* Only socket owner can try to collapse/prune rx queues
+         * to reduce memory overhead, so add a little headroom here.
+         * Few sockets backlog are possibly concurrently non empty.
+         */
+        limit += 64*1024;
+
+        if (unlikely(sk_add_backlog(sk, skb, limit))) {
+                bh_unlock_sock(sk);
+                // __NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPBACKLOGDROP);
+                return true;
+        }
+        atomic_add_return(skb->truesize, &sk->sk_rmem_alloc);
+        return false;
+
+ }
 /**
  * dcacp_data_pkt() - Handler for incoming DATA packets
  * @skb:     Incoming packet; size known to be large enough for the header.
@@ -472,9 +548,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	struct dcacp_sock *dsk;
 	struct dcacp_data_hdr *dh;
 	struct sock *sk;
-	struct message_hslot* slot;
 	struct iphdr *iph;
-	struct dcacp_message_in *msg = NULL;
 	int sdif = inet_sdif(skb);
 
 	bool refcounted = false;
@@ -484,122 +558,43 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	dh =  dcacp_data_hdr(skb);
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
-		sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&dh->common), dh->common.source,
-                dh->common.dest, sdif, &refcounted);
+	sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&dh->common), dh->common.source,
+            dh->common.dest, sdif, &refcounted);
     // }
 	// it is unclear why UDP and Homa doesn't grab the socket lock
 	if(sk) {
 		dsk = dcacp_sk(sk);
 		iph = ip_hdr(skb);
-
-		slot = dcacp_message_in_bucket(dsk, dh->message_id);
-		spin_lock_bh(&slot->lock);
-		msg = get_dcacp_message_in(dsk, iph->saddr, dh->common.source, dh->message_id);
-		// get the message lock first before unlocking slot lock
-		// notification pkt may drop
-		if(msg == NULL) {
-			spin_unlock_bh(&slot->lock);
-			goto drop;
-
-		}
-		spin_lock_bh(&msg->lock);
-		spin_unlock_bh(&slot->lock);
-		if(!msg){
-			spin_unlock_bh(&msg->lock);
-			goto drop;
-		}
-	// struct dcacp *dcacp = rpc->hsk->dcacp;
-	// struct dcacp_data_hdr *h = dcacp_data_hdr(skb);
-	// int incoming = ntohl(h->incoming);
-	
-	// tt_record4("incoming data packet, id %llu, port %d, offset %d/%d",
-	// 		h->common.id,
-	// 		rpc->is_client ? rpc->hsk->client_port
-	// 		: rpc->hsk->server_port,
-	// 		ntohl(h->seg.offset), ntohl(h->message_length));
-
-	// if (rpc->state != RPC_INCOMING) {
-	// 	if (unlikely(!rpc->is_client || (rpc->state == RPC_READY))) {
-	// 		kfree_skb(skb);
-	// 		return 0;			
-	// 	}
-	// 	dcacp_message_in_init(&rpc->msgin, ntohl(h->message_length),
-	// 			incoming);
-	// 	INC_METRIC(responses_received, 1);
-	// 	rpc->state = RPC_INCOMING;
-	// } else {
-	// 	if (incoming > rpc->msgin.incoming) {
-	// 		if (incoming > rpc->msgin.total_length)
-	// 			rpc->msgin.incoming = rpc->msgin.total_length;
-	// 		else
-	// 			rpc->msgin.incoming = incoming;
-	// 	}
-	// }
-		if(!msg->is_ready) {
-			dcacp_add_packet(msg, skb);
-		}
-	// if (rpc->msgin.scheduled)
-	// 	dcacp_check_grantable(dcacp, rpc);
-	// if (rpc->active_links.next == LIST_POISON1) {
-	// 	/* This is the first packet of a server RPC, so we have to
-	// 	 * add the RPC to @hsk->active_rpcs. We do it here, rather
-	// 	 * than in dcacp_rpc_new_server, so we can acquire the socket
-	// 	 * lock just once to both add the RPC to active_rpcs and
-	// 	 * also add the RPC to the ready list, if appropriate.
-	// 	 */
-	// 	INC_METRIC(requests_received, 1);
-	// 	dcacp_sock_lock(rpc->hsk, "dcacp_data_pkt (first)");
-	// 	if (rpc->hsk->shutdown) {
-	// 		/* Unsafe to add new RPCs to a socket after shutdown
-	// 		 * has begun; destroy the new RPC.
-	// 		 */
-	// 		dcacp_message_in_destroy(&rpc->msgin);
-	// 		dcacp_sock_unlock(rpc->hsk);
-	// 		dcacp_rpc_unlock(rpc);
-	// 		kfree(rpc);
-	// 		return 1;
-	// 	}
-			
-	// 	list_add_tail_rcu(&rpc->active_links, &rpc->hsk->active_rpcs);
-	// 	if (rpc->msgin.bytes_remaining == 0)
-	// 		dcacp_rpc_ready(rpc);
-	// 	dcacp_sock_unlock(rpc->hsk);
-	// } else {
-		if (msg->received_bytes == msg->total_length && !msg->is_ready) {
-			dcacp_msg_ready(msg);
-			msg->is_ready = true;
-		}
-	// }
-	// if (ntohs(h->cutoff_version) != dcacp->cutoff_version) {
-	// 	 The sender has out-of-date cutoffs. Note: we may need
-	// 	 * to resend CUTOFFS packets if one gets lost, but we don't
-	// 	 * want to send multiple CUTOFFS packets when a stream of
-	// 	 * packets arrives with stale cutoff_versions. Thus, we
-	// 	 * don't send CUTOFFS unless there is a version mismatch
-	// 	 * *and* it is been a while since the previous CUTOFFS
-	// 	 * packet.
-		 
-	// 	if (jiffies != rpc->peer->last_update_jiffies) {
-	// 		struct cutoffs_header h2;
-	// 		int i;
-			
-	// 		for (i = 0; i < dcacp_MAX_PRIORITIES; i++) {
-	// 			h2.unsched_cutoffs[i] =
-	// 					htonl(dcacp->unsched_cutoffs[i]);
-	// 		}
-	// 		h2.cutoff_version = htons(dcacp->cutoff_version);
-	// 		dcacp_xmit_control(CUTOFFS, &h2, sizeof(h2), rpc);
-	// 		rpc->peer->last_update_jiffies = jiffies;
-	// 	}
-	// }
-		spin_unlock_bh(&msg->lock);
-
-		return 0;
+		dcacp_v4_fill_cb(skb, iph, dh);
+ 		bh_lock_sock_nested(sk);
+        // ret = 0;
+        if (atomic_read(&sk->sk_rmem_alloc) + skb->truesize < sk->sk_rcvbuf) {
+	        if (!sock_owned_by_user(sk)) {
+			        atomic_add_return(skb->truesize, &sk->sk_rmem_alloc);
+	                dcacp_data_queue(sk, skb);
+	        } else {
+	                if (dcacp_add_backlog(sk, skb))
+	                        goto discard_and_relse;
+	        }
+        } else {
+	        bh_unlock_sock(sk);
+        	goto discard_and_relse;
+        }
+        bh_unlock_sock(sk);
 	}
-drop:
     if (refcounted) {
         sock_put(sk);
     }
-	kfree_skb(skb);
-	return 0;
+    return 0;
+drop:
+    /* Discard frame. */
+    kfree_skb(skb);
+    return 0;
+
+discard_and_relse:
+    sk_drops_add(sk, skb);
+    if (refcounted)
+            sock_put(sk);
+    goto drop;
+	// kfree_skb(skb);
 }

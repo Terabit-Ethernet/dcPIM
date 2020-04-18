@@ -165,6 +165,8 @@ static inline bool before(__u32 seq1, __u32 seq2)
         return (__s32)(seq1-seq2) < 0;
 }
 
+#define after(seq2, seq1) 	before(seq1, seq2)
+
 static inline struct sk_buff *dcacp_write_queue_head(const struct sock *sk)
 {
 	return skb_peek(&sk->sk_write_queue);
