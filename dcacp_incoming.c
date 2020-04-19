@@ -289,8 +289,8 @@ void dcacp_data_ready(struct sock *sk)
         const struct dcacp_sock *dsk = dcacp_sk(sk);
         int avail = dsk->receiver.rcv_nxt - dsk->receiver.copied_seq;
 
-        if (avail < sk->sk_rcvlowat && !sock_flag(sk, SOCK_DONE))
-                return;
+        if ((avail < sk->sk_rcvlowat || dsk->receiver.rcv_nxt == dsk->total_length) && !sock_flag(sk, SOCK_DONE))
+        	return;
 
         sk->sk_data_ready(sk);
 }
@@ -307,11 +307,6 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
 	if (!pskb_may_pull(skb, sizeof(struct dcacp_flow_sync_hdr) - sizeof(struct dcacphdr))) {
-		printk("drop packet\n");
-		printk("size of header:%d\n", sizeof(struct dcacp_flow_sync_hdr));
-		printk("basic header:%d\n", sizeof(struct dcacphdr));
-		printk("skb->len:%d\n", skb->len);
-		printk("headlen:%d\n", skb_headlen(skb));
 		goto drop;		/* No space for header. */
 	}
 	fh =  dcacp_flow_sync_hdr(skb);
@@ -321,9 +316,7 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
             fh->common.dest, sdif, &refcounted);
 		// sk = __dcacp4_lib_lookup_skb(skb, fh->common.source, fh->common.dest, &dcacp_table);
 	// }
-	printk("receive flow sync\n");
 	if(sk) {
-		printk("call conn request\n");
 		dcacp_conn_request(sk, skb);
 		// dsk = dcacp_sk(sk);
 		// inet = inet_sk(sk);
@@ -356,7 +349,6 @@ drop:
 }
 
 int dcacp_handle_token_pkt(struct sk_buff *skb) {
-	printk("receive token pkt\n");
 	kfree_skb(skb);
 
 	return 0;
@@ -553,7 +545,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 
 	bool refcounted = false;
 	// printk("receive data pkt\n");
-	if (!pskb_may_pull(skb, sizeof(struct dcacp_data_hdr)))
+	if (!pskb_may_pull(skb, sizeof(struct dcacp_data_hdr) - sizeof(struct dcacphdr)))
 		goto drop;		/* No space for header. */
 	dh =  dcacp_data_hdr(skb);
 	// sk = skb_steal_sock(skb);
