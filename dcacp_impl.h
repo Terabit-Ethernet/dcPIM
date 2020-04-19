@@ -103,6 +103,8 @@ int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct sock
 void dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool force);
 void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk);
 
+void dcacp_write_queue_purge(struct sock *sk);
+
 int __dcacp4_lib_rcv(struct sk_buff *, struct udp_table *, int);
 int __dcacp4_lib_err(struct sk_buff *, u32, struct udp_table *);
 

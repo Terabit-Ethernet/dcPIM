@@ -120,8 +120,27 @@ static void dcacp_rtx_queue_purge(struct sock *sk)
 	}
 }
 
+static void dcacp_ofo_queue_purge(struct sock *sk)
+{
+	struct dcacp_sock * dsk = dcacp_sk(sk);
+	struct rb_node *p = rb_first(&dsk->out_of_order_queue);
+
+	// dcacp_sk(sk)->highest_sack = NULL;
+	while (p) {
+		struct sk_buff *skb = rb_to_skb(p);
+
+		p = rb_next(p);
+		/* Since we are deleting whole queue, no need to
+		 * list_del(&skb->tcp_tsorted_anchor)
+		 */
+		dcacp_ofo_queue_unlink(skb, sk);
+		dcacp_rmem_free_skb(sk, skb);
+	}
+}
+
 void dcacp_write_queue_purge(struct sock *sk)
 {
+	// struct dcacp_sock *dsk;
 	struct sk_buff *skb;
 
 	while ((skb = __skb_dequeue(&sk->sk_write_queue)) != NULL) {
@@ -133,7 +152,15 @@ void dcacp_write_queue_purge(struct sock *sk)
 		__kfree_skb(skb);
 		sk->sk_tx_skb_cache = NULL;
 	}
-	sk_mem_reclaim(sk);
+	// sk_mem_reclaim(sk);
+}
+
+void dcacp_read_queue_purge(struct sock* sk) {
+	struct sk_buff *skb;
+	while ((skb = __skb_dequeue(&sk->sk_receive_queue)) != NULL) {
+		dcacp_rmem_free_skb(sk, skb);
+	}
+	dcacp_ofo_queue_purge(sk);
 }
 // static int compute_score(struct sock *sk, struct net *net,
 // 			 __be32 saddr, __be16 sport,
@@ -894,7 +921,7 @@ void dcacp_destruct_sock(struct sock *sk)
 	struct hlist_node *n;
 	// struct dcacp_waiting_thread* thread;
 	unsigned int total = 0;
-	struct sk_buff *skb;
+	// struct sk_buff *skb;
 	int i;
 	struct dcacp_waiting_thread *pos, *temp;
 	// struct udp_hslot* hslot = udp_hashslot(sk->sk_prot->h.udp_table, sock_net(sk),
@@ -930,11 +957,11 @@ void dcacp_destruct_sock(struct sock *sk)
 	kfree(dsk->mesg_out_table);
 	kfree(dsk->mesg_in_table);
 
-	skb_queue_splice_tail_init(&sk->sk_receive_queue, &dsk->reader_queue);
-	while ((skb = __skb_dequeue(&dsk->reader_queue)) != NULL) {
-		total += skb->truesize;
-		kfree_skb(skb);
-	}
+	// skb_queue_splice_tail_init(&sk->sk_receive_queue, &dsk->reader_queue);
+	// while ((skb = __skb_dequeue(&dsk->reader_queue)) != NULL) {
+	// 	total += skb->truesize;
+	// 	kfree_skb(skb);
+	// }
 
 	dcacp_rmem_release(sk, total, 0, true);
 	inet_sock_destruct(sk);
@@ -976,6 +1003,7 @@ int dcacp_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->sender.snd_nxt, 0);
 	WRITE_ONCE(dsk->receiver.rcv_nxt, 0);
 	WRITE_ONCE(dsk->receiver.copied_seq, 0);
+	WRITE_ONCE(dsk->receiver.finished_at_receiver, false);
 	WRITE_ONCE(sk->sk_sndbuf, dcacp_params.wmem_default);
 	WRITE_ONCE(sk->sk_rcvbuf, dcacp_params.rmem_default);
 	kfree_skb(sk->sk_tx_skb_cache);
@@ -1198,7 +1226,7 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 	lock_sock(sk);
 
 	err = -ENOTCONN;
-	if (sk->sk_state == DCACP_LISTEN)
+	if (sk->sk_state != DCACP_RECEIVER)
 		goto out;
 
 	// cmsg_flags = tp->recvmsg_inq ? 1 : 0;
@@ -1247,6 +1275,7 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 		last = skb_peek_tail(&sk->sk_receive_queue);
 		skb_queue_walk_safe(&sk->sk_receive_queue, skb, tmp) {
 			last = skb;
+
 			/* Now that we have two receive queues this
 			 * shouldn't happen.
 			 */
@@ -1265,6 +1294,8 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 				goto found_ok_skb; 
 			}
 			else {
+				__skb_unlink(skb, &sk->sk_receive_queue);
+
 				kfree_skb(skb);
 				atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 			}
@@ -1340,6 +1371,7 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 
 found_ok_skb:
 		/* Ok so how much can we use? */
+
 		used = skb->len - offset;
 		if (len < used)
 			used = len;
@@ -1375,6 +1407,7 @@ found_ok_skb:
 		WRITE_ONCE(*seq, *seq + used);
 		copied += used;
 		len -= used;
+		__skb_unlink(skb, &sk->sk_receive_queue);
 		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 		kfree_skb(skb);
 		// tcp_rcv_space_adjust(sk);
@@ -1411,7 +1444,9 @@ found_ok_skb:
 
 	/* Clean up data we have read: This will do ACK frames. */
 	// tcp_cleanup_rbuf(sk, copied);
-
+	if (dsk->receiver.copied_seq == dsk->total_length) {
+		dcacp_set_state(sk, TCP_CLOSE);
+	}
 	release_sock(sk);
 
 	// if (cmsg_flags) {
@@ -1802,10 +1837,11 @@ int dcacp_rcv(struct sk_buff *skb)
 	// printk("receive pkt: %d\n", dh->type);
 	// printk("end ref \n");
 	if(dh->type == DATA) {
+		printk("receive data\n");
 		return dcacp_handle_data_pkt(skb);
 		// return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
 	} else if (dh->type == NOTIFICATION) {
-
+		printk("receive notification \n");
 		return dcacp_handle_flow_sync_pkt(skb);
 	} else if (dh->type == TOKEN) {
 		return dcacp_handle_token_pkt(skb);
@@ -1821,7 +1857,6 @@ int dcacp_rcv(struct sk_buff *skb)
 
 
 drop:
-	printk("drop packet:\n");
 
 	kfree_skb(skb);
 	return 0;
@@ -1839,6 +1874,7 @@ void dcacp_destroy_sock(struct sock *sk)
 	dcacp_set_state(sk, TCP_CLOSE);
 	// dcacp_flush_pending_frames(sk);
 	dcacp_write_queue_purge(sk);
+	dcacp_read_queue_purge(sk);
 	unlock_sock_fast(sk, slow);
 	if (static_branch_unlikely(&dcacp_encap_needed_key)) {
 		if (up->encap_type) {

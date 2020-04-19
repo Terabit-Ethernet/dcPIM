@@ -347,11 +347,9 @@ static inline struct sock *__dcacp_lookup(struct net *net,
 	sk = __dcacp_lookup_established(net, hashinfo, saddr, sport,
 				       daddr, hnum, dif, sdif);
 	*refcounted = true;
-	printk("sk:%d LINE:%d\n", (sk == NULL), __LINE__);
 	if (sk)
 		return sk;
 	*refcounted = false;
-	printk("sk:%d LINE:%d\n", (sk == NULL), __LINE__);
 	return __dcacp_lookup_listener(net, hashinfo, skb, doff, saddr,
 				      sport, daddr, hnum, dif, sdif);
 }
@@ -386,7 +384,6 @@ static inline struct sock *__dcacp_lookup_skb(struct inet_hashinfo *hashinfo,
 	const struct iphdr *iph = ip_hdr(skb);
 
 	*refcounted = true;
-	printk("skb steal sk:%d\n", (sk == NULL));
 	if (sk)
 		return sk;
 

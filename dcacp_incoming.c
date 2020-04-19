@@ -72,18 +72,25 @@
 // 				 inet_sdif(skb), dcacptable, skb);
 // }
 
-/* If we update dsk->receiver.rcv_nxt, also update dsk->receiver.bytes_received */
+/* If we update dsk->receiver.rcv_nxt, also update dsk->receiver.bytes_received 
+ * and send ack pkt if the flow is finished */
 static void dcacp_rcv_nxt_update(struct dcacp_sock *dsk, u32 seq)
 {
+	struct sock *sk = (struct sock*) dsk;
 	u32 delta = seq - dsk->receiver.rcv_nxt;
 	dsk->receiver.bytes_received += delta;
 	WRITE_ONCE(dsk->receiver.rcv_nxt, seq);
+	if(!dsk->receiver.finished_at_receiver && dsk->receiver.rcv_nxt == dsk->total_length) {
+		struct inet_sock *inet = inet_sk(sk);
+		dsk->receiver.finished_at_receiver = true;
+		dcacp_xmit_control(construct_ack_pkt(sk, 0), dsk->peer, sk, inet->inet_dport); 
+	}
 }
 
 static void dcacp_drop(struct sock *sk, struct sk_buff *skb)
 {
         sk_drops_add(sk, skb);
-        __kfree_skb(skb);
+        // __kfree_skb(skb);
 }
 
 static void dcacp_v4_fill_cb(struct sk_buff *skb, const struct iphdr *iph,
@@ -95,8 +102,9 @@ static void dcacp_v4_fill_cb(struct sk_buff *skb, const struct iphdr *iph,
         memmove(&DCACP_SKB_CB(skb)->header.h4, IPCB(skb),
                 sizeof(struct inet_skb_parm));
         barrier();
-
+        printk("seg offset:%d\n", ntohl(dh->seg.offset));
         DCACP_SKB_CB(skb)->seq = ntohl(dh->seg.offset);
+        printk("end seq:%d\n", (DCACP_SKB_CB(skb)->seq + ntohl(dh->seg.segment_length)));
         DCACP_SKB_CB(skb)->end_seq = (DCACP_SKB_CB(skb)->seq + ntohl(dh->seg.segment_length));
         // TCP_SKB_CB(skb)->ack_seq = ntohl(th->ack_seq);
         // TCP_SKB_CB(skb)->tcp_flags = tcp_flag_byte(th);
@@ -166,7 +174,7 @@ static int dcacp_data_queue_ofo(struct sock *sk, struct sk_buff *skb)
 		if (before(seq, DCACP_SKB_CB(skb1)->end_seq)) {
 			if (!after(end_seq, DCACP_SKB_CB(skb1)->end_seq)) {
 				/* All the bits are present. Drop. */
-				atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+				dcacp_rmem_free_skb(sk, skb);
 				dcacp_drop(sk, skb);
 				skb = NULL;
 
@@ -187,7 +195,7 @@ static int dcacp_data_queue_ofo(struct sock *sk, struct sk_buff *skb)
 				// 		 TCP_SKB_CB(skb1)->end_seq);
 				// NET_INC_STATS(sock_net(sk),
 				// 	      LINUX_MIB_TCPOFOMERGE);
-				atomic_sub(skb1->truesize, &sk->sk_rmem_alloc);
+				dcacp_rmem_free_skb(sk, skb1);
 				dcacp_drop(sk, skb1);
 				goto merge_right;
 			}
@@ -216,7 +224,7 @@ merge_right:
 		// tcp_dsack_extend(sk, TCP_SKB_CB(skb1)->seq,
 		// 		 TCP_SKB_CB(skb1)->end_seq);
 		// NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPOFOMERGE);
-		atomic_sub(skb1->truesize, &sk->sk_rmem_alloc);
+		dcacp_rmem_free_skb(sk, skb1);
 		dcacp_drop(sk, skb1);
 
 	}
@@ -260,7 +268,7 @@ static void dcacp_ofo_queue(struct sock *sk)
 		rb_erase(&skb->rbnode, &dsk->out_of_order_queue);
 
 		if (unlikely(!after(DCACP_SKB_CB(skb)->end_seq, dsk->receiver.rcv_nxt))) {
-			atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+			dcacp_rmem_free_skb(sk, skb);
 			dcacp_drop(sk, skb);
 			continue;
 		}
@@ -306,7 +314,9 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 	struct sock *sk;
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
-	if (!pskb_may_pull(skb, sizeof(struct dcacp_flow_sync_hdr) - sizeof(struct dcacphdr))) {
+	printk("flow sync header:%lu\n", sizeof(struct dcacp_flow_sync_hdr));
+	printk("skb len:%d\n", skb->len);
+	if (!pskb_may_pull(skb, sizeof(struct dcacp_flow_sync_hdr))) {
 		goto drop;		/* No space for header. */
 	}
 	fh =  dcacp_flow_sync_hdr(skb);
@@ -318,6 +328,7 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 	// }
 	if(sk) {
 		dcacp_conn_request(sk, skb);
+		printk("receive notification\n");
 		// dsk = dcacp_sk(sk);
 		// inet = inet_sk(sk);
 		// iph = ip_hdr(skb);
@@ -357,10 +368,8 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
 int dcacp_handle_ack_pkt(struct sk_buff *skb) {
 	struct dcacp_sock *dsk;
 	// struct inet_sock *inet;
-	struct dcacp_message_out *msg;
 	// struct dcacp_peer *peer;
 	// struct iphdr *iph;
-	struct message_hslot* slot;
 	struct dcacp_ack_hdr *ah;
 	struct sock *sk;
 	int sdif = inet_sdif(skb);
@@ -377,11 +386,9 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb) {
 	if(sk) {
 		dsk = dcacp_sk(sk);
 		// printk("socket address: %p LINE:%d\n", dsk,  __LINE__);
-		slot = dcacp_message_out_bucket(dsk, ah->message_id);
-		spin_lock_bh(&slot->lock);
-		msg = get_dcacp_message_out(dsk, ah->message_id);
-		dcacp_message_out_destroy(msg);
-		spin_unlock_bh(&slot->lock);
+		dcacp_set_state(sk, TCP_CLOSE);
+		dcacp_write_queue_purge(sk);
+
 	} else {
 		printk("doesn't find dsk address LINE:%d\n", __LINE__);
 	}
@@ -417,8 +424,7 @@ int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
 	// bool fragstolen;
 	// int eaten;
 	if (DCACP_SKB_CB(skb)->seq == DCACP_SKB_CB(skb)->end_seq) {
-		__kfree_skb(skb);
-		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+		dcacp_rmem_free_skb(sk, skb);
 		return 0;
 	}
 	// skb_dst_drop(skb);
@@ -471,7 +477,7 @@ int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
 		return 0;
 	}
 	if (!after(DCACP_SKB_CB(skb)->end_seq, dsk->receiver.rcv_nxt)) {
-		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+		dcacp_rmem_free_skb(sk, skb);
 		dcacp_drop(sk, skb);
 		return 0;
 	}
@@ -545,7 +551,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 
 	bool refcounted = false;
 	// printk("receive data pkt\n");
-	if (!pskb_may_pull(skb, sizeof(struct dcacp_data_hdr) - sizeof(struct dcacphdr)))
+	if (!pskb_may_pull(skb, sizeof(struct dcacp_data_hdr)))
 		goto drop;		/* No space for header. */
 	dh =  dcacp_data_hdr(skb);
 	// sk = skb_steal_sock(skb);
@@ -554,7 +560,11 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
             dh->common.dest, sdif, &refcounted);
     // }
 	// it is unclear why UDP and Homa doesn't grab the socket lock
-	if(sk) {
+	if(sk && sk->sk_state == DCACP_RECEIVER) {
+		printk("get the socket\n");
+		printk("socket buffer truesize:%d\n", skb->truesize);
+		printk("dh->common.dest:%d\n",dh->common.dest);
+		printk("dh->seg length:%d\n", ntohl(dh->seg.segment_length));
 		dsk = dcacp_sk(sk);
 		iph = ip_hdr(skb);
 		dcacp_v4_fill_cb(skb, iph, dh);
@@ -564,6 +574,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	        if (!sock_owned_by_user(sk)) {
 			        atomic_add_return(skb->truesize, &sk->sk_rmem_alloc);
 	                dcacp_data_queue(sk, skb);
+
 	        } else {
 	                if (dcacp_add_backlog(sk, skb))
 	                        goto discard_and_relse;

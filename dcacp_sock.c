@@ -761,9 +761,6 @@ struct sock *dcacp_sk_accept(struct sock *sk, int flags, int *err, bool kern)
 out:
 	release_sock(sk);
 	if (req){
-		printk("reference coun reqt:%d\n", refcount_read(&req->rsk_refcnt));
-		printk("reference count:%d\n", refcount_read(&sk->sk_refcnt));
-
 		reqsk_put(req);
 	}
 	printk("get the socket:%p\n", newsk);
@@ -1111,7 +1108,6 @@ int dcacp_conn_request(struct sock *sk, struct sk_buff *skb)
 
 	/* create the request sock and don't attach to the listener socket. */
 	req = dcacp_reqsk_alloc(&dcacp_request_sock_ops, sk, false);
-	printk("reference count req:%d  line: %d\n", refcount_read(&req->rsk_refcnt), __LINE__);
 	if (!req)
 		goto drop;
 

@@ -148,7 +148,7 @@ static inline void dcacp_wmem_free_skb(struct sock *sk, struct sk_buff *skb)
 {
 	sock_set_flag(sk, SOCK_QUEUE_SHRUNK);
 	sk_wmem_queued_add(sk, -skb->truesize);
-	sk_mem_uncharge(sk, skb->truesize);
+	// sk_mem_uncharge(sk, skb->truesize);
 	__kfree_skb(skb);
 }
 
@@ -238,7 +238,16 @@ static inline void dcacp_unlink_write_queue(struct sk_buff *skb, struct sock *sk
 	__skb_unlink(skb, &sk->sk_write_queue);
 }
 
+static inline void dcacp_ofo_queue_unlink(struct sk_buff *skb, struct sock *sk)
+{
+	// tcp_skb_tsorted_anchor_cleanup(skb);
+	rb_erase(&skb->rbnode, &(dcacp_sk(sk))->out_of_order_queue);
+}
 
+static inline void dcacp_rmem_free_skb(struct sock *sk, struct sk_buff *skb) {
+	atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+	__kfree_skb(skb);
+}
 
 extern struct udp_table dcacp_table;
 void dcacp_table_init(struct udp_table *, const char *);

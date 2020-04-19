@@ -93,10 +93,8 @@ int dcacp_fill_packets(struct sock *sk,
 	rtt_bytes = 10000;
 	if (unlikely((len > DCACP_MAX_MESSAGE_LENGTH) || (len == 0) || (sk_stream_wspace(sk) <= 0 ))) {
 		err = -EINVAL;
-		printk("reach here:%d\n", __LINE__);
 		goto error;
 	}
-	printk("reach here:%d\n", __LINE__);
 	dst = sk_dst_get(sk);
 	mtu = dst_mtu(dst);
 	max_pkt_data = mtu - sizeof(struct iphdr) - sizeof(struct dcacp_data_hdr);
@@ -135,7 +133,6 @@ int dcacp_fill_packets(struct sock *sk,
 	 * turn into a separate packet, using either TSO in the NIC or
 	 * GSO in software.
 	 */
-	printk("reach here:%d\n", __LINE__);
 
 	for (; bytes_left > 0; ) {
 		struct dcacp_data_hdr *h;
@@ -221,7 +218,7 @@ int dcacp_fill_packets(struct sock *sk,
 		// *last_link = NULL;
 		dcacp_add_write_queue_tail(sk, skb);
 		sk_wmem_queued_add(sk, skb->truesize);
-		sk_mem_charge(sk, skb->truesize);
+		// sk_mem_charge(sk, skb->truesize);
 	}
 	WRITE_ONCE(dsk->sender.write_seq, dsk->sender.write_seq + sent_len);
 	return sent_len;
