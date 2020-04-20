@@ -304,7 +304,6 @@ void dcacp_data_ready(struct sock *sk)
 int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 	// struct dcacp_sock *dsk;
 	// struct inet_sock *inet;
-	// struct dcacp_message_in *msg;
 	// struct dcacp_peer *peer;
 	// struct iphdr *iph;
 	// struct message_hslot* slot;

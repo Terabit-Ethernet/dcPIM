@@ -46,8 +46,8 @@ void dcacp_mattab_init(struct dcacp_match_tab *table,
 	bool(*comp)(const struct list_head*, const struct list_head*));
 
 void dcacp_mattab_destroy(struct dcacp_match_tab *table);
-void dcacp_mattab_add_new_message(struct dcacp_match_tab *table, struct dcacp_message_in* msg);
-void dcacp_mattab_delete_message(struct dcacp_match_tab *table, struct dcacp_message_in* msg);
+void dcacp_mattab_add_new_sock(struct dcacp_match_tab *table, struct sock *sk);
+void dcacp_mattab_delete_sock(struct dcacp_match_tab *table, struct sock *sk);
 
 void dcacp_mattab_delete_match_entry(struct dcacp_match_tab *table, struct dcacp_match_entry* entry);
 
@@ -62,18 +62,11 @@ void dcacp_handle_all_rts(struct dcacp_match_tab* table, struct dcacp_epoch *epo
 int dcacp_handle_grant(struct sk_buff *skb, struct dcacp_match_tab *table, struct dcacp_epoch *epoch);
 void dcacp_handle_all_grants(struct dcacp_match_tab *table, struct dcacp_epoch *epoch);
 int dcacp_handle_accept(struct sk_buff *skb, struct dcacp_match_tab *table, struct dcacp_epoch *epoch);
-/* DCACP message_in definition */
-struct dcacp_message_in* dcacp_message_in_init(struct dcacp_peer *peer, 
-	struct dcacp_sock *sock, __u64 message_id, int message_size, int sport);
-void dcacp_message_in_finish(struct dcacp_message_in *msg);
-void dcacp_message_in_destroy(struct dcacp_message_in *msg);
+
+
+
 int dcacp_fill_packets(struct sock *sk,
 		struct msghdr *msg, size_t len);
-
-/*DCACP message out definition */
-struct dcacp_message_out* dcacp_message_out_init(struct dcacp_peer *peer, 
-	struct dcacp_sock *sock, struct sk_buff* skb, __u64 message_id, int message_size, int dport);
-void dcacp_message_out_destroy(struct dcacp_message_out *msg);
 
 /*DCACP peer table*/
 int dcacp_peertab_init(struct dcacp_peertab *peertab);

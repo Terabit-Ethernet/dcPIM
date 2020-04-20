@@ -264,7 +264,7 @@ void dcacp_set_csum(bool nocheck, struct sk_buff *skb,
 EXPORT_SYMBOL(dcacp_set_csum);
 
 static int dcacp_send_skb(struct sk_buff *skb, struct flowi4 *fl4,
-			struct inet_cork *cork, enum dcacp_packet_type type, struct dcacp_message_out* mesg)
+			struct inet_cork *cork, enum dcacp_packet_type type)
 {
 	struct sock *sk = skb->sk;
 	struct inet_sock *inet = inet_sk(sk);
@@ -287,10 +287,6 @@ static int dcacp_send_skb(struct sk_buff *skb, struct flowi4 *fl4,
 	uh->common.check = 0;
 	uh->common.type = type;
 
-	if(mesg != NULL) {
-		uh->message_id = mesg->id;
-		// uh->data_seq_no = 0;
-	}
 	if (cork->gso_size) {
 		const int hlen = skb_network_header_len(skb) +
 				 sizeof(struct dcacp_data_hdr);
@@ -374,7 +370,7 @@ int dcacp_push_pending_frames(struct sock *sk)
 	if (!skb)
 		goto out;
 
-	err = dcacp_send_skb(skb, fl4, &inet->cork.base, DATA, NULL);
+	err = dcacp_send_skb(skb, fl4, &inet->cork.base, DATA);
 
 out:
 	up->len = 0;
@@ -710,48 +706,12 @@ void dcacp_destruct_sock(struct sock *sk)
 {
 
 	/* reclaim completely the forward allocated memory */
-	struct dcacp_sock *dsk = dcacp_sk(sk);
-	struct dcacp_message_out *out;
-	struct dcacp_message_in* in;
-	struct hlist_node *n;
-	// struct dcacp_waiting_thread* thread;
 	unsigned int total = 0;
 	// struct sk_buff *skb;
-	int i;
-	struct dcacp_waiting_thread *pos, *temp;
 	// struct udp_hslot* hslot = udp_hashslot(sk->sk_prot->h.udp_table, sock_net(sk),
 	// 				     dcacp_sk(sk)->dcacp_port_hash);
 	printk("call destruct sock \n");
 	/* clean the message*/
-	for (i = 0; i < DCACP_MESSAGE_BUCKETS; i++) {
-		struct message_hslot *slot = &dsk->mesg_out_table[i];
-		spin_lock_bh(&slot->lock);
-
-		hlist_for_each_entry_safe(out, n, &slot->head, sk_table_link) {
-			dcacp_message_out_destroy(out);
-		}
-		spin_unlock_bh(&slot->lock);
-		slot->count = 0;
-	}
-
-	for (i = 0; i < DCACP_MESSAGE_BUCKETS; i++) {
-		struct message_hslot *slot = &dsk->mesg_in_table[i];
-		spin_lock_bh(&slot->lock);
-		hlist_for_each_entry_safe(in, n, &slot->head, sk_table_link) {
-			dcacp_message_in_destroy(in);
-		}
-		spin_unlock_bh(&slot->lock);
-		slot->count = 0;
-	}
-	spin_lock_bh(&dsk->waiting_thread_queue_lock);
-	list_for_each_entry_safe(pos, temp, &dsk->waiting_thread_queue, wait_link) {
-		kfree(pos);
-	}
-	spin_unlock_bh(&dsk->waiting_thread_queue_lock);
-
-	kfree(dsk->mesg_out_table);
-	kfree(dsk->mesg_in_table);
-
 	// skb_queue_splice_tail_init(&sk->sk_receive_queue, &dsk->reader_queue);
 	// while ((skb = __skb_dequeue(&dsk->reader_queue)) != NULL) {
 	// 	total += skb->truesize;
@@ -766,34 +726,17 @@ EXPORT_SYMBOL_GPL(dcacp_destruct_sock);
 int dcacp_init_sock(struct sock *sk)
 {
 	struct dcacp_sock* dsk = dcacp_sk(sk);
-	int i;
 	dcacp_set_state(sk, TCP_CLOSE);
 	skb_queue_head_init(&dcacp_sk(sk)->reader_queue);
-	dsk->mesg_out_table = kmalloc(sizeof(struct message_hslot) * DCACP_MESSAGE_BUCKETS, GFP_KERNEL);
-	dsk->mesg_in_table = kmalloc(sizeof(struct message_hslot) * DCACP_MESSAGE_BUCKETS, GFP_KERNEL);
 	dsk->peer = NULL;
-	for (i = 0; i < DCACP_MESSAGE_BUCKETS; i++) {
-		struct message_hslot *slot = &dsk->mesg_in_table[i];
-		spin_lock_init(&slot->lock);
-		INIT_HLIST_HEAD(&slot->head);
-		slot->count = 0;
-	}
-	for (i = 0; i < DCACP_MESSAGE_BUCKETS; i++) {
-		struct message_hslot *slot = &dsk->mesg_out_table[i];
-		spin_lock_init(&slot->lock);
-		INIT_HLIST_HEAD(&slot->head);
-		slot->count = 0;
-	}
+	
 	// next_going_id 
 	atomic64_set(&dsk->next_outgoing_id, 1);
 	// initialize the ready queue and its lock
-	spin_lock_init(&dsk->ready_queue_lock);
-	INIT_LIST_HEAD(&dsk->ready_message_queue);
-	spin_lock_init(&dsk->waiting_thread_queue_lock);
-	INIT_LIST_HEAD(&dsk->waiting_thread_queue);
 	sk->sk_destruct = dcacp_destruct_sock;
 	dsk->unsolved = 0;
 
+	INIT_LIST_HEAD(&dsk->match_link);
 	WRITE_ONCE(dsk->sender.write_seq, 0);
 	WRITE_ONCE(dsk->sender.snd_nxt, 0);
 	WRITE_ONCE(dsk->receiver.rcv_nxt, 0);

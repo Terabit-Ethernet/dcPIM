@@ -64,16 +64,18 @@ void dcacp_mattab_destroy(struct dcacp_match_tab *table) {
 }
 
 // lock order: bucket_lock > other two locks
-void dcacp_mattab_add_new_message(struct dcacp_match_tab *table, struct dcacp_message_in* msg) {
-	struct dcacp_match_slot *bucket = dcacp_match_bucket(table, msg->peer->addr);
+void dcacp_mattab_add_new_sock(struct dcacp_match_tab *table, struct sock* sk) {
+	struct dcacp_sock *dsk = dcacp_sk(sk);
+	struct inet_sock *inet = inet_sk(sk); 
+	struct dcacp_match_slot *bucket = dcacp_match_bucket(table, inet->inet_daddr);
 	struct dcacp_match_entry *match_entry = NULL;
 	spin_lock_bh(&bucket->lock);
 	hlist_for_each_entry(match_entry, &bucket->head,
 			hash_link) {
-		if (match_entry->dst_addr == msg->peer->addr) {
-			spin_lock_bh(&match_entry->lock);
-			dcacp_pq_push(&match_entry->pq, &msg->match_link);
-			spin_unlock_bh(&match_entry->lock);
+		if (match_entry->dst_addr == inet->inet_daddr) {
+			spin_lock(&match_entry->lock);
+			dcacp_pq_push(&match_entry->pq, &dsk->match_link);
+			spin_unlock(&match_entry->lock);
 			spin_unlock_bh(&bucket->lock);
 			return;
 		}
@@ -82,35 +84,37 @@ void dcacp_mattab_add_new_message(struct dcacp_match_tab *table, struct dcacp_me
 
 	// create new match entry
 	match_entry = kmalloc(sizeof(struct dcacp_match_entry), GFP_KERNEL);
-	dcacp_match_entry_init(match_entry, msg->peer->addr, table->comp);
-	dcacp_pq_push(&match_entry->pq, &msg->match_link);
+	dcacp_match_entry_init(match_entry, inet->inet_daddr, table->comp);
+	dcacp_pq_push(&match_entry->pq, &dsk->match_link);
 	hlist_add_head(&match_entry->hash_link, &bucket->head);
 	bucket->count += 1;
 	// add this entry to the hash list
-	spin_lock_bh(&table->lock);
+	spin_lock(&table->lock);
 	list_add_tail(&match_entry->list_link, &table->hash_list);
-	spin_unlock_bh(&table->lock);
+	spin_unlock(&table->lock);
 
 	spin_unlock_bh(&bucket->lock);
 }
 
-void dcacp_mattab_delete_message(struct dcacp_match_tab *table, struct dcacp_message_in* msg) {
-	struct dcacp_match_slot *bucket = dcacp_match_bucket(table, msg->peer->addr);
+void dcacp_mattab_delete_sock(struct dcacp_match_tab *table, struct sock* sk) {
+	struct dcacp_sock *dsk = dcacp_sk(sk);
+	struct inet_sock *inet = inet_sk(sk); 
+	struct dcacp_match_slot *bucket = dcacp_match_bucket(table, inet->inet_daddr);
 	struct dcacp_match_entry *match_entry = NULL;
 	// bool empty = false;
 	spin_lock_bh(&bucket->lock);
 	hlist_for_each_entry(match_entry, &bucket->head,
 			hash_link) {
-		if (match_entry->dst_addr == msg->peer->addr) {
+		if (match_entry->dst_addr == inet->inet_daddr) {
 			break;
 		}
 		// INC_METRIC(peer_hash_links, 1);
 	}
 	if(match_entry != NULL) {
-		spin_lock_bh(&match_entry->lock);
+		spin_lock(&match_entry->lock);
 		// assume the msg still in the list, which might not be true'
-		dcacp_pq_delete(&match_entry->pq, &msg->match_link);
-		spin_unlock_bh(&match_entry->lock);
+		dcacp_pq_delete(&match_entry->pq, &dsk->match_link);
+		spin_unlock(&match_entry->lock);
 	}
 
 	spin_unlock_bh(&bucket->lock);
@@ -188,23 +192,23 @@ void dcacp_epoch_destroy(struct dcacp_epoch *epoch) {
 }
 void dcacp_send_all_rts (struct dcacp_match_tab *table, struct dcacp_epoch* epoch) {
 	struct dcacp_match_entry *entry = NULL;
- 	struct dcacp_peer *peer;
-	struct inet_sock *inet;
+ 	// struct dcacp_peer *peer;
+	// struct inet_sock *inet;
 	struct sk_buff* pkt;
 
 	spin_lock(&table->lock);
 	list_for_each_entry(entry, &table->hash_list, list_link) {
 		struct list_head *list_head = NULL;
-		struct dcacp_message_in *msg = NULL;
+		struct dcacp_sock *dsk = NULL;
 		spin_lock(&entry->lock);
 		list_head = dcacp_pq_peek(&entry->pq);
 		if(list_head != NULL) {
-			// don't need to hold msg lock, beacuase holding the priority lock
-			msg = list_entry(list_head, struct dcacp_message_in, match_link);
+			// don't need to hold dsk lock, beacuase holding the priority lock
+			dsk = list_entry(list_head, struct dcacp_sock, match_link);
 			// send rts
 			dcacp_xmit_control(construct_rts_pkt(epoch->sock->sk, 
-				epoch->iter, epoch->epoch, msg->total_length), 
-				msg->peer, epoch->sock->sk, dcacp_params.match_socket_port);
+				epoch->iter, epoch->epoch, dsk->total_length), 
+				dsk->peer, epoch->sock->sk, dcacp_params.match_socket_port);
 		}
 		spin_unlock(&entry->lock);
 	}
@@ -221,10 +225,6 @@ void dcacp_send_all_rts (struct dcacp_match_tab *table, struct dcacp_epoch* epoc
 	spin_unlock(&table->lock);
 
 }
-
-// void dcacp_send_rts (struct dcacp_message_in *msg) {
-
-// }
 
 int dcacp_handle_rts (struct sk_buff *skb, struct dcacp_match_tab *table, struct dcacp_epoch *epoch) {
 	struct dcacp_rts *rts;

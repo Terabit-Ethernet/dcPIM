@@ -78,14 +78,6 @@ struct dcacp_pq {
 	bool (*comp)(const struct list_head*, const struct list_head*);
 };
 
-struct dcacp_waiting_thread {
-	struct task_struct *thread;
-	/**
-	 * @wait_links: For linking this object into
-	 * &dcacp_sock.waiting_thread_queue.
-	 */
-	struct list_head wait_link;
-};
 /**
  * struct dcacp_peertab - A hash table that maps from IPV4 addresses
  * to dcacp_peer objects. Entries are gradually added to this table,
@@ -130,148 +122,9 @@ struct dcacp_peer {
 	struct hlist_node peertab_links;
 };
 
-
-struct message_hslot {
-	struct hlist_head	head;
-	int			count;
-	struct spinlock		lock;
-
-}__attribute__((aligned(2 * sizeof(long))));
-
 // struct message_table {
 // 	struct message_hslot* hash;
 // };
-
-struct dcacp_message_in {
-    __u64 id;
-
-    //  message out id from the sender; 
-    // __u64 message_out_id;
-	/**
-	 * @packets: DATA packets received for this message so far. The list
-	 * is sorted in order of offset (head is lowest offset), but
-	 * packets can be received out of order, so there may be times
-	 * when there are holes in the list. Packets in this list contain
-	 * exactly one data_segment.
-	 */
-	struct sk_buff_head packets;
-	/**
-	 * @num_skbs:  Total number of buffers in @packets. Will be 0 if
-	 * @total_length is less than 0.
-	 */
-	int num_skbs;
-
-	/** @lock: Used to synchronize modifications to this structure;
-	 * points to the lock in hsk->client_rpc_buckets or
-	 * hsk->server_rpc_buckets.
-	 */
-	struct spinlock lock;
-
-	// struct spinlock* message_slot_lock;
-
-
-	/**
- 	 * retransmission list of tokens
-	 */
-	struct list_head rtx_list;
-
-	/* DCACP socket */
-	struct dcacp_sock* dsk;
-
-	__u32 dport;
-	/**
-	 * size of message in bytes
-	 */
-    uint64_t total_length;
-
-    struct dcacp_peer* peer;
-    uint32_t received_bytes;
-    uint32_t received_count;
-    uint32_t recv_till;
-    // uint32_t max_seq_no_recv;
-	/** @priority: Priority level to include in future GRANTS. */
-	int priority;
-	bool is_ready;
-    bool flow_sync_received;
- 	bool finished_at_receiver;
-    int last_token_data_seq_sent;
-
-    int token_count;
-    int token_goal;
-    int largest_token_seq_received;
-    int largest_token_data_seq_received;
-	/* DCACP metric */
-    uint64_t latest_token_sent_time;
-    double first_byte_receive_time;
-
-	struct hlist_node sk_table_link;
-	struct list_head ready_link;
-
-	// link for DCACP matching table
-	struct list_head match_link;
-
-};
-
-struct dcacp_message_out {
-    __u64 id;
-	/**
-	 * @packets: singly-linked list of all packets in message, linked
-	 * using dcacp_next_skb. The list is in order of offset in the message
-	 * (offset 0 first); each sk_buff can potentially contain multiple
-	 * data_segments, which will be split into separate packets by GSO.
-	 */
-	struct sk_buff *packets;
-	
-	/**
-	 * @num_skbs:  Total number of buffers in @packets. Will be 0 if
-	 * @length is less than 0.
-	 */
-	int num_skbs;
-
-	
-	/** @lock: Used to synchronize modifications to this structure;
-	 * points to the lock in hsk->client_rpc_buckets or
-	 * hsk->server_rpc_buckets.
-	 */
-	struct spinlock lock;
-
-	/* DCACP socket */
-	struct dcacp_sock* dsk;
-
-	__u32 dport;
-
-	/**
-	 * @next_packet: Pointer within @token of the next packet to transmit.
-	 * 
-	 * All packets before this one have already been sent. NULL means
-	 * entire message has been sent.
-	 */
-	struct sk_buff *next_packet;
-	/**
-	 * size of message in bytes
-	 */
-    uint64_t total_length;
-
-    struct dcacp_peer* peer;
-
-    uint32_t total_bytes_sent;
-
-	/** @priority: Priority level to include in future GRANTS. */
-	int priority;
-
-    int remaining_pkts_at_sender;
-
-	/* DCACP metric */
-    uint64_t first_byte_send_time;
-
-    uint64_t start_time;
-    uint64_t finish_time;
-    double latest_data_pkt_sent_time;
-
-	struct hlist_node sk_table_link;
-
-};
-
 
 #define DCACP_MATCH_BUCKETS 1024
 
@@ -487,6 +340,11 @@ struct dcacp_sock {
 
 	/* This field is dirtied by dcacp_recvmsg() */
 	int		forward_deficit;
+	
+	/**
+	 * flow id
+	 */
+    uint64_t flow_id;
 
 	struct rb_root	out_of_order_queue;
 	/**
@@ -494,10 +352,7 @@ struct dcacp_sock {
 	 */
     uint64_t total_length;
 	
-	/**
-	 * flow id
-	 */
-    uint64_t flow_id;
+	struct list_head match_link;
     /* sender */
     struct dcacp_sender {
 	    /* forward sequence */
@@ -546,24 +401,7 @@ struct dcacp_sock {
 		struct list_head match_link;
     } receiver;
 
-
-
-
-
-	/* DCACP message hash table */
-	struct message_hslot* mesg_in_table;
-
-	struct message_hslot* mesg_out_table;
-
 	atomic64_t next_outgoing_id;
-
-	struct spinlock ready_queue_lock;
-
-	struct list_head ready_message_queue;
-
-	struct spinlock waiting_thread_queue_lock;
-
-	struct list_head waiting_thread_queue;
 
 	int unsolved;
 };
@@ -585,94 +423,6 @@ struct dcacp_request_sock {
 	// 					  */
 };
 
-
-/* DCACP message hslot handling function */
-static inline struct message_hslot *dcacp_message_out_bucket(
-		struct dcacp_sock *dsk, __u64 id)
-{
-	 // Each client allocates message ids sequentially, so they will
-	 // * naturally distribute themselves across the hash space.
-	 // * Thus we can use the id directly as hash.
-	 
-	return &dsk->mesg_out_table[id & (DCACP_MESSAGE_BUCKETS - 1)];
-}
-
-static inline struct dcacp_message_out * get_dcacp_message_out(struct dcacp_sock *dsk, __u64 id) {
-	struct dcacp_message_out *mesg;
-	struct message_hslot *slot;
-	slot = dcacp_message_out_bucket(dsk, id);
-	// spin_lock_bh(&slot->lock);
-	hlist_for_each_entry(mesg, &slot->head, sk_table_link) {
-		if(mesg->id == id) {
-			// spin_unlock_bh(&slot->lock);
-			return mesg;
-		}
-	}
-	// spin_unlock_bh(&slot->lock);
-	return NULL;
-}
-
-static inline void add_dcacp_message_out(struct dcacp_sock *dsk, struct dcacp_message_out *mesg) {
-	struct message_hslot *slot;
-	slot = dcacp_message_out_bucket(dsk, mesg->id);
-	// spin_lock_bh(&slot->lock);
-	hlist_add_head(&mesg->sk_table_link, &slot->head);
-	slot->count++;
-	// spin_unlock_bh(&slot->lock);
-}
-
-static inline void delete_dcacp_message_out(struct dcacp_sock *dsk, struct dcacp_message_out *mesg) {
-	struct message_hslot *slot;
-	slot = dcacp_message_out_bucket(dsk, mesg->id);
-	// spin_lock_bh(&slot->lock);
-	hlist_del(&mesg->sk_table_link);
-	slot->count--;
-	// spin_unlock_bh(&slot->lock);
-}
-
-static inline struct message_hslot *dcacp_message_in_bucket(
-		struct dcacp_sock *dsk, __u64 id)
-{
-	 // Each client allocates message ids sequentially, so they will
-	 // * naturally distribute themselves across the hash space.
-	 // * Thus we can use the id directly as hash.
-	 
-	return &dsk->mesg_in_table[id & (DCACP_MESSAGE_BUCKETS - 1)];
-}
-
-static inline struct dcacp_message_in * get_dcacp_message_in(struct dcacp_sock *dsk, 
- __be32 saddr, __u16 sport, __u64 id) {
-	struct dcacp_message_in *mesg;
-	struct message_hslot *slot;
-	slot = dcacp_message_in_bucket(dsk, id);
-	// spin_lock_bh(&slot->lock);
-	hlist_for_each_entry(mesg, &slot->head, sk_table_link) {
-		if((mesg->id == id) && (mesg->dport == sport) && (mesg->peer->addr == saddr)) {
-			// spin_unlock_bh(&slot->lock);
-			return mesg;
-		}
-	}
-	// spin_unlock_bh(&slot->lock);
-	return NULL;
-}
-
-static inline void add_dcacp_message_in(struct dcacp_sock *dsk, struct dcacp_message_in *mesg) {
-	struct message_hslot *slot;
-	slot = dcacp_message_in_bucket(dsk, mesg->id);
-	// spin_lock_bh(&slot->lock);
-	hlist_add_head(&mesg->sk_table_link, &slot->head);
-	slot->count++;
-	// spin_unlock_bh(&slot->lock);
-}
-
-static inline void delete_dcacp_message_in(struct dcacp_sock *dsk, struct dcacp_message_in *mesg) {
-	struct message_hslot *slot;
-	slot = dcacp_message_in_bucket(dsk, mesg->id);
-	// spin_lock_bh(&slot->lock);
-	hlist_del(&mesg->sk_table_link);
-	slot->count--;
-	// spin_unlock_bh(&slot->lock);
-}
 
 #define DCACP_MAX_SEGMENTS	(1 << 6UL)
 
