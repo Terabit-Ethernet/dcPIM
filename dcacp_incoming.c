@@ -102,9 +102,7 @@ static void dcacp_v4_fill_cb(struct sk_buff *skb, const struct iphdr *iph,
         memmove(&DCACP_SKB_CB(skb)->header.h4, IPCB(skb),
                 sizeof(struct inet_skb_parm));
         barrier();
-        printk("seg offset:%d\n", ntohl(dh->seg.offset));
         DCACP_SKB_CB(skb)->seq = ntohl(dh->seg.offset);
-        printk("end seq:%d\n", (DCACP_SKB_CB(skb)->seq + ntohl(dh->seg.segment_length)));
         DCACP_SKB_CB(skb)->end_seq = (DCACP_SKB_CB(skb)->seq + ntohl(dh->seg.segment_length));
         // TCP_SKB_CB(skb)->ack_seq = ntohl(th->ack_seq);
         // TCP_SKB_CB(skb)->tcp_flags = tcp_flag_byte(th);

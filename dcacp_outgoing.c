@@ -417,8 +417,6 @@ void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk)
 	skb->csum_offset = offsetof(struct dcacphdr, check);
 	h->common.source = inet->inet_sport;
 	h->common.dest = inet->inet_dport;
-	printk("source port:%d\n", inet->inet_sport);
-	printk("dst port:%d\n", inet->inet_dport);
 	dcacp_set_doff(h);
 
 	// h->common.seq = htonl(200);

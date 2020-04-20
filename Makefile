@@ -9,7 +9,6 @@ dcacp_module-y = dcacp_sock.o\
 				 dcacp_matching.o\
 				 dcacp_incoming.o\
 				 dcacp_outgoing.o \
-				 dcacp_tunnel.o \
 				 dcacp.o \
 				 dcacp_plumbing.o
 
