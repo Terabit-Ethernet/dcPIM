@@ -42,8 +42,7 @@ int sysctl_dcacp_wmem_min __read_mostly;
 //     return false;
 
 // }
-#define IPPROTO_DCACP 18
-#define IPPROTO_DCACPLITE 19
+// #define IPPROTO_DCACP 200
 
 const struct proto_ops dcacp_dgram_ops = {
     .family        = PF_INET,

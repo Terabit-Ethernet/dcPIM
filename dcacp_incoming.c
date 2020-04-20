@@ -113,6 +113,55 @@ static void dcacp_v4_fill_cb(struct sk_buff *skb, const struct iphdr *iph,
         //                 skb->tstamp || skb_hwtstamps(skb)->hwtstamp;
 }
 
+
+/**
+ * dcacp_try_coalesce - try to merge skb to prior one
+ * @sk: socket
+ * @dest: destination queue
+ * @to: prior buffer
+ * @from: buffer to add in queue
+ * @fragstolen: pointer to boolean
+ *
+ * Before queueing skb @from after @to, try to merge them
+ * to reduce overall memory use and queue lengths, if cost is small.
+ * Packets in ofo or receive queues can stay a long time.
+ * Better try to coalesce them right now to avoid future collapses.
+ * Returns true if caller should free @from instead of queueing it
+ */
+static bool dcacp_try_coalesce(struct sock *sk,
+			     struct sk_buff *to,
+			     struct sk_buff *from,
+			     bool *fragstolen)
+{
+	int delta;
+	int skb_truesize = from->truesize;
+	*fragstolen = false;
+
+	/* Its possible this segment overlaps with prior segment in queue */
+	if (DCACP_SKB_CB(from)->seq != DCACP_SKB_CB(to)->end_seq)
+		return false;
+
+	if (!skb_try_coalesce(to, from, fragstolen, &delta))
+		return false;
+
+	/* assume we have alrady add true size beforehand*/
+	atomic_sub(skb_truesize, &sk->sk_rmem_alloc);
+	atomic_add(delta, &sk->sk_rmem_alloc);
+	// sk_mem_charge(sk, delta);
+	// NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPRCVCOALESCE);
+	DCACP_SKB_CB(to)->end_seq = DCACP_SKB_CB(from)->end_seq;
+	// DCACP_SKB_CB(to)->ack_seq = DCACP_SKB_CB(from)->ack_seq;
+	// DCACP_SKB_CB(to)->tcp_flags |= DCACP_SKB_CB(from)->tcp_flags;
+
+	// if (DCACP_SKB_CB(from)->has_rxtstamp) {
+	// 	TCP_SKB_CB(to)->has_rxtstamp = true;
+	// 	to->tstamp = from->tstamp;
+	// 	skb_hwtstamps(to)->hwtstamp = skb_hwtstamps(from)->hwtstamp;
+	// }
+
+	return true;
+}
+
 static int dcacp_data_queue_ofo(struct sock *sk, struct sk_buff *skb)
 {
 	struct dcacp_sock *dsk = dcacp_sk(sk);
@@ -246,8 +295,9 @@ static void dcacp_ofo_queue(struct sock *sk)
 {
 	struct dcacp_sock *dsk = dcacp_sk(sk);
 	// __u32 dsack_high = dcacp->receiver.rcv_nxt;
-	// bool fin, fragstolen, eaten;
-	struct sk_buff *skb;
+	bool fragstolen, eaten;
+	// bool fin;
+	struct sk_buff *skb, *tail;
 	struct rb_node *p;
 
 	p = rb_first(&dsk->out_of_order_queue);
@@ -271,14 +321,14 @@ static void dcacp_ofo_queue(struct sock *sk)
 			continue;
 		}
 
-		// tail = skb_peek_tail(&sk->sk_receive_queue);
-		// eaten = tail && tcp_try_coalesce(sk, tail, skb, &fragstolen);
+		tail = skb_peek_tail(&sk->sk_receive_queue);
+		eaten = tail && dcacp_try_coalesce(sk, tail, skb, &fragstolen);
 		dcacp_rcv_nxt_update(dsk, DCACP_SKB_CB(skb)->end_seq);
 		// fin = TCP_SKB_CB(skb)->tcp_flags & TCPHDR_FIN;
-		// if (!eaten)
+		if (!eaten)
 			__skb_queue_tail(&sk->sk_receive_queue, skb);
-		// else
-		// 	kfree_skb_partial(skb, fragstolen);
+		else
+			kfree_skb_partial(skb, fragstolen);
 
 		// if (unlikely(fin)) {
 		// 	tcp_fin(sk);
@@ -399,27 +449,27 @@ drop:
 }
 
 
-// static void  dcacp_queue_rcv(struct sock *sk, struct sk_buff *skb)
-// {
-// 	// int eaten;
-// 	// struct sk_buff *tail = skb_peek_tail(&sk->sk_receive_queue);
+static int  dcacp_queue_rcv(struct sock *sk, struct sk_buff *skb,  bool *fragstolen)
+{
+	int eaten;
+	struct sk_buff *tail = skb_peek_tail(&sk->sk_receive_queue);
 
-// 	// eaten = (tail &&
-// 	// 	 tcp_try_coalesce(sk, tail,
-// 	// 			  skb, fragstolen)) ? 1 : 0;
-// 	// tcp_rcv_nxt_update(tcp_sk(sk), TCP_SKB_CB(skb)->end_seq);
-// 	// if (!eaten) {
-// 		__skb_queue_tail(&sk->sk_receive_queue, skb);
-// 	// 	skb_set_owner_r(skb, sk);
-// 	// }
-// 	// return eaten;
-// }
+	eaten = (tail &&
+		 dcacp_try_coalesce(sk, tail,
+				  skb, fragstolen)) ? 1 : 0;
+	if (!eaten) {
+		__skb_queue_tail(&sk->sk_receive_queue, skb);
+		// skb_set_owner_r(skb, sk);
+	}
+	dcacp_rcv_nxt_update(dcacp_sk(sk), DCACP_SKB_CB(skb)->end_seq);
+	return eaten;
+}
 
 int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
 {
 	struct dcacp_sock *dsk = dcacp_sk(sk);
-	// bool fragstolen;
-	// int eaten;
+	bool fragstolen;
+	int eaten;
 	if (DCACP_SKB_CB(skb)->seq == DCACP_SKB_CB(skb)->end_seq) {
 		dcacp_rmem_free_skb(sk, skb);
 		return 0;
@@ -446,15 +496,14 @@ int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
 		// else if (tcp_try_rmem_schedule(sk, skb, skb->truesize)) {
 		// 	goto drop;
 		// }
-		__skb_queue_tail(&sk->sk_receive_queue, skb);
-		dcacp_rcv_nxt_update(dsk, DCACP_SKB_CB(skb)->end_seq);
+		// __skb_queue_tail(&sk->sk_receive_queue, skb);
 
-		// eaten = dcacp_queue_rcv(sk, skb, &fragstolen);
+		eaten = dcacp_queue_rcv(sk, skb, &fragstolen);
 
 		if (!RB_EMPTY_ROOT(&dsk->out_of_order_queue)) {
 			dcacp_ofo_queue(sk);
 		}
-		dcacp_data_ready(sk);
+
 		// 	/* RFC5681. 4.2. SHOULD send immediate ACK, when
 		// 	 * gap in queue is filled.
 		// 	 */
@@ -467,10 +516,10 @@ int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
 
 		// tcp_fast_path_check(sk);
 
-		// if (eaten > 0)
-		// 	kfree_skb_partial(skb, fragstolen);
-		// if (!sock_flag(sk, SOCK_DEAD))
-		// 	tcp_data_ready(sk);
+		if (eaten > 0)
+			kfree_skb_partial(skb, fragstolen);
+		if (!sock_flag(sk, SOCK_DEAD))
+			dcacp_data_ready(sk);
 		return 0;
 	}
 	if (!after(DCACP_SKB_CB(skb)->end_seq, dsk->receiver.rcv_nxt)) {
@@ -558,10 +607,6 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
     // }
 	// it is unclear why UDP and Homa doesn't grab the socket lock
 	if(sk && sk->sk_state == DCACP_RECEIVER) {
-		printk("get the socket\n");
-		printk("socket buffer truesize:%d\n", skb->truesize);
-		printk("dh->common.dest:%d\n",dh->common.dest);
-		printk("dh->seg length:%d\n", ntohl(dh->seg.segment_length));
 		dsk = dcacp_sk(sk);
 		iph = ip_hdr(skb);
 		dcacp_v4_fill_cb(skb, iph, dh);

@@ -189,13 +189,13 @@ enum {
 };
 
 #define SOL_DCACP 18
-#define SOL_DCACPLITE 19
+// #define SOL_DCACPLITE 19
 
 /* DCACP's protocol number within the IP protocol space (this is not an
  * officially allocated slot).
  */
 #define IPPROTO_DCACP 18
-#define IPPROTO_DCACPLITE 19
+// #define IPPROTO_DCACPLITE 19
 
 /* DCACP socket options */
 #define DCACP_CORK	1	/* Never send partially complete segments */

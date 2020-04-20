@@ -474,6 +474,6 @@ static inline bool dcacp_unexpected_gso(struct sock *sk, struct sk_buff *skb)
 #define dcacp_portaddr_for_each_entry_rcu(__sk, list) \
 	hlist_for_each_entry_rcu(__sk, list, __sk_common.skc_portaddr_node)
 
-#define IS_DCACPLITE(__sk) (__sk->sk_protocol == IPPROTO_DCACPLITE)
+// #define IS_DCACPLITE(__sk) (__sk->sk_protocol == IPPROTO_DCACPLITE)
 
 #endif	/* _LINUX_DCACP_H */

@@ -729,7 +729,7 @@ int dcacp_init_sock(struct sock *sk)
 	dcacp_set_state(sk, TCP_CLOSE);
 	skb_queue_head_init(&dcacp_sk(sk)->reader_queue);
 	dsk->peer = NULL;
-	
+	printk("init sock\n");
 	// next_going_id 
 	atomic64_set(&dsk->next_outgoing_id, 1);
 	// initialize the ready queue and its lock
@@ -782,10 +782,10 @@ static struct sk_buff *__first_packet_length(struct sock *sk,
 
 	while ((skb = skb_peek(rcvq)) != NULL) {
 		if (dcacp_lib_checksum_complete(skb)) {
-			__UDP_INC_STATS(sock_net(sk), UDP_MIB_CSUMERRORS,
-					IS_DCACPLITE(sk));
-			__UDP_INC_STATS(sock_net(sk), UDP_MIB_INERRORS,
-					IS_DCACPLITE(sk));
+			// __UDP_INC_STATS(sock_net(sk), UDP_MIB_CSUMERRORS,
+			// 		IS_DCACPLITE(sk));
+			// __UDP_INC_STATS(sock_net(sk), UDP_MIB_INERRORS,
+			// 		IS_DCACPLITE(sk));
 			atomic_inc(&sk->sk_drops);
 			__skb_unlink(skb, rcvq);
 			*total += skb->truesize;
@@ -1039,7 +1039,7 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 
 found_ok_skb:
 		/* Ok so how much can we use? */
-
+		printk("found skb len:%d\n", skb->len);
 		used = skb->len - offset;
 		if (len < used)
 			used = len;
@@ -1673,7 +1673,7 @@ EXPORT_SYMBOL(dcacp_lib_setsockopt);
 int dcacp_setsockopt(struct sock *sk, int level, int optname,
 		   char __user *optval, unsigned int optlen)
 {
-	if (level == SOL_DCACP  ||  level == SOL_DCACPLITE)
+	if (level == SOL_DCACP)
 		return dcacp_lib_setsockopt(sk, level, optname, optval, optlen,
 					  dcacp_push_pending_frames);
 	return ip_setsockopt(sk, level, optname, optval, optlen);
@@ -1683,7 +1683,7 @@ int dcacp_setsockopt(struct sock *sk, int level, int optname,
 int compat_dcacp_setsockopt(struct sock *sk, int level, int optname,
 			  char __user *optval, unsigned int optlen)
 {
-	if (level == SOL_DCACP  ||  level == SOL_DCACPLITE)
+	if (level == SOL_DCACP)
 		return dcacp_lib_setsockopt(sk, level, optname, optval, optlen,
 					  dcacp_push_pending_frames);
 	return compat_ip_setsockopt(sk, level, optname, optval, optlen);
@@ -1750,7 +1750,7 @@ EXPORT_SYMBOL(dcacp_lib_getsockopt);
 int dcacp_getsockopt(struct sock *sk, int level, int optname,
 		   char __user *optval, int __user *optlen)
 {
-	if (level == SOL_DCACP  ||  level == SOL_DCACPLITE)
+	if (level == SOL_DCACP)
 		return dcacp_lib_getsockopt(sk, level, optname, optval, optlen);
 	return ip_getsockopt(sk, level, optname, optval, optlen);
 }
@@ -1759,7 +1759,7 @@ int dcacp_getsockopt(struct sock *sk, int level, int optname,
 int compat_dcacp_getsockopt(struct sock *sk, int level, int optname,
 				 char __user *optval, int __user *optlen)
 {
-	if (level == SOL_DCACP  ||  level == SOL_DCACPLITE)
+	if (level == SOL_DCACP)
 		return dcacp_lib_getsockopt(sk, level, optname, optval, optlen);
 	return compat_ip_getsockopt(sk, level, optname, optval, optlen);
 }
