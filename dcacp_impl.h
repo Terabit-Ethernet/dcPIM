@@ -82,12 +82,14 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb);
 int dcacp_handle_token_pkt(struct sk_buff *skb);
 int dcacp_handle_ack_pkt(struct sk_buff *skb);
 int dcacp_data_queue(struct sock *sk, struct sk_buff *skb);
+bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check);
+int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb);
 
 /*DCACP outgoing function*/
 struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id, 
 	int message_size, __u64 start_time);
-struct sk_buff* construct_token_pkt(struct sock* sk, bool free_token, unsigned short priority,
-	 __u64 message_id, __u32 seq_no, __u32 data_seq_no, __u32 remaining_size);
+struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
+	 __u32 grant_nxt);
 struct sk_buff* construct_ack_pkt(struct sock* sk, __u64 message_id);
 struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz);
 struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool prompt);
@@ -96,8 +98,12 @@ int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct sock
 void dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool force);
 void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk);
 
-void dcacp_write_queue_purge(struct sock *sk);
+void dcacp_write_timer_handler(struct sock *sk);
 
+void dcacp_write_queue_purge(struct sock *sk);
+void dcacp_write_timer_handler(struct sock *sk);
+
+void dcacp_release_cb(struct sock *sk);
 int __dcacp4_lib_rcv(struct sk_buff *, struct udp_table *, int);
 int __dcacp4_lib_err(struct sk_buff *, u32, struct udp_table *);
 

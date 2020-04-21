@@ -430,7 +430,8 @@ int dcacp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	}
 	sent_len = dcacp_fill_packets(sk, msg, len);
 	if(dsk->total_length < dcacp_params.short_flow_size) {
-		if (!skb_queue_empty(&sk->sk_write_queue)) {
+		dsk->grant_nxt = dsk->total_length;
+		while (!skb_queue_empty(&sk->sk_write_queue)) {
 			struct sk_buff *skb = dcacp_send_head(sk);
 			dcacp_xmit_data(skb, dsk, true);
 		}
@@ -735,10 +736,14 @@ int dcacp_init_sock(struct sock *sk)
 	// initialize the ready queue and its lock
 	sk->sk_destruct = dcacp_destruct_sock;
 	dsk->unsolved = 0;
-
+	WRITE_ONCE(dsk->grant_nxt, 0);
 	INIT_LIST_HEAD(&dsk->match_link);
 	WRITE_ONCE(dsk->sender.write_seq, 0);
 	WRITE_ONCE(dsk->sender.snd_nxt, 0);
+	WRITE_ONCE(dsk->sender.snd_una, 0);
+
+	WRITE_ONCE(dsk->receiver.free_flow, false);
+	WRITE_ONCE(dsk->receiver.num_sacks, 0);
 	WRITE_ONCE(dsk->receiver.rcv_nxt, 0);
 	WRITE_ONCE(dsk->receiver.copied_seq, 0);
 	WRITE_ONCE(dsk->receiver.finished_at_receiver, false);
@@ -1505,11 +1510,9 @@ int dcacp_rcv(struct sk_buff *skb)
 	// printk("receive pkt: %d\n", dh->type);
 	// printk("end ref \n");
 	if(dh->type == DATA) {
-		printk("receive data\n");
 		return dcacp_handle_data_pkt(skb);
 		// return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
 	} else if (dh->type == NOTIFICATION) {
-		printk("receive notification \n");
 		return dcacp_handle_flow_sync_pkt(skb);
 	} else if (dh->type == TOKEN) {
 		return dcacp_handle_token_pkt(skb);

@@ -49,6 +49,26 @@ enum {
 	DCACPF_LISTEN	 = (1 << DCACP_LISTEN),
 };
 
+enum dcacpcsq_enum {
+	// TSQ_THROTTLED, 
+	// TSQ_QUEUED, /* this twos are defined in tcp.h*/
+	DCACP_TSQ_DEFERRED = 2,	   /* tcp_tasklet_func() found socket was owned */
+	DCACP_WRITE_TIMER_DEFERRED,  /* tcp_write_timer() found socket was owned */
+	DCACP_DELACK_TIMER_DEFERRED, /* tcp_delack_timer() found socket was owned */
+	DCACP_MTU_REDUCED_DEFERRED,  /* tcp_v{4|6}_err() could not call
+				    * tcp_v{4|6}_mtu_reduced()
+				    */
+};
+
+enum dcacpcsq_flags {
+	// TSQF_THROTTLED			= (1UL << TSQ_THROTTLED),
+	// TSQF_QUEUED			= (1UL << TSQ_QUEUED),
+	DCACPF_TSQ_DEFERRED		= (1UL << DCACP_TSQ_DEFERRED),
+	DCACPF_WRITE_TIMER_DEFERRED	= (1UL << DCACP_WRITE_TIMER_DEFERRED),
+	DCACPF_DELACK_TIMER_DEFERRED	= (1UL << DCACP_DELACK_TIMER_DEFERRED),
+	DCACPF_MTU_REDUCED_DEFERRED	= (1UL << DCACP_MTU_REDUCED_DEFERRED),
+};
+
 struct dcacp_params {
 	int clean_match_sock;
 	int min_iter;
@@ -129,6 +149,7 @@ struct dcacp_peer {
 #define DCACP_MATCH_BUCKETS 1024
 
 struct dcacp_epoch {
+
 	uint64_t epoch;
 	uint32_t iter;
 	bool prompt;
@@ -145,6 +166,10 @@ struct dcacp_epoch {
 	// struct rte_timer receiver_iter_timers[10];
 	// struct pim_timer_params pim_timer_params;
 	uint64_t start_cycle;
+	/* remaining tokens */
+	uint32_t remaining_tokens;
+	struct hrtimer token_xmit_timer;
+	struct work_struct token_xmit_struct;
 
 	// current epoch and address
 	uint64_t cur_epoch;
@@ -237,6 +262,11 @@ static inline struct dcacp_flow_sync_hdr *dcacp_flow_sync_hdr(const struct sk_bu
 	return (struct dcacp_flow_sync_hdr *)skb_transport_header(skb);
 }
 
+static inline struct dcacp_token_hdr *dcacp_token_hdr(const struct sk_buff *skb)
+{
+	return (struct dcacp_token_hdr *)skb_transport_header(skb);
+}
+
 static inline struct dcacp_rts_hdr *dcacp_rts_hdr(const struct sk_buff *skb)
 {
 	return (struct dcacp_rts_hdr *)skb_transport_header(skb);
@@ -279,6 +309,17 @@ static inline u32 dcacp_hashfn(const struct net *net, u32 num, u32 mask)
 {
 	return (num + net_hash_mix(net)) & mask;
 }
+
+/* This defines a selective acknowledgement block. */
+struct dcacp_sack_block_wire {
+	__be32	start_seq;
+	__be32	end_seq;
+};
+
+struct dcacp_sack_block {
+	u32	start_seq;
+	u32	end_seq;
+};
 
 struct dcacp_sock {
 	/* inet_sock has to be the first member */
@@ -352,13 +393,19 @@ struct dcacp_sock {
 	 */
     uint64_t total_length;
 	
+	uint32_t grant_nxt;
+
 	struct list_head match_link;
     /* sender */
     struct dcacp_sender {
-	    /* forward sequence */
+	    /* next sequence from the user; Also equals total bytes written by user. */
 	    uint32_t write_seq;
-	    /* forward sequence */
+	    /* the next sequence will be sent (at the first time)*/
 	    uint32_t snd_nxt;
+
+	    /* the last unack byte.*/
+	    uint32_t snd_una;
+
 	    // uint32_t total_bytes_sent;
 	    // uint32_t bytes_from_user;
 	    int remaining_pkts_at_sender;
@@ -375,6 +422,8 @@ struct dcacp_sock {
 		 * size of message in bytes
 		 */
 		bool is_ready;
+		/* short flow and hasn't reached timeout yet */
+		bool free_flow;
 	    bool flow_sync_received;
 	 	bool finished_at_receiver;
 		uint32_t copied_seq;
@@ -382,6 +431,9 @@ struct dcacp_sock {
 	    uint32_t received_count;
 	    /* current received bytes + 1*/
 	    uint32_t rcv_nxt;
+	    uint32_t num_sacks;
+	    struct dcacp_sack_block duplicate_sack[1]; /* D-SACK block */
+		struct dcacp_sack_block selective_acks[4]; /* The SACKS themselves*/
 	    // uint32_t max_seq_no_recv;
 		/** @priority: Priority level to include in future GRANTS. */
 		int priority;

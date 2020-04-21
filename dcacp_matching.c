@@ -145,6 +145,7 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 	// struct pim_timer_params pim_timer_params;
 	epoch->start_cycle = 0;
 
+	epoch->remaining_tokens = 0;
 	// current epoch and address
 	epoch->cur_epoch = 0;
 	epoch->cur_match_src_addr = 0;
@@ -158,6 +159,11 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 		return;
 	}
 	spin_lock_init(&epoch->lock);
+	
+	/* token xmit timer*/
+	hrtimer_init(&epoch->token_xmit_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
+	INIT_WORK(&epoch->sender_iter_struct, sender_iter_event_handler);
+
 	epoch->wq = alloc_workqueue("epoch_wq",
 			WQ_MEM_RECLAIM | WQ_HIGHPRI, 0);
 	INIT_WORK(&epoch->sender_iter_struct, sender_iter_event_handler);

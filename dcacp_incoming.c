@@ -61,6 +61,7 @@
 #include "uapi_linux_dcacp.h"
 #include "dcacp_impl.h"
 // #include "dcacp_hashtables.h"
+
 // static inline struct sock *__dcacp4_lib_lookup_skb(struct sk_buff *skb,
 // 						 __be16 sport, __be16 dport,
 // 						 struct udp_table *dcacptable)
@@ -71,6 +72,188 @@
 // 				 iph->daddr, dport, inet_iif(skb),
 // 				 inet_sdif(skb), dcacptable, skb);
 // }
+
+/* Remove acknowledged frames from the retransmission queue. If our packet
+ * is before the ack sequence we can discard it as it's confirmed to have
+ * arrived at the other end.
+ */
+static int dcacp_clean_rtx_queue(struct sock *sk)
+{
+	// const struct inet_connection_sock *icsk = inet_csk(sk);
+	struct dcacp_sock *dsk = dcacp_sk(sk);
+	// u64 first_ackt, last_ackt;
+	// u32 prior_sacked = tp->sacked_out;
+	// u32 reord = tp->snd_nxt;  lowest acked un-retx un-sacked seq 
+	struct sk_buff *skb, *next;
+	bool fully_acked = true;
+	// long sack_rtt_us = -1L;
+	// long seq_rtt_us = -1L;
+	// long ca_rtt_us = -1L;
+	// u32 pkts_acked = 0;
+	// u32 last_in_flight = 0;
+	// bool rtt_update;
+	int flag = 0;
+
+	// first_ackt = 0;
+
+	for (skb = skb_rb_first(&sk->tcp_rtx_queue); skb; skb = next) {
+		struct dcacp_skb_cb *scb = DCACP_SKB_CB(skb);
+		// const u32 start_seq = scb->seq;
+		// u8 sacked = scb->sacked;
+		// u32 acked_pcount;
+
+		// tcp_ack_tstamp(sk, skb, prior_snd_una);
+
+		/* Determine how many packets and what bytes were acked, tso and else */
+		if (after(scb->end_seq, dsk->sender.snd_una)) {
+			// if (tcp_skb_pcount(skb) == 1 ||
+			//     !after(tp->snd_una, scb->seq))
+			// 	break;
+
+			// acked_pcount = tcp_tso_acked(sk, skb);
+			// if (!acked_pcount)
+			// 	break;
+			fully_acked = false;
+		} else {
+			// acked_pcount = tcp_skb_pcount(skb);
+		}
+
+		// if (unlikely(sacked & TCPCB_RETRANS)) {
+		// 	if (sacked & TCPCB_SACKED_RETRANS)
+		// 		tp->retrans_out -= acked_pcount;
+		// 	flag |= FLAG_RETRANS_DATA_ACKED;
+		// } else if (!(sacked & TCPCB_SACKED_ACKED)) {
+		// 	last_ackt = tcp_skb_timestamp_us(skb);
+		// 	WARN_ON_ONCE(last_ackt == 0);
+		// 	if (!first_ackt)
+		// 		first_ackt = last_ackt;
+
+		// 	last_in_flight = TCP_SKB_CB(skb)->tx.in_flight;
+		// 	if (before(start_seq, reord))
+		// 		reord = start_seq;
+		// 	if (!after(scb->end_seq, tp->high_seq))
+		// 		flag |= FLAG_ORIG_SACK_ACKED;
+		// }
+
+		// if (sacked & TCPCB_SACKED_ACKED) {
+		// 	tp->sacked_out -= acked_pcount;
+		// } else if (tcp_is_sack(tp)) {
+		// 	tp->delivered += acked_pcount;
+		// 	if (!tcp_skb_spurious_retrans(tp, skb))
+		// 		tcp_rack_advance(tp, sacked, scb->end_seq,
+		// 				 tcp_skb_timestamp_us(skb));
+		// }
+		// if (sacked & TCPCB_LOST)
+		// 	tp->lost_out -= acked_pcount;
+
+		// tp->packets_out -= acked_pcount;
+		// pkts_acked += acked_pcount;
+		// tcp_rate_skb_delivered(sk, skb, sack->rate);
+
+		/* Initial outgoing SYN's get put onto the write_queue
+		 * just like anything else we transmit.  It is not
+		 * true data, and if we misinform our callers that
+		 * this ACK acks real data, we will erroneously exit
+		 * connection startup slow start one packet too
+		 * quickly.  This is severely frowned upon behavior.
+		 */
+		// if (likely(!(scb->tcp_flags & TCPHDR_SYN))) {
+		// 	flag |= FLAG_DATA_ACKED;
+		// } else {
+		// 	flag |= FLAG_SYN_ACKED;
+		// 	tp->retrans_stamp = 0;
+		// }
+
+		if (!fully_acked)
+			break;
+
+		next = skb_rb_next(skb);
+		// if (unlikely(skb == tp->retransmit_skb_hint))
+		// 	tp->retransmit_skb_hint = NULL;
+		// if (unlikely(skb == tp->lost_skb_hint))
+		// 	tp->lost_skb_hint = NULL;
+		// tcp_highest_sack_replace(sk, skb, next);
+		dcacp_rtx_queue_unlink_and_free(skb, sk);
+	}
+
+	// if (!skb)
+	// 	tcp_chrono_stop(sk, TCP_CHRONO_BUSY);
+
+	// if (likely(between(tp->snd_up, prior_snd_una, tp->snd_una)))
+	// 	tp->snd_up = tp->snd_una;
+
+	// if (skb && (TCP_SKB_CB(skb)->sacked & TCPCB_SACKED_ACKED))
+	// 	flag |= FLAG_SACK_RENEGING;
+
+	// if (likely(first_ackt) && !(flag & FLAG_RETRANS_DATA_ACKED)) {
+	// 	seq_rtt_us = tcp_stamp_us_delta(tp->tcp_mstamp, first_ackt);
+	// 	ca_rtt_us = tcp_stamp_us_delta(tp->tcp_mstamp, last_ackt);
+
+	// 	if (pkts_acked == 1 && last_in_flight < tp->mss_cache &&
+	// 	    last_in_flight && !prior_sacked && fully_acked &&
+	// 	    sack->rate->prior_delivered + 1 == tp->delivered &&
+	// 	    !(flag & (FLAG_CA_ALERT | FLAG_SYN_ACKED))) {
+	// 		/* Conservatively mark a delayed ACK. It's typically
+	// 		 * from a lone runt packet over the round trip to
+	// 		 * a receiver w/o out-of-order or CE events.
+	// 		 */
+	// 		flag |= FLAG_ACK_MAYBE_DELAYED;
+	// 	}
+	// }
+	// if (sack->first_sackt) {
+	// 	sack_rtt_us = tcp_stamp_us_delta(tp->tcp_mstamp, sack->first_sackt);
+	// 	ca_rtt_us = tcp_stamp_us_delta(tp->tcp_mstamp, sack->last_sackt);
+	// }
+	// rtt_update = tcp_ack_update_rtt(sk, flag, seq_rtt_us, sack_rtt_us,
+	// 				ca_rtt_us, sack->rate);
+
+	// if (flag & FLAG_ACKED) {
+	// 	flag |= FLAG_SET_XMIT_TIMER;  /* set TLP or RTO timer */
+	// 	if (unlikely(icsk->icsk_mtup.probe_size &&
+	// 		     !after(tp->mtu_probe.probe_seq_end, tp->snd_una))) {
+	// 		tcp_mtup_probe_success(sk);
+	// 	}
+
+	// 	if (tcp_is_reno(tp)) {
+	// 		tcp_remove_reno_sacks(sk, pkts_acked);
+
+	// 		/* If any of the cumulatively ACKed segments was
+	// 		 * retransmitted, non-SACK case cannot confirm that
+	// 		 * progress was due to original transmission due to
+	// 		 * lack of TCPCB_SACKED_ACKED bits even if some of
+	// 		 * the packets may have been never retransmitted.
+	// 		 */
+	// 		if (flag & FLAG_RETRANS_DATA_ACKED)
+	// 			flag &= ~FLAG_ORIG_SACK_ACKED;
+	// 	} else {
+	// 		int delta;
+
+	// 		/* Non-retransmitted hole got filled? That's reordering */
+	// 		if (before(reord, prior_fack))
+	// 			tcp_check_sack_reordering(sk, reord, 0);
+
+	// 		delta = prior_sacked - tp->sacked_out;
+	// 		tp->lost_cnt_hint -= min(tp->lost_cnt_hint, delta);
+	// 	}
+	// } else if (skb && rtt_update && sack_rtt_us >= 0 &&
+	// 	   sack_rtt_us > tcp_stamp_us_delta(tp->tcp_mstamp,
+	// 					    tcp_skb_timestamp_us(skb))) {
+	// 	/* Do not re-arm RTO if the sack RTT is measured from data sent
+	// 	 * after when the head was last (re)transmitted. Otherwise the
+	// 	 * timeout may continue to extend in loss recovery.
+	// 	 */
+	// 	flag |= FLAG_SET_XMIT_TIMER;  /* set TLP or RTO timer */
+	// }
+
+	// if (icsk->icsk_ca_ops->pkts_acked) {
+	// 	struct ack_sample sample = { .pkts_acked = pkts_acked,
+	// 				     .rtt_us = sack->rate->rtt_us,
+	// 				     .in_flight = last_in_flight };
+
+	// 	icsk->icsk_ca_ops->pkts_acked(sk, &sample);
+	// }
+	return flag;
+}
 
 /* If we update dsk->receiver.rcv_nxt, also update dsk->receiver.bytes_received 
  * and send ack pkt if the flow is finished */
@@ -161,6 +344,7 @@ static bool dcacp_try_coalesce(struct sock *sk,
 
 	return true;
 }
+
 
 static int dcacp_data_queue_ofo(struct sock *sk, struct sk_buff *skb)
 {
@@ -361,8 +545,6 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 	struct sock *sk;
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
-	printk("flow sync header:%lu\n", sizeof(struct dcacp_flow_sync_hdr));
-	printk("skb len:%d\n", skb->len);
 	if (!pskb_may_pull(skb, sizeof(struct dcacp_flow_sync_hdr))) {
 		goto drop;		/* No space for header. */
 	}
@@ -407,8 +589,43 @@ drop:
 }
 
 int dcacp_handle_token_pkt(struct sk_buff *skb) {
-	kfree_skb(skb);
+	struct dcacp_sock *dsk;
+	// struct inet_sock *inet;
+	// struct dcacp_peer *peer;
+	// struct iphdr *iph;
+	struct dcacp_token_hdr *th;
+	struct sock *sk;
+	int sdif = inet_sdif(skb);
+	bool refcounted = false;
 
+	if (!pskb_may_pull(skb, sizeof(struct dcacp_token_hdr))) {
+		kfree_skb(skb);
+		return 0;
+	}
+	th = dcacp_token_hdr(skb);
+	sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&th->common), th->common.source,
+            th->common.dest, sdif, &refcounted);
+	if(sk) {
+ 		dsk = dcacp_sk(sk);
+ 		bh_lock_sock_nested(sk);
+ 		if (!sock_owned_by_user(sk)) {
+			/* clean rtx queue */
+			dsk->sender.snd_una = th->rcv_nxt > dsk->sender.snd_una ? th->rcv_nxt: dsk->sender.snd_una;
+	 		dcacp_clean_rtx_queue(sk);
+			/* add token */
+	 		dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
+
+			/* start doing transmission (this part may move to different places later)*/
+			dcacp_write_timer_handler(sk);
+	        kfree_skb(skb);
+        } else {
+            dcacp_add_backlog(sk, skb, true);
+        }
+        bh_unlock_sock(sk);
+	}
+    if (refcounted) {
+        sock_put(sk);
+    }
 	return 0;
 }
 
@@ -422,8 +639,10 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb) {
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
 
-	if (!pskb_may_pull(skb, sizeof(struct dcacp_ack_hdr)))
-		goto drop;		/* No space for header. */
+	if (!pskb_may_pull(skb, sizeof(struct dcacp_ack_hdr))) {
+		kfree_skb(skb);		/* No space for header. */
+		return 0;
+	}
 	ah = dcacp_ack_hdr(skb);
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
@@ -431,19 +650,27 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb) {
             ah->common.dest, sdif, &refcounted);
     // }
 	if(sk) {
+ 		bh_lock_sock_nested(sk);
 		dsk = dcacp_sk(sk);
+		if (!sock_owned_by_user(sk)) {
+	        dcacp_set_state(sk, TCP_CLOSE);
+	        dcacp_write_queue_purge(sk);
+	        kfree_skb(skb);
+        } else {
+            dcacp_add_backlog(sk, skb, true);
+        }
+        bh_unlock_sock(sk);
+
 		// printk("socket address: %p LINE:%d\n", dsk,  __LINE__);
-		dcacp_set_state(sk, TCP_CLOSE);
-		dcacp_write_queue_purge(sk);
 
 	} else {
+		kfree_skb(skb);
 		printk("doesn't find dsk address LINE:%d\n", __LINE__);
 	}
-drop:
+
     if (refcounted) {
         sock_put(sk);
     }
-	kfree_skb(skb);
 
 	return 0;
 }
@@ -497,7 +724,7 @@ int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
 		// 	goto drop;
 		// }
 		// __skb_queue_tail(&sk->sk_receive_queue, skb);
-
+queue_and_out:
 		eaten = dcacp_queue_rcv(sk, skb, &fragstolen);
 
 		if (!RB_EMPTY_ROOT(&dsk->out_of_order_queue)) {
@@ -535,12 +762,7 @@ int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
 	if (unlikely(before(DCACP_SKB_CB(skb)->seq, dsk->receiver.rcv_nxt))) {
 		/* Partial packet, seq < rcv_next < end_seq; unlikely */
 		// tcp_dsack_set(sk, DCACP_SKB_CB(skb)->seq, dsk->rcv_nxt);
-		__skb_queue_tail(&sk->sk_receive_queue, skb);
-		dcacp_rcv_nxt_update(dsk, DCACP_SKB_CB(skb)->end_seq);
-		if (!RB_EMPTY_ROOT(&dsk->out_of_order_queue)) {
-			dcacp_ofo_queue(sk);
-		}
-		dcacp_data_ready(sk);
+
 
 		/* If window is closed, drop tail of packet. But after
 		 * remembering D-SACK for its head made in previous line.
@@ -549,15 +771,14 @@ int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
 		// 	NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPZEROWINDOWDROP);
 		// 	goto out_of_window;
 		// }
-		// goto queue_and_out;
-		return 0;
+		goto queue_and_out;
 	}
 
 	dcacp_data_queue_ofo(sk, skb);
 	return 0;
 }
 
-bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb)
+bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check)
 {
         u32 limit = READ_ONCE(sk->sk_rcvbuf) + READ_ONCE(sk->sk_sndbuf);
         
@@ -566,7 +787,9 @@ bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb)
          * Few sockets backlog are possibly concurrently non empty.
          */
         limit += 64*1024;
-
+        if (omit_check) {
+        	limit = UINT_MAX;
+        }
         if (unlikely(sk_add_backlog(sk, skb, limit))) {
                 bh_unlock_sock(sk);
                 // __NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPBACKLOGDROP);
@@ -618,7 +841,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	                dcacp_data_queue(sk, skb);
 
 	        } else {
-	                if (dcacp_add_backlog(sk, skb))
+	                if (dcacp_add_backlog(sk, skb, false))
 	                        goto discard_and_relse;
 	        }
         } else {
@@ -642,4 +865,33 @@ discard_and_relse:
             sock_put(sk);
     goto drop;
 	// kfree_skb(skb);
+}
+
+/* should hold the lock, before calling this function；
+ * This function is only called for backlog handling from the release_sock()
+ */
+int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
+	struct dcacphdr* dh;
+	struct dcacp_sock *dsk = dcacp_sk(sk);
+	dh = dcacp_hdr(skb);
+	if(dh->type == DATA) {
+		return dcacp_data_queue(sk, skb);
+		// return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
+	} else if (dh->type == ACK) {
+        dcacp_set_state(sk, TCP_CLOSE);
+        dcacp_write_queue_purge(sk);
+		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+	} else if (dh->type == TOKEN) {
+		/* clean rtx queue */
+		struct dcacp_token_hdr *th = dcacp_token_hdr(skb);
+		dsk->sender.snd_una = th->rcv_nxt > dsk->sender.snd_una ? th->rcv_nxt: dsk->sender.snd_una;
+ 		dcacp_clean_rtx_queue(sk);
+		/* add token */
+ 		dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
+ 		// will be handled by dcacp_release_cb
+ 		test_and_set_bit(DCACP_WRITE_TIMER_DEFERRED, &sk->sk_tsq_flags);
+		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+	}
+	kfree_skb(skb);
+	return 0;
 }

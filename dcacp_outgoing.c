@@ -61,6 +61,59 @@
 #include "dcacp_impl.h"
 
 
+#define DCACP_DEFERRED_ALL (DCACPF_TSQ_DEFERRED |		\
+			  DCACPF_WRITE_TIMER_DEFERRED |	\
+			  DCACPF_DELACK_TIMER_DEFERRED |	\
+			  DCACPF_MTU_REDUCED_DEFERRED)
+
+/**
+ * dcacp_release_cb - dcacp release_sock() callback
+ * @sk: socket
+ *
+ * called from release_sock() to perform protocol dependent
+ * actions before socket release.
+ */
+void dcacp_release_cb(struct sock *sk)
+{
+	unsigned long flags, nflags;
+
+	/* perform an atomic operation only if at least one flag is set */
+	do {
+		flags = sk->sk_tsq_flags;
+		if (!(flags & DCACP_DEFERRED_ALL))
+			return;
+		nflags = flags & ~DCACP_DEFERRED_ALL;
+	} while (cmpxchg(&sk->sk_tsq_flags, flags, nflags) != flags);
+
+	// if (flags & TCPF_TSQ_DEFERRED) {
+	// 	tcp_tsq_write(sk);
+	// 	__sock_put(sk);
+	// }
+	/* Here begins the tricky part :
+	 * We are called from release_sock() with :
+	 * 1) BH disabled
+	 * 2) sk_lock.slock spinlock held
+	 * 3) socket owned by us (sk->sk_lock.owned == 1)
+	 *
+	 * But following code is meant to be called from BH handlers,
+	 * so we should keep BH disabled, but early release socket ownership
+	 */
+	sock_release_ownership(sk);
+
+	if (flags & DCACPF_WRITE_TIMER_DEFERRED) {
+		dcacp_write_timer_handler(sk);
+		// __sock_put(sk);
+	}
+	// if (flags & TCPF_DELACK_TIMER_DEFERRED) {
+	// 	tcp_delack_timer_handler(sk);
+	// 	__sock_put(sk);
+	// }
+	// if (flags & TCPF_MTU_REDUCED_DEFERRED) {
+	// 	inet_csk(sk)->icsk_af_ops->mtu_reduced(sk);
+	// 	__sock_put(sk);
+	// }
+}
+EXPORT_SYMBOL(dcacp_release_cb);
 
 
 struct sk_buff* __construct_control_skb(struct sock* sk) {
@@ -107,12 +160,14 @@ struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id,
 	return skb;
 }
 
-struct sk_buff* construct_token_pkt(struct sock* sk, bool free_token, unsigned short priority,
-	 __u64 message_id, __u32 seq_no, __u32 data_seq_no, __u32 remaining_size) {
+struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
+	 __u32 grant_nxt) {
 	// int extra_bytes = 0;
+	struct dcacp_sock *dsk = dcacp_sk(sk);
 	struct sk_buff* skb = __construct_control_skb(sk);
 	struct dcacp_token_hdr* fh;
-	struct dcacphdr* dh; 
+	struct dcacphdr* dh;
+	struct dcacp_sack_block_wire *sack;
 	if(unlikely(!skb)) {
 		return NULL;
 	}
@@ -120,12 +175,16 @@ struct sk_buff* construct_token_pkt(struct sock* sk, bool free_token, unsigned s
 	dh = (struct dcacphdr*) (&fh->common);
 	dh->len = htons(sizeof(struct dcacp_token_hdr));
 	dh->type = TOKEN;
-	fh->free_token = free_token;
 	fh->priority = priority;
-	fh->message_id = message_id;
-	fh->seq_no = seq_no;
-	fh->data_seq_no = data_seq_no;
-	fh->remaining_size = remaining_size;
+	fh->rcv_nxt = dsk->receiver.rcv_nxt;
+	fh->grant_nxt = grant_nxt;
+	fh->num_sacks = 0;
+	while(fh->num_sacks < dsk->receiver.num_sacks) {
+		sack = (struct dcacp_sack_block_wire*) skb_put(skb, sizeof(struct dcacp_sack_block_wire));
+		sack->start_seq = dsk->receiver.selective_acks[fh->num_sacks].start_seq;
+		sack->end_seq = dsk->receiver.selective_acks[fh->num_sacks].end_seq;
+		fh->num_sacks++;
+	}
 	// extra_bytes = DCACP_HEADER_MAX_SIZE - length;
 	// if (extra_bytes > 0)
 	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
@@ -441,3 +500,51 @@ void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk)
 	// INC_METRIC(packets_sent[0], 1);
 }
 
+/* Called with bottom-half processing disabled.
+   Called by tcp_write_timer() */
+void dcacp_write_timer_handler(struct sock *sk)
+{    
+	struct dcacp_sock *dsk = dcacp_sk(sk);
+	while(!skb_queue_empty(&sk->sk_write_queue)) {
+		struct sk_buff *skb = dcacp_send_head(sk);
+		if (DCACP_SKB_CB(skb)->end_seq <= dsk->grant_nxt) {
+			dcacp_xmit_data(skb, dsk, true);
+		}
+	}
+
+
+//         struct inet_connection_sock *icsk = inet_csk(sk);
+//         int event;
+        
+//         if (((1 << sk->sk_state) & (TCPF_CLOSE | TCPF_LISTEN)) ||
+//             !icsk->icsk_pending)
+//                 goto out;
+        
+//         if (time_after(icsk->icsk_timeout, jiffies)) {
+//                 sk_reset_timer(sk, &icsk->icsk_retransmit_timer, icsk->icsk_timeout);
+//                 goto out;
+//         }
+        
+//         tcp_mstamp_refresh(tcp_sk(sk));
+//         event = icsk->icsk_pending;
+        
+//         switch (event) {
+//         case ICSK_TIME_REO_TIMEOUT:
+//                 tcp_rack_reo_timeout(sk);
+//                 break;
+//         case ICSK_TIME_LOSS_PROBE:
+//                 tcp_send_loss_probe(sk);
+//                 break;
+//         case ICSK_TIME_RETRANS:
+//                 icsk->icsk_pending = 0;
+//                 tcp_retransmit_timer(sk);
+//                 break;
+//         case ICSK_TIME_PROBE0:
+//                 icsk->icsk_pending = 0;
+//                 tcp_probe_timer(sk);
+//                 break;
+//         }
+
+// out:
+//         sk_mem_reclaim(sk);
+}

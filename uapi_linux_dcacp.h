@@ -133,13 +133,11 @@ struct dcacp_data_hdr {
 
 struct dcacp_token_hdr {
 	struct dcacphdr common;
-	__u8 free_token;
+	__be32 rcv_nxt;
+	__be32 grant_nxt;
 	__u8 priority;
-	__be64 message_id;
+	__u8 num_sacks;
 	/* token seq number */
-	__be32 seq_no;
-	__be32 data_seq_no;
-	__be32 remaining_size;
 };
 
 // _Static_assert(sizeof(struct dcacp_token_hdr) <= DCACP_HEADER_MAX_SIZE,
