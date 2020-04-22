@@ -559,12 +559,14 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 	if(sk) {
 		child = dcacp_conn_request(sk, skb);
 		if(child) {
-			struct dcacp_sock *dsk = dcacp_sk(sk);
+			struct dcacp_sock *dsk = dcacp_sk(child);
 			if(dsk->total_length >= dcacp_params.short_flow_size) {
 				spin_lock_bh(&dcacp_epoch.lock);
 				/* push the long flow to the control plane for scheduling*/
 				dcacp_pq_push(&dcacp_epoch.flow_q, &dsk->match_link);
+				printk("push to pq\n");
 				if(dcacp_pq_size(&dcacp_epoch.flow_q) == 1) {
+					printk("xmit token\n");
 					dcacp_xmit_token(&dcacp_epoch);
 				}
 				spin_unlock_bh(&dcacp_epoch.lock);

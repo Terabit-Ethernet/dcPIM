@@ -37,8 +37,8 @@ static int set_grant_batch(struct dst_entry *dst) {
 	bufs_per_gso = gso_size / mtu;
 	max_pkt_data = mtu - sizeof(struct iphdr) - sizeof(struct dcacp_data_hdr);
 	max_gso_data = bufs_per_gso * max_pkt_data;
-	gso_size = bufs_per_gso * mtu;
-	return gso_size;
+	// gso_size = bufs_per_gso * mtu;
+	return max_gso_data;
 }
 
 void reqsk_queue_alloc(struct request_sock_queue *queue)
@@ -463,7 +463,6 @@ int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
       (uint32_t)usin->sin_zero[1] << 16 |
       (uint32_t)usin->sin_zero[2] << 8  |
       (uint32_t)usin->sin_zero[3];	
-    printk("flow len:%u\n", flow_len);
     WARN_ON(sk->sk_state != TCP_CLOSE);
     if (addr_len < sizeof(struct sockaddr_in))
 		return -EINVAL;
@@ -776,7 +775,6 @@ out:
 	if (req){
 		reqsk_put(req);
 	}
-	printk("get the socket:%p\n", newsk);
 	return newsk;
 out_err:
 	release_sock(sk);

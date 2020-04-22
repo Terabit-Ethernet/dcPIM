@@ -190,22 +190,24 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 void dcacp_epoch_destroy(struct dcacp_epoch *epoch) {
 	struct dcacp_rts *rts, *temp;
 	struct dcacp_grant *grant, *temp2;
+	struct socket *sk;
 	hrtimer_cancel(&epoch->epoch_timer);
 	hrtimer_cancel(&epoch->sender_iter_timer);
 	hrtimer_cancel(&epoch->receiver_iter_timer);
 	flush_workqueue(epoch->wq);
 	destroy_workqueue(epoch->wq);
 	spin_lock_bh(&epoch->lock);
+	sk = epoch->sock;
+	epoch->sock = NULL;
 	list_for_each_entry_safe(rts, temp, &epoch->rts_q, list_link) {
 		kfree(rts);
 	}
 	list_for_each_entry_safe(grant, temp2, &epoch->grants_q, list_link) {
 		kfree(grant);
 	}
-    sock_release(epoch->sock);
-    epoch->sock = NULL;
 	spin_unlock_bh(&epoch->lock);
-
+	/* dcacp_destroy_sock needs to hold the epoch lock */
+    sock_release(sk);
 
 }
 void dcacp_send_all_rts (struct dcacp_match_tab *table, struct dcacp_epoch* epoch) {
@@ -456,6 +458,7 @@ void dcacp_xmit_token(struct dcacp_epoch* epoch) {
  			dsk->grant_nxt = dsk->total_length;
  			dcacp_pq_delete(&epoch->flow_q, &dsk->match_link);
  		}
+ 		printk("xmit token grant next: %d \n", dsk->grant_nxt);
  		dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, dsk->grant_nxt),
  		 dsk->peer, sk, inet->inet_dport);
         bh_unlock_sock(sk);
