@@ -510,6 +510,8 @@ void dcacp_write_timer_handler(struct sock *sk)
 		struct sk_buff *skb = dcacp_send_head(sk);
 		if (DCACP_SKB_CB(skb)->end_seq <= dsk->grant_nxt) {
 			dcacp_xmit_data(skb, dsk, false);
+		} else {
+			break;
 		}
 	}
 

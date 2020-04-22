@@ -624,17 +624,22 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
 	if(sk) {
  		dsk = dcacp_sk(sk);
  		bh_lock_sock_nested(sk);
+ 		printk("reach here:%d\n", __LINE__);
  		if (!sock_owned_by_user(sk)) {
 			/* clean rtx queue */
 			dsk->sender.snd_una = th->rcv_nxt > dsk->sender.snd_una ? th->rcv_nxt: dsk->sender.snd_una;
 	 		dcacp_clean_rtx_queue(sk);
 			/* add token */
 	 		dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
+	 		printk("reach here:%d\n", __LINE__);
 
 			/* start doing transmission (this part may move to different places later)*/
 			dcacp_write_timer_handler(sk);
 	        kfree_skb(skb);
+	 		printk("reach here:%d\n", __LINE__);
+
         } else {
+	 		printk("reach here:%d\n", __LINE__);
             dcacp_add_backlog(sk, skb, true);
         }
         bh_unlock_sock(sk);
@@ -807,6 +812,7 @@ bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check)
         	limit = UINT_MAX;
         }
         if (unlikely(sk_add_backlog(sk, skb, limit))) {
+        		printk("add backlog failed\n");
                 bh_unlock_sock(sk);
                 // __NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPBACKLOGDROP);
                 return true;
@@ -844,7 +850,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&dh->common), dh->common.source,
             dh->common.dest, sdif, &refcounted);
     // }
-	// it is unclear why UDP and Homa doesn't grab the socket lock
+    printk("get packet; len:%d\n", ntohl(dh->seg.segment_length));
 	if(sk && sk->sk_state == DCACP_RECEIVER) {
 		dsk = dcacp_sk(sk);
 		iph = ip_hdr(skb);
