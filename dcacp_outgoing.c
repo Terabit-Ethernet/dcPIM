@@ -339,7 +339,7 @@ int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct sock
 	inet->tos = TOS_7;
 	skb->sk = sk;
 	// dst_confirm_neigh(peer->dst, &fl4->daddr);
-	// dst_hold(peer->dst);
+	dst_hold(__sk_dst_get(sk));
 	// skb_dst_set(skb, __sk_dst_get(sk));
 	skb_get(skb);
 	result = ip_queue_xmit(sk, skb, &inet->cork.fl);
@@ -467,7 +467,7 @@ void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_to
 	 * message was initially created.
 	 */
 	
-	// dst_hold(peer->dst);
+	dst_hold(__sk_dst_get(sk));
 	// skb_dst_set(skb, peer->dst);
 	skb->sk = sk;
 	skb_dst_set(skb, __sk_dst_get(sk));

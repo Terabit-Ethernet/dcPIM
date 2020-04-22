@@ -546,8 +546,13 @@ int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	}
 	/* OK, now commit destination to socket.  */
 	sk->sk_gso_type = SKB_GSO_TCPV4;
-	// set gso capacity
+	/*set gso capacity */
 	sk_setup_caps(sk, &rt->dst);
+	/* set dst */
+	if (dst && dst_hold_safe(&rt->dst)) {
+		sk->sk_dst_set = &rt->dst;
+		inet_sk(sk)->rx_dst_ifindex = skb->skb_iif;
+	}
 	rt = NULL;
 
 	// if (likely(!tp->repair)) {
