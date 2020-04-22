@@ -549,9 +549,9 @@ int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	/*set gso capacity */
 	sk_setup_caps(sk, &rt->dst);
 	/* set dst */
-	if (dst && dst_hold_safe(&rt->dst)) {
-		sk->sk_dst_set = &rt->dst;
-		inet_sk(sk)->rx_dst_ifindex = skb->skb_iif;
+	if (dst_hold_safe(&rt->dst)) {
+		sk->sk_rx_dst = &rt->dst;
+		inet_sk(sk)->rx_dst_ifindex = rt->rt_iif;
 	}
 	rt = NULL;
 
