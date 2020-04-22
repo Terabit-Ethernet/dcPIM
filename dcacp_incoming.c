@@ -73,6 +73,7 @@
 // 				 inet_sdif(skb), dcacptable, skb);
 // }
 
+
 /* Remove acknowledged frames from the retransmission queue. If our packet
  * is before the ack sequence we can discard it as it's confirmed to have
  * arrived at the other end.
@@ -542,7 +543,7 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 	// struct iphdr *iph;
 	// struct message_hslot* slot;
 	struct dcacp_flow_sync_hdr *fh;
-	struct sock *sk;
+	struct sock *sk, *child;
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
 	if (!pskb_may_pull(skb, sizeof(struct dcacp_flow_sync_hdr))) {
@@ -556,8 +557,21 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 		// sk = __dcacp4_lib_lookup_skb(skb, fh->common.source, fh->common.dest, &dcacp_table);
 	// }
 	if(sk) {
-		dcacp_conn_request(sk, skb);
-		printk("receive notification\n");
+		child = dcacp_conn_request(sk, skb);
+		if(child) {
+			struct dcacp_sock *dsk = dcacp_sk(sk);
+			if(dsk->total_length >= dcacp_params.short_flow_size) {
+				spin_lock_bh(&dcacp_epoch.lock);
+				/* push the long flow to the control plane for scheduling*/
+				dcacp_pq_push(&dcacp_epoch.flow_q, &dsk->match_link);
+				if(dcacp_pq_size(&dcacp_epoch.flow_q) == 1) {
+					dcacp_xmit_token(&dcacp_epoch);
+				}
+				spin_unlock_bh(&dcacp_epoch.lock);
+			} else {
+				/* set short flow timer */
+			}
+		}
 		// dsk = dcacp_sk(sk);
 		// inet = inet_sk(sk);
 		// iph = ip_hdr(skb);
@@ -833,6 +847,16 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 		dsk = dcacp_sk(sk);
 		iph = ip_hdr(skb);
 		dcacp_v4_fill_cb(skb, iph, dh);
+		if (!dh->free_token) {
+			spin_lock_bh(&dcacp_epoch.lock);
+			dcacp_epoch.remaining_tokens -= ntohl(dh->seg.segment_length);
+			if (!dcacp_pq_empty(&dcacp_epoch.flow_q) &&
+				dcacp_epoch.remaining_tokens < dcacp_params.control_pkt_bdp / 2
+				) {
+				dcacp_xmit_token(&dcacp_epoch);
+			}
+			spin_unlock_bh(&dcacp_epoch.lock);
+		} 
  		bh_lock_sock_nested(sk);
         // ret = 0;
         if (atomic_read(&sk->sk_rmem_alloc) + skb->truesize < sk->sk_rcvbuf) {

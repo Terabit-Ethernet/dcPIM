@@ -33,12 +33,14 @@ void dcacp_sysctl_changed(struct dcacp_params *params);
 void dcacp_params_init(struct dcacp_params *params);
 // DCACP matching logic
 // DCACP priority queue
+void dcacp_xmit_token(struct dcacp_epoch* epoch);
 void dcacp_pq_init(struct dcacp_pq* pq, bool(*comp)(const struct list_head*, const struct list_head*));
 bool dcacp_pq_empty(struct dcacp_pq* pq);
 struct list_head* dcacp_pq_pop(struct dcacp_pq* pq);
 void dcacp_pq_push(struct dcacp_pq* pq, struct list_head* node);
 struct list_head* dcacp_pq_peek(struct dcacp_pq* pq); 
 void dcacp_pq_delete(struct dcacp_pq* pq, struct list_head* node);
+int dcacp_pq_size(struct dcacp_pq* pq);
 
 void dcacp_match_entry_init(struct dcacp_match_entry* entry, __be32 addr, 
  bool(*comp)(const struct list_head*, const struct list_head*));
@@ -95,8 +97,8 @@ struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoc
 struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool prompt);
 struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short iter, int epoch);
 int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct sock *dcacp_sk, int dport);
-void dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool force);
-void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk);
+void dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_token);
+void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_token);
 
 void dcacp_write_timer_handler(struct sock *sk);
 

@@ -210,8 +210,8 @@ void dcacp_params_init(struct dcacp_params* params) {
     params->rmem_default = 131072;
     params->wmem_default = 131072;
     params->short_flow_size = params->bdp;
-    printk("epoch size:%d\n",dcacp_params.epoch_size );
-    printk("dcacp iter:%d\n", dcacp_params.iter_size);
+    params->control_pkt_bdp = params->control_pkt_rtt * params->bandwidth * 1000 / 8;
+    printk("params->control_pkt_bdp:%d\n", params->control_pkt_bdp);
 }
 /**
  * dcacp_dointvec() - This function is a wrapper around proc_dointvec. It is

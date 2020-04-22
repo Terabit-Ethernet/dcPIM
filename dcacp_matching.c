@@ -3,6 +3,16 @@
 static void recevier_iter_event_handler(struct work_struct *work);
 static void sender_iter_event_handler(struct work_struct *work);
 
+bool flow_compare(const struct list_head* node1, const struct list_head* node2) {
+    struct dcacp_sock *e1, *e2;
+    e1 = list_entry(node1, struct dcacp_sock, match_link);
+    e2 = list_entry(node2, struct dcacp_sock, match_link);
+    if(e1->total_length > e2->total_length)
+        return true;
+    return false;
+
+}
+
 // __u64 js, je;
 void dcacp_match_entry_init(struct dcacp_match_entry* entry, __be32 addr, 
  bool(*comp)(const struct list_head*, const struct list_head*)) {
@@ -145,7 +155,6 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 	// struct pim_timer_params pim_timer_params;
 	epoch->start_cycle = 0;
 
-	epoch->remaining_tokens = 0;
 	// current epoch and address
 	epoch->cur_epoch = 0;
 	epoch->cur_match_src_addr = 0;
@@ -159,10 +168,13 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 		return;
 	}
 	spin_lock_init(&epoch->lock);
-	
 	/* token xmit timer*/
+	epoch->remaining_tokens = 0;
 	hrtimer_init(&epoch->token_xmit_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
 	INIT_WORK(&epoch->sender_iter_struct, sender_iter_event_handler);
+	/* pHost Queue */
+	dcacp_pq_init(&epoch->flow_q, flow_compare);
+
 
 	epoch->wq = alloc_workqueue("epoch_wq",
 			WQ_MEM_RECLAIM | WQ_HIGHPRI, 0);
@@ -171,7 +183,7 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 	hrtimer_init(&epoch->epoch_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
 	hrtimer_init(&epoch->sender_iter_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
 	hrtimer_init(&epoch->receiver_iter_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
-	hrtimer_start(&epoch->epoch_timer, ktime_set(0, 5000000), HRTIMER_MODE_ABS);
+	// hrtimer_start(&epoch->epoch_timer, ktime_set(0, 5000000), HRTIMER_MODE_ABS);
 	epoch->epoch_timer.function = &dcacp_new_epoch;
 }
 
@@ -424,6 +436,30 @@ static void recevier_iter_event_handler(struct work_struct *work) {
 	} 
 	dcacp_send_all_rts(&dcacp_match_table, epoch);
 	spin_unlock_bh(&epoch->lock);
+}
+
+/* Assume BH is disabled and epoch->lock is hold*/
+void dcacp_xmit_token(struct dcacp_epoch* epoch) {
+	struct list_head *match_link;
+	struct sock *sk;
+	struct dcacp_sock *dsk;
+	struct inet_sock *inet;
+	if(!dcacp_pq_empty(&epoch->flow_q)) {
+		match_link = dcacp_pq_peek(&epoch->flow_q);
+		dsk =  list_entry(match_link, struct dcacp_sock, match_link);
+		sk = (struct sock*)dsk;
+		inet = inet_sk(sk);
+ 		bh_lock_sock_nested(sk);
+ 		dsk->grant_nxt += dsk->receiver.grant_batch; 
+ 		epoch->remaining_tokens += dsk->receiver.grant_batch;
+ 		if(dsk->grant_nxt >= dsk->total_length) {
+ 			dsk->grant_nxt = dsk->total_length;
+ 			dcacp_pq_delete(&epoch->flow_q, &dsk->match_link);
+ 		}
+ 		dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, dsk->grant_nxt),
+ 		 dsk->peer, sk, inet->inet_dport);
+        bh_unlock_sock(sk);
+	}
 }
 
 static void sender_iter_event_handler(struct work_struct *work) {

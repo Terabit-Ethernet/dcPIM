@@ -85,6 +85,6 @@ struct sock *dcacp_create_openreq_child(const struct sock *sk,
 struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
 				  struct request_sock *req,
 				  struct dst_entry *dst);
-int dcacp_conn_request(struct sock *sk, struct sk_buff *skb);
+struct sock* dcacp_conn_request(struct sock *sk, struct sk_buff *skb);
 
 #endif /* _INET_CONNECTION_SOCK_H */

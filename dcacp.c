@@ -746,6 +746,7 @@ int dcacp_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.num_sacks, 0);
 	WRITE_ONCE(dsk->receiver.rcv_nxt, 0);
 	WRITE_ONCE(dsk->receiver.copied_seq, 0);
+	WRITE_ONCE(dsk->receiver.grant_batch, 0);
 	WRITE_ONCE(dsk->receiver.finished_at_receiver, false);
 	WRITE_ONCE(sk->sk_sndbuf, dcacp_params.wmem_default);
 	WRITE_ONCE(sk->sk_rcvbuf, dcacp_params.rmem_default);
@@ -1547,6 +1548,9 @@ void dcacp_destroy_sock(struct sock *sk)
 	dcacp_write_queue_purge(sk);
 	dcacp_read_queue_purge(sk);
 	unlock_sock_fast(sk, slow);
+	spin_lock_bh(&dcacp_epoch.lock);
+	dcacp_pq_delete(&dcacp_epoch.flow_q, &up->match_link);
+	spin_unlock_bh(&dcacp_epoch.lock);
 	if (static_branch_unlikely(&dcacp_encap_needed_key)) {
 		if (up->encap_type) {
 			void (*encap_destroy)(struct sock *sk);

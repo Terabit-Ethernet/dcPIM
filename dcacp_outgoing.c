@@ -374,7 +374,7 @@ int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct sock
  *             is too long. False means that zero packets may be sent, if
  *             the NIC queue is sufficiently long.
  */
-void dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool force)
+void dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_token)
 {
 	struct sock* sk = (struct sock*)(dsk);
 	struct sk_buff* oskb;
@@ -383,7 +383,7 @@ void dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool force)
 		skb = pskb_copy(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
 	else
 		skb = skb_clone(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
-	__dcacp_xmit_data(skb, dsk);
+	__dcacp_xmit_data(skb, dsk, free_token);
 	/* change the state of queue and metadata*/
 
 	dcacp_unlink_write_queue(oskb, sk);
@@ -442,7 +442,7 @@ void dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool force)
  * @rpc:      Information about the RPC that the packet belongs to.
  * @priority: Priority level at which to transmit the packet.
  */
-void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk)
+void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_token)
 {
 	int err;
 	// struct dcacp_data_hder *h = (struct dcacp_data_hder *)
@@ -476,6 +476,7 @@ void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk)
 	skb->csum_offset = offsetof(struct dcacphdr, check);
 	h->common.source = inet->inet_sport;
 	h->common.dest = inet->inet_dport;
+	h->free_token = free_token;
 	dcacp_set_doff(h);
 
 	// h->common.seq = htonl(200);
@@ -508,7 +509,7 @@ void dcacp_write_timer_handler(struct sock *sk)
 	while(!skb_queue_empty(&sk->sk_write_queue)) {
 		struct sk_buff *skb = dcacp_send_head(sk);
 		if (DCACP_SKB_CB(skb)->end_seq <= dsk->grant_nxt) {
-			dcacp_xmit_data(skb, dsk, true);
+			dcacp_xmit_data(skb, dsk, false);
 		}
 	}
 

@@ -171,6 +171,7 @@ int dcacp_fill_packets(struct sock *sk,
 		h->common.type = DATA;
 		available = max_gso_data;
 		h->common.len = available > bytes_left? htons(bytes_left) :htons(available);
+		// h->message_id = 256;
 		WRITE_ONCE(DCACP_SKB_CB(skb)->seq, dsk->sender.write_seq + len - bytes_left);
 		WRITE_ONCE(DCACP_SKB_CB(skb)->end_seq, DCACP_SKB_CB(skb)->seq + ntohs(h->common.len));
 

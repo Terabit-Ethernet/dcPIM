@@ -32,6 +32,9 @@ bool dcacp_pq_empty(struct dcacp_pq* pq) {
 	return pq->count == 0;
 }
 
+int dcacp_pq_size(struct dcacp_pq* pq) {
+	return pq->count;
+}
 void dcacp_pq_delete(struct dcacp_pq* pq, struct list_head* node) {
 	// spin_lock_bh(&pq->lock);
 	/* list empty use is not traditional use of the function; 

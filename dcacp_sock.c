@@ -28,6 +28,19 @@
 #include "dcacp_hashtables.h"
 
 
+static int set_grant_batch(struct dst_entry *dst) {
+	int bufs_per_gso, mtu, max_pkt_data, gso_size, max_gso_data;
+	mtu = dst_mtu(dst);
+	gso_size = dst->dev->gso_max_size;
+	if (gso_size > dcacp_params.bdp)
+		gso_size = dcacp_params.bdp;
+	bufs_per_gso = gso_size / mtu;
+	max_pkt_data = mtu - sizeof(struct iphdr) - sizeof(struct dcacp_data_hdr);
+	max_gso_data = bufs_per_gso * max_pkt_data;
+	gso_size = bufs_per_gso * mtu;
+	return gso_size;
+}
+
 void reqsk_queue_alloc(struct request_sock_queue *queue)
 {
 	spin_lock_init(&queue->rskq_lock);
@@ -1050,6 +1063,7 @@ struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
 	dsk = dcacp_sk(newsk);
 	dsk->flow_id = fhdr->flow_id;
 	dsk->total_length = fhdr->flow_size;
+	dsk->receiver.grant_batch = set_grant_batch(dst);
 	/* set up max gso segment */
 	sk_setup_caps(newsk, dst);
 
@@ -1087,7 +1101,7 @@ put_and_exit:
 }
 EXPORT_SYMBOL(dcacp_create_con_sock);
 
-int dcacp_conn_request(struct sock *sk, struct sk_buff *skb)
+struct sock* dcacp_conn_request(struct sock *sk, struct sk_buff *skb)
 {
 	// struct tcp_fastopen_cookie foc = { .len = -1 };
 	// __u32 isn = TCP_SKB_CB(skb)->tcp_tw_isn;
@@ -1127,13 +1141,13 @@ int dcacp_conn_request(struct sock *sk, struct sk_buff *skb)
 	sk->sk_data_ready(sk);
 	bh_unlock_sock(child);
 	sock_put(child);
-	return 0;
+	return child;
 
 drop_and_free:
 	reqsk_free(req);
 
 drop:
-	return 0;
+	return NULL;
 }
 EXPORT_SYMBOL(dcacp_conn_request);
 

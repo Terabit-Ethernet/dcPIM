@@ -77,6 +77,7 @@ struct dcacp_params {
 	// in microsecond
 	int rtt;
 	int control_pkt_rtt;
+	int control_pkt_bdp;
 	int bdp;
 	int short_flow_size;
 	// matching related parameters
@@ -170,6 +171,8 @@ struct dcacp_epoch {
 	uint32_t remaining_tokens;
 	struct hrtimer token_xmit_timer;
 	struct work_struct token_xmit_struct;
+	/* for phost queue */
+	struct dcacp_pq flow_q;
 
 	// current epoch and address
 	uint64_t cur_epoch;
@@ -290,7 +293,6 @@ static inline void dcacp_set_doff(struct dcacp_data_hdr *h)
 {
         h->common.doff = (sizeof(struct dcacp_data_hdr)
                         - sizeof(struct data_segment)) << 2;
-        printk("h->common.doff:%d\n", h->common.doff);
 }
 
 static inline unsigned int __dcacp_hdrlen(const struct dcacphdr *dh)
@@ -429,6 +431,7 @@ struct dcacp_sock {
 		uint32_t copied_seq;
 	    uint32_t bytes_received;
 	    uint32_t received_count;
+	    uint32_t grant_batch;
 	    /* current received bytes + 1*/
 	    uint32_t rcv_nxt;
 	    uint32_t num_sacks;
