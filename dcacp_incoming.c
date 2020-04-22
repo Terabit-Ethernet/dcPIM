@@ -624,22 +624,18 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
 	if(sk) {
  		dsk = dcacp_sk(sk);
  		bh_lock_sock_nested(sk);
- 		printk("reach here:%d\n", __LINE__);
  		if (!sock_owned_by_user(sk)) {
 			/* clean rtx queue */
 			dsk->sender.snd_una = th->rcv_nxt > dsk->sender.snd_una ? th->rcv_nxt: dsk->sender.snd_una;
 	 		dcacp_clean_rtx_queue(sk);
 			/* add token */
 	 		dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
-	 		printk("reach here:%d\n", __LINE__);
 
 			/* start doing transmission (this part may move to different places later)*/
 			dcacp_write_timer_handler(sk);
 	        kfree_skb(skb);
-	 		printk("reach here:%d\n", __LINE__);
 
         } else {
-	 		printk("reach here:%d\n", __LINE__);
             dcacp_add_backlog(sk, skb, true);
         }
         bh_unlock_sock(sk);

@@ -458,7 +458,6 @@ void dcacp_xmit_token(struct dcacp_epoch* epoch) {
  			dsk->grant_nxt = dsk->total_length;
  			dcacp_pq_delete(&epoch->flow_q, &dsk->match_link);
  		}
- 		printk("xmit token grant next: %d \n", dsk->grant_nxt);
  		dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, dsk->grant_nxt),
  		 dsk->peer, sk, inet->inet_dport);
         bh_unlock_sock(sk);
