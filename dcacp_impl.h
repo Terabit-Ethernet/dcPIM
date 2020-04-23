@@ -34,6 +34,8 @@ void dcacp_params_init(struct dcacp_params *params);
 // DCACP matching logic
 // DCACP priority queue
 void dcacp_xmit_token(struct dcacp_epoch* epoch);
+void dcacp_xmit_token_handler(struct work_struct *work);
+enum hrtimer_restart dcacp_token_xmit_event(struct hrtimer *timer);
 void dcacp_pq_init(struct dcacp_pq* pq, bool(*comp)(const struct list_head*, const struct list_head*));
 bool dcacp_pq_empty(struct dcacp_pq* pq);
 struct list_head* dcacp_pq_pop(struct dcacp_pq* pq);

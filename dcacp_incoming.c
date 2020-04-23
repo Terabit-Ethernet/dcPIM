@@ -327,7 +327,6 @@ static bool dcacp_try_coalesce(struct sock *sk,
 
 	if (!skb_try_coalesce(to, from, fragstolen, &delta))
 		return false;
-
 	/* assume we have alrady add true size beforehand*/
 	atomic_sub(skb_truesize, &sk->sk_rmem_alloc);
 	atomic_add(delta, &sk->sk_rmem_alloc);
@@ -564,9 +563,7 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 				spin_lock_bh(&dcacp_epoch.lock);
 				/* push the long flow to the control plane for scheduling*/
 				dcacp_pq_push(&dcacp_epoch.flow_q, &dsk->match_link);
-				printk("push to pq\n");
 				if(dcacp_pq_size(&dcacp_epoch.flow_q) == 1) {
-					printk("xmit token\n");
 					dcacp_xmit_token(&dcacp_epoch);
 				}
 				spin_unlock_bh(&dcacp_epoch.lock);
@@ -722,7 +719,6 @@ int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
 	__skb_pull(skb, (dcacp_hdr(skb)->doff >> 2) + sizeof(struct data_segment));
 
 
-
 	/*  Queue data for delivery to the user.
 	 *  Packets in sequence go to the receive queue.
 	 *  Out of sequence packets to the out_of_order_queue.
@@ -808,7 +804,6 @@ bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check)
         	limit = UINT_MAX;
         }
         if (unlikely(sk_add_backlog(sk, skb, limit))) {
-        		printk("add backlog failed\n");
                 bh_unlock_sock(sk);
                 // __NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPBACKLOGDROP);
                 return true;
@@ -846,7 +841,6 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&dh->common), dh->common.source,
             dh->common.dest, sdif, &refcounted);
     // }
-    printk("get packet; len:%d\n", ntohl(dh->seg.segment_length));
 	if(sk && sk->sk_state == DCACP_RECEIVER) {
 		dsk = dcacp_sk(sk);
 		iph = ip_hdr(skb);
@@ -854,6 +848,8 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 		if (!dh->free_token) {
 			spin_lock_bh(&dcacp_epoch.lock);
 			dcacp_epoch.remaining_tokens -= ntohl(dh->seg.segment_length);
+	 		printk("remaining:%d\n", dcacp_epoch.remaining_tokens);
+
 			if (!dcacp_pq_empty(&dcacp_epoch.flow_q) &&
 				dcacp_epoch.remaining_tokens < dcacp_params.control_pkt_bdp / 2
 				) {

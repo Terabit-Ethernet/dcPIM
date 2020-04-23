@@ -171,7 +171,7 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 	/* token xmit timer*/
 	epoch->remaining_tokens = 0;
 	hrtimer_init(&epoch->token_xmit_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
-	INIT_WORK(&epoch->sender_iter_struct, sender_iter_event_handler);
+	INIT_WORK(&epoch->token_xmit_struct, dcacp_xmit_token_handler);
 	/* pHost Queue */
 	dcacp_pq_init(&epoch->flow_q, flow_compare);
 
@@ -440,8 +440,15 @@ static void recevier_iter_event_handler(struct work_struct *work) {
 	spin_unlock_bh(&epoch->lock);
 }
 
+enum hrtimer_restart dcacp_token_xmit_event(struct hrtimer *timer) {
+	// struct dcacp_grant* grant, temp;
+ 	queue_work(dcacp_epoch.wq, &dcacp_epoch.token_xmit_struct);
+	return HRTIMER_NORESTART;
+
+}
+
 /* Assume BH is disabled and epoch->lock is hold*/
-void dcacp_xmit_token(struct dcacp_epoch* epoch) {
+void dcacp_xmit_token(struct dcacp_epoch *epoch) {
 	struct list_head *match_link;
 	struct sock *sk;
 	struct dcacp_sock *dsk;
@@ -453,16 +460,34 @@ void dcacp_xmit_token(struct dcacp_epoch* epoch) {
 		inet = inet_sk(sk);
  		bh_lock_sock_nested(sk);
  		dsk->grant_nxt += dsk->receiver.grant_batch; 
+ 		printk("xmit_token; remaining:%d\n", epoch->remaining_tokens);
  		epoch->remaining_tokens += dsk->receiver.grant_batch;
  		if(dsk->grant_nxt >= dsk->total_length) {
  			dsk->grant_nxt = dsk->total_length;
  			dcacp_pq_delete(&epoch->flow_q, &dsk->match_link);
  		}
+ 		// printk("xmit token\n");
  		dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, dsk->grant_nxt),
  		 dsk->peer, sk, inet->inet_dport);
         bh_unlock_sock(sk);
 	}
+	if (!dcacp_pq_empty(&epoch->flow_q)) {
+		// printk("dcacp_params.rtt * 2 * 1000:%d\n", dcacp_params.rtt * 2 * 1000);
+		// hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0, dcacp_params.rtt * 2 * 1000), HRTIMER_MODE_ABS);
+		// dcacp_epoch.token_xmit_timer.function = &dcacp_token_xmit_event;
+	}
+
 }
+
+void dcacp_xmit_token_handler(struct work_struct *work) {
+	struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, token_xmit_struct);
+	spin_lock_bh(&epoch->lock);
+	printk("token timer evokes\n");
+	dcacp_xmit_token(epoch);
+	spin_unlock_bh(&epoch->lock);
+}
+
+
 
 static void sender_iter_event_handler(struct work_struct *work) {
 	struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, sender_iter_struct);
