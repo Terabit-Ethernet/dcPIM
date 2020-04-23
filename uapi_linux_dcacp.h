@@ -115,6 +115,9 @@ struct data_segment {
 struct dcacp_data_hdr {
 	struct dcacphdr common;
 	__u8 free_token;
+	/* padding*/
+	__u8 unused1;
+	__u16 unused2;
 	// __u8 priority;
 	// __be64 message_id;
 	/* token seq number */
