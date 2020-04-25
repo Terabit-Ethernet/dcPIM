@@ -53,9 +53,9 @@ enum dcacpcsq_enum {
 	// TSQ_THROTTLED, 
 	// TSQ_QUEUED, /* this twos are defined in tcp.h*/
 	DCACP_TSQ_DEFERRED = 2,	   /* tcp_tasklet_func() found socket was owned */
-	DCACP_WRITE_TIMER_DEFERRED,  /* tcp_write_timer() found socket was owned */
-	DCACP_DELACK_TIMER_DEFERRED, /* tcp_delack_timer() found socket was owned */
-	DCACP_MTU_REDUCED_DEFERRED,  /* tcp_v{4|6}_err() could not call
+	DCACP_WRITE_TIMER_DEFERRED,  /* dcacp_handle_token_pkts() found socket was owned */
+	DCACP_TOKEN_TIMER_DEFERRED, /* dcacp_xmit_token() found socket was owned */
+	DCACP_RMEM_CHECK_DEFERRED,  /* Read Memory Check once release sock
 				    * tcp_v{4|6}_mtu_reduced()
 				    */
 };
@@ -65,8 +65,8 @@ enum dcacpcsq_flags {
 	// TSQF_QUEUED			= (1UL << TSQ_QUEUED),
 	DCACPF_TSQ_DEFERRED		= (1UL << DCACP_TSQ_DEFERRED),
 	DCACPF_WRITE_TIMER_DEFERRED	= (1UL << DCACP_WRITE_TIMER_DEFERRED),
-	DCACPF_DELACK_TIMER_DEFERRED	= (1UL << DCACP_DELACK_TIMER_DEFERRED),
-	DCACPF_MTU_REDUCED_DEFERRED	= (1UL << DCACP_MTU_REDUCED_DEFERRED),
+	DCACPF_TOKEN_TIMER_DEFERRED	= (1UL << DCACP_TOKEN_TIMER_DEFERRED),
+	DCACPF_RMEM_CHECK_DEFERRED	= (1UL << DCACP_RMEM_CHECK_DEFERRED),
 };
 
 struct dcacp_params {
@@ -168,7 +168,8 @@ struct dcacp_epoch {
 	// struct pim_timer_params pim_timer_params;
 	uint64_t start_cycle;
 	/* remaining tokens */
-	uint32_t remaining_tokens;
+	atomic_t remaining_tokens;
+	// atomic_t pending_flows;
 	struct hrtimer token_xmit_timer;
 	struct work_struct token_xmit_struct;
 	/* for phost queue */
@@ -396,7 +397,7 @@ struct dcacp_sock {
     uint64_t total_length;
 	
 	uint32_t grant_nxt;
-
+	uint32_t prev_grant_nxt;
 	struct list_head match_link;
     /* sender */
     struct dcacp_sender {
@@ -454,6 +455,7 @@ struct dcacp_sock {
 
 		// link for DCACP matching table
 		struct list_head match_link;
+		int rmem_exhausted;
     } receiver;
 
 	atomic64_t next_outgoing_id;

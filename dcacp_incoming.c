@@ -74,6 +74,47 @@
 // }
 
 
+/* called inside release_cb; BH is disabled by the calller. */
+void dcacp_rem_check_handler(struct sock *sk) {
+	bool pq_empty = false;
+	struct dcacp_sock* dsk = dcacp_sk(sk);
+	printk("handle rmem checker\n");
+	if(sk->sk_rcvbuf - atomic_read(&sk->sk_rmem_alloc) == 0) {
+    	test_and_set_bit(DCACP_RMEM_CHECK_DEFERRED, &sk->sk_tsq_flags);
+    	return;
+	}
+	/* Deadlock won't happen because flow is not in flow_q. */
+	spin_lock(&dcacp_epoch.lock);
+	pq_empty = dcacp_pq_empty(&dcacp_epoch.flow_q);
+	dcacp_pq_push(&dcacp_epoch.flow_q, &dsk->match_link);
+	if(pq_empty) {
+		/* this part may change latter. */
+		hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0, 0), HRTIMER_MODE_ABS);
+		dcacp_epoch.token_xmit_timer.function = &dcacp_token_xmit_event;
+	}
+	spin_unlock(&dcacp_epoch.lock);
+
+}
+
+void dcacp_token_timer_defer_handler(struct sock *sk) {
+	bool pq_empty = false;
+	bool not_push_bk = xmit_token(sk);
+	struct dcacp_sock* dsk = dcacp_sk(sk);
+
+	if(!not_push_bk) {
+	/* Deadlock won't happen because flow is not in flow_q. */
+		spin_lock(&dcacp_epoch.lock);
+		pq_empty = dcacp_pq_empty(&dcacp_epoch.flow_q);
+		dcacp_pq_push(&dcacp_epoch.flow_q, &dsk->match_link);
+		if(pq_empty) {
+			// printk("timer expire time:%d\n", dcacp_params.rtt * 10 * 1000);
+			// hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0,  dcacp_params.rtt * 10 * 1000), HRTIMER_MODE_ABS);
+			// dcacp_epoch.token_xmit_timer.function = &dcacp_token_xmit_event;
+		}
+		spin_unlock(&dcacp_epoch.lock);
+	}
+}
+
 /* Remove acknowledged frames from the retransmission queue. If our packet
  * is before the ack sequence we can discard it as it's confirmed to have
  * arrived at the other end.
@@ -264,9 +305,12 @@ static void dcacp_rcv_nxt_update(struct dcacp_sock *dsk, u32 seq)
 	u32 delta = seq - dsk->receiver.rcv_nxt;
 	dsk->receiver.bytes_received += delta;
 	WRITE_ONCE(dsk->receiver.rcv_nxt, seq);
+	// printk("update the seq:%d\n", dsk->receiver.rcv_nxt);
+
 	if(!dsk->receiver.finished_at_receiver && dsk->receiver.rcv_nxt == dsk->total_length) {
 		struct inet_sock *inet = inet_sk(sk);
 		dsk->receiver.finished_at_receiver = true;
+		printk("send ack pkt\n");
 		dcacp_xmit_control(construct_ack_pkt(sk, 0), dsk->peer, sk, inet->inet_dport); 
 	}
 }
@@ -360,6 +404,8 @@ static int dcacp_data_queue_ofo(struct sock *sk, struct sk_buff *skb)
 	// NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPOFOQUEUE);
 	seq = DCACP_SKB_CB(skb)->seq;
 	end_seq = DCACP_SKB_CB(skb)->end_seq;
+
+	// printk("insert to data queue ofo:%d\n", seq);
 
 	p = &dsk->out_of_order_queue.rb_node;
 	if (RB_EMPTY_ROOT(&dsk->out_of_order_queue)) {
@@ -717,7 +763,7 @@ int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
 	}
 	// skb_dst_drop(skb);
 	__skb_pull(skb, (dcacp_hdr(skb)->doff >> 2) + sizeof(struct data_segment));
-
+	// printk("handle packet data queue?:%d\n", DCACP_SKB_CB(skb)->seq);
 
 	/*  Queue data for delivery to the user.
 	 *  Packets in sequence go to the receive queue.
@@ -845,14 +891,15 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 		dsk = dcacp_sk(sk);
 		iph = ip_hdr(skb);
 		dcacp_v4_fill_cb(skb, iph, dh);
+		// printk("data seq:%d\n", ntohl(dh->seg.offset));
 		if (!dh->free_token) {
 			spin_lock_bh(&dcacp_epoch.lock);
-			dcacp_epoch.remaining_tokens -= ntohl(dh->seg.segment_length);
-	 		printk("remaining:%d\n", dcacp_epoch.remaining_tokens);
+			atomic_sub(ntohl(dh->seg.segment_length), &dcacp_epoch.remaining_tokens);
 
 			if (!dcacp_pq_empty(&dcacp_epoch.flow_q) &&
-				dcacp_epoch.remaining_tokens < dcacp_params.control_pkt_bdp / 2
+				atomic_read(&dcacp_epoch.remaining_tokens) < dcacp_params.control_pkt_bdp / 2
 				) {
+				printk("number of remaining tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
 				dcacp_xmit_token(&dcacp_epoch);
 			}
 			spin_unlock_bh(&dcacp_epoch.lock);
@@ -870,6 +917,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	        }
         } else {
 	        bh_unlock_sock(sk);
+	        printk("discard packet due to memory:%d\n", __LINE__);
         	goto discard_and_relse;
         }
         bh_unlock_sock(sk);

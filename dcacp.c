@@ -425,8 +425,12 @@ int dcacp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 		return -ENOTCONN;
 	}
 	/* the bytes from user larger than the flow size */
-	if (len + dsk->sender.write_seq > dsk->total_length) {
+	if (dsk->sender.write_seq >= dsk->total_length) {
 		return -EMSGSIZE;
+	}
+
+	if (len + dsk->sender.write_seq > dsk->total_length) {
+		len = dsk->total_length - dsk->sender.write_seq;
 	}
 	sent_len = dcacp_fill_packets(sk, msg, len);
 	if(dsk->total_length < dcacp_params.short_flow_size) {
@@ -737,6 +741,7 @@ int dcacp_init_sock(struct sock *sk)
 	sk->sk_destruct = dcacp_destruct_sock;
 	dsk->unsolved = 0;
 	WRITE_ONCE(dsk->grant_nxt, 0);
+	WRITE_ONCE(dsk->prev_grant_nxt, 0);
 	INIT_LIST_HEAD(&dsk->match_link);
 	WRITE_ONCE(dsk->sender.write_seq, 0);
 	WRITE_ONCE(dsk->sender.snd_nxt, 0);
@@ -748,6 +753,8 @@ int dcacp_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.copied_seq, 0);
 	WRITE_ONCE(dsk->receiver.grant_batch, 0);
 	WRITE_ONCE(dsk->receiver.finished_at_receiver, false);
+	WRITE_ONCE(dsk->receiver.rmem_exhausted, 0);
+
 	WRITE_ONCE(sk->sk_sndbuf, dcacp_params.wmem_default);
 	WRITE_ONCE(sk->sk_rcvbuf, dcacp_params.rmem_default);
 	kfree_skb(sk->sk_tx_skb_cache);
@@ -889,9 +896,9 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 
 	// if (unlikely(flags & MSG_ERRQUEUE))
 	// 	return inet_recv_error(sk, msg, len, addr_len);
-	printk("start recvmsg \n");
+	// printk("start recvmsg \n");
 	target = sock_rcvlowat(sk, flags & MSG_WAITALL, len);
-	printk("target bytes:%d\n", target);
+	// printk("target bytes:%d\n", target);
 
 	if (sk_can_busy_loop(sk) && skb_queue_empty_lockless(&sk->sk_receive_queue) &&
 	    (sk->sk_state == DCACP_RECEIVER))
@@ -1045,7 +1052,6 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 
 found_ok_skb:
 		/* Ok so how much can we use? */
-		printk("found skb len:%d\n", skb->len);
 		used = skb->len - offset;
 		if (len < used)
 			used = len;
@@ -1119,6 +1125,7 @@ found_ok_skb:
 	/* Clean up data we have read: This will do ACK frames. */
 	// tcp_cleanup_rbuf(sk, copied);
 	if (dsk->receiver.copied_seq == dsk->total_length) {
+		printk("call tcp close in the recv msg\n");
 		dcacp_set_state(sk, TCP_CLOSE);
 	}
 	release_sock(sk);

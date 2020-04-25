@@ -137,9 +137,15 @@ void dcacp_set_state(struct sock* sk, int state) {
 		// 	TCP_INC_STATS(sock_net(sk), TCP_MIB_ESTABRESETS);
 
 		sk->sk_prot->unhash(sk);
-		if (dcacp_sk(sk)->icsk_bind_hash &&
-		    !(sk->sk_userlocks & SOCK_BINDPORT_LOCK))
+		/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
+		if (dcacp_sk(sk)->icsk_bind_hash) {
+			printk("put port\n");
 			dcacp_put_port(sk);
+		} else {
+			printk("inet bind hash:%d\n", dcacp_sk(sk)->icsk_bind_hash);
+			printk("userlook and SOCK_BINDPORT_LOCK:%d\n", !(sk->sk_userlocks & SOCK_BINDPORT_LOCK));
+			printk("cannot put port\n");
+		}
 		/* fall through */
 	default:
 		// if (oldstate == TCP_ESTABLISHED)
@@ -204,28 +210,27 @@ static int dcacp_sk_bind_conflict(const struct sock *sk,
 	 * in tb->owners list belong to the same net - the
 	 * one this bucket belongs to.
 	 */
-
 	sk_for_each_bound(sk2, &tb->owners) {
 		if (sk != sk2 &&
 		    (!sk->sk_bound_dev_if ||
 		     !sk2->sk_bound_dev_if ||
 		     sk->sk_bound_dev_if == sk2->sk_bound_dev_if)) {
 			if ((!reuse || !sk2->sk_reuse ||
-			    sk2->sk_state == TCP_LISTEN) &&
+			    sk2->sk_state == DCACP_LISTEN) &&
 			    (!reuseport || !sk2->sk_reuseport ||
-			     rcu_access_pointer(sk->sk_reuseport_cb) ||
-			     (sk2->sk_state != TCP_TIME_WAIT &&
-			     !uid_eq(uid, sock_i_uid(sk2))))) {
+			     rcu_access_pointer(sk->sk_reuseport_cb))) {
 				if (inet_rcv_saddr_equal(sk, sk2, true))
 					break;
 			}
 			if (!relax && reuse && sk2->sk_reuse &&
-			    sk2->sk_state != TCP_LISTEN) {
+			    sk2->sk_state != DCACP_LISTEN) {
 				if (inet_rcv_saddr_equal(sk, sk2, true))
 					break;
 			}
 		}
+
 	}
+
 	return sk2 != NULL;
 }
 
@@ -290,6 +295,7 @@ other_parity_scan:
 		tb = NULL;
 		goto success;
 next_port:
+
 		spin_unlock_bh(&head->lock);
 		cond_resched();
 	}
@@ -368,6 +374,7 @@ int dcacp_sk_get_port(struct sock *sk, unsigned short snum)
 	}
 	head = &hinfo->bhash[inet_bhashfn(net, port,
 					  hinfo->bhash_size)];
+
 	spin_lock_bh(&head->lock);
 	inet_bind_bucket_for_each(tb, &head->chain)
 		if (net_eq(ib_net(tb), net) && tb->l3mdev == l3mdev &&
@@ -376,6 +383,7 @@ int dcacp_sk_get_port(struct sock *sk, unsigned short snum)
 tb_not_found:
 	tb = inet_bind_bucket_create(hinfo->bind_bucket_cachep,
 				     net, head, port, l3mdev);
+
 	if (!tb)
 		goto fail_unlock;
 tb_found:
@@ -386,8 +394,10 @@ tb_found:
 		if ((tb->fastreuse > 0 && reuse) ||
 		    sk_reuseport_match(tb, sk))
 			goto success;
+
 		if (dcacp_sk_bind_conflict(sk, tb, true, true))
 			goto fail_unlock;
+
 	}
 success:
 	if (hlist_empty(&tb->owners)) {
@@ -439,6 +449,7 @@ success:
 	ret = 0;
 
 fail_unlock:
+
 	spin_unlock_bh(&head->lock);
 	return ret;
 }

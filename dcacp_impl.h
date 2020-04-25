@@ -33,6 +33,7 @@ void dcacp_sysctl_changed(struct dcacp_params *params);
 void dcacp_params_init(struct dcacp_params *params);
 // DCACP matching logic
 // DCACP priority queue
+int xmit_token(struct sock *sk);
 void dcacp_xmit_token(struct dcacp_epoch* epoch);
 void dcacp_xmit_token_handler(struct work_struct *work);
 enum hrtimer_restart dcacp_token_xmit_event(struct hrtimer *timer);
@@ -88,6 +89,9 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb);
 int dcacp_data_queue(struct sock *sk, struct sk_buff *skb);
 bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check);
 int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb);
+
+void dcacp_rem_check_handler(struct sock *sk);
+void dcacp_token_timer_defer_handler(struct sock *sk);
 
 /*DCACP outgoing function*/
 struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id, 

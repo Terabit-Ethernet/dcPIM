@@ -63,8 +63,8 @@
 
 #define DCACP_DEFERRED_ALL (DCACPF_TSQ_DEFERRED |		\
 			  DCACPF_WRITE_TIMER_DEFERRED |	\
-			  DCACPF_DELACK_TIMER_DEFERRED |	\
-			  DCACPF_MTU_REDUCED_DEFERRED)
+			  DCACPF_TOKEN_TIMER_DEFERRED |	\
+			  DCACPF_RMEM_CHECK_DEFERRED)
 
 /**
  * dcacp_release_cb - dcacp release_sock() callback
@@ -100,14 +100,19 @@ void dcacp_release_cb(struct sock *sk)
 	 */
 	sock_release_ownership(sk);
 
+	/* First check read memory */
+	if (flags & DCACPF_RMEM_CHECK_DEFERRED) {
+		dcacp_rem_check_handler(sk);
+	}
+
 	if (flags & DCACPF_WRITE_TIMER_DEFERRED) {
 		dcacp_write_timer_handler(sk);
 		// __sock_put(sk);
 	}
-	// if (flags & TCPF_DELACK_TIMER_DEFERRED) {
-	// 	tcp_delack_timer_handler(sk);
-	// 	__sock_put(sk);
-	// }
+	if (flags & DCACPF_TOKEN_TIMER_DEFERRED) {
+		dcacp_token_timer_defer_handler(sk);
+		// __sock_put(sk);
+	}
 	// if (flags & TCPF_MTU_REDUCED_DEFERRED) {
 	// 	inet_csk(sk)->icsk_af_ops->mtu_reduced(sk);
 	// 	__sock_put(sk);

@@ -169,8 +169,10 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 	}
 	spin_lock_init(&epoch->lock);
 	/* token xmit timer*/
-	epoch->remaining_tokens = 0;
-	hrtimer_init(&epoch->token_xmit_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
+	atomic_set(&epoch->remaining_tokens, 0);
+	// atomic_set(&epoch->pending_flows, 0);
+
+	hrtimer_init(&epoch->token_xmit_timer, CLOCK_REALTIME, HRTIMER_MODE_REL);
 	INIT_WORK(&epoch->token_xmit_struct, dcacp_xmit_token_handler);
 	/* pHost Queue */
 	dcacp_pq_init(&epoch->flow_q, flow_compare);
@@ -440,40 +442,108 @@ static void recevier_iter_event_handler(struct work_struct *work) {
 	spin_unlock_bh(&epoch->lock);
 }
 
+/* Token */
 enum hrtimer_restart dcacp_token_xmit_event(struct hrtimer *timer) {
 	// struct dcacp_grant* grant, temp;
+	printk("token timer handler is called 1\n");
  	queue_work(dcacp_epoch.wq, &dcacp_epoch.token_xmit_struct);
 	return HRTIMER_NORESTART;
 
 }
+/* Assume hold socket lock 
+ * Return 0 if flow should be pushed_back;
+ * Return 1 if RMEM is unavailable.
+ * Return 2 if timer is setup.
+ */
+#define DCACP_RMEM_LIMIT 1
+#define DCACP_TIMER_SETUP 2
+int xmit_token(struct sock *sk) {
+	struct dcacp_sock *dsk = dcacp_sk(sk);
+	int grant_bytes = dsk->receiver.grant_batch;
+	int grant_len = 0;
+	struct inet_sock *inet;
+	int push_bk = 0;
+	int prev_grant_nxt = dsk->prev_grant_nxt;
+	inet = inet_sk(sk);
+	dsk->prev_grant_nxt = dsk->grant_nxt;
+	if(atomic_read(&dcacp_epoch.remaining_tokens) >= dcacp_params.control_pkt_bdp / 2
+		) {
+		// WARN_ON(true);
+		return push_bk;
+	}
+	if(grant_bytes  > (sk->sk_rcvbuf - atomic_read(&sk->sk_rmem_alloc)) / 2) {
+		grant_bytes = (sk->sk_rcvbuf - atomic_read(&sk->sk_rmem_alloc))  / 2;
+	} 
+	if(grant_bytes != dsk->receiver.grant_batch) {
+    	test_and_set_bit(DCACP_RMEM_CHECK_DEFERRED, &sk->sk_tsq_flags);
+		push_bk = DCACP_RMEM_LIMIT;
+		return push_bk;
+	}
+	/*construct nack element*/
 
-/* Assume BH is disabled and epoch->lock is hold*/
+	/* set grant next*/
+	/* receiver buffer bottleneck; or token is dropped */
+	// if(prev_grant_nxt == dsk->receiver.rcv_nxt) {
+	// 	dsk->grant_nxt = dsk->receiver.rcv_nxt;
+	// 	printk("shrink grant nxt:%d\n", dsk->grant_nxt);
+	// }
+	/* this is a temporary solution */
+	if(dsk->grant_nxt + grant_bytes > dsk->total_length) {
+		grant_bytes =  dsk->total_length - dsk->grant_nxt;
+		dsk->grant_nxt = dsk->total_length;
+	} else {
+		dsk->grant_nxt += grant_bytes;
+	}
+
+	grant_len += grant_bytes;
+	if (grant_len == 0) {
+		dsk->receiver.rmem_exhausted += 1;
+	}
+	if(dsk->grant_nxt == dsk->total_length) {
+		push_bk = DCACP_TIMER_SETUP;
+		/* TO DO: setup a timer here */
+	}
+	printk("xmit token grant next:%d\n", dsk->grant_nxt);
+	atomic_add_return(grant_len, &dcacp_epoch.remaining_tokens);
+	dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, dsk->grant_nxt),
+	 dsk->peer, sk, inet->inet_dport);
+	return push_bk;
+}
+
+/* Assume BH is disabled and epoch->lock is hold
+ * Return true if we need to push back the flow to pq.
+ */
 void dcacp_xmit_token(struct dcacp_epoch *epoch) {
 	struct list_head *match_link;
 	struct sock *sk;
 	struct dcacp_sock *dsk;
 	struct inet_sock *inet;
-	if(!dcacp_pq_empty(&epoch->flow_q)) {
+	while(!dcacp_pq_empty(&epoch->flow_q)) {
+		bool not_push_bk = false;
 		match_link = dcacp_pq_peek(&epoch->flow_q);
 		dsk =  list_entry(match_link, struct dcacp_sock, match_link);
 		sk = (struct sock*)dsk;
 		inet = inet_sk(sk);
+		dcacp_pq_pop(&epoch->flow_q);
  		bh_lock_sock_nested(sk);
- 		dsk->grant_nxt += dsk->receiver.grant_batch; 
- 		printk("xmit_token; remaining:%d\n", epoch->remaining_tokens);
- 		epoch->remaining_tokens += dsk->receiver.grant_batch;
- 		if(dsk->grant_nxt >= dsk->total_length) {
- 			dsk->grant_nxt = dsk->total_length;
- 			dcacp_pq_delete(&epoch->flow_q, &dsk->match_link);
- 		}
- 		// printk("xmit token\n");
- 		dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, dsk->grant_nxt),
- 		 dsk->peer, sk, inet->inet_dport);
+ 		if (!sock_owned_by_user(sk)) {
+ 			not_push_bk = xmit_token(sk);
+  			if(!not_push_bk) {
+  				dcacp_pq_push(&epoch->flow_q, &dsk->match_link);
+ 			} else if (not_push_bk == DCACP_RMEM_LIMIT) {
+ 			    goto unlock;
+ 			}
+        } else {
+        	test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+        }
+		bh_unlock_sock(sk);
+		break;
+unlock:
         bh_unlock_sock(sk);
 	}
 	if (!dcacp_pq_empty(&epoch->flow_q)) {
-		// printk("dcacp_params.rtt * 2 * 1000:%d\n", dcacp_params.rtt * 2 * 1000);
-		// hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0, dcacp_params.rtt * 2 * 1000), HRTIMER_MODE_ABS);
+		// printk("timer expire time:%d\n", dcacp_params.rtt * 10 * 1000);
+		// hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0, dcacp_params.rtt * 10 * 1000), HRTIMER_MODE_REL);
 		// dcacp_epoch.token_xmit_timer.function = &dcacp_token_xmit_event;
 	}
 
@@ -482,7 +552,10 @@ void dcacp_xmit_token(struct dcacp_epoch *epoch) {
 void dcacp_xmit_token_handler(struct work_struct *work) {
 	struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, token_xmit_struct);
 	spin_lock_bh(&epoch->lock);
-	printk("token timer evokes\n");
+	/* reset the remaining tokens to zero */
+	printk("token timer handler is called 2\n");
+
+	atomic_set(&epoch->remaining_tokens, 0);
 	dcacp_xmit_token(epoch);
 	spin_unlock_bh(&epoch->lock);
 }
