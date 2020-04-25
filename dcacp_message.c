@@ -91,15 +91,17 @@ int dcacp_fill_packets(struct sock *sk,
 	struct dst_entry *dst;
 	struct dcacp_sock* dsk = dcacp_sk(sk);
 	rtt_bytes = 10000;
-	if (unlikely((len > DCACP_MAX_MESSAGE_LENGTH) || (len == 0) || (sk_stream_wspace(sk) <= 0 ))) {
+	/* check socket has enough space */
+	if (unlikely((len == 0) || (sk_stream_wspace(sk) <= 0 ))) {
 		err = -EINVAL;
 		goto error;
 	}
 	dst = sk_dst_get(sk);
 	mtu = dst_mtu(dst);
 	max_pkt_data = mtu - sizeof(struct iphdr) - sizeof(struct dcacp_data_hdr);
-	/* check socket has enough space */
 	bytes_left = len;
+
+
 	if (len <= max_pkt_data ) {
 		max_gso_data = len;
 		gso_size = mtu;
@@ -133,7 +135,6 @@ int dcacp_fill_packets(struct sock *sk,
 	 * turn into a separate packet, using either TSO in the NIC or
 	 * GSO in software.
 	 */
-
 	for (; bytes_left > 0; ) {
 		struct dcacp_data_hdr *h;
 		struct data_segment *seg;
@@ -147,8 +148,9 @@ int dcacp_fill_packets(struct sock *sk,
 			skb = alloc_skb(gso_size, GFP_KERNEL);
 		}
 		skb->truesize = SKB_TRUESIZE(skb_end_offset(skb));
-
-		if (skb->truesize > sk_stream_wspace(sk)) {
+		/* this is a temp solution; will remove after adding split buffer mechanism */
+		if (skb->truesize > sk_stream_wspace(sk) || 
+			(max_gso_data > bytes_left && bytes_left + sent_len + dsk->sender.write_seq != dsk->total_length)) {
 			sk->sk_tx_skb_cache = skb;
 			break;
 		}
@@ -220,6 +222,9 @@ int dcacp_fill_packets(struct sock *sk,
 		dcacp_add_write_queue_tail(sk, skb);
 		sk_wmem_queued_add(sk, skb->truesize);
 		// sk_mem_charge(sk, skb->truesize);
+	}
+	if (sent_len) {
+		printk("dsk->sender.write_seq:%d\n", dsk->sender.write_seq);
 	}
 	WRITE_ONCE(dsk->sender.write_seq, dsk->sender.write_seq + sent_len);
 	return sent_len;
