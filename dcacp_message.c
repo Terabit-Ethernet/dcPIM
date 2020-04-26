@@ -170,7 +170,7 @@ int dcacp_fill_packets(struct sock *sk,
 		skb_reset_transport_header(skb);
 		h = (struct dcacp_data_hdr *) skb_put(skb, sizeof(*h));
 		h->common.type = DATA;
-		h->common.seq = dsk->sender.write_seq + len - bytes_left;
+		h->common.seq = htonl(dsk->sender.write_seq + len - bytes_left);
 		available = max_gso_data;
 		h->common.len = available > bytes_left? htons(bytes_left) :htons(available);
 		// h->message_id = 256;
