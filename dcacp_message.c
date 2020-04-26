@@ -237,13 +237,16 @@ int dcacp_fill_packets(struct sock *sk,
 		sk_wmem_queued_add(sk, skb->truesize);
 		// sk_mem_charge(sk, skb->truesize);
 	}
-	// if (sent_len) {
-	// 	printk("dsk->sender.write_seq:%d\n", dsk->sender.write_seq);
+
+	// if (!sent_len) {
+	// 	printk("total len:%ld\n", len);
+	// 	printk("sent length:%d\n", sent_len);
+	// 	printk("(sk_stream_wspace(sk):%d\n", (sk_stream_wspace(sk)));
 	// }
 	WRITE_ONCE(dsk->sender.write_seq, dsk->sender.write_seq + sent_len);
 	return sent_len;
 	
     error:
 	// dcacp_free_skbs(first);
-	return -err;
+	return err;
 }

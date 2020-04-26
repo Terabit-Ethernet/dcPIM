@@ -426,12 +426,15 @@ int dcacp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	}
 	/* the bytes from user larger than the flow size */
 	if (dsk->sender.write_seq >= dsk->total_length) {
+		printk("write seq is larget than total length\n");
 		return -EMSGSIZE;
 	}
+
 
 	if (len + dsk->sender.write_seq > dsk->total_length) {
 		len = dsk->total_length - dsk->sender.write_seq;
 	}
+
 	sent_len = dcacp_fill_packets(sk, msg, len);
 	if(dsk->total_length < dcacp_params.short_flow_size) {
 		dsk->grant_nxt = dsk->total_length;
@@ -439,6 +442,12 @@ int dcacp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 			struct sk_buff *skb = dcacp_send_head(sk);
 			dcacp_xmit_data(skb, dsk, true);
 		}
+	}
+	/*temporary solution */
+	if(!skb_queue_empty(&sk->sk_write_queue) && 
+		dsk->grant_nxt >= DCACP_SKB_CB(dcacp_send_head(sk))->end_seq) {
+		printk("call sendmsg locked writing handler\n");
+ 		dcacp_write_timer_handler(sk);
 	}
 	return sent_len;
 }
