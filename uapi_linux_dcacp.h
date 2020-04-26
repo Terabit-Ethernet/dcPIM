@@ -97,20 +97,20 @@ struct dcacphdr {
  * A DATA sk_buff contains a data_header followed by any number of
  * data_segments.
  */
-struct data_segment {
-	/**
-	 * @offset: Offset within message of the first byte of data in
-	 * this segment. Segments within an sk_buff are not guaranteed
-	 * to be in order.
-	 */
-	__be32 offset;
+// struct data_segment {
+// 	/**
+// 	 * @offset: Offset within message of the first byte of data in
+// 	 * this segment. Segments within an sk_buff are not guaranteed
+// 	 * to be in order.
+// 	 */
+// 	__be32 offset;
 	
-	/** @segment_length: Number of bytes of data in this segment. */
-	__be32 segment_length;
+// 	/** @segment_length: Number of bytes of data in this segment. */
+// 	__be32 segment_length;
 	
-	/** @data: the payload of this segment. */
-	char data[0];
-} __attribute__((packed));
+// 	/** @data: the payload of this segment. */
+// 	char data[0];
+// } __attribute__((packed));
 
 struct dcacp_data_hdr {
 	struct dcacphdr common;
@@ -123,7 +123,7 @@ struct dcacp_data_hdr {
 	/* token seq number */
 	// __be32 seq_no;
 	// __be32 data_seq_no;
-    struct data_segment seg;
+    // struct data_segment seg;
 } __attribute__((packed));
 
 // _Static_assert(sizeof(struct dcacp_data_hdr) <= DCACP_HEADER_MAX_SIZE,
@@ -185,8 +185,8 @@ struct dcacp_accept_hdr {
 };
 
 enum {
-	SKB_GSO_DCACP = 1 << 16,
-	SKB_GSO_DCACP_L4 = 1 << 17,
+	SKB_GSO_DCACP = 1 << 19,
+	SKB_GSO_DCACP_L4 = 1 << 20,
 };
 
 #define SOL_DCACP 18

@@ -464,7 +464,7 @@ void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_to
 
 	// dh->dest = dport;
 
-	inet->tos = TOS_1;
+	// inet->tos = TOS_1;
 
 	// set_priority(skb, rpc->hsk, priority);
 
@@ -476,7 +476,7 @@ void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_to
 	// skb_dst_set(skb, peer->dst);
 	skb->sk = sk;
 	skb_dst_set(skb, __sk_dst_get(sk));
-	skb->ip_summed = CHECKSUM_PARTIAL;
+	skb->ip_summed = CHECKSUM_UNNECESSARY;
 	skb->csum_start = skb_transport_header(skb) - skb->head;
 	skb->csum_offset = offsetof(struct dcacphdr, check);
 	h->common.source = inet->inet_sport;

@@ -292,8 +292,7 @@ static inline struct dcacp_accept_hdr *dcacp_accept_hdr(const struct sk_buff *sk
  */
 static inline void dcacp_set_doff(struct dcacp_data_hdr *h)
 {
-        h->common.doff = (sizeof(struct dcacp_data_hdr)
-                        - sizeof(struct data_segment)) << 2;
+        h->common.doff = (sizeof(struct dcacp_data_hdr)) << 2;
 }
 
 static inline unsigned int __dcacp_hdrlen(const struct dcacphdr *dh)

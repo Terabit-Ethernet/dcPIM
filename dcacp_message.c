@@ -137,8 +137,9 @@ int dcacp_fill_packets(struct sock *sk,
 	 */
 	for (; bytes_left > 0; ) {
 		struct dcacp_data_hdr *h;
-		struct data_segment *seg;
-		int available, last_pkt_length;
+		// struct data_segment *seg;
+		int available;
+		 // last_pkt_length;
 		
 		/* The sizeof(void*) creates extra space for dcacp_next_skb. */
 		if(sk->sk_tx_skb_cache != NULL) {
@@ -160,17 +161,16 @@ int dcacp_fill_packets(struct sock *sk,
 		}
 		if ((bytes_left > max_pkt_data)
 				&& (max_gso_data > max_pkt_data)) {
-			skb_shinfo(skb)->gso_size = sizeof(struct data_segment)
-					+ max_pkt_data;
-			skb_shinfo(skb)->gso_type = SKB_GSO_TCPV4;
+			skb_shinfo(skb)->gso_size = max_pkt_data;
+			skb_shinfo(skb)->gso_type = SKB_GSO_DCACP;
 		}
 		skb_shinfo(skb)->gso_segs = 0;
 
 		skb_reserve(skb, sizeof(struct iphdr));
 		skb_reset_transport_header(skb);
-		h = (struct dcacp_data_hdr *) skb_put(skb,
-				sizeof(*h) - sizeof(struct data_segment));
+		h = (struct dcacp_data_hdr *) skb_put(skb, sizeof(*h));
 		h->common.type = DATA;
+		h->common.seq = dsk->sender.write_seq + len - bytes_left;
 		available = max_gso_data;
 		h->common.len = available > bytes_left? htons(bytes_left) :htons(available);
 		// h->message_id = 256;
@@ -178,33 +178,46 @@ int dcacp_fill_packets(struct sock *sk,
 		WRITE_ONCE(DCACP_SKB_CB(skb)->end_seq, DCACP_SKB_CB(skb)->seq + ntohs(h->common.len));
 
 		sent_len += ntohs(h->common.len);
+		if (!copy_from_iter_full(skb_put(skb, ntohs(h->common.len)),
+				ntohs(h->common.len), &msg->msg_iter)) {
+			err = -EFAULT;
+			kfree_skb(skb);
+			goto error;
+		}
+		skb_shinfo(skb)->gso_segs += ntohs(h->common.len) / max_pkt_data;
+		if (ntohs(h->common.len) % max_pkt_data)
+			skb_shinfo(skb)->gso_segs += 1;
+		bytes_left -= ntohs(h->common.len);
 		// h->common.seq = 200;
 		/* Each iteration of the following loop adds one segment
 		 * to the buffer.
 		 */
-		do {
-			int seg_size;
-			seg = (struct data_segment *) skb_put(skb, sizeof(*seg));
-			seg->offset = htonl(len - bytes_left + dsk->sender.write_seq);
 
-			if (bytes_left <= max_pkt_data)
-				seg_size = bytes_left;
-			else
-				seg_size = max_pkt_data;
-			seg->segment_length = htonl(seg_size);
-			if (!copy_from_iter_full(skb_put(skb, seg_size),
-					seg_size, &msg->msg_iter)) {
-				err = -EFAULT;
-				kfree_skb(skb);
-				goto error;
-			}
-			bytes_left -= seg_size;
-			// printk("seg size: %d\n", seg_size);
-			// printk("offset: %d\n",  ntohl(seg->offset));
-			// buffer += seg_size;
-			(skb_shinfo(skb)->gso_segs)++;
-			available -= seg_size;
-		} while ((available > 0) && (bytes_left > 0));
+		// do {
+		// 	int seg_size;
+		// 	seg = (struct data_segment *) skb_put(skb, sizeof(*seg));
+		// 	seg->offset = htonl(len - bytes_left + dsk->sender.write_seq);
+
+		// 	if (bytes_left <= max_pkt_data)
+		// 		seg_size = bytes_left;
+		// 	else
+		// 		seg_size = max_pkt_data;
+		// 	seg->segment_length = htonl(seg_size);
+		// 	printk("seg size:%d\n", seg_size);
+		// 	if (!copy_from_iter_full(skb_put(skb, seg_size),
+		// 			seg_size, &msg->msg_iter)) {
+		// 		err = -EFAULT;
+		// 		kfree_skb(skb);
+		// 		goto error;
+		// 	}
+		// 	bytes_left -= seg_size;
+		// 	// printk("seg size: %d\n", seg_size);
+		// 	// printk("offset: %d\n",  ntohl(seg->offset));
+		// 	// buffer += seg_size;
+		// 	(skb_shinfo(skb)->gso_segs)++;
+		// 	available -= seg_size;
+		// 	h->common.len = htons(ntohs(h->common.len) + sizeof(*seg));
+		// } while ((available > 0) && (bytes_left > 0));
 		// h->incoming = htonl(((len - bytes_left) > unsched) ?
 		// 		(len - bytes_left) : unsched);
 		
@@ -213,9 +226,10 @@ int dcacp_fill_packets(struct sock *sk,
 		 */
 
 
-		last_pkt_length = htonl(seg->segment_length) + sizeof(*h);
-		if (unlikely(last_pkt_length < DCACP_HEADER_MAX_SIZE))
-			skb_put(skb, DCACP_HEADER_MAX_SIZE - last_pkt_length);
+		// last_pkt_length = htonl(seg->segment_length) + sizeof(*h);
+		// if (unlikely(last_pkt_length < DCACP_HEADER_MAX_SIZE)){
+		// 	skb_put(skb, DCACP_HEADER_MAX_SIZE - last_pkt_length);
+		// }
 		// *last_link = skb;
 		// last_link = dcacp_next_skb(skb);
 		// *last_link = NULL;
@@ -223,9 +237,9 @@ int dcacp_fill_packets(struct sock *sk,
 		sk_wmem_queued_add(sk, skb->truesize);
 		// sk_mem_charge(sk, skb->truesize);
 	}
-	if (sent_len) {
-		printk("dsk->sender.write_seq:%d\n", dsk->sender.write_seq);
-	}
+	// if (sent_len) {
+	// 	printk("dsk->sender.write_seq:%d\n", dsk->sender.write_seq);
+	// }
 	WRITE_ONCE(dsk->sender.write_seq, dsk->sender.write_seq + sent_len);
 	return sent_len;
 	

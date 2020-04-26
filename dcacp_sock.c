@@ -142,7 +142,6 @@ void dcacp_set_state(struct sock* sk, int state) {
 			printk("put port\n");
 			dcacp_put_port(sk);
 		} else {
-			printk("inet bind hash:%d\n", dcacp_sk(sk)->icsk_bind_hash);
 			printk("userlook and SOCK_BINDPORT_LOCK:%d\n", !(sk->sk_userlocks & SOCK_BINDPORT_LOCK));
 			printk("cannot put port\n");
 		}
@@ -202,7 +201,7 @@ static int dcacp_sk_bind_conflict(const struct sock *sk,
 	struct sock *sk2;
 	bool reuse = sk->sk_reuse;
 	bool reuseport = !!sk->sk_reuseport && reuseport_ok;
-	kuid_t uid = sock_i_uid((struct sock *)sk);
+	// kuid_t uid = sock_i_uid((struct sock *)sk);
 
 	/*
 	 * Unlike other sk lookup places we do not check
@@ -556,7 +555,7 @@ int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 		goto failure;
 	}
 	/* OK, now commit destination to socket.  */
-	sk->sk_gso_type = SKB_GSO_TCPV4;
+	sk->sk_gso_type = SKB_GSO_DCACP;
 	/*set gso capacity */
 	sk_setup_caps(sk, &rt->dst);
 	/* set dst */
@@ -1060,7 +1059,7 @@ struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
 	        goto put_and_exit;
  	}
 
-	newsk->sk_gso_type = SKB_GSO_TCPV4;
+	newsk->sk_gso_type = SKB_GSO_DCACP;
 	inet_sk_rx_dst_set(newsk, skb);
 
 	newdp		      = dcacp_sk(newsk);
