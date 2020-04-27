@@ -481,7 +481,7 @@ void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_to
 	skb->csum_offset = offsetof(struct dcacphdr, check);
 	h->common.source = inet->inet_sport;
 	h->common.dest = inet->inet_dport;
-	h->common.len = htonl(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq);
+	h->common.len = htons(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq);
 	h->common.seq = htonl(DCACP_SKB_CB(skb)->seq);
 	h->common.type = DATA;
 	h->free_token = free_token;

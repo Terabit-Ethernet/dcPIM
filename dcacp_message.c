@@ -357,7 +357,7 @@ int dcacp_fill_packets(struct sock *sk,
 		skb_reset_transport_header(skb);
 		h = (struct dcacp_data_hdr *) skb_put(skb, sizeof(*h));
 		available = max_gso_data;
-		current_len = available > bytes_left? htons(bytes_left) :htons(available);
+		current_len = available > bytes_left? bytes_left : available;
 		// h->message_id = 256;
 		WRITE_ONCE(DCACP_SKB_CB(skb)->seq, dsk->sender.write_seq + len - bytes_left);
 		WRITE_ONCE(DCACP_SKB_CB(skb)->end_seq, DCACP_SKB_CB(skb)->seq + current_len);
