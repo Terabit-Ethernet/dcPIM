@@ -39,6 +39,12 @@
 #define TOS_1 0x20
 #define TOS_0 0x00
 
+
+enum dcacp_queue {
+	DCACP_FRAG_IN_WRITE_QUEUE,
+	DCACP_FRAG_IN_RTX_QUEUE,
+};
+
 /**
  *	struct dcacp_skb_cb  -  DCACP(-Lite) private variables
  *

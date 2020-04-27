@@ -476,12 +476,16 @@ void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_to
 	// skb_dst_set(skb, peer->dst);
 	skb->sk = sk;
 	skb_dst_set(skb, __sk_dst_get(sk));
-	skb->ip_summed = CHECKSUM_UNNECESSARY;
+	skb->ip_summed = CHECKSUM_PARTIAL;
 	skb->csum_start = skb_transport_header(skb) - skb->head;
 	skb->csum_offset = offsetof(struct dcacphdr, check);
 	h->common.source = inet->inet_sport;
 	h->common.dest = inet->inet_dport;
+	h->common.len = htonl(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq);
+	h->common.seq = htonl(DCACP_SKB_CB(skb)->seq);
+	h->common.type = DATA;
 	h->free_token = free_token;
+
 	dcacp_set_doff(h);
 
 	// h->common.seq = htonl(200);
