@@ -893,7 +893,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 		dcacp_v4_fill_cb(skb, iph, dh);
 		if (!dh->free_token) {
 			spin_lock_bh(&dcacp_epoch.lock);
-			atomic_sub(ntohs(dh->common.len), &dcacp_epoch.remaining_tokens);
+			atomic_sub(ntohl(dh->seg.segment_length), &dcacp_epoch.remaining_tokens);
 
 			if (!dcacp_pq_empty(&dcacp_epoch.flow_q) &&
 				atomic_read(&dcacp_epoch.remaining_tokens) < dcacp_params.control_pkt_bdp / 2
