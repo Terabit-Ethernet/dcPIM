@@ -454,8 +454,7 @@ void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_to
 	// 		skb_transport_header(skb);
 	struct sock* sk = (struct sock*)dsk;
 	struct inet_sock *inet = inet_sk(sk);
-	struct dcacp_data_hdr *h = (struct dcacp_data_hdr *)
-				skb_transport_header(skb);
+	struct dcacp_data_hdr *h;
 	// struct dcacphdr* dh;
 
 	// dh = dcacp_hdr(skb);
@@ -471,7 +470,10 @@ void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_to
 	/* Update cutoff_version in case it has changed since the
 	 * message was initially created.
 	 */
-	
+	skb_push(skb, sizeof(struct dcacp_data_hdr) - sizeof(struct data_segment));
+	skb_reset_transport_header(skb);
+	h = (struct dcacp_data_hdr *)
+				skb_transport_header(skb);
 	dst_hold(__sk_dst_get(sk));
 	// skb_dst_set(skb, peer->dst);
 	skb->sk = sk;
@@ -481,8 +483,8 @@ void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_to
 	skb->csum_offset = offsetof(struct dcacphdr, check);
 	h->common.source = inet->inet_sport;
 	h->common.dest = inet->inet_dport;
-	h->common.len = htons(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq);
-	h->common.seq = htonl(DCACP_SKB_CB(skb)->seq);
+	// h->common.len = htons(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq);
+	// h->common.seq = htonl(DCACP_SKB_CB(skb)->seq);
 	h->common.type = DATA;
 	h->free_token = free_token;
 

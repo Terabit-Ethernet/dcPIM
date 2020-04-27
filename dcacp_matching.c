@@ -503,7 +503,7 @@ int xmit_token(struct sock *sk) {
 		push_bk = DCACP_TIMER_SETUP;
 		/* TO DO: setup a timer here */
 	}
-	printk("xmit token grant next:%d\n", dsk->grant_nxt);
+	// printk("xmit token grant next:%d\n", dsk->grant_nxt);
 	atomic_add_return(grant_len, &dcacp_epoch.remaining_tokens);
 	dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, dsk->grant_nxt),
 	 dsk->peer, sk, inet->inet_dport);

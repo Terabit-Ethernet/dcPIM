@@ -88,10 +88,13 @@ static void dcacp_set_skb_gso_segs(struct sk_buff *skb, unsigned int mss_now)
 	// 	TCP_SKB_CB(skb)->tcp_gso_size = mss_now;
 	// }
 	if(skb->len >= mss_now) {
+		printk("mss now:%d\n", mss_now);
 		skb_shinfo(skb)->gso_size = mss_now;
-		skb_shinfo(skb)->gso_type = SKB_GSO_DCACP;
-		WARN_ON(skb->len != DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq);
+		skb_shinfo(skb)->gso_type = SKB_GSO_TCPV4;
+		// WARN_ON(skb->len != DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq);
 		skb_shinfo(skb)->gso_segs = DIV_ROUND_UP(skb->len, mss_now);
+		printk("gso_segs:%d\n", skb_shinfo(skb)->gso_segs);
+
 	}
 }
 
@@ -112,7 +115,7 @@ struct sk_buff *dcacp_stream_alloc_skb(struct sock *sk, int size, gfp_t gfp,
 			return skb;
 		}
 	}
-	/* The TCP header must be at least 32-bit aligned.  */
+	/* The DCACP header must be at least 32-bit aligned.  */
 	size = ALIGN(size, 4);
 
 	// if (unlikely(tcp_under_memory_pressure(sk)))
@@ -139,6 +142,11 @@ struct sk_buff *dcacp_stream_alloc_skb(struct sock *sk, int size, gfp_t gfp,
 		// 	return skb;
 		// }
 		// __kfree_skb(skb);
+		skb_reserve(skb, sk->sk_prot->max_header);
+		skb->reserved_tailroom = skb->end - skb->tail - size;
+		skb->truesize = SKB_TRUESIZE(skb_end_offset(skb));
+
+		printk("skb truesize in stream alloc:%d\n", skb->truesize);
 		return skb;
 	} 
 	// else {
@@ -322,20 +330,21 @@ int dcacp_fill_packets(struct sock *sk,
 	 * GSO in software.
 	 */
 	for (; bytes_left > 0; ) {
-		struct dcacp_data_hdr *h;
-		// struct data_segment *seg;
-		int available;
+		// struct dcacp_data_hdr *h;
+		struct data_segment *seg;
+		int available, last_pkt_length;
 		int current_len = 0;
 		 // last_pkt_length;
 		
 		/* The sizeof(void*) creates extra space for dcacp_next_skb. */
-		if(sk->sk_tx_skb_cache != NULL) {
-			skb = sk->sk_tx_skb_cache;
-			sk->sk_tx_skb_cache = NULL;
-		} else {
-			skb = alloc_skb(gso_size, GFP_KERNEL);
-		}
-		skb->truesize = SKB_TRUESIZE(skb_end_offset(skb));
+		skb = dcacp_stream_alloc_skb(sk, gso_size, GFP_KERNEL, true);
+		// if(sk->sk_tx_skb_cache != NULL) {
+		// 	skb = sk->sk_tx_skb_cache;
+		// 	sk->sk_tx_skb_cache = NULL;
+		// } else {
+		// 	skb = alloc_skb(gso_size, GFP_KERNEL);
+		// }
+		// skb->truesize = SKB_TRUESIZE(skb_end_offset(skb));
 		/* this is a temp solution; will remove after adding split buffer mechanism */
 		if (skb->truesize > sk_stream_wspace(sk) || 
 			(max_gso_data > bytes_left && bytes_left + sent_len + dsk->sender.write_seq != dsk->total_length)) {
@@ -346,62 +355,61 @@ int dcacp_fill_packets(struct sock *sk,
 			err = -ENOMEM;
 			goto error;
 		}
-		if ((bytes_left > max_pkt_data)
-				&& (max_gso_data > max_pkt_data)) {
-			skb_shinfo(skb)->gso_size = max_pkt_data;
-			skb_shinfo(skb)->gso_type = SKB_GSO_DCACP;
-		}
-		skb_shinfo(skb)->gso_segs = 0;
+		// if ((bytes_left > max_pkt_data)
+		// 		&& (max_gso_data > max_pkt_data)) {
+		// 	skb_shinfo(skb)->gso_size = max_pkt_data;
+		// 	skb_shinfo(skb)->gso_type = SKB_GSO_TCPV4;
+		// }
+		// skb_shinfo(skb)->gso_segs = 0;
 
-		skb_reserve(skb, sizeof(struct iphdr));
-		skb_reset_transport_header(skb);
-		h = (struct dcacp_data_hdr *) skb_put(skb, sizeof(*h));
+		// skb_reserve(skb, sizeof(struct iphdr));
+		// skb_reset_transport_header(skb);
+		// h = (struct dcacp_data_hdr *) skb_put(skb, sizeof(*h));
 		available = max_gso_data;
 		current_len = available > bytes_left? bytes_left : available;
 		// h->message_id = 256;
 		WRITE_ONCE(DCACP_SKB_CB(skb)->seq, dsk->sender.write_seq + len - bytes_left);
 		WRITE_ONCE(DCACP_SKB_CB(skb)->end_seq, DCACP_SKB_CB(skb)->seq + current_len);
-		sent_len += current_len;
-		if (!copy_from_iter_full(skb_put(skb, current_len),
-				current_len, &msg->msg_iter)) {
-			err = -EFAULT;
-			kfree_skb(skb);
-			goto error;
-		}
-		skb_shinfo(skb)->gso_segs += current_len / max_pkt_data;
-		if (current_len % max_pkt_data)
-			skb_shinfo(skb)->gso_segs += 1;
-		bytes_left -= current_len;
+		// if (!copy_from_iter_full(skb_put(skb, current_len),
+		// 		current_len, &msg->msg_iter)) {
+		// 	err = -EFAULT;
+		// 	kfree_skb(skb);
+		// 	goto error;
+		// }
+		// skb_shinfo(skb)->gso_segs += current_len / max_pkt_data;
+		// if (current_len % max_pkt_data)
+		// 	skb_shinfo(skb)->gso_segs += 1;
+		// bytes_left -= current_len;
 		// h->common.seq = 200;
 		/* Each iteration of the following loop adds one segment
 		 * to the buffer.
 		 */
 
-		// do {
-		// 	int seg_size;
-		// 	seg = (struct data_segment *) skb_put(skb, sizeof(*seg));
-		// 	seg->offset = htonl(len - bytes_left + dsk->sender.write_seq);
+		do {
+			int seg_size;
+			seg = (struct data_segment *) skb_put(skb, sizeof(*seg));
+			seg->offset = htonl(len - bytes_left + dsk->sender.write_seq);
 
-		// 	if (bytes_left <= max_pkt_data)
-		// 		seg_size = bytes_left;
-		// 	else
-		// 		seg_size = max_pkt_data;
-		// 	seg->segment_length = htonl(seg_size);
-		// 	printk("seg size:%d\n", seg_size);
-		// 	if (!copy_from_iter_full(skb_put(skb, seg_size),
-		// 			seg_size, &msg->msg_iter)) {
-		// 		err = -EFAULT;
-		// 		kfree_skb(skb);
-		// 		goto error;
-		// 	}
-		// 	bytes_left -= seg_size;
-		// 	// printk("seg size: %d\n", seg_size);
-		// 	// printk("offset: %d\n",  ntohl(seg->offset));
-		// 	// buffer += seg_size;
-		// 	(skb_shinfo(skb)->gso_segs)++;
-		// 	available -= seg_size;
-		// 	h->common.len = htons(ntohs(h->common.len) + sizeof(*seg));
-		// } while ((available > 0) && (bytes_left > 0));
+			if (bytes_left <= max_pkt_data)
+				seg_size = bytes_left;
+			else
+				seg_size = max_pkt_data;
+			seg->segment_length = htonl(seg_size);
+			if (!copy_from_iter_full(skb_put(skb, seg_size),
+					seg_size, &msg->msg_iter)) {
+				err = -EFAULT;
+				kfree_skb(skb);
+				goto error;
+			}
+			bytes_left -= seg_size;
+			// printk("seg size: %d\n", seg_size);
+			// printk("offset: %d\n",  ntohl(seg->offset));
+			// buffer += seg_size;
+			// (skb_shinfo(skb)->gso_segs)++;
+			available -= seg_size;
+			// h->common.len = htons(ntohs(h->common.len) + sizeof(*seg));
+		} while ((available > 0) && (bytes_left > 0));
+		sent_len += current_len;
 		// h->incoming = htonl(((len - bytes_left) > unsched) ?
 		// 		(len - bytes_left) : unsched);
 		
@@ -417,8 +425,12 @@ int dcacp_fill_packets(struct sock *sk,
 		// *last_link = skb;
 		// last_link = dcacp_next_skb(skb);
 		// *last_link = NULL;
+		printk("skb->len:%d\n", skb->len);
+		printk("skb->data_len:%d\n", skb->data_len);
+
 		dcacp_add_write_queue_tail(sk, skb);
 		sk_wmem_queued_add(sk, skb->truesize);
+		dcacp_set_skb_gso_segs(skb, max_pkt_data + sizeof(struct data_segment));
 		// sk_mem_charge(sk, skb->truesize);
 	}
 

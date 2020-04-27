@@ -330,8 +330,8 @@ static void dcacp_v4_fill_cb(struct sk_buff *skb, const struct iphdr *iph,
         memmove(&DCACP_SKB_CB(skb)->header.h4, IPCB(skb),
                 sizeof(struct inet_skb_parm));
         barrier();
-        DCACP_SKB_CB(skb)->seq = ntohl(dh->common.seq);
-        DCACP_SKB_CB(skb)->end_seq = (DCACP_SKB_CB(skb)->seq + ntohs(dh->common.len));
+        DCACP_SKB_CB(skb)->seq = ntohl(dh->seg.offset);
+        DCACP_SKB_CB(skb)->end_seq = (DCACP_SKB_CB(skb)->seq + ntohl(dh->seg.segment_length));
         // TCP_SKB_CB(skb)->ack_seq = ntohl(th->ack_seq);
         // TCP_SKB_CB(skb)->tcp_flags = tcp_flag_byte(th);
         // TCP_SKB_CB(skb)->tcp_tw_isn = 0;
@@ -762,7 +762,7 @@ int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
 		return 0;
 	}
 	// skb_dst_drop(skb);
-	__skb_pull(skb, (dcacp_hdr(skb)->doff >> 2));
+	__skb_pull(skb, (dcacp_hdr(skb)->doff >> 2)+ sizeof(struct data_segment));
 	// printk("handle packet data queue?:%d\n", DCACP_SKB_CB(skb)->seq);
 
 	/*  Queue data for delivery to the user.
@@ -891,7 +891,6 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 		dsk = dcacp_sk(sk);
 		iph = ip_hdr(skb);
 		dcacp_v4_fill_cb(skb, iph, dh);
-		// printk("data seq:%d\n", ntohl(dh->seg.offset));
 		if (!dh->free_token) {
 			spin_lock_bh(&dcacp_epoch.lock);
 			atomic_sub(ntohs(dh->common.len), &dcacp_epoch.remaining_tokens);
@@ -899,7 +898,6 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 			if (!dcacp_pq_empty(&dcacp_epoch.flow_q) &&
 				atomic_read(&dcacp_epoch.remaining_tokens) < dcacp_params.control_pkt_bdp / 2
 				) {
-				printk("number of remaining tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
 				dcacp_xmit_token(&dcacp_epoch);
 			}
 			spin_unlock_bh(&dcacp_epoch.lock);

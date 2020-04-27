@@ -555,7 +555,7 @@ int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 		goto failure;
 	}
 	/* OK, now commit destination to socket.  */
-	sk->sk_gso_type = SKB_GSO_DCACP;
+	sk->sk_gso_type = SKB_GSO_TCPV4;
 	/*set gso capacity */
 	sk_setup_caps(sk, &rt->dst);
 	/* set dst */
@@ -1059,7 +1059,7 @@ struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
 	        goto put_and_exit;
  	}
 
-	newsk->sk_gso_type = SKB_GSO_DCACP;
+	newsk->sk_gso_type = SKB_GSO_TCPV4;
 	inet_sk_rx_dst_set(newsk, skb);
 
 	newdp		      = dcacp_sk(newsk);

@@ -103,6 +103,7 @@ struct proto dcacp_prot = {
     .rsk_prot       = &dcacp_request_sock_ops,
     .h.hashinfo     = &dcacp_hashinfo,
     // .h.udp_table        = &dcacp_table,
+    .max_header     = DCACP_HEADER_MAX_SIZE,
 #ifdef CONFIG_COMPAT
     .compat_setsockopt  = compat_dcacp_setsockopt,
     .compat_getsockopt  = compat_dcacp_getsockopt,
@@ -341,7 +342,7 @@ static int __init dcacp_load(void) {
                 goto out_cleanup;
         }
         
-        status = dcacpv4_offload_init();
+        // status = dcacpv4_offload_init();
         // printk("init the offload\n");
         // if (status != 0) {
         //         printk(KERN_ERR "DCACP couldn't init offloads\n");
@@ -361,8 +362,8 @@ static int __init dcacp_load(void) {
 out_cleanup:
         // unregister_net_sysctl_table(homa_ctl_header);
         // proc_remove(metrics_dir_entry);
-        if (dcacpv4_offload_end() != 0)
-            printk(KERN_ERR "DCACP couldn't stop offloads\n");
+        // if (dcacpv4_offload_end() != 0)
+        //     printk(KERN_ERR "DCACP couldn't stop offloads\n");
         dcacp_epoch_destroy(&dcacp_epoch);
         unregister_net_sysctl_table(dcacp_ctl_header);
         dcacp_destroy();
@@ -400,8 +401,8 @@ static void __exit dcacp_unload(void) {
         //         printk(KERN_ERR "Homa couldn't stop offloads\n");
         // unregister_net_sysctl_table(homa_ctl_header);
         // proc_remove(metrics_dir_entry);
-        if (dcacpv4_offload_end() != 0)
-            printk(KERN_ERR "DCACP couldn't stop offloads\n");
+        // if (dcacpv4_offload_end() != 0)
+        //     printk(KERN_ERR "DCACP couldn't stop offloads\n");
         printk("start to unload\n");
         // dcacp_epoch_destroy(&dcacp_epoch);
         unregister_net_sysctl_table(dcacp_ctl_header);
