@@ -208,8 +208,8 @@ void dcacp_params_init(struct dcacp_params* params) {
     params->num_iters = 5;
     params->iter_size = params->beta * params->control_pkt_rtt * 1000;
     params->epoch_size = params->num_iters * params->iter_size * params->alpha;
-    params->rmem_default = 263168;
-    params->wmem_default = 263168;
+    params->rmem_default = 1052672;
+    params->wmem_default = 1052672;
     params->short_flow_size = params->bdp;
     params->control_pkt_bdp = params->control_pkt_rtt * params->bandwidth * 1000 / 8;
     printk("params->control_pkt_bdp:%d\n", params->control_pkt_bdp);
