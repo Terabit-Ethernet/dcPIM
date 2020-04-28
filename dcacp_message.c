@@ -88,12 +88,10 @@ static void dcacp_set_skb_gso_segs(struct sk_buff *skb, unsigned int mss_now)
 	// 	TCP_SKB_CB(skb)->tcp_gso_size = mss_now;
 	// }
 	if(skb->len >= mss_now) {
-		printk("mss now:%d\n", mss_now);
 		skb_shinfo(skb)->gso_size = mss_now;
 		skb_shinfo(skb)->gso_type = SKB_GSO_TCPV4;
 		// WARN_ON(skb->len != DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq);
 		skb_shinfo(skb)->gso_segs = DIV_ROUND_UP(skb->len, mss_now);
-		printk("gso_segs:%d\n", skb_shinfo(skb)->gso_segs);
 
 	}
 }
@@ -146,7 +144,6 @@ struct sk_buff *dcacp_stream_alloc_skb(struct sock *sk, int size, gfp_t gfp,
 		skb->reserved_tailroom = skb->end - skb->tail - size;
 		skb->truesize = SKB_TRUESIZE(skb_end_offset(skb));
 
-		printk("skb truesize in stream alloc:%d\n", skb->truesize);
 		return skb;
 	} 
 	// else {
@@ -425,9 +422,6 @@ int dcacp_fill_packets(struct sock *sk,
 		// *last_link = skb;
 		// last_link = dcacp_next_skb(skb);
 		// *last_link = NULL;
-		printk("skb->len:%d\n", skb->len);
-		printk("skb->data_len:%d\n", skb->data_len);
-
 		dcacp_add_write_queue_tail(sk, skb);
 		sk_wmem_queued_add(sk, skb->truesize);
 		dcacp_set_skb_gso_segs(skb, max_pkt_data + sizeof(struct data_segment));
