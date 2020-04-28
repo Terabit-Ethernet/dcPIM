@@ -150,7 +150,7 @@ struct dcacp_token_hdr {
 struct dcacp_flow_sync_hdr {
 	struct dcacphdr common;
 	__be64 flow_id;
-	__be64 flow_size;
+	__be32 flow_size;
 	__be64 start_time;
 };
 // _Static_assert(sizeof(struct dcacp_flow_sync_hdr) <= DCACP_HEADER_MAX_SIZE,

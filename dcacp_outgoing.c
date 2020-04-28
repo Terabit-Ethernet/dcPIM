@@ -144,7 +144,7 @@ struct sk_buff* __construct_control_skb(struct sock* sk) {
 }
 
 struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id, 
-	int message_size, __u64 start_time) {
+	uint32_t message_size, __u64 start_time) {
 	// int extra_bytes = 0;
 	struct sk_buff* skb = __construct_control_skb(sk);
 	struct dcacp_flow_sync_hdr* fh;

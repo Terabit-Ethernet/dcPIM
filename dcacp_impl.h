@@ -95,7 +95,7 @@ void dcacp_token_timer_defer_handler(struct sock *sk);
 
 /*DCACP outgoing function*/
 struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id, 
-	int message_size, __u64 start_time);
+	uint32_t message_size, __u64 start_time);
 struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
 	 __u32 grant_nxt);
 struct sk_buff* construct_ack_pkt(struct sock* sk, __u64 message_id);

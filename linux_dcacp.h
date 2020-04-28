@@ -393,7 +393,7 @@ struct dcacp_sock {
 	/**
 	 * size of flow in bytes
 	 */
-    uint64_t total_length;
+    uint32_t total_length;
 	
 	uint32_t grant_nxt;
 	uint32_t prev_grant_nxt;

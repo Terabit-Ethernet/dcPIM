@@ -1096,6 +1096,8 @@ found_ok_skb:
 		WRITE_ONCE(*seq, *seq + used);
 		copied += used;
 		len -= used;
+		if (used + offset < skb->len)
+			continue;
 		__skb_unlink(skb, &sk->sk_receive_queue);
 		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 		kfree_skb(skb);
