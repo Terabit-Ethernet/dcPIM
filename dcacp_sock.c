@@ -1075,7 +1075,7 @@ struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
 	/* set up flow ID and flow size */
 	dsk = dcacp_sk(newsk);
 	dsk->flow_id = fhdr->flow_id;
-	dsk->total_length = fhdr->flow_size;
+	dsk->total_length = ntohl(fhdr->flow_size);
 	dsk->receiver.grant_batch = set_grant_batch(dst);
 	/* set up max gso segment */
 	sk_setup_caps(newsk, dst);

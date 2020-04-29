@@ -121,9 +121,12 @@ void dcacp_release_cb(struct sock *sk)
 EXPORT_SYMBOL(dcacp_release_cb);
 
 
-struct sk_buff* __construct_control_skb(struct sock* sk) {
-	struct sk_buff *skb = alloc_skb(sizeof(struct iphdr) + DCACP_HEADER_MAX_SIZE, 
-		GFP_KERNEL);
+struct sk_buff* __construct_control_skb(struct sock* sk, int size) {
+
+	struct sk_buff *skb;
+	if(!size)
+		size = DCACP_HEADER_MAX_SIZE;
+	skb = alloc_skb(size, GFP_KERNEL);
 	skb->sk = sk;
 	// int extra_bytes;
 	if (unlikely(!skb))
@@ -146,7 +149,7 @@ struct sk_buff* __construct_control_skb(struct sock* sk) {
 struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id, 
 	uint32_t message_size, __u64 start_time) {
 	// int extra_bytes = 0;
-	struct sk_buff* skb = __construct_control_skb(sk);
+	struct sk_buff* skb = __construct_control_skb(sk, 0);
 	struct dcacp_flow_sync_hdr* fh;
 	struct dcacphdr* dh; 
 	if(unlikely(!skb)) {
@@ -157,7 +160,7 @@ struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id,
 	dh->len = htons(sizeof(struct dcacp_flow_sync_hdr));
 	dh->type = NOTIFICATION;
 	fh->flow_id = message_id;
-	fh->flow_size = message_size;
+	fh->flow_size = htonl(message_size);
 	fh->start_time = start_time;
 	// extra_bytes = DCACP_HEADER_MAX_SIZE - length;
 	// if (extra_bytes > 0)
@@ -166,16 +169,20 @@ struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id,
 }
 
 struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
-	 __u32 grant_nxt) {
+	 __u32 prev_grant_nxt, __u32 grant_nxt) {
 	// int extra_bytes = 0;
 	struct dcacp_sock *dsk = dcacp_sk(sk);
-	struct sk_buff* skb = __construct_control_skb(sk);
+	struct sk_buff* skb = __construct_control_skb(sk, DCACP_HEADER_MAX_SIZE
+		 + dsk->num_sacks * sizeof(struct dcacp_sack_block_wire));
 	struct dcacp_token_hdr* fh;
 	struct dcacphdr* dh;
 	struct dcacp_sack_block_wire *sack;
+	int i = 0;
+	bool manual_end_point = true;
 	if(unlikely(!skb)) {
 		return NULL;
 	}
+	printk("size of dcacp_token_hdr:%lu\n", sizeof(struct dcacp_token_hdr));
 	fh = (struct dcacp_token_hdr *) skb_put(skb, sizeof(struct dcacp_token_hdr));
 	dh = (struct dcacphdr*) (&fh->common);
 	dh->len = htons(sizeof(struct dcacp_token_hdr));
@@ -184,12 +191,39 @@ struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
 	fh->rcv_nxt = dsk->receiver.rcv_nxt;
 	fh->grant_nxt = grant_nxt;
 	fh->num_sacks = 0;
-	while(fh->num_sacks < dsk->receiver.num_sacks) {
-		sack = (struct dcacp_sack_block_wire*) skb_put(skb, sizeof(struct dcacp_sack_block_wire));
-		sack->start_seq = dsk->receiver.selective_acks[fh->num_sacks].start_seq;
-		sack->end_seq = dsk->receiver.selective_acks[fh->num_sacks].end_seq;
-		fh->num_sacks++;
+	if(dsk->num_sacks) {
+		while(i < dsk->num_sacks) {
+			int start_seq = dsk->selective_acks[i].start_seq;
+			int end_seq = dsk->selective_acks[i].end_seq;
+
+			if(start_seq > prev_grant_nxt)
+				goto next;
+			if(end_seq > prev_grant_nxt) {
+				end_seq = prev_grant_nxt;
+				manual_end_point = false;
+			}
+
+			sack = (struct dcacp_sack_block_wire*) skb_put(skb, sizeof(struct dcacp_sack_block_wire));
+			printk("token start seq:%d\n", start_seq);
+			printk("token end seq:%d\n", end_seq);
+
+			sack->start_seq = htonl(start_seq);
+			sack->end_seq = htonl(end_seq);
+			fh->num_sacks++;
+		next:
+			i++;
+		}
+		if(manual_end_point) {
+			sack = (struct dcacp_sack_block_wire*) skb_put(skb, sizeof(struct dcacp_sack_block_wire));
+			sack->start_seq = htonl(prev_grant_nxt);
+			sack->end_seq = htonl(prev_grant_nxt);
+			printk("token start seq:%d\n", prev_grant_nxt);
+			printk("token end seq:%d\n", prev_grant_nxt);
+			fh->num_sacks++;
+		}
+
 	}
+
 	// extra_bytes = DCACP_HEADER_MAX_SIZE - length;
 	// if (extra_bytes > 0)
 	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
@@ -198,7 +232,7 @@ struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
 
 struct sk_buff* construct_ack_pkt(struct sock* sk, __u64 message_id) {
 	// int extra_bytes = 0;
-	struct sk_buff* skb = __construct_control_skb(sk);
+	struct sk_buff* skb = __construct_control_skb(sk, 0);
 	struct dcacp_ack_hdr* fh;
 	struct dcacphdr* dh; 
 	if(unlikely(!skb)) {
@@ -217,7 +251,7 @@ struct sk_buff* construct_ack_pkt(struct sock* sk, __u64 message_id) {
 
 struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz) {
 	// int extra_bytes = 0;
-	struct sk_buff* skb = __construct_control_skb(sk);
+	struct sk_buff* skb = __construct_control_skb(sk, 0);
 	struct dcacp_rts_hdr* fh;
 	struct dcacphdr* dh; 
 	if(unlikely(!skb)) {
@@ -238,7 +272,7 @@ struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoc
 
 struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool prompt) {
 	// int extra_bytes = 0;
-	struct sk_buff* skb = __construct_control_skb(sk);
+	struct sk_buff* skb = __construct_control_skb(sk, 0);
 	struct dcacp_grant_hdr* fh;
 	struct dcacphdr* dh; 
 	if(unlikely(!skb)) {
@@ -260,7 +294,7 @@ struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short iter, int ep
 
 struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short iter, int epoch) {
 	// int extra_bytes = 0;
-	struct sk_buff* skb = __construct_control_skb(sk);
+	struct sk_buff* skb = __construct_control_skb(sk, 0);
 	struct dcacp_accept_hdr* fh;
 	struct dcacphdr* dh; 
 	if(unlikely(!skb)) {
@@ -313,6 +347,64 @@ struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short iter, int e
 // 	return __dcacp_xmit_control(contents, length, rpc->peer, rpc->hsk);
 // }
 
+
+void dcacp_retransmit(struct sock* sk) {
+	struct dcacp_sock* dsk = dcacp_sk(sk);
+	struct dcacp_sack_block *sp;
+	struct sk_buff *skb;
+	int start_seq, end_seq, mss_now, mtu, i;
+	struct dst_entry *dst;
+	dst = sk_dst_get(sk);
+	mtu = dst_mtu(dst);
+	mss_now = mtu - sizeof(struct iphdr) - sizeof(struct dcacp_data_hdr);
+	/* last sack is the fake sack [prev_grant_next, prev_grant_next) */
+	skb = skb_rb_first(&sk->tcp_rtx_queue);
+	printk("skb is null:%d\n", skb == NULL);
+	for (i = 0; i < dsk->num_sacks; i++) {
+		if(!skb)
+			break;
+		if(i == 0) {
+			start_seq = dsk->sender.snd_una;
+		} else {
+			start_seq = dsk->selective_acks[i - 1].end_seq;
+		}
+		end_seq = dsk->selective_acks[i].start_seq;
+		printk("start seq:%d\n", start_seq);
+		printk("end seq:%d\n", end_seq);
+		while(skb) {
+			if(!before(start_seq, DCACP_SKB_CB(skb)->end_seq)) {
+				goto go_to_next;
+			}
+			if(!after(end_seq, DCACP_SKB_CB(skb)->seq)) {
+				break;
+			}
+			/* split the skb buffer; after split, end sequence of skb will change */
+			if(after(start_seq, DCACP_SKB_CB(skb)->seq)) {
+				/* move the start seq forward to the start of a MSS packet */
+				int seg = (start_seq - DCACP_SKB_CB(skb)->seq + 1) / mss_now;
+				printk("start seg:%d\n", seg);
+				dcacp_fragment(sk, DCACP_FRAG_IN_RTX_QUEUE, skb,
+				 seg * (mss_now + sizeof(struct data_segment)), mss_now  + sizeof(struct data_segment), GFP_ATOMIC);
+				/* move forward after the split */
+				skb = skb_rb_next(skb);
+			}
+			if(before(end_seq, DCACP_SKB_CB(skb)->end_seq)) {
+				/* split the skb buffer; Round up this time */
+				int seg = DIV_ROUND_UP((end_seq - DCACP_SKB_CB(skb)->seq), mss_now);
+				printk("end seg:%d\n", seg);
+				dcacp_fragment(sk, DCACP_FRAG_IN_RTX_QUEUE, skb,
+				 seg * (mss_now + sizeof(struct data_segment)), mss_now  + sizeof(struct data_segment), GFP_ATOMIC);		
+			}
+			printk("retransmit skb seq: %d, len:%d\n", DCACP_SKB_CB(skb)->seq, skb->len);
+			dcacp_retransmit_data(skb, dcacp_sk(sk));
+go_to_next:
+			skb = skb_rb_next(skb);
+		}
+
+
+	}	
+	dsk->num_sacks = 0;
+}
 /**
  * __dcacp_xmit_control() - Lower-level version of dcacp_xmit_control: sends
  * a control packet.
@@ -439,6 +531,18 @@ void dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_toke
 	// }
 }
 
+void dcacp_retransmit_data(struct sk_buff *skb, struct dcacp_sock* dsk)
+{
+	struct sock* sk = (struct sock*)(dsk);
+	struct sk_buff* oskb;
+	oskb = skb;
+	if (unlikely(skb_cloned(oskb)))
+		skb = pskb_copy(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
+	else
+		skb = skb_clone(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
+	__dcacp_xmit_data(skb, dsk, 1);
+}
+
 /**
  * __homa_xmit_data() - Handles packet transmission stuff that is common
  * to homa_xmit_data and homa_resend_data.
@@ -517,6 +621,9 @@ void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_to
 void dcacp_write_timer_handler(struct sock *sk)
 {    
 	struct dcacp_sock *dsk = dcacp_sk(sk);
+	if(dsk->num_sacks > 0) {
+		dcacp_retransmit(sk);
+	}
 	while(!skb_queue_empty(&sk->sk_write_queue)) {
 		struct sk_buff *skb = dcacp_send_head(sk);
 		if (DCACP_SKB_CB(skb)->end_seq <= dsk->grant_nxt) {
@@ -525,7 +632,6 @@ void dcacp_write_timer_handler(struct sock *sk)
 			break;
 		}
 	}
-
 
 //         struct inet_connection_sock *icsk = inet_csk(sk);
 //         int event;

@@ -40,6 +40,7 @@
 #define TOS_0 0x00
 
 
+#define DCACP_NUM_SACKS 16
 enum dcacp_queue {
 	DCACP_FRAG_IN_WRITE_QUEUE,
 	DCACP_FRAG_IN_RTX_QUEUE,

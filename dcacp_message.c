@@ -161,19 +161,18 @@ int dcacp_fragment(struct sock *sk, enum dcacp_queue dcacp_queue,
 {
 	// struct tcp_sock *tp = tcp_sk(sk);
 	struct sk_buff *buff;
-	int nsize;
+	int max_pkt_data;
 	// int old_factor;
 	long limit;
 	int nlen;
 	// u8 flags;
 
+
+
+	if (len == 0)
+		return -EINVAL;
 	if (WARN_ON(len > skb->len))
 		return -EINVAL;
-
-	nsize = skb_headlen(skb) - len;
-	printk("nsize:%d\n", nsize);
-	if (nsize < 0)
-		nsize = 0;
 
 	/* dcacp_sendmsg() can overshoot sk_wmem_queued by one full size skb.
 	 * We need some allowance to not penalize applications setting small
@@ -193,17 +192,18 @@ int dcacp_fragment(struct sock *sk, enum dcacp_queue dcacp_queue,
 		return -ENOMEM;
 
 	/* Get a new skb... force flag on. */
-	buff = dcacp_stream_alloc_skb(sk, nsize, gfp, true);
+	buff = dcacp_stream_alloc_skb(sk, skb->len - len, gfp, true);
 	if (!buff)
 		return -ENOMEM; /* We'll just try again later. */
 	skb_copy_decrypted(buff, skb);
 
 	sk_wmem_queued_add(sk, buff->truesize);
 	// sk_mem_charge(sk, buff->truesize);
-	nlen = skb->len - len - nsize;
+	nlen = skb->len - len;
 	buff->truesize += nlen;
 	skb->truesize -= nlen;
-
+	printk("do fragment\n");
+	printk("new buff seq:%d\n", DCACP_SKB_CB(skb)->seq + len);
 	/* Correct the sequence numbers. */
 	DCACP_SKB_CB(buff)->seq = DCACP_SKB_CB(skb)->seq + len;
 	DCACP_SKB_CB(buff)->end_seq = DCACP_SKB_CB(skb)->end_seq;
@@ -215,7 +215,6 @@ int dcacp_fragment(struct sock *sk, enum dcacp_queue dcacp_queue,
 	// DCACP_SKB_CB(buff)->tcp_flags = flags;
 	// DCACP_SKB_CB(buff)->sacked = DCACP_SKB_CB(skb)->sacked;
 	// tcp_skb_fragment_eor(skb, buff);
-
 	skb_split(skb, buff, len);
 
 	buff->ip_summed = CHECKSUM_PARTIAL;
@@ -314,7 +313,8 @@ int dcacp_fill_packets(struct sock *sk,
 		}
 		max_gso_data = bufs_per_gso * max_pkt_data;
 		gso_size = bufs_per_gso * mtu;
-		
+		printk("max gso data:%d\n", max_gso_data);
+		printk("max gso size:%d\n", gso_size);
 		/* Round unscheduled bytes *up* to an even number of gsos. */
 		// unsched = rtt_bytes + max_gso_data - 1;
 		// unsched -= unsched % max_gso_data;

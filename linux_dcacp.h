@@ -397,6 +397,9 @@ struct dcacp_sock {
 	
 	uint32_t grant_nxt;
 	uint32_t prev_grant_nxt;
+    uint32_t num_sacks;
+	struct dcacp_sack_block selective_acks[16]; /* The SACKS themselves*/
+
 	struct list_head match_link;
     /* sender */
     struct dcacp_sender {
@@ -434,9 +437,7 @@ struct dcacp_sock {
 	    uint32_t grant_batch;
 	    /* current received bytes + 1*/
 	    uint32_t rcv_nxt;
-	    uint32_t num_sacks;
-	    struct dcacp_sack_block duplicate_sack[1]; /* D-SACK block */
-		struct dcacp_sack_block selective_acks[4]; /* The SACKS themselves*/
+	    // struct dcacp_sack_block duplicate_sack[1]; /* D-SACK block */
 	    // uint32_t max_seq_no_recv;
 		/** @priority: Priority level to include in future GRANTS. */
 		int priority;
@@ -456,6 +457,7 @@ struct dcacp_sock {
 		struct list_head match_link;
 		int rmem_exhausted;
     } receiver;
+
 
 	atomic64_t next_outgoing_id;
 

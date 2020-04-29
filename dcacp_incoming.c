@@ -74,6 +74,159 @@
 // }
 
 
+
+static inline bool dcacp_sack_extend(struct dcacp_sack_block *sp, u32 seq,
+				  u32 end_seq)
+{
+	if (!after(seq, sp->end_seq) && !after(sp->start_seq, end_seq)) {
+		if (before(seq, sp->start_seq))
+			sp->start_seq = seq;
+		if (after(end_seq, sp->end_seq))
+			sp->end_seq = end_seq;
+		return true;
+	}
+	return false;
+}
+
+/* These routines update the SACK block as out-of-order packets arrive or
+ * in-order packets close up the sequence space.
+ */
+static void dcacp_sack_maybe_coalesce(struct dcacp_sock *dsk)
+{
+	int this_sack;
+	struct dcacp_sack_block *sp = &dsk->selective_acks[0];
+	struct dcacp_sack_block *swalk = sp + 1;
+
+	/* See if the recent change to the first SACK eats into
+	 * or hits the sequence space of other SACK blocks, if so coalesce.
+	 */
+	for (this_sack = 1; this_sack < dsk->num_sacks;) {
+		if (dcacp_sack_extend(sp, swalk->start_seq, swalk->end_seq)) {
+			int i;
+
+			/* Zap SWALK, by moving every further SACK up by one slot.
+			 * Decrease num_sacks.
+			 */
+			dsk->num_sacks--;
+			for (i = this_sack; i < dsk->num_sacks; i++)
+				sp[i] = sp[i + 1];
+			continue;
+		}
+		this_sack++, swalk++;
+	}
+}
+
+static void dcacp_sack_new_ofo_skb(struct sock *sk, u32 seq, u32 end_seq)
+{
+	struct dcacp_sock *dsk = dcacp_sk(sk);
+	struct dcacp_sack_block *sp = &dsk->selective_acks[0];
+	int cur_sacks = dsk->num_sacks;
+	int this_sack;
+
+	if (!cur_sacks)
+		goto new_sack;
+
+	for (this_sack = 0; this_sack < cur_sacks; this_sack++, sp++) {
+		if (dcacp_sack_extend(sp, seq, end_seq)) {
+			/* Rotate this_sack to the first one. */
+			for (; this_sack > 0; this_sack--, sp--)
+				swap(*sp, *(sp - 1));
+			if (cur_sacks > 1)
+				dcacp_sack_maybe_coalesce(dsk);
+			return;
+		}
+	}
+
+	/* Could not find an adjacent existing SACK, build a new one,
+	 * put it at the front, and shift everyone else down.  We
+	 * always know there is at least one SACK present already here.
+	 *
+	 * If the sack array is full, forget about the last one.
+	 */
+	if (this_sack > DCACP_NUM_SACKS) {
+		// if (tp->compressed_ack > TCP_FASTRETRANS_THRESH)
+		// 	tcp_send_ack(sk);
+		WARN_ON(true);
+		this_sack--;
+		dsk->num_sacks--;
+		sp--;
+	}
+	for (; this_sack > 0; this_sack--, sp--)
+		*sp = *(sp - 1);
+
+new_sack:
+	/* Build the new head SACK, and we're done. */
+	sp->start_seq = seq;
+	sp->end_seq = end_seq;
+	dsk->num_sacks++;
+}
+
+/* RCV.NXT advances, some SACKs should be eaten. */
+
+static void dcacp_sack_remove(struct dcacp_sock *dsk)
+{
+	struct dcacp_sack_block *sp = &dsk->selective_acks[0];
+	int num_sacks = dsk->num_sacks;
+	int this_sack;
+
+	/* Empty ofo queue, hence, all the SACKs are eaten. Clear. */
+	if (RB_EMPTY_ROOT(&dsk->out_of_order_queue)) {
+		dsk->num_sacks = 0;
+		return;
+	}
+
+	for (this_sack = 0; this_sack < num_sacks;) {
+		/* Check if the start of the sack is covered by RCV.NXT. */
+		if (!before(dsk->receiver.rcv_nxt, sp->start_seq)) {
+			int i;
+
+			/* RCV.NXT must cover all the block! */
+			WARN_ON(before(dsk->receiver.rcv_nxt, sp->end_seq));
+
+			/* Zap this SACK, by moving forward any other SACKS. */
+			for (i = this_sack+1; i < num_sacks; i++)
+				dsk->selective_acks[i-1] = dsk->selective_acks[i];
+			num_sacks--;
+			continue;
+		}
+		this_sack++;
+		sp++;
+	}
+	dsk->num_sacks = num_sacks;
+}
+
+/* read sack info */
+void dcacp_get_sack_info(struct sock *sk, struct sk_buff *skb) {
+	struct dcacp_sock *dsk = dcacp_sk(sk);
+	const unsigned char *ptr = (skb_transport_header(skb) +
+				    sizeof(struct dcacp_token_hdr));
+	struct dcacp_token_hdr *th = dcacp_token_hdr(skb);
+	struct dcacp_sack_block_wire *sp_wire = (struct dcacp_sack_block_wire *)(ptr);
+	struct dcacp_sack_block *sp = dsk->selective_acks;
+	// struct sk_buff *skb;
+	int used_sacks;
+	int i, j;
+
+	dsk->num_sacks = th->num_sacks;
+	used_sacks = 0;
+	for (i = 0; i < dsk->num_sacks; i++) {
+		/* get_unaligned_be32 will host change the endian to be CPU order */
+		sp[used_sacks].start_seq = get_unaligned_be32(&sp_wire[i].start_seq);
+		sp[used_sacks].end_seq = get_unaligned_be32(&sp_wire[i].end_seq);
+
+		used_sacks++;
+	}
+
+	/* order SACK blocks to allow in order walk of the retrans queue */
+	for (i = used_sacks - 1; i > 0; i--) {
+		for (j = 0; j < i; j++) {
+			if (after(sp[j].start_seq, sp[j + 1].start_seq)) {
+				swap(sp[j], sp[j + 1]);
+			}
+		}
+	}
+}
+
 /* called inside release_cb; BH is disabled by the calller. */
 void dcacp_rem_check_handler(struct sock *sk) {
 	bool pq_empty = false;
@@ -508,12 +661,11 @@ merge_right:
 	/* If there is no skb after us, we are the last_skb ! */
 	// if (!skb1)
 	// 	tp->ooo_last_skb = skb;
-end:
 add_sack:
-	return 0;
 	// if (tcp_is_sack(tp))
-	// 	tcp_sack_new_ofo_skb(sk, seq, end_seq);
-// end:
+	dcacp_sack_new_ofo_skb(sk, seq, end_seq);
+end:
+	return 0;
 	// if (skb) {
 	// 	tcp_grow_window(sk, skb);
 	// 	skb_condense(skb);
@@ -557,8 +709,12 @@ static void dcacp_ofo_queue(struct sock *sk)
 		// fin = TCP_SKB_CB(skb)->tcp_flags & TCPHDR_FIN;
 		if (!eaten)
 			__skb_queue_tail(&sk->sk_receive_queue, skb);
-		else
+		else {
+			printk("tail truesize:%d\n", tail->truesize);
+			printk("skb truesize:%d\n", skb->truesize);
+			printk("fragstolen:%d\n", fragstolen);
 			kfree_skb_partial(skb, fragstolen);
+		}
 
 		// if (unlikely(fin)) {
 		// 	tcp_fin(sk);
@@ -673,7 +829,8 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
 	 		dcacp_clean_rtx_queue(sk);
 			/* add token */
 	 		dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
-
+	 		/* add sack info */
+	 		dcacp_get_sack_info(sk, skb);
 			/* start doing transmission (this part may move to different places later)*/
 			dcacp_write_timer_handler(sk);
 	        kfree_skb(skb);
@@ -797,8 +954,8 @@ queue_and_out:
 		// 		inet_csk(sk)->icsk_ack.pending |= ICSK_ACK_NOW;
 		// }
 
-		// if (dsk->rx_opt.num_sacks)
-		// 	tcp_sack_remove(dsk);
+		if (dsk->num_sacks)
+			dcacp_sack_remove(dsk);
 
 		// tcp_fast_path_check(sk);
 
@@ -958,6 +1115,8 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
  		dcacp_clean_rtx_queue(sk);
 		/* add token */
  		dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
+	 	/* add sack info */
+ 		dcacp_get_sack_info(sk, skb);
  		// will be handled by dcacp_release_cb
  		test_and_set_bit(DCACP_WRITE_TIMER_DEFERRED, &sk->sk_tsq_flags);
 		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);

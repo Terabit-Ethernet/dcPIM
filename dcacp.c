@@ -749,6 +749,7 @@ int dcacp_init_sock(struct sock *sk)
 	// initialize the ready queue and its lock
 	sk->sk_destruct = dcacp_destruct_sock;
 	dsk->unsolved = 0;
+	WRITE_ONCE(dsk->num_sacks, 0);
 	WRITE_ONCE(dsk->grant_nxt, 0);
 	WRITE_ONCE(dsk->prev_grant_nxt, 0);
 	INIT_LIST_HEAD(&dsk->match_link);
@@ -757,7 +758,6 @@ int dcacp_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->sender.snd_una, 0);
 
 	WRITE_ONCE(dsk->receiver.free_flow, false);
-	WRITE_ONCE(dsk->receiver.num_sacks, 0);
 	WRITE_ONCE(dsk->receiver.rcv_nxt, 0);
 	WRITE_ONCE(dsk->receiver.copied_seq, 0);
 	WRITE_ONCE(dsk->receiver.grant_batch, 0);

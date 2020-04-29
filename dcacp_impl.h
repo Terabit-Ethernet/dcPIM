@@ -69,7 +69,9 @@ void dcacp_handle_all_grants(struct dcacp_match_tab *table, struct dcacp_epoch *
 int dcacp_handle_accept(struct sk_buff *skb, struct dcacp_match_tab *table, struct dcacp_epoch *epoch);
 
 
-
+int dcacp_fragment(struct sock *sk, enum dcacp_queue dcacp_queue,
+		 struct sk_buff *skb, u32 len,
+		 unsigned int mss_now, gfp_t gfp);
 int dcacp_fill_packets(struct sock *sk,
 		struct msghdr *msg, size_t len);
 
@@ -80,6 +82,7 @@ struct dcacp_peer *dcacp_peer_find(struct dcacp_peertab *peertab, __be32 addr,
 	struct inet_sock *inet);
 
 /*DCACP incoming function*/
+void dcacp_get_sack_info(struct sock *sk, struct sk_buff *skb);
 enum hrtimer_restart dcacp_new_epoch(struct hrtimer *timer);
 
 int dcacp_handle_data_pkt(struct sk_buff *skb);
@@ -96,7 +99,7 @@ void dcacp_token_timer_defer_handler(struct sock *sk);
 /*DCACP outgoing function*/
 struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id, 
 	uint32_t message_size, __u64 start_time);
-struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
+struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority, __u32 prev_grant_nxt,
 	 __u32 grant_nxt);
 struct sk_buff* construct_ack_pkt(struct sock* sk, __u64 message_id);
 struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz);
@@ -104,7 +107,9 @@ struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short iter, int ep
 struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short iter, int epoch);
 int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct sock *dcacp_sk, int dport);
 void dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_token);
+void dcacp_retransmit_data(struct sk_buff *skb, struct dcacp_sock* dsk);
 void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_token);
+void dcacp_retransmit(struct sock* sk);
 
 void dcacp_write_timer_handler(struct sock *sk);
 

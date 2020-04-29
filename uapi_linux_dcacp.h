@@ -142,7 +142,7 @@ struct dcacp_token_hdr {
 	__u8 priority;
 	__u8 num_sacks;
 	/* token seq number */
-};
+}__attribute__((packed));
 
 // _Static_assert(sizeof(struct dcacp_token_hdr) <= DCACP_HEADER_MAX_SIZE,
 // 		"token_header too large");

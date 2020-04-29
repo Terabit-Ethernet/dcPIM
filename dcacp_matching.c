@@ -463,6 +463,7 @@ int xmit_token(struct sock *sk) {
 	int grant_len = 0;
 	struct inet_sock *inet;
 	int push_bk = 0;
+	int retransmit_bytes = 0;
 	int prev_grant_nxt = dsk->prev_grant_nxt;
 	inet = inet_sk(sk);
 	dsk->prev_grant_nxt = dsk->grant_nxt;
@@ -479,7 +480,26 @@ int xmit_token(struct sock *sk) {
 		push_bk = DCACP_RMEM_LIMIT;
 		return push_bk;
 	}
-	/*construct nack element*/
+	/*compute total sack bytes*/
+
+	if(dsk->num_sacks) {
+		int i = 0;
+		while(i < dsk->num_sacks) {
+			int start_seq = dsk->selective_acks[i].start_seq;
+			int end_seq = dsk->selective_acks[i].end_seq;
+			if(start_seq > prev_grant_nxt)
+				goto next;
+			if(end_seq > prev_grant_nxt) {
+				end_seq = prev_grant_nxt;
+			}
+			retransmit_bytes += end_seq - start_seq;
+		next:
+			i++;
+		}
+	} 
+	/* if retransmit_bytes is larger, then we don't increment grant_nxt */
+	if (retransmit_bytes > dcacp_params.control_pkt_bdp / 2)
+		grant_bytes = 0;
 
 	/* set grant next*/
 	/* receiver buffer bottleneck; or token is dropped */
@@ -505,7 +525,7 @@ int xmit_token(struct sock *sk) {
 	}
 	// printk("xmit token grant next:%d\n", dsk->grant_nxt);
 	atomic_add_return(grant_len, &dcacp_epoch.remaining_tokens);
-	dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, dsk->grant_nxt),
+	dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->grant_nxt),
 	 dsk->peer, sk, inet->inet_dport);
 	return push_bk;
 }
