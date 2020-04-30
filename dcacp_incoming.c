@@ -206,7 +206,9 @@ void dcacp_get_sack_info(struct sock *sk, struct sk_buff *skb) {
 	// struct sk_buff *skb;
 	int used_sacks;
 	int i, j;
-
+	if (!pskb_may_pull(skb, sizeof(struct dcacp_token_hdr) + sizeof(struct dcacp_sack_block_wire) * th->num_sacks)) {
+		return;		/* No space for header. */
+	}
 	dsk->num_sacks = th->num_sacks;
 	used_sacks = 0;
 	for (i = 0; i < dsk->num_sacks; i++) {
@@ -1069,6 +1071,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	        }
         } else {
 	        bh_unlock_sock(sk);
+	        printk("seq num:%d\n", DCACP_SKB_CB(skb)->seq);
 	        printk("discard packet due to memory:%d\n", __LINE__);
         	goto discard_and_relse;
         }
