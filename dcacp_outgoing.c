@@ -355,7 +355,6 @@ void dcacp_retransmit(struct sock* sk) {
 	mss_now = mtu - sizeof(struct iphdr) - sizeof(struct dcacp_data_hdr);
 	/* last sack is the fake sack [prev_grant_next, prev_grant_next) */
 	skb = skb_rb_first(&sk->tcp_rtx_queue);
-	printk("skb is null:%d\n", skb == NULL);
 	for (i = 0; i < dsk->num_sacks; i++) {
 		if(!skb)
 			break;
@@ -365,8 +364,7 @@ void dcacp_retransmit(struct sock* sk) {
 			start_seq = dsk->selective_acks[i - 1].end_seq;
 		}
 		end_seq = dsk->selective_acks[i].start_seq;
-		printk("start seq:%d\n", start_seq);
-		printk("end seq:%d\n", end_seq);
+
 		while(skb) {
 			if(!before(start_seq, DCACP_SKB_CB(skb)->end_seq)) {
 				goto go_to_next;
@@ -378,7 +376,6 @@ void dcacp_retransmit(struct sock* sk) {
 			if(after(start_seq, DCACP_SKB_CB(skb)->seq)) {
 				/* move the start seq forward to the start of a MSS packet */
 				int seg = (start_seq - DCACP_SKB_CB(skb)->seq + 1) / mss_now;
-				printk("start seg:%d\n", seg);
 				dcacp_fragment(sk, DCACP_FRAG_IN_RTX_QUEUE, skb,
 				 seg * (mss_now + sizeof(struct data_segment)), mss_now  + sizeof(struct data_segment), GFP_ATOMIC);
 				/* move forward after the split */
@@ -387,11 +384,9 @@ void dcacp_retransmit(struct sock* sk) {
 			if(before(end_seq, DCACP_SKB_CB(skb)->end_seq)) {
 				/* split the skb buffer; Round up this time */
 				int seg = DIV_ROUND_UP((end_seq - DCACP_SKB_CB(skb)->seq), mss_now);
-				printk("end seg:%d\n", seg);
 				dcacp_fragment(sk, DCACP_FRAG_IN_RTX_QUEUE, skb,
 				 seg * (mss_now + sizeof(struct data_segment)), mss_now  + sizeof(struct data_segment), GFP_ATOMIC);		
 			}
-			printk("retransmit skb seq: %d, len:%d\n", DCACP_SKB_CB(skb)->seq, skb->len);
 			dcacp_retransmit_data(skb, dcacp_sk(sk));
 go_to_next:
 			skb = skb_rb_next(skb);
