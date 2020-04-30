@@ -313,8 +313,6 @@ int dcacp_fill_packets(struct sock *sk,
 		}
 		max_gso_data = bufs_per_gso * max_pkt_data;
 		gso_size = bufs_per_gso * mtu;
-		printk("max gso data:%d\n", max_gso_data);
-		printk("max gso size:%d\n", gso_size);
 		/* Round unscheduled bytes *up* to an even number of gsos. */
 		// unsched = rtt_bytes + max_gso_data - 1;
 		// unsched -= unsched % max_gso_data;
