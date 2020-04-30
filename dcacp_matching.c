@@ -473,7 +473,7 @@ int xmit_token(struct sock *sk) {
 		return push_bk;
 	}
 	if(grant_bytes  > (sk->sk_rcvbuf - atomic_read(&sk->sk_rmem_alloc)) / 2) {
-		grant_bytes = (sk->sk_rcvbuf - atomic_read(&sk->sk_rmem_alloc))  / 2;
+		grant_bytes = (sk->sk_rcvbuf - atomic_read(&sk->sk_rmem_alloc)) / 2;
 	} 
 	if(grant_bytes != dsk->receiver.grant_batch) {
     	test_and_set_bit(DCACP_RMEM_CHECK_DEFERRED, &sk->sk_tsq_flags);
@@ -485,8 +485,8 @@ int xmit_token(struct sock *sk) {
 	if(dsk->num_sacks) {
 		int i = 0;
 		while(i < dsk->num_sacks) {
-			int start_seq = dsk->selective_acks[i].start_seq;
-			int end_seq = dsk->selective_acks[i].end_seq;
+			int start_seq = i > 0? dsk->selective_acks[i-1].end_seq : dsk->receiver.rcv_nxt;
+			int end_seq = dsk->selective_acks[i].start_seq;
 			if(start_seq > prev_grant_nxt)
 				goto next;
 			if(end_seq > prev_grant_nxt) {
