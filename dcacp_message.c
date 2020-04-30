@@ -150,7 +150,7 @@ struct sk_buff *dcacp_stream_alloc_skb(struct sock *sk, int size, gfp_t gfp,
 	// 	sk->sk_prot->enter_memory_pressure(sk);
 	// 	sk_stream_moderate_sndbuf(sk);
 	// }
-	__kfree_skb(skb);
+	// __kfree_skb(skb);
 	return NULL;
 }
 

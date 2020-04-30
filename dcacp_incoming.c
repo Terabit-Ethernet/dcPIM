@@ -709,12 +709,8 @@ static void dcacp_ofo_queue(struct sock *sk)
 		// fin = TCP_SKB_CB(skb)->tcp_flags & TCPHDR_FIN;
 		if (!eaten)
 			__skb_queue_tail(&sk->sk_receive_queue, skb);
-		else {
-			printk("tail truesize:%d\n", tail->truesize);
-			printk("skb truesize:%d\n", skb->truesize);
-			printk("fragstolen:%d\n", fragstolen);
+		else
 			kfree_skb_partial(skb, fragstolen);
-		}
 
 		// if (unlikely(fin)) {
 		// 	tcp_fin(sk);
@@ -1055,6 +1051,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 			if (!dcacp_pq_empty(&dcacp_epoch.flow_q) &&
 				atomic_read(&dcacp_epoch.remaining_tokens) < dcacp_params.control_pkt_bdp / 2
 				) {
+				// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
 				dcacp_xmit_token(&dcacp_epoch);
 			}
 			spin_unlock_bh(&dcacp_epoch.lock);

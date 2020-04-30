@@ -182,7 +182,6 @@ struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
 	if(unlikely(!skb)) {
 		return NULL;
 	}
-	printk("size of dcacp_token_hdr:%lu\n", sizeof(struct dcacp_token_hdr));
 	fh = (struct dcacp_token_hdr *) skb_put(skb, sizeof(struct dcacp_token_hdr));
 	dh = (struct dcacphdr*) (&fh->common);
 	dh->len = htons(sizeof(struct dcacp_token_hdr));
@@ -204,8 +203,7 @@ struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
 			}
 
 			sack = (struct dcacp_sack_block_wire*) skb_put(skb, sizeof(struct dcacp_sack_block_wire));
-			printk("token start seq:%d\n", start_seq);
-			printk("token end seq:%d\n", end_seq);
+
 
 			sack->start_seq = htonl(start_seq);
 			sack->end_seq = htonl(end_seq);
@@ -217,8 +215,6 @@ struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
 			sack = (struct dcacp_sack_block_wire*) skb_put(skb, sizeof(struct dcacp_sack_block_wire));
 			sack->start_seq = htonl(prev_grant_nxt);
 			sack->end_seq = htonl(prev_grant_nxt);
-			printk("token start seq:%d\n", prev_grant_nxt);
-			printk("token end seq:%d\n", prev_grant_nxt);
 			fh->num_sacks++;
 		}
 
