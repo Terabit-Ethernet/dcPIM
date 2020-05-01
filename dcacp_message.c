@@ -341,15 +341,16 @@ int dcacp_fill_packets(struct sock *sk,
 		// }
 		// skb->truesize = SKB_TRUESIZE(skb_end_offset(skb));
 		/* this is a temp solution; will remove after adding split buffer mechanism */
+		if (unlikely(!skb)) {
+			err = -ENOMEM;
+			goto error;
+		}
 		if (skb->truesize > sk_stream_wspace(sk) || 
 			(max_gso_data > bytes_left && bytes_left + sent_len + dsk->sender.write_seq != dsk->total_length)) {
 			sk->sk_tx_skb_cache = skb;
 			break;
 		}
-		if (unlikely(!skb)) {
-			err = -ENOMEM;
-			goto error;
-		}
+
 		// if ((bytes_left > max_pkt_data)
 		// 		&& (max_gso_data > max_pkt_data)) {
 		// 	skb_shinfo(skb)->gso_size = max_pkt_data;
