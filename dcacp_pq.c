@@ -32,6 +32,9 @@ bool dcacp_pq_empty(struct dcacp_pq* pq) {
 	return pq->count == 0;
 }
 
+bool dcacp_pq_empty_lockless(struct dcacp_pq* pq) {
+	return READ_ONCE(pq->list.next) == (const struct list_head *) (&pq->list);
+}
 int dcacp_pq_size(struct dcacp_pq* pq) {
 	return pq->count;
 }
