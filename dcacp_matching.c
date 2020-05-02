@@ -533,11 +533,16 @@ int xmit_token(struct sock *sk) {
 /* Assume BH is disabled and epoch->lock is hold
  * Return true if we need to push back the flow to pq.
  */
+ // ktime_t start2,end2;
+ // __u64 num_tokens = 0;
+ // ktime_t total_time = 0;
 void dcacp_xmit_token(struct dcacp_epoch *epoch) {
 	struct list_head *match_link;
 	struct sock *sk;
 	struct dcacp_sock *dsk;
 	struct inet_sock *inet;
+		// start2 = ktime_get();
+
 	while(!dcacp_pq_empty(&epoch->flow_q)) {
 		bool not_push_bk = false;
 		match_link = dcacp_pq_peek(&epoch->flow_q);
@@ -546,16 +551,18 @@ void dcacp_xmit_token(struct dcacp_epoch *epoch) {
 		inet = inet_sk(sk);
 		dcacp_pq_pop(&epoch->flow_q);
  		bh_lock_sock_nested(sk);
- 		if (!sock_owned_by_user(sk)) {
+ 		// if (!sock_owned_by_user(sk)) {
  			not_push_bk = xmit_token(sk);
   			if(!not_push_bk) {
   				dcacp_pq_push(&epoch->flow_q, &dsk->match_link);
  			} else if (not_push_bk == DCACP_RMEM_LIMIT) {
  			    goto unlock;
  			}
-        } else {
-        	test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
-        }
+        // } 
+        // else {
+        // 	printk("set token timer deferred\n");
+        // 	test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+        // }
 		bh_unlock_sock(sk);
 		break;
 unlock:
@@ -566,7 +573,14 @@ unlock:
 		// hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0, dcacp_params.rtt * 10 * 1000), HRTIMER_MODE_REL);
 		// dcacp_epoch.token_xmit_timer.function = &dcacp_token_xmit_event;
 	}
-
+	// end2 = ktime_get();
+	// total_time = ktime_add(total_time, ktime_sub(end2, start2));
+	// num_tokens += 1;
+	// if(num_tokens == 1000) {
+	// 	num_tokens = 0;
+	// 	printk("transmission time:%llu\n", ktime_to_us(total_time) / 1000);
+	// 	total_time = ktime_set(0, 0);
+	// }
 }
 
 void dcacp_xmit_token_handler(struct work_struct *work) {

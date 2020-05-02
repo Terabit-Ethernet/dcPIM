@@ -1576,7 +1576,14 @@ void dcacp_destroy_sock(struct sock *sk)
 	// struct udp_hslot* hslot = udp_hashslot(sk->sk_prot->h.udp_table, sock_net(sk),
 	// 				     dcacp_sk(sk)->dcacp_port_hash);
 	struct dcacp_sock *up = dcacp_sk(sk);
+	struct inet_sock *inet = inet_sk(sk);
+
 	bool slow = lock_sock_fast(sk);
+
+	if(sk->sk_state == DCACP_SENDER || sk->sk_state == DCACP_RECEIVER) {
+		printk("send ack pkt\n");
+		dcacp_xmit_control(construct_ack_pkt(sk, 0), up->peer, sk, inet->inet_dport); 
+	}
 	dcacp_set_state(sk, TCP_CLOSE);
 	// dcacp_flush_pending_frames(sk);
 	dcacp_write_queue_purge(sk);

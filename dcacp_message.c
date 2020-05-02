@@ -203,7 +203,7 @@ int dcacp_fragment(struct sock *sk, enum dcacp_queue dcacp_queue,
 	buff->truesize += nlen;
 	skb->truesize -= nlen;
 	printk("do fragment\n");
-	printk("new buff seq:%d\n", DCACP_SKB_CB(skb)->seq + len);
+	printk("new buff seq:%u\n", DCACP_SKB_CB(skb)->seq + len);
 	/* Correct the sequence numbers. */
 	DCACP_SKB_CB(buff)->seq = DCACP_SKB_CB(skb)->seq + len;
 	DCACP_SKB_CB(buff)->end_seq = DCACP_SKB_CB(skb)->end_seq;

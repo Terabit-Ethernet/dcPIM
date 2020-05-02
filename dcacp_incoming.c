@@ -1053,6 +1053,8 @@ bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check)
  * shut down; the caller should not access the RPC anymore. Note: this method
  * may change the RPC's state to RPC_READY.
  */
+ // ktime_t start,end;
+ // __u64 total_bytes;
 int dcacp_handle_data_pkt(struct sk_buff *skb)
 {
 	struct dcacp_sock *dsk;
@@ -1070,6 +1072,15 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	// if(!sk) {
 	sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&dh->common), dh->common.source,
             dh->common.dest, sdif, &refcounted);
+    // }
+    // if(total_bytes == 0) {
+    // 	start = ktime_get();
+    // }
+    // total_bytes += skb->len;
+    // if(total_bytes > 100000000) {
+    // 	end = ktime_get();
+    // 	printk("throughput:%llu\n", total_bytes * 8 * 1000000 / ktime_to_us(ktime_sub(end, start)));
+    // 	total_bytes = 0;
     // }
 	if(sk && sk->sk_state == DCACP_RECEIVER) {
 		dsk = dcacp_sk(sk);
