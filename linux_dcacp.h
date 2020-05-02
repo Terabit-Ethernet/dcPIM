@@ -53,7 +53,7 @@ enum dcacpcsq_enum {
 	// TSQ_THROTTLED, 
 	// TSQ_QUEUED, /* this twos are defined in tcp.h*/
 	DCACP_TSQ_DEFERRED = 2,	   /* tcp_tasklet_func() found socket was owned */
-	DCACP_WRITE_TIMER_DEFERRED,  /* dcacp_handle_token_pkts() found socket was owned */
+	DCACP_CLEAN_TIMER_DEFERRED,  /* dcacp_handle_token_pkts() found socket was owned */
 	DCACP_TOKEN_TIMER_DEFERRED, /* dcacp_xmit_token() found socket was owned */
 	DCACP_RMEM_CHECK_DEFERRED,  /* Read Memory Check once release sock
 				    * tcp_v{4|6}_mtu_reduced()
@@ -64,7 +64,7 @@ enum dcacpcsq_flags {
 	// TSQF_THROTTLED			= (1UL << TSQ_THROTTLED),
 	// TSQF_QUEUED			= (1UL << TSQ_QUEUED),
 	DCACPF_TSQ_DEFERRED		= (1UL << DCACP_TSQ_DEFERRED),
-	DCACPF_WRITE_TIMER_DEFERRED	= (1UL << DCACP_WRITE_TIMER_DEFERRED),
+	DCACPF_CLEAN_TIMER_DEFERRED	= (1UL << DCACP_CLEAN_TIMER_DEFERRED),
 	DCACPF_TOKEN_TIMER_DEFERRED	= (1UL << DCACP_TOKEN_TIMER_DEFERRED),
 	DCACPF_RMEM_CHECK_DEFERRED	= (1UL << DCACP_RMEM_CHECK_DEFERRED),
 };

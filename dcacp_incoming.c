@@ -270,11 +270,31 @@ void dcacp_token_timer_defer_handler(struct sock *sk) {
 	}
 }
 
+void sk_stream_write_space(struct sock *sk)
+{
+	struct socket *sock = sk->sk_socket;
+	struct socket_wq *wq;
+
+	if (__sk_stream_is_writeable(sk, 1) && sock) {
+		clear_bit(SOCK_NOSPACE, &sock->flags);
+
+		rcu_read_lock();
+		wq = rcu_dereference(sk->sk_wq);
+		if (skwq_has_sleeper(wq))
+			wake_up_interruptible_poll(&wq->wait, EPOLLOUT |
+						EPOLLWRNORM | EPOLLWRBAND);
+		if (wq && wq->fasync_list && !(sk->sk_shutdown & SEND_SHUTDOWN))
+			sock_wake_async(wq, SOCK_WAKE_SPACE, POLL_OUT);
+		rcu_read_unlock();
+	}
+}
+
+
 /* Remove acknowledged frames from the retransmission queue. If our packet
  * is before the ack sequence we can discard it as it's confirmed to have
  * arrived at the other end.
  */
-static int dcacp_clean_rtx_queue(struct sock *sk)
+int dcacp_clean_rtx_queue(struct sock *sk)
 {
 	// const struct inet_connection_sock *icsk = inet_csk(sk);
 	struct dcacp_sock *dsk = dcacp_sk(sk);
@@ -371,8 +391,8 @@ static int dcacp_clean_rtx_queue(struct sock *sk)
 		// 	tp->lost_skb_hint = NULL;
 		// tcp_highest_sack_replace(sk, skb, next);
 		dcacp_rtx_queue_unlink_and_free(skb, sk);
+		sk_stream_write_space(sk);
 	}
-
 	// if (!skb)
 	// 	tcp_chrono_stop(sk, TCP_CHRONO_BUSY);
 
@@ -800,7 +820,8 @@ drop:
 
 	return 0;
 }
-
+// ktime_t start, end;
+// __u32 backlog_time = 0;
 int dcacp_handle_token_pkt(struct sk_buff *skb) {
 	struct dcacp_sock *dsk;
 	// struct inet_sock *inet;
@@ -821,10 +842,9 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
 	if(sk) {
  		dsk = dcacp_sk(sk);
  		bh_lock_sock_nested(sk);
- 		if (!sock_owned_by_user(sk)) {
+ 		// if (!sock_owned_by_user(sk)) {
 			/* clean rtx queue */
 			dsk->sender.snd_una = th->rcv_nxt > dsk->sender.snd_una ? th->rcv_nxt: dsk->sender.snd_una;
-	 		dcacp_clean_rtx_queue(sk);
 			/* add token */
 	 		dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
 	 		/* add sack info */
@@ -832,10 +852,19 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
 			/* start doing transmission (this part may move to different places later)*/
 			dcacp_write_timer_handler(sk);
 	        kfree_skb(skb);
-
-        } else {
-            dcacp_add_backlog(sk, skb, true);
-        }
+	    if(!sock_owned_by_user(sk)) {
+	 		dcacp_clean_rtx_queue(sk);
+	    } else {
+	 		test_and_set_bit(DCACP_CLEAN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+	    }
+        // } else {
+        // 	// if(backlog_time % 100 == 0) {
+        // 		// end = ktime_get();
+        // 		// printk("time diff:%llu\n", ktime_to_us(ktime_sub(end, start)));
+        // 		// printk("num of backlog_time:%d\n", backlog_time);
+        // 	// }
+        //     dcacp_add_backlog(sk, skb, true);
+        // }
         bh_unlock_sock(sk);
 	}
     if (refcounted) {
@@ -1047,16 +1076,16 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 		iph = ip_hdr(skb);
 		dcacp_v4_fill_cb(skb, iph, dh);
 		if (!dh->free_token) {
-			spin_lock_bh(&dcacp_epoch.lock);
 			atomic_sub(ntohl(dh->seg.segment_length), &dcacp_epoch.remaining_tokens);
 
-			if (!dcacp_pq_empty(&dcacp_epoch.flow_q) &&
+			if (!dcacp_pq_empty_lockless(&dcacp_epoch.flow_q) &&
 				atomic_read(&dcacp_epoch.remaining_tokens) < dcacp_params.control_pkt_bdp / 2
 				) {
+				spin_lock_bh(&dcacp_epoch.lock);
 				// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
 				dcacp_xmit_token(&dcacp_epoch);
+				spin_unlock_bh(&dcacp_epoch.lock);
 			}
-			spin_unlock_bh(&dcacp_epoch.lock);
 		} 
  		bh_lock_sock_nested(sk);
         // ret = 0;
@@ -1099,7 +1128,7 @@ discard_and_relse:
  */
 int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 	struct dcacphdr* dh;
-	struct dcacp_sock *dsk = dcacp_sk(sk);
+	// struct dcacp_sock *dsk = dcacp_sk(sk);
 	dh = dcacp_hdr(skb);
 	if(dh->type == DATA) {
 		return dcacp_data_queue(sk, skb);
@@ -1108,19 +1137,20 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
         dcacp_set_state(sk, TCP_CLOSE);
         dcacp_write_queue_purge(sk);
 		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
-	} else if (dh->type == TOKEN) {
-		/* clean rtx queue */
-		struct dcacp_token_hdr *th = dcacp_token_hdr(skb);
-		dsk->sender.snd_una = th->rcv_nxt > dsk->sender.snd_una ? th->rcv_nxt: dsk->sender.snd_una;
- 		dcacp_clean_rtx_queue(sk);
-		/* add token */
- 		dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
-	 	/* add sack info */
- 		dcacp_get_sack_info(sk, skb);
- 		// will be handled by dcacp_release_cb
- 		test_and_set_bit(DCACP_WRITE_TIMER_DEFERRED, &sk->sk_tsq_flags);
-		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
-	}
+	} 
+	// else if (dh->type == TOKEN) {
+	// 	/* clean rtx queue */
+	// 	struct dcacp_token_hdr *th = dcacp_token_hdr(skb);
+	// 	dsk->sender.snd_una = th->rcv_nxt > dsk->sender.snd_una ? th->rcv_nxt: dsk->sender.snd_una;
+ // 		dcacp_clean_rtx_queue(sk);
+	// 	/* add token */
+ // 		dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
+	//  	/* add sack info */
+ // 		dcacp_get_sack_info(sk, skb);
+ // 		// will be handled by dcacp_release_cb
+ // 		test_and_set_bit(DCACP_CLEAN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+	// 	atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+	// }
 	kfree_skb(skb);
 	return 0;
 }

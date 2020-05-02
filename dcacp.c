@@ -143,7 +143,7 @@ void dcacp_write_queue_purge(struct sock *sk)
 	// struct dcacp_sock *dsk;
 	struct sk_buff *skb;
 
-	while ((skb = __skb_dequeue(&sk->sk_write_queue)) != NULL) {
+	while ((skb = skb_dequeue(&sk->sk_write_queue)) != NULL) {
 		dcacp_wmem_free_skb(sk, skb);
 	}
 	dcacp_rtx_queue_purge(sk);
@@ -421,6 +421,10 @@ int dcacp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	// int corkreq = up->corkflag || msg->msg_flags&MSG_MORE;
 	struct dcacp_sock *dsk = dcacp_sk(sk);
 	int sent_len = 0;
+	long timeo;
+	int err, flags;
+
+	flags = msg->msg_flags;
 	if (sk->sk_state != DCACP_SENDER) {
 		return -ENOTCONN;
 	}
@@ -430,25 +434,37 @@ int dcacp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 		return -EMSGSIZE;
 	}
 
-
 	if (len + dsk->sender.write_seq > dsk->total_length) {
 		len = dsk->total_length - dsk->sender.write_seq;
 	}
+	if(sk_stream_wspace(sk) <= 0) {
+		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
+		sk_stream_wait_memory(sk, &timeo);
+	}
+
 
 	sent_len = dcacp_fill_packets(sk, msg, len);
 	if(dsk->total_length < dcacp_params.short_flow_size) {
+		struct sk_buff *skb;
 		dsk->grant_nxt = dsk->total_length;
-		while (!skb_queue_empty(&sk->sk_write_queue)) {
-			struct sk_buff *skb = dcacp_send_head(sk);
-			dcacp_xmit_data(skb, dsk, true);
+		while((skb = skb_dequeue(&sk->sk_write_queue)) != NULL) {
+			dcacp_xmit_data(skb, dsk, false);
 		}
 	}
+	// if(sent_len == -ENOMEM) {
+	// 	timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
+	// 	sk_stream_wait_memory(sk, &timeo);
+	// }
 	/*temporary solution */
+	local_bh_disable();
+	bh_lock_sock(sk);
 	if(!skb_queue_empty(&sk->sk_write_queue) && 
 		dsk->grant_nxt >= DCACP_SKB_CB(dcacp_send_head(sk))->end_seq) {
 		printk("call sendmsg locked writing handler\n");
  		dcacp_write_timer_handler(sk);
 	}
+	bh_unlock_sock(sk);
+	local_bh_enable();
 	return sent_len;
 }
 
@@ -1566,6 +1582,7 @@ void dcacp_destroy_sock(struct sock *sk)
 	dcacp_write_queue_purge(sk);
 	dcacp_read_queue_purge(sk);
 	unlock_sock_fast(sk, slow);
+	printk("sk->sk_wmem_queued:%d\n",sk->sk_wmem_queued);
 	spin_lock_bh(&dcacp_epoch.lock);
 	dcacp_pq_delete(&dcacp_epoch.flow_q, &up->match_link);
 	spin_unlock_bh(&dcacp_epoch.lock);

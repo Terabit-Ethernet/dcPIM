@@ -39,6 +39,7 @@ void dcacp_xmit_token_handler(struct work_struct *work);
 enum hrtimer_restart dcacp_token_xmit_event(struct hrtimer *timer);
 void dcacp_pq_init(struct dcacp_pq* pq, bool(*comp)(const struct list_head*, const struct list_head*));
 bool dcacp_pq_empty(struct dcacp_pq* pq);
+bool dcacp_pq_empty_lockless(struct dcacp_pq* pq);
 struct list_head* dcacp_pq_pop(struct dcacp_pq* pq);
 void dcacp_pq_push(struct dcacp_pq* pq, struct list_head* node);
 struct list_head* dcacp_pq_peek(struct dcacp_pq* pq); 
@@ -95,7 +96,7 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb);
 
 void dcacp_rem_check_handler(struct sock *sk);
 void dcacp_token_timer_defer_handler(struct sock *sk);
-
+int dcacp_clean_rtx_queue(struct sock *sk);
 /*DCACP outgoing function*/
 struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id, 
 	uint32_t message_size, __u64 start_time);

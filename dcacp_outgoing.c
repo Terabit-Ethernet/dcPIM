@@ -62,7 +62,7 @@
 
 
 #define DCACP_DEFERRED_ALL (DCACPF_TSQ_DEFERRED |		\
-			  DCACPF_WRITE_TIMER_DEFERRED |	\
+			  DCACPF_CLEAN_TIMER_DEFERRED |	\
 			  DCACPF_TOKEN_TIMER_DEFERRED |	\
 			  DCACPF_RMEM_CHECK_DEFERRED)
 
@@ -105,8 +105,8 @@ void dcacp_release_cb(struct sock *sk)
 		dcacp_rem_check_handler(sk);
 	}
 
-	if (flags & DCACPF_WRITE_TIMER_DEFERRED) {
-		dcacp_write_timer_handler(sk);
+	if (flags & DCACP_CLEAN_TIMER_DEFERRED) {
+		dcacp_clean_rtx_queue(sk);
 		// __sock_put(sk);
 	}
 	if (flags & DCACPF_TOKEN_TIMER_DEFERRED) {
@@ -126,7 +126,7 @@ struct sk_buff* __construct_control_skb(struct sock* sk, int size) {
 	struct sk_buff *skb;
 	if(!size)
 		size = DCACP_HEADER_MAX_SIZE;
-	skb = alloc_skb(size, GFP_KERNEL);
+	skb = alloc_skb(size, GFP_ATOMIC);
 	skb->sk = sk;
 	// int extra_bytes;
 	if (unlikely(!skb))
@@ -344,7 +344,7 @@ struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short iter, int e
 
 void dcacp_retransmit(struct sock* sk) {
 	struct dcacp_sock* dsk = dcacp_sk(sk);
-	struct dcacp_sack_block *sp;
+	// struct dcacp_sack_block *sp;
 	struct sk_buff *skb;
 	int start_seq, end_seq, mss_now, mtu, i;
 	struct dst_entry *dst;
@@ -450,15 +450,7 @@ int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct sock
 }
 
 /**
- * dcacp_xmit_data() - If an message_out has outbound data packets that are permitted
- * to be transmitted according to the scheduling mechanism, arrange for
- * them to be sent (some may be sent immediately; others may be sent
- * later by the pacer thread).
- * @mesg:       message_out to check for transmittable packets. Must be locked by
- *             caller.
- * @force:     True means send at least one packet, even if the NIC queue
- *             is too long. False means that zero packets may be sent, if
- *             the NIC queue is sufficiently long.
+ *
  */
 void dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_token)
 {
@@ -472,7 +464,7 @@ void dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_toke
 	__dcacp_xmit_data(skb, dsk, free_token);
 	/* change the state of queue and metadata*/
 
-	dcacp_unlink_write_queue(oskb, sk);
+	// dcacp_unlink_write_queue(oskb, sk);
 	dcacp_rbtree_insert(&sk->tcp_rtx_queue, oskb);
 	WRITE_ONCE(dsk->sender.snd_nxt, DCACP_SKB_CB(oskb)->end_seq);
 	// sk_wmem_queued_add(sk, -skb->truesize);
@@ -606,18 +598,19 @@ void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_to
 }
 
 /* Called with bottom-half processing disabled.
-   Called by tcp_write_timer() */
+   assuming hold the socket lock */
 void dcacp_write_timer_handler(struct sock *sk)
 {    
 	struct dcacp_sock *dsk = dcacp_sk(sk);
+	struct sk_buff *skb;
 	if(dsk->num_sacks > 0) {
 		dcacp_retransmit(sk);
 	}
-	while(!skb_queue_empty(&sk->sk_write_queue)) {
-		struct sk_buff *skb = dcacp_send_head(sk);
+	while((skb = skb_dequeue(&sk->sk_write_queue)) != NULL) {
 		if (DCACP_SKB_CB(skb)->end_seq <= dsk->grant_nxt) {
 			dcacp_xmit_data(skb, dsk, false);
 		} else {
+			skb_queue_head(&sk->sk_write_queue, skb);
 			break;
 		}
 	}

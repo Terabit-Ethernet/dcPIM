@@ -216,7 +216,7 @@ void dcacp_send_all_rts (struct dcacp_match_tab *table, struct dcacp_epoch* epoc
 	struct dcacp_match_entry *entry = NULL;
  	// struct dcacp_peer *peer;
 	// struct inet_sock *inet;
-	struct sk_buff* pkt;
+	// struct sk_buff* pkt;
 
 	spin_lock(&table->lock);
 	list_for_each_entry(entry, &table->hash_list, list_link) {

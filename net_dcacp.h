@@ -224,7 +224,7 @@ static inline bool dcacp_rtx_and_write_queues_empty(const struct sock *sk)
 
 static inline void dcacp_add_write_queue_tail(struct sock *sk, struct sk_buff *skb)
 {
-	__skb_queue_tail(&sk->sk_write_queue, skb);
+	skb_queue_tail(&sk->sk_write_queue, skb);
 
 	// /* Queue it, remembering where we must start sending. */
 	// if (sk->sk_write_queue.next == skb)
@@ -232,12 +232,12 @@ static inline void dcacp_add_write_queue_tail(struct sock *sk, struct sk_buff *s
 }
 
 /* Insert new before skb on the write queue of sk.  */
-static inline void dcacp_insert_write_queue_before(struct sk_buff *new,
-						  struct sk_buff *skb,
-						  struct sock *sk)
-{
-	__skb_queue_before(&sk->sk_write_queue, skb, new);
-}
+// static inline void dcacp_insert_write_queue_before(struct sk_buff *new,
+// 						  struct sk_buff *skb,
+// 						  struct sock *sk)
+// {
+// 	__skb_queue_before(&sk->sk_write_queue, skb, new);
+// }
 
 static inline void dcacp_unlink_write_queue(struct sk_buff *skb, struct sock *sk)
 {
