@@ -55,9 +55,8 @@ enum dcacpcsq_enum {
 	DCACP_TSQ_DEFERRED = 2,	   /* tcp_tasklet_func() found socket was owned */
 	DCACP_CLEAN_TIMER_DEFERRED,  /* dcacp_handle_token_pkts() found socket was owned */
 	DCACP_TOKEN_TIMER_DEFERRED, /* dcacp_xmit_token() found socket was owned */
-	DCACP_RMEM_CHECK_DEFERRED,  /* Read Memory Check once release sock
-				    * tcp_v{4|6}_mtu_reduced()
-				    */
+	DCACP_RMEM_CHECK_DEFERRED,  /* Read Memory Check once release sock */
+	DCACP_RTX_DEFERRED,
 };
 
 enum dcacpcsq_flags {
@@ -67,6 +66,7 @@ enum dcacpcsq_flags {
 	DCACPF_CLEAN_TIMER_DEFERRED	= (1UL << DCACP_CLEAN_TIMER_DEFERRED),
 	DCACPF_TOKEN_TIMER_DEFERRED	= (1UL << DCACP_TOKEN_TIMER_DEFERRED),
 	DCACPF_RMEM_CHECK_DEFERRED	= (1UL << DCACP_RMEM_CHECK_DEFERRED),
+	DCACPF_RTX_DEFERRED	= (1UL << DCACP_RTX_DEFERRED),
 };
 
 struct dcacp_params {
@@ -456,6 +456,10 @@ struct dcacp_sock {
 		// link for DCACP matching table
 		struct list_head match_link;
 		int rmem_exhausted;
+		/* short flow waiting timer or long flow waiting timer; after all tokens arer granted */
+		struct hrtimer flow_wait_timer;
+		// struct work_struct token_xmit_struct;
+
     } receiver;
 
 
