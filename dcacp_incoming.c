@@ -522,7 +522,9 @@ static void dcacp_v4_fill_cb(struct sk_buff *skb, const struct iphdr *iph,
                 sizeof(struct inet_skb_parm));
         barrier();
         DCACP_SKB_CB(skb)->seq = ntohl(dh->seg.offset);
-        DCACP_SKB_CB(skb)->end_seq = (DCACP_SKB_CB(skb)->seq + ntohl(dh->seg.segment_length));
+        // printk("skb len:%d\n", skb->len);
+        // printk("segment length:%d\n", ntohl(dh->seg.segment_length));
+        DCACP_SKB_CB(skb)->end_seq = (DCACP_SKB_CB(skb)->seq + skb->len - (dh->common.doff / 4 + sizeof(struct data_segment)));
         // TCP_SKB_CB(skb)->ack_seq = ntohl(th->ack_seq);
         // TCP_SKB_CB(skb)->tcp_flags = tcp_flag_byte(th);
         // TCP_SKB_CB(skb)->tcp_tw_isn = 0;
@@ -862,19 +864,25 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
  		bh_lock_sock_nested(sk);
  		// if (!sock_owned_by_user(sk)) {
 			/* clean rtx queue */
-			dsk->sender.snd_una = th->rcv_nxt > dsk->sender.snd_una ? th->rcv_nxt: dsk->sender.snd_una;
-			/* add token */
-	 		dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
-	 		/* add sack info */
-	 		dcacp_get_sack_info(sk, skb);
-			/* start doing transmission (this part may move to different places later)*/
-			dcacp_write_timer_handler(sk);
-	        kfree_skb(skb);
+		dsk->sender.snd_una = th->rcv_nxt > dsk->sender.snd_una ? th->rcv_nxt: dsk->sender.snd_una;
+		/* add token */
+ 		dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
+ 		/* add sack info */
+ 		dcacp_get_sack_info(sk, skb);
+		/* start doing transmission (this part may move to different places later)*/
 	    if(!sock_owned_by_user(sk)) {
 	 		dcacp_clean_rtx_queue(sk);
 	    } else {
 	 		test_and_set_bit(DCACP_CLEAN_TIMER_DEFERRED, &sk->sk_tsq_flags);
 	    }
+	    if(!sock_owned_by_user(sk) || dsk->num_sacks == 0) {
+	 		dcacp_write_timer_handler(sk);
+	    } else {
+	 		test_and_set_bit(DCACP_RTX_DEFERRED, &sk->sk_tsq_flags);
+	    }
+
+	    kfree_skb(skb);
+
         // } else {
         // 	// if(backlog_time % 100 == 0) {
         // 		// end = ktime_get();
@@ -1105,7 +1113,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 		iph = ip_hdr(skb);
 		dcacp_v4_fill_cb(skb, iph, dh);
 		if (!dh->free_token) {
-			atomic_sub(ntohl(dh->seg.segment_length), &dcacp_epoch.remaining_tokens);
+			atomic_sub(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq, &dcacp_epoch.remaining_tokens);
 			// printk("remaining tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
 			// printk("receive seq:%u\n", DCACP_SKB_CB(skb)->seq);
 			if (!dcacp_pq_empty_lockless(&dcacp_epoch.flow_q) &&

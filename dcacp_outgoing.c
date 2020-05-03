@@ -64,7 +64,8 @@
 #define DCACP_DEFERRED_ALL (DCACPF_TSQ_DEFERRED |		\
 			  DCACPF_CLEAN_TIMER_DEFERRED |	\
 			  DCACPF_TOKEN_TIMER_DEFERRED |	\
-			  DCACPF_RMEM_CHECK_DEFERRED)
+			  DCACPF_RMEM_CHECK_DEFERRED | \
+			  DCACPF_RTX_DEFERRED)
 
 /**
  * dcacp_release_cb - dcacp release_sock() callback
@@ -112,6 +113,9 @@ void dcacp_release_cb(struct sock *sk)
 	if (flags & DCACPF_TOKEN_TIMER_DEFERRED) {
 		dcacp_token_timer_defer_handler(sk);
 		// __sock_put(sk);
+	}
+	if (flags & DCACPF_RTX_DEFERRED) {
+		dcacp_write_timer_handler(sk);
 	}
 	// if (flags & TCPF_MTU_REDUCED_DEFERRED) {
 	// 	inet_csk(sk)->icsk_af_ops->mtu_reduced(sk);
@@ -377,10 +381,11 @@ void dcacp_retransmit(struct sock* sk) {
 			if(after(start_seq, DCACP_SKB_CB(skb)->seq)) {
 				/* move the start seq forward to the start of a MSS packet */
 				int seg = (start_seq - DCACP_SKB_CB(skb)->seq + 1) / mss_now;
-				dcacp_fragment(sk, DCACP_FRAG_IN_RTX_QUEUE, skb,
+				int ret = dcacp_fragment(sk, DCACP_FRAG_IN_RTX_QUEUE, skb,
 				 seg * (mss_now + sizeof(struct data_segment)), mss_now  + sizeof(struct data_segment), GFP_ATOMIC);
 				/* move forward after the split */
-				skb = skb_rb_next(skb);
+				if(!ret)
+					skb = skb_rb_next(skb);
 			}
 			if(before(end_seq, DCACP_SKB_CB(skb)->end_seq)) {
 				/* split the skb buffer; Round up this time */
