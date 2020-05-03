@@ -190,9 +190,9 @@ struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
 	fh->rcv_nxt = dsk->receiver.rcv_nxt;
 	fh->grant_nxt = grant_nxt;
 	fh->num_sacks = 0;
-	printk("new grant next:%u\n", fh->grant_nxt);
+	// printk("new grant next:%u\n", fh->grant_nxt);
 	if(dsk->receiver.rcv_nxt < prev_grant_nxt) {
-		printk("rcv_nxt:%u\n", dsk->receiver.rcv_nxt);
+		// printk("rcv_nxt:%u\n", dsk->receiver.rcv_nxt);
 		while(i < dsk->num_sacks) {
 			__u32 start_seq = dsk->selective_acks[i].start_seq;
 			__u32 end_seq = dsk->selective_acks[i].end_seq;
@@ -215,7 +215,7 @@ struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
 			sack = (struct dcacp_sack_block_wire*) skb_put(skb, sizeof(struct dcacp_sack_block_wire));
 			sack->start_seq = htonl(prev_grant_nxt);
 			sack->end_seq = htonl(prev_grant_nxt);
-			printk("sack start seq:%u\n", prev_grant_nxt);
+			// printk("sack start seq:%u\n", prev_grant_nxt);
 			fh->num_sacks++;
 		}
 

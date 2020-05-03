@@ -229,7 +229,23 @@ void dcacp_get_sack_info(struct sock *sk, struct sk_buff *skb) {
 	}
 }
 
-/* called inside release_cb; BH is disabled by the calller. */
+/* called inside softIRQ context */
+enum hrtimer_restart dcacp_flow_wait_event(struct hrtimer *timer) {
+	// struct dcacp_grant* grant, temp;
+	struct dcacp_sock *dsk = container_of(timer, struct dcacp_sock, receiver.flow_wait_timer);
+	struct sock *sk = (struct sock*)dsk;
+	printk("flow_wait_timer");
+	bh_lock_sock(sk);
+	dcacp_rem_check_handler(sk);
+	bh_unlock_sock(sk);
+ 	// queue_work(dcacp_epoch.wq, &dcacp_epoch.token_xmit_struct);
+	return HRTIMER_NORESTART;
+
+}
+
+/* Called inside release_cb or by flow_wait_event; BH is disabled by the caller and lock_sock is hold by caller.
+ * Either read buffer is limited or all toknes has been sent but some pkts are dropped.
+ */
 void dcacp_rem_check_handler(struct sock *sk) {
 	bool pq_empty = false;
 	struct dcacp_sock* dsk = dcacp_sk(sk);
@@ -244,8 +260,7 @@ void dcacp_rem_check_handler(struct sock *sk) {
 	dcacp_pq_push(&dcacp_epoch.flow_q, &dsk->match_link);
 	if(pq_empty) {
 		/* this part may change latter. */
-		hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0, 0), HRTIMER_MODE_ABS);
-		dcacp_epoch.token_xmit_timer.function = &dcacp_token_xmit_event;
+		hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0, 0), HRTIMER_MODE_REL_PINNED_SOFT);
 	}
 	spin_unlock(&dcacp_epoch.lock);
 
@@ -485,6 +500,7 @@ static void dcacp_rcv_nxt_update(struct dcacp_sock *dsk, u32 seq)
 	if(!dsk->receiver.finished_at_receiver && dsk->receiver.rcv_nxt == dsk->total_length) {
 		struct inet_sock *inet = inet_sk(sk);
 		dsk->receiver.finished_at_receiver = true;
+		hrtimer_cancel(&dsk->receiver.flow_wait_timer);
 		printk("send ack pkt\n");
 		dcacp_xmit_control(construct_ack_pkt(sk, 0), dsk->peer, sk, inet->inet_dport); 
 	}
@@ -789,6 +805,8 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 				spin_unlock_bh(&dcacp_epoch.lock);
 			} else {
 				/* set short flow timer */
+				hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 1000), 
+				HRTIMER_MODE_REL_PINNED_SOFT);
 			}
 		}
 		// dsk = dcacp_sk(sk);
@@ -1088,7 +1106,8 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 		dcacp_v4_fill_cb(skb, iph, dh);
 		if (!dh->free_token) {
 			atomic_sub(ntohl(dh->seg.segment_length), &dcacp_epoch.remaining_tokens);
-
+			// printk("remaining tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
+			// printk("receive seq:%u\n", DCACP_SKB_CB(skb)->seq);
 			if (!dcacp_pq_empty_lockless(&dcacp_epoch.flow_q) &&
 				atomic_read(&dcacp_epoch.remaining_tokens) < dcacp_params.control_pkt_bdp / 2
 				) {
@@ -1111,7 +1130,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	        }
         } else {
 	        bh_unlock_sock(sk);
-	        printk("seq num:%d\n", DCACP_SKB_CB(skb)->seq);
+	        // printk("seq num:%u\n", DCACP_SKB_CB(skb)->seq);
 	        printk("discard packet due to memory:%d\n", __LINE__);
         	goto discard_and_relse;
         }
@@ -1127,6 +1146,8 @@ drop:
     return 0;
 
 discard_and_relse:
+    printk("seq num:%u\n", DCACP_SKB_CB(skb)->seq);
+    printk("discard packet due to memory:%d\n", __LINE__);
     sk_drops_add(sk, skb);
     if (refcounted)
             sock_put(sk);

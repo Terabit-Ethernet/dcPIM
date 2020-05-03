@@ -779,6 +779,8 @@ int dcacp_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.grant_batch, 0);
 	WRITE_ONCE(dsk->receiver.finished_at_receiver, false);
 	WRITE_ONCE(dsk->receiver.rmem_exhausted, 0);
+	hrtimer_init(&dsk->receiver.flow_wait_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
+	dsk->receiver.flow_wait_timer.function = &dcacp_flow_wait_event;
 
 	WRITE_ONCE(sk->sk_sndbuf, dcacp_params.wmem_default);
 	WRITE_ONCE(sk->sk_rcvbuf, dcacp_params.rmem_default);
@@ -1579,7 +1581,7 @@ void dcacp_destroy_sock(struct sock *sk)
 	struct inet_sock *inet = inet_sk(sk);
 
 	bool slow = lock_sock_fast(sk);
-
+	hrtimer_cancel(&up->receiver.flow_wait_timer);
 	if(sk->sk_state == DCACP_SENDER || sk->sk_state == DCACP_RECEIVER) {
 		printk("send ack pkt\n");
 		dcacp_xmit_control(construct_ack_pkt(sk, 0), up->peer, sk, inet->inet_dport); 

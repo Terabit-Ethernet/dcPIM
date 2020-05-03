@@ -97,6 +97,8 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb);
 void dcacp_rem_check_handler(struct sock *sk);
 void dcacp_token_timer_defer_handler(struct sock *sk);
 int dcacp_clean_rtx_queue(struct sock *sk);
+
+enum hrtimer_restart dcacp_flow_wait_event(struct hrtimer *timer);
 /*DCACP outgoing function*/
 struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id, 
 	uint32_t message_size, __u64 start_time);
