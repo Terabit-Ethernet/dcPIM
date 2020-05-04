@@ -923,8 +923,10 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb) {
  		bh_lock_sock_nested(sk);
 		dsk = dcacp_sk(sk);
 		if (!sock_owned_by_user(sk)) {
+
 	        dcacp_set_state(sk, TCP_CLOSE);
 	        dcacp_write_queue_purge(sk);
+	        sk->sk_data_ready(sk);
 	        kfree_skb(skb);
         } else {
             dcacp_add_backlog(sk, skb, true);
@@ -1177,6 +1179,7 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
         dcacp_set_state(sk, TCP_CLOSE);
         dcacp_write_queue_purge(sk);
 		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+		sk->sk_data_ready(sk);
 	} 
 	// else if (dh->type == TOKEN) {
 	// 	/* clean rtx queue */

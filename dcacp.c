@@ -416,6 +416,28 @@ int dcacp_cmsg_send(struct sock *sk, struct msghdr *msg, u16 *gso_size)
 }
 EXPORT_SYMBOL_GPL(dcacp_cmsg_send);
 
+int sk_wait_ack(struct sock *sk, long *timeo)
+{
+	DEFINE_WAIT_FUNC(wait, woken_wake_function);
+	int rc = 0;
+	add_wait_queue(sk_sleep(sk), &wait);
+	while(1) {
+		if(sk->sk_state == TCP_CLOSE)
+			break;
+		if (signal_pending(current))
+			break;
+		sk_set_bit(SOCKWQ_ASYNC_WAITDATA, sk);
+		rc = sk_wait_event(sk, timeo, sk->sk_state == TCP_CLOSE, &wait);
+		printk("sk->sk_state == TCP_CLOSE:%d\n",sk->sk_state == TCP_CLOSE );
+		sk_clear_bit(SOCKWQ_ASYNC_WAITDATA, sk);
+	}
+	remove_wait_queue(sk_sleep(sk), &wait);
+
+	return rc;
+}
+EXPORT_SYMBOL(sk_wait_ack);
+
+
 int dcacp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	// DECLARE_SOCKADDR(struct sockaddr_in *, usin, msg->msg_name);
 	// int corkreq = up->corkflag || msg->msg_flags&MSG_MORE;
@@ -430,7 +452,11 @@ int dcacp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	}
 	/* the bytes from user larger than the flow size */
 	if (dsk->sender.write_seq >= dsk->total_length) {
+		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
 		printk("write seq is larget than total length\n");
+
+		sk_wait_ack(sk, &timeo);
+		printk("wait finish\n");
 		return -EMSGSIZE;
 	}
 
@@ -898,6 +924,7 @@ int dcacp_ioctl(struct sock *sk, int cmd, unsigned long arg)
 }
 EXPORT_SYMBOL(dcacp_ioctl);
 
+
 /*
  * 	This should be easy, if there is something there we
  * 	return it, otherwise we block.
@@ -934,12 +961,13 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 	lock_sock(sk);
 
 	err = -ENOTCONN;
-	if (sk->sk_state != DCACP_RECEIVER)
-		goto out;
+
 
 	// cmsg_flags = tp->recvmsg_inq ? 1 : 0;
 	timeo = sock_rcvtimeo(sk, nonblock);
 
+	if (sk->sk_state != DCACP_RECEIVER)
+		goto out;
 	/* Urgent data needs to be handled specially. */
 	// if (flags & MSG_OOB)
 	// 	goto recv_urg;
