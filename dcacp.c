@@ -428,7 +428,6 @@ int sk_wait_ack(struct sock *sk, long *timeo)
 			break;
 		sk_set_bit(SOCKWQ_ASYNC_WAITDATA, sk);
 		rc = sk_wait_event(sk, timeo, sk->sk_state == TCP_CLOSE, &wait);
-		printk("sk->sk_state == TCP_CLOSE:%d\n",sk->sk_state == TCP_CLOSE );
 		sk_clear_bit(SOCKWQ_ASYNC_WAITDATA, sk);
 	}
 	remove_wait_queue(sk_sleep(sk), &wait);
@@ -453,10 +452,7 @@ int dcacp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	/* the bytes from user larger than the flow size */
 	if (dsk->sender.write_seq >= dsk->total_length) {
 		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
-		printk("write seq is larget than total length\n");
-
 		sk_wait_ack(sk, &timeo);
-		printk("wait finish\n");
 		return -EMSGSIZE;
 	}
 
