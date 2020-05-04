@@ -861,7 +861,7 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
             th->common.dest, sdif, &refcounted);
 	if(sk) {
  		dsk = dcacp_sk(sk);
- 		bh_lock_sock_nested(sk);
+ 		bh_lock_sock(sk);
  		// if (!sock_owned_by_user(sk)) {
 			/* clean rtx queue */
 		dsk->sender.snd_una = th->rcv_nxt > dsk->sender.snd_una ? th->rcv_nxt: dsk->sender.snd_una;
@@ -920,7 +920,7 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb) {
             ah->common.dest, sdif, &refcounted);
     // }
 	if(sk) {
- 		bh_lock_sock_nested(sk);
+ 		bh_lock_sock(sk);
 		dsk = dcacp_sk(sk);
 		if (!sock_owned_by_user(sk)) {
 
@@ -1127,7 +1127,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 				spin_unlock_bh(&dcacp_epoch.lock);
 			}
 		} 
- 		bh_lock_sock_nested(sk);
+ 		bh_lock_sock(sk);
         // ret = 0;
         if (atomic_read(&sk->sk_rmem_alloc) + skb->truesize < sk->sk_rcvbuf) {
 	        if (!sock_owned_by_user(sk)) {

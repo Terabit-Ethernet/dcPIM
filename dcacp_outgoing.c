@@ -106,7 +106,7 @@ void dcacp_release_cb(struct sock *sk)
 		dcacp_rem_check_handler(sk);
 	}
 
-	if (flags & DCACP_CLEAN_TIMER_DEFERRED) {
+	if (flags & DCACPF_CLEAN_TIMER_DEFERRED) {
 		dcacp_clean_rtx_queue(sk);
 		// __sock_put(sk);
 	}
@@ -612,6 +612,7 @@ void dcacp_write_timer_handler(struct sock *sk)
 	struct dcacp_sock *dsk = dcacp_sk(sk);
 	struct sk_buff *skb;
 	if(dsk->num_sacks > 0) {
+		printk("retransmit\n");
 		dcacp_retransmit(sk);
 	}
 	while((skb = skb_dequeue(&sk->sk_write_queue)) != NULL) {

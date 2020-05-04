@@ -449,6 +449,7 @@ int dcacp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	if (sk->sk_state != DCACP_SENDER) {
 		return -ENOTCONN;
 	}
+
 	/* the bytes from user larger than the flow size */
 	if (dsk->sender.write_seq >= dsk->total_length) {
 		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
@@ -464,8 +465,9 @@ int dcacp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 		sk_stream_wait_memory(sk, &timeo);
 	}
 
-
 	sent_len = dcacp_fill_packets(sk, msg, len);
+	if(sent_len < 0)
+		return sent_len;
 	if(dsk->total_length < dcacp_params.short_flow_size) {
 		struct sk_buff *skb;
 		dsk->grant_nxt = dsk->total_length;
@@ -473,6 +475,7 @@ int dcacp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 			dcacp_xmit_data(skb, dsk, false);
 		}
 	}
+
 	// if(sent_len == -ENOMEM) {
 	// 	timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
 	// 	sk_stream_wait_memory(sk, &timeo);
@@ -482,9 +485,8 @@ int dcacp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	bh_lock_sock(sk);
 	if(!skb_queue_empty(&sk->sk_write_queue) && 
 		dsk->grant_nxt >= DCACP_SKB_CB(dcacp_send_head(sk))->end_seq) {
-		printk("call sendmsg locked writing handler\n");
  		dcacp_write_timer_handler(sk);
-	}
+	} 
 	bh_unlock_sock(sk);
 	local_bh_enable();
 	return sent_len;

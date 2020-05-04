@@ -289,6 +289,10 @@ int dcacp_fill_packets(struct sock *sk,
 	}
 
 	dst = sk_dst_get(sk);
+	if(dst == NULL) {
+		printk("dst is NULL\n");
+		return -ENOTCONN;
+	}
 	mtu = dst_mtu(dst);
 	max_pkt_data = mtu - sizeof(struct iphdr) - sizeof(struct dcacp_data_hdr);
 	bytes_left = len;
@@ -346,9 +350,9 @@ int dcacp_fill_packets(struct sock *sk,
 		// skb->truesize = SKB_TRUESIZE(skb_end_offset(skb));
 		/* this is a temp solution; will remove after adding split buffer mechanism */
 		if (unlikely(!skb)) {
-			goto finish;
-			// err = -ENOMEM;
-			// goto error;
+			// goto finish;
+			err = -ENOMEM;
+			goto error;
 		}
 		if (skb->truesize > sk_stream_wspace(sk) || 
 			(max_gso_data > bytes_left && bytes_left + sent_len + dsk->sender.write_seq != dsk->total_length)) {
