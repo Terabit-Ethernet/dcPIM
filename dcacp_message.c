@@ -171,7 +171,7 @@ int dcacp_fragment(struct sock *sk, enum dcacp_queue dcacp_queue,
 
 	if (len == 0)
 		return -EINVAL;
-	if (WARN_ON(len > skb->len))
+	if (len >= skb->len)
 		return -EINVAL;
 
 	/* dcacp_sendmsg() can overshoot sk_wmem_queued by one full size skb.
@@ -356,7 +356,10 @@ int dcacp_fill_packets(struct sock *sk,
 		}
 		if (skb->truesize > sk_stream_wspace(sk) || 
 			(max_gso_data > bytes_left && bytes_left + sent_len + dsk->sender.write_seq != dsk->total_length)) {
-			sk->sk_tx_skb_cache = skb;
+			if(!sk->sk_tx_skb_cache)
+				sk->sk_tx_skb_cache = skb;
+			else
+				kfree_skb(skb);
 			break;
 		}
 

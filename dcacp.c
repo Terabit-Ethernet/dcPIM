@@ -1605,8 +1605,8 @@ void dcacp_destroy_sock(struct sock *sk)
 	// 				     dcacp_sk(sk)->dcacp_port_hash);
 	struct dcacp_sock *up = dcacp_sk(sk);
 	struct inet_sock *inet = inet_sk(sk);
-
-	bool slow = lock_sock_fast(sk);
+	local_bh_disable();
+	bh_lock_sock(sk);
 	hrtimer_cancel(&up->receiver.flow_wait_timer);
 	if(sk->sk_state == DCACP_SENDER || sk->sk_state == DCACP_RECEIVER) {
 		printk("send ack pkt\n");
@@ -1616,7 +1616,9 @@ void dcacp_destroy_sock(struct sock *sk)
 	// dcacp_flush_pending_frames(sk);
 	dcacp_write_queue_purge(sk);
 	dcacp_read_queue_purge(sk);
-	unlock_sock_fast(sk, slow);
+	bh_unlock_sock(sk);
+	local_bh_enable();
+
 	printk("sk->sk_wmem_queued:%d\n",sk->sk_wmem_queued);
 	spin_lock_bh(&dcacp_epoch.lock);
 	dcacp_pq_delete(&dcacp_epoch.flow_q, &up->match_link);
