@@ -318,12 +318,12 @@ void tcp_server(int port)
 void dcacp_connection(int fd, struct sockaddr_in source)
 {
 	// int flag = 1;
-	// char buffer[1000000];
+	char buffer[2000000];
 	// int cur_length = 0;
 	// bool streaming = false;
-	// uint64_t count = 0;
-	// uint64_t total_length = 0;
-	// uint64_t start_cycle = 0, end_cycle = 0;
+	uint64_t count = 0;
+	uint64_t total_length = 0;
+	uint64_t start_cycle = 0, end_cycle = 0;
 	struct sockaddr_in sin;
 	socklen_t len = sizeof(sin);
 	// int *int_buffer = reinterpret_cast<int*>(buffer);
@@ -334,33 +334,35 @@ void dcacp_connection(int fd, struct sockaddr_in source)
 	    perror("getsockname");
 	else
 	    printf("port number %d\n", ntohs(sin.sin_port));
-	printf("receive new connection\n");
+	start_cycle = rdtsc();
+	printf("start connection\n");
 	while (1) {
-		// int result = read(fd, buffer + cur_length,
-		// 		sizeof(buffer) - cur_length);
-		// if (result < 0) {
-		// 	if (errno == ECONNRESET)
-		// 		break;
-		// 	printf("Read error on socket: %s", strerror(errno));
-		// 	exit(1);
-		// }
-		// total_length += result;
-		// count++;
-		// if (result == 0)
-		// 	break;
-		// if(count % 1000 == 0) {
-		// 	end_cycle = rdtsc();
-			
-		// 	double rate = ((double) total_length)/ to_seconds(
-		// 		end_cycle - start_cycle);
-		// 	total_length = 0;
+		int result = read(fd, buffer,
+				sizeof(buffer));
+		if (result < 0) {
+			// if (errno == ECONNRESET)
+				break;
 
-		// 	start_cycle = rdtsc();
-		// 	if(count != 0) {
-		// 		printf("TCP throughput: "
-		// 		"%.2f Gbps\n", rate * 1e-09 * 8);
-		// 	}
-		// }
+			// return;
+		}
+		// printf("buffer:%s\n", buffer);
+		total_length += result;
+		count++;
+		if (result == 0)
+			break;
+		if(count % 10000 == 0) {
+			end_cycle = rdtsc();
+			printf("count:%lu\n", count);
+			double rate = ((double) total_length)/ to_seconds(
+				end_cycle - start_cycle);
+			total_length = 0;
+
+			start_cycle = rdtsc();
+			if(count != 0) {
+				printf("DCACP throughput: "
+				"%.2f Gbps\n", rate * 1e-09 * 8);
+			}
+		}
 		// /* The connection can be used in two modes. If the first
 		//  * word received is -1, then the connection is in streaming
 		//  * mode: we just read bytes and throw them away. If the
@@ -405,6 +407,7 @@ void dcacp_connection(int fd, struct sockaddr_in source)
 		// 	};
 		// }
 	}
+		printf("done!");
 	if (verbose)
 		printf("Closing TCP socket from %s\n", print_address(&source));
 	close(fd);
@@ -494,7 +497,6 @@ void dcacp_server(int port)
 	// uint64_t start_cycle = 0, end_cycle = 0;
 	// uint64_t total_length = 0;
 	// int count = 0;
-
 	int listen_fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCACP);
 	if (listen_fd == -1) {
 		printf("Couldn't open server socket: %s\n", strerror(errno));
