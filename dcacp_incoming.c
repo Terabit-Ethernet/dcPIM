@@ -249,7 +249,8 @@ enum hrtimer_restart dcacp_flow_wait_event(struct hrtimer *timer) {
 void dcacp_rem_check_handler(struct sock *sk) {
 	bool pq_empty = false;
 	struct dcacp_sock* dsk = dcacp_sk(sk);
-	printk("handle rmem checker\n");
+	// printk("handle rmem checker\n");
+	// printk("dsk->receiver.copied_seq:%u\n", dsk->receiver.copied_seq);
 	if(sk->sk_rcvbuf - atomic_read(&sk->sk_rmem_alloc) == 0) {
     	test_and_set_bit(DCACP_RMEM_CHECK_DEFERRED, &sk->sk_tsq_flags);
     	return;
@@ -270,7 +271,7 @@ void dcacp_token_timer_defer_handler(struct sock *sk) {
 	bool pq_empty = false;
 	bool not_push_bk = xmit_token(sk);
 	struct dcacp_sock* dsk = dcacp_sk(sk);
-
+	printk("token timer deferred\n");
 	if(!not_push_bk) {
 	/* Deadlock won't happen because flow is not in flow_q. */
 		spin_lock(&dcacp_epoch.lock);
@@ -767,9 +768,9 @@ void dcacp_data_ready(struct sock *sk)
         const struct dcacp_sock *dsk = dcacp_sk(sk);
         int avail = dsk->receiver.rcv_nxt - dsk->receiver.copied_seq;
 
-        if ((avail < sk->sk_rcvlowat || dsk->receiver.rcv_nxt == dsk->total_length) && !sock_flag(sk, SOCK_DONE))
+        if ((avail < sk->sk_rcvlowat || dsk->receiver.rcv_nxt == dsk->total_length) && !sock_flag(sk, SOCK_DONE)) {
         	return;
-
+        }
         sk->sk_data_ready(sk);
 }
 
@@ -881,8 +882,6 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
 	 		test_and_set_bit(DCACP_RTX_DEFERRED, &sk->sk_tsq_flags);
 	    }
 
-	    kfree_skb(skb);
-
         // } else {
         // 	// if(backlog_time % 100 == 0) {
         // 		// end = ktime_get();
@@ -893,6 +892,8 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
         // }
         bh_unlock_sock(sk);
 	}
+	kfree_skb(skb);
+
     if (refcounted) {
         sock_put(sk);
     }
@@ -1021,6 +1022,7 @@ queue_and_out:
 		return 0;
 	}
 	if (!after(DCACP_SKB_CB(skb)->end_seq, dsk->receiver.rcv_nxt)) {
+		printk("duplicate drop\n");
 		dcacp_rmem_free_skb(sk, skb);
 		dcacp_drop(sk, skb);
 		return 0;
@@ -1092,6 +1094,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	int sdif = inet_sdif(skb);
 
 	bool refcounted = false;
+	bool discard = false;
 	// printk("receive data pkt\n");
 	if (!pskb_may_pull(skb, sizeof(struct dcacp_data_hdr)))
 		goto drop;		/* No space for header. */
@@ -1105,7 +1108,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
     // 	start = ktime_get();
     // }
     // total_bytes += skb->len;
-    // if(total_bytes > 100000000) {
+    // if(total_bytes > 1000000) {
     // 	end = ktime_get();
     // 	printk("throughput:%llu\n", total_bytes * 8 * 1000000 / ktime_to_us(ktime_sub(end, start)));
     // 	total_bytes = 0;
@@ -1114,10 +1117,30 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 		dsk = dcacp_sk(sk);
 		iph = ip_hdr(skb);
 		dcacp_v4_fill_cb(skb, iph, dh);
-		if (!dh->free_token) {
+ 		bh_lock_sock(sk);
+        // ret = 0;
+		// printk("remaining tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
+		// printk("receive seq:%u\n", DCACP_SKB_CB(skb)->seq);
+        if (atomic_read(&sk->sk_rmem_alloc) + skb->truesize < sk->sk_rcvbuf) {
+	        if (!sock_owned_by_user(sk)) {
+			        atomic_add_return(skb->truesize, &sk->sk_rmem_alloc);
+	                dcacp_data_queue(sk, skb);
+
+	        } else {
+	                if (dcacp_add_backlog(sk, skb, false)){
+	                	discard = true;
+                        // goto discard_and_relse;
+	                }
+	        }
+        } else {
+	        bh_unlock_sock(sk);
+	        discard = true;
+        	// goto discard_and_relse;
+        }
+        bh_unlock_sock(sk);
+ 		if (!dh->free_token) {
 			atomic_sub(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq, &dcacp_epoch.remaining_tokens);
-			// printk("remaining tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
-			// printk("receive seq:%u\n", DCACP_SKB_CB(skb)->seq);
+
 			if (!dcacp_pq_empty_lockless(&dcacp_epoch.flow_q) &&
 				atomic_read(&dcacp_epoch.remaining_tokens) < dcacp_params.control_pkt_bdp / 2
 				) {
@@ -1127,41 +1150,32 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 				spin_unlock_bh(&dcacp_epoch.lock);
 			}
 		} 
- 		bh_lock_sock(sk);
-        // ret = 0;
-        if (atomic_read(&sk->sk_rmem_alloc) + skb->truesize < sk->sk_rcvbuf) {
-	        if (!sock_owned_by_user(sk)) {
-			        atomic_add_return(skb->truesize, &sk->sk_rmem_alloc);
-	                dcacp_data_queue(sk, skb);
-
-	        } else {
-	                if (dcacp_add_backlog(sk, skb, false))
-	                        goto discard_and_relse;
-	        }
-        } else {
-	        bh_unlock_sock(sk);
-	        // printk("seq num:%u\n", DCACP_SKB_CB(skb)->seq);
-	        printk("discard packet due to memory:%d\n", __LINE__);
-        	goto discard_and_relse;
-        }
-        bh_unlock_sock(sk);
 	}
+    
     if (refcounted) {
         sock_put(sk);
     }
+
+	if (discard) {
+	    printk("seq num:%u\n", DCACP_SKB_CB(skb)->seq);
+	    printk("discard packet due to memory:%d\n", __LINE__);
+		sk_drops_add(sk, skb);
+		goto drop;
+	}
+
     return 0;
 drop:
     /* Discard frame. */
     kfree_skb(skb);
     return 0;
 
-discard_and_relse:
-    printk("seq num:%u\n", DCACP_SKB_CB(skb)->seq);
-    printk("discard packet due to memory:%d\n", __LINE__);
-    sk_drops_add(sk, skb);
-    if (refcounted)
-            sock_put(sk);
-    goto drop;
+// discard_and_relse:
+//     printk("seq num:%u\n", DCACP_SKB_CB(skb)->seq);
+//     printk("discard packet due to memory:%d\n", __LINE__);
+//     sk_drops_add(sk, skb);
+//     if (refcounted)
+//             sock_put(sk);
+//     goto drop;
 	// kfree_skb(skb);
 }
 

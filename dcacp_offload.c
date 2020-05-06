@@ -176,88 +176,135 @@ static struct sk_buff *dcacp4_gso_segment(struct sk_buff *skb,
 
 
 #define DCACP_GRO_CNT_MAX 64
-static struct sk_buff *dcacp_gro_receive_segment(struct list_head *head,
-					       struct sk_buff *skb)
+
+struct sk_buff *dcacp_gro_receive(struct list_head *head, struct sk_buff *skb)
 {
-	struct dcacphdr *uh = dcacp_hdr(skb);
 	struct sk_buff *pp = NULL;
-	struct dcacphdr *uh2;
 	struct sk_buff *p;
-	unsigned int ulen;
-	int ret = 0;
-
-
-	/* requires non zero csum, for symmetry with GSO */
-	if (!uh->check) {
-		NAPI_GRO_CB(skb)->flush = 1;
-		return NULL;
+	struct dcacphdr *dh;
+	struct dcacphdr *dh2;
+	struct dcacp_data_hdr *data_h;
+	struct dcacp_data_hdr *data_h2;
+	unsigned int len;
+	unsigned int dhlen;
+	// __be32 flags;
+	unsigned int mss = 1;
+	unsigned int hlen;
+	unsigned int off;
+	int flush = 1;
+	// int i;
+	off = skb_gro_offset(skb);
+	hlen = off + sizeof(*dh);
+	dh = skb_gro_header_fast(skb, off);
+	if (skb_gro_header_hard(skb, hlen)) {
+		dh = skb_gro_header_slow(skb, hlen, off);
+		if (unlikely(!dh))
+			goto out;
 	}
 
-	/* Do not deal with padded or malicious packets, sorry ! */
-	ulen = ntohs(uh->len);
-	if (ulen <= sizeof(*uh) || ulen != skb_gro_len(skb)) {
-		NAPI_GRO_CB(skb)->flush = 1;
-		return NULL;
+	if (dh->type != DATA) {
+		goto out;
 	}
-	/* pull encapsulating dcacp header */
-	skb_gro_pull(skb, sizeof(struct dcacphdr));
+	dhlen = dh->doff / 4 + sizeof(struct data_segment);
+	if (dhlen < sizeof(*data_h))
+		goto out;
 
+	hlen = off + dhlen;
+	data_h = (struct dcacp_data_hdr*)dh;
+	if (skb_gro_header_hard(skb, hlen)) {
+		data_h = skb_gro_header_slow(skb, hlen, off);
+		if (unlikely(!data_h))
+			goto out;
+	}
+	skb_gro_pull(skb, dhlen);
+
+	len = skb_gro_len(skb);
+	// flags = tcp_flag_word(dh);
 	list_for_each_entry(p, head, list) {
 		if (!NAPI_GRO_CB(p)->same_flow)
 			continue;
 
-		uh2 = dcacp_hdr(p);
+		data_h2 = dcacp_data_hdr(p);
 
-		/* Match ports only, as csum is always non zero */
-		if ((*(u32 *)&uh->source != *(u32 *)&uh2->source)) {
+		if (*(u32 *)&data_h->common.source ^ *(u32 *)&data_h2->common.source) {
 			NAPI_GRO_CB(p)->same_flow = 0;
 			continue;
 		}
 
-		if (NAPI_GRO_CB(skb)->is_flist != NAPI_GRO_CB(p)->is_flist) {
-			NAPI_GRO_CB(skb)->flush = 1;
-			return p;
-		}
-
-		/* Terminate the flow on len mismatch or if it grow "too much".
-		 * Under small packet flood GRO count could elsewhere grow a lot
-		 * leading to excessive truesize values.
-		 * On len mismatch merge the first packet shorter than gso_size,
-		 * otherwise complete the GRO packet.
-		 */
-		if (ulen > ntohs(uh2->len)) {
-			pp = p;
-		} else {
-			if (NAPI_GRO_CB(skb)->is_flist) {
-				if (!pskb_may_pull(skb, skb_gro_offset(skb))) {
-					NAPI_GRO_CB(skb)->flush = 1;
-					return NULL;
-				}
-				if ((skb->ip_summed != p->ip_summed) ||
-				    (skb->csum_level != p->csum_level)) {
-					NAPI_GRO_CB(skb)->flush = 1;
-					return NULL;
-				}
-				ret = skb_gro_receive_list(p, skb);
-			} else {
-				skb_gro_postpull_rcsum(skb, uh,
-						       sizeof(struct dcacphdr));
-
-				ret = skb_gro_receive(p, skb);
-			}
-		}
-
-		if (ret || ulen != ntohs(uh2->len) ||
-		    NAPI_GRO_CB(p)->count >= DCACP_GRO_CNT_MAX)
-			pp = p;
-
-		return pp;
+		goto found;
 	}
 
-	/* mismatch, but we never need to flush */
-	return NULL;
+	p = NULL;
+	goto out_check_final;
+found:
+	/* Include the IP ID check below from the inner most IP hdr */
+	flush = NAPI_GRO_CB(p)->flush;
+// 	// flush |= 
+// 	// flush |= (__force int)(flags & TCP_FLAG_CWR);
+// 	// flush |= (__force int)((flags ^ tcp_flag_word(th2)) &
+// 	// 	  ~(TCP_FLAG_CWR | TCP_FLAG_FIN | TCP_FLAG_PSH));
+// 	// flush |= (__force int)(th->ack_seq ^ th2->ack_seq);
+// 	// for (i = sizeof(*th); i < thlen; i += 4)
+// 	// 	flush |= *(u32 *)((u8 *)th + i) ^
+// 	// 		 *(u32 *)((u8 *)th2 + i);
+
+// 	 When we receive our second frame we can made a decision on if we
+// 	 * continue this flow as an atomic flow with a fixed ID or if we use
+// 	 * an incrementing ID.
+	 
+	if (NAPI_GRO_CB(p)->flush_id != 1 ||
+	    NAPI_GRO_CB(p)->count != 1 ||
+	    !NAPI_GRO_CB(p)->is_atomic)
+		flush |= NAPI_GRO_CB(p)->flush_id;
+	else
+		NAPI_GRO_CB(p)->is_atomic = false;
+
+	mss = skb_shinfo(p)->gso_size;
+
+	flush |= (len - 1) >= mss;
+	flush |= (ntohl(data_h2->seg.offset) + skb_gro_len(p)) ^ ntohl(data_h->seg.offset);
+#ifdef CONFIG_TLS_DEVICE
+	flush |= p->decrypted ^ skb->decrypted;
+#endif
+
+	if (flush || skb_gro_receive(p, skb)) {
+		mss = 1;
+		goto out_check_final;
+	}
+// 	printk("reach here:%d\n", __LINE__);
+
+// 	// tcp_flag_word(th2) |= flags & (TCP_FLAG_FIN | TCP_FLAG_PSH);
+
+out_check_final:
+
+	flush = len < mss;
+	// flush |= (__force int)(flags & (TCP_FLAG_URG | TCP_FLAG_PSH |
+	// 				TCP_FLAG_RST | TCP_FLAG_SYN |
+	// 				TCP_FLAG_FIN));
+	// printk("gro len :%d\n", skb_gro_len(p));
+	if (p && (!NAPI_GRO_CB(skb)->same_flow || flush))
+		pp = p;
+
+out:
+	NAPI_GRO_CB(skb)->flush |= (flush != 0);
+	return pp;
 }
 
+int dcacp_gro_complete(struct sk_buff *skb, int dhoff)
+{
+	struct dcacphdr *dh = dcacp_hdr(skb);
+
+	skb->csum_start = (unsigned char *)dh - skb->head;
+	skb->csum_offset = offsetof(struct dcacphdr, check);
+	skb->ip_summed = CHECKSUM_PARTIAL;
+	skb_shinfo(skb)->gso_type |= SKB_GSO_DCACP;
+	skb_shinfo(skb)->gso_segs = NAPI_GRO_CB(skb)->count;
+	
+	// if (th->cwr)
+	// 	skb_shinfo(skb)->gso_type |= SKB_GSO_TCP_ECN;
+
+	return 0;
+}
 // struct sk_buff *dcacp_gro_receive(struct list_head *head, struct sk_buff *skb,
 // 				struct dcacphdr *uh, struct sock *sk)
 // {
@@ -425,9 +472,9 @@ static struct sk_buff *dcacp_gro_receive_segment(struct list_head *head,
 
 static const struct net_offload dcacpv4_offload = {
 	.callbacks = {
-		.gso_segment = dcacp4_gso_segment,
-		// .gro_receive  =	dcacp4_gro_receive,
-		// .gro_complete =	dcacp4_gro_complete,
+		// .gso_segment = dcacp4_gso_segment,
+		.gro_receive  =	dcacp_gro_receive,
+		.gro_complete =	dcacp_gro_complete,
 	},
 };
 

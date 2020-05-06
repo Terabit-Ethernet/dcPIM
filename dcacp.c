@@ -1028,10 +1028,11 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 				goto found_ok_skb; 
 			}
 			else {
-				__skb_unlink(skb, &sk->sk_receive_queue);
+				WARN_ON(true);
+				// __skb_unlink(skb, &sk->sk_receive_queue);
 
-				kfree_skb(skb);
-				atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+				// kfree_skb(skb);
+				// atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 			}
 			// if (TCP_SKB_CB(skb)->tcp_flags & TCPHDR_FIN)
 			// 	goto found_fin_ok;
@@ -1193,10 +1194,11 @@ found_ok_skb:
 	// 		put_cmsg(msg, SOL_TCP, TCP_CM_INQ, sizeof(inq), &inq);
 	// 	}
 	// }
-
+	// printk("recvmsg\n");
 	return copied;
 
 out:
+	// printk("recvmsg err\n");
 	release_sock(sk);
 	return err;
 

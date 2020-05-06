@@ -540,7 +540,7 @@ int xmit_token(struct sock *sk) {
 		push_bk = DCACP_TIMER_SETUP;
 		/* TO DO: setup a timer here */
 		/* current set timer to be 10 RTT */
-		hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 1000), 
+		hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 5 * 1000), 
 			HRTIMER_MODE_REL_PINNED_SOFT);
 	}
 	// printk("xmit token grant next:%d\n", dsk->grant_nxt);
@@ -571,19 +571,21 @@ void dcacp_xmit_token(struct dcacp_epoch *epoch) {
 		sk = (struct sock*)dsk;
 		inet = inet_sk(sk);
 		dcacp_pq_pop(&epoch->flow_q);
- 		bh_lock_sock_nested(sk);
- 		// if (!sock_owned_by_user(sk)) {
- 			not_push_bk = xmit_token(sk);
-  			if(!not_push_bk) {
-  				dcacp_pq_push(&epoch->flow_q, &dsk->match_link);
- 			} else if (not_push_bk == DCACP_RMEM_LIMIT) {
- 			    goto unlock;
- 			}
-        // } 
-        // else {
-        // 	printk("set token timer deferred\n");
-        // 	test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
-        // }
+ 		bh_lock_sock(sk);
+ 		if(sk->sk_state == DCACP_RECEIVER) {
+	 		if (!sock_owned_by_user(sk)) {
+	 			not_push_bk = xmit_token(sk);
+	  			if(!not_push_bk)
+	  				dcacp_pq_push(&epoch->flow_q, &dsk->match_link);
+	 			 else if (not_push_bk == DCACP_RMEM_LIMIT)
+	 			    goto unlock;
+	 		} else {
+	 			test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+	 		}
+ 		} else {
+ 			goto unlock;
+ 		}
+
 		bh_unlock_sock(sk);
 		break;
 unlock:

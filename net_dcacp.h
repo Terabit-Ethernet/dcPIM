@@ -348,9 +348,8 @@ static inline void dcacp_csum_pull_header(struct sk_buff *skb)
 typedef struct sock *(*dcacp_lookup_t)(struct sk_buff *skb, __be16 sport,
 				     __be16 dport);
 
-struct sk_buff *dcacp_gro_receive(struct list_head *head, struct sk_buff *skb,
-				struct dcacphdr *uh, struct sock *sk);
-int dcacp_gro_complete(struct sk_buff *skb, int nhoff, dcacp_lookup_t lookup);
+struct sk_buff *dcacp_gro_receive(struct list_head *head, struct sk_buff *skb);
+int dcacp_gro_complete(struct sk_buff *skb, int dhoff);
 
 struct sk_buff *__dcacp_gso_segment(struct sk_buff *gso_skb,
 				  netdev_features_t features);
