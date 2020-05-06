@@ -194,9 +194,9 @@ struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
 	fh->rcv_nxt = dsk->receiver.rcv_nxt;
 	fh->grant_nxt = grant_nxt;
 	fh->num_sacks = 0;
-	// printk("new grant next:%u\n", fh->grant_nxt);
+	// printk("TOKEN: new grant next:%u\n", fh->grant_nxt);
 	if(dsk->receiver.rcv_nxt < prev_grant_nxt) {
-		// printk("rcv_nxt:%u\n", dsk->receiver.rcv_nxt);
+		printk("rcv_nxt:%u\n", dsk->receiver.rcv_nxt);
 		while(i < dsk->num_sacks) {
 			__u32 start_seq = dsk->selective_acks[i].start_seq;
 			__u32 end_seq = dsk->selective_acks[i].end_seq;
@@ -210,6 +210,9 @@ struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
 
 			sack = (struct dcacp_sack_block_wire*) skb_put(skb, sizeof(struct dcacp_sack_block_wire));
 			sack->start_seq = htonl(start_seq);
+			printk("start seq:%u\n", start_seq);
+			printk("end seq:%u\n", end_seq);
+
 			sack->end_seq = htonl(end_seq);
 			fh->num_sacks++;
 		next:
@@ -219,7 +222,7 @@ struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
 			sack = (struct dcacp_sack_block_wire*) skb_put(skb, sizeof(struct dcacp_sack_block_wire));
 			sack->start_seq = htonl(prev_grant_nxt);
 			sack->end_seq = htonl(prev_grant_nxt);
-			// printk("sack start seq:%u\n", prev_grant_nxt);
+			printk("sack start seq:%u\n", prev_grant_nxt);
 			fh->num_sacks++;
 		}
 
@@ -430,13 +433,13 @@ int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct sock
 	dh->source = inet->inet_sport;
 	dh->dest = inet->inet_dport;
 	dh->check = 0;
-	inet->tos = TOS_7;
+	// inet->tos = IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL;
 	skb->sk = sk;
 	// dst_confirm_neigh(peer->dst, &fl4->daddr);
 	dst_hold(__sk_dst_get(sk));
 	// skb_dst_set(skb, __sk_dst_get(sk));
 	skb_get(skb);
-	result = ip_queue_xmit(sk, skb, &inet->cork.fl);
+	result = __ip_queue_xmit(sk, skb, &inet->cork.fl, IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL);
 	if (unlikely(result != 0)) {
 		// INC_METRIC(control_xmit_errors, 1);
 		
@@ -465,7 +468,7 @@ void dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_toke
 	struct sock* sk = (struct sock*)(dsk);
 	struct sk_buff* oskb;
 	oskb = skb;
-	if (unlikely(skb_cloned(oskb)))
+	if (unlikely(skb_cloned(oskb))) 
 		skb = pskb_copy(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
 	else
 		skb = skb_clone(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
@@ -543,6 +546,7 @@ void dcacp_retransmit_data(struct sk_buff *skb, struct dcacp_sock* dsk)
 void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_token)
 {
 	int err;
+	__u8 tos;
 	// struct dcacp_data_hder *h = (struct dcacp_data_hder *)
 	// 		skb_transport_header(skb);
 	struct sock* sk = (struct sock*)dsk;
@@ -563,6 +567,10 @@ void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_to
 	/* Update cutoff_version in case it has changed since the
 	 * message was initially created.
 	 */
+	if(free_token) 
+		tos = IPTOS_LOWDELAY | IPTOS_PREC_INTERNETCONTROL;
+	else 
+		tos = IPTOS_THROUGHPUT | IPTOS_PREC_IMMEDIATE;
 	skb_push(skb, sizeof(struct dcacp_data_hdr) - sizeof(struct data_segment));
 	skb_reset_transport_header(skb);
 	h = (struct dcacp_data_hdr *)
@@ -580,11 +588,12 @@ void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_to
 	// h->common.seq = htonl(DCACP_SKB_CB(skb)->seq);
 	h->common.type = DATA;
 	h->free_token = free_token;
-
 	dcacp_set_doff(h);
+	
+	skb_set_hash_from_sk(skb, sk);
 
 	// h->common.seq = htonl(200);
-	err = ip_queue_xmit(sk, skb, &inet->cork.fl);
+	err = __ip_queue_xmit(sk, skb, &inet->cork.fl, tos);
 //	tt_record4("Finished queueing packet: rpc id %llu, offset %d, len %d, "
 //			"next_offset %d",
 //			h->common.id, ntohl(h->seg.offset), skb->len,
