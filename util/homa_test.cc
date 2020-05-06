@@ -831,8 +831,11 @@ void test_dcacpstream(int fd, struct sockaddr *dest, char* buffer)
 void test_dcacpping(int fd, struct sockaddr *dest, char* buffer)
 {
 	struct sockaddr_in* in = (struct sockaddr_in*) dest;
-
-	uint32_t flow_size = 64000;
+	uint32_t buffer_size = 67000;
+	uint32_t flow_size = 3000000000;
+	uint32_t write_len = 0;
+	// int i = 0;
+	// uint32_t offset = write_len % flow_size;
 
 	in->sin_zero[0] = flow_size >> 24 & 0xFF;
 	in->sin_zero[1] = flow_size >> 16 & 0xFF;
@@ -879,23 +882,50 @@ void test_dcacpping(int fd, struct sockaddr *dest, char* buffer)
 	// 	// 	break;
 	// 	if(std::chrono::steady_clock::now() - start_clock > std::chrono::seconds(60)) 
 	//             break;
-	if (connect(fd, dest, sizeof(struct sockaddr_in)) == -1) {
-		printf("Couldn't connect to dest %s\n", strerror(errno));
-		exit(1);
-	}
+	// for (i = 0; i < 2; i++) {
+		if (connect(fd, dest, sizeof(struct sockaddr_in)) == -1) {
+			printf("Couldn't connect to dest %s\n", strerror(errno));
+			exit(1);
+		}
+		printf("connect done\n");
 	    // for (int i = 0; i < count * 100; i++) {
-	    	int result = write(fd, buffer, 10000);			
+		while(write_len <= flow_size) {
+			// int cur_write_len = 0;
+			// offset = write_len % buffer_size;
+			// cur_write_len = buffer_size - offset < flow_size - write_len ? (buffer_size - offset) : (flow_size - write_len);
+			// /* no right way to do; change when adding the split skb buffer */
+			// if (cur_write_len < 40000) {
+			// 	offset = 0;
+			// 	cur_write_len = buffer_size - offset;
+			// }
+			// if (flow_size - write_len < 40000) {
+			// 	offset = 0;
+			// 	cur_write_len = flow_size - write_len;
+			// }
+	    	int result = write(fd, buffer, buffer_size);			
 			if( result < 0 ) {
-				printf("Socket write failed: %s %d\n", strerror(errno), result);
-
-				return;
+				if(errno == EMSGSIZE) {
+					printf("Socket write failed: %s %d\n", strerror(errno), result);
+					break;
+				}
+			} else {
+				write_len += result;
+				// if(write_len > 1000000) {
+				// 	printf("number of bytes:%d\n", write_len);
+				// }
+				// if(write_len != 0)
+				// 	printf("sent result:%d\n", result);
 			}
-		    result = write(fd, buffer, 10000);			
-			if( result < 0 ) {
-				printf("Socket write failed: %s %d\n", strerror(errno), result);
+		}
+	// }
 
-				return;
-			}
+		printf("end\n");
+		 //    result = write(fd, buffer, 10000);			
+			// if( result < 0 ) {
+			// 	printf("Socket write failed: %s %d\n", strerror(errno), result);
+
+			// 	return;
+			// }
 			// bytes_sent += result;
 
 	    // }
@@ -1069,7 +1099,7 @@ void test_udpclose()
 
 int main(int argc, char** argv)
 {
-	int port, nextArg;
+	int port, nextArg, tempArg;
 	struct sockaddr_in addr_in;
 	struct addrinfo *matching_addresses;
 	struct sockaddr *dest;
@@ -1079,6 +1109,7 @@ int main(int argc, char** argv)
 	buffer[63999] = 'H';
 	int status;
 	int fd;
+	int i;
 	if ((argc >= 2) && (strcmp(argv[1], "--help") == 0)) {
 		print_help(argv[0]);
 		exit(0);
@@ -1156,75 +1187,82 @@ int main(int argc, char** argv)
 	// int *ibuf = reinterpret_cast<int *>(buffer);
 	// ibuf[0] = ibuf[1] = length;
 	// seed_buffer(&ibuf[2], sizeof32(buffer) - 2*sizeof32(int), seed);
-	
+	tempArg = nextArg;
+	for(i = 0; i < 1; i++) {
+		nextArg = tempArg;
 
-	fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_DCACP);
-	if (fd < 0) {
-		printf("Couldn't open DCACP socket: %s\n", strerror(errno));
-	}
-	// int option = 1;
-	// if (setsockopt(fd, SOL_DCACP, SO_NO_CHECK, (void*)&option, sizeof(option))) {
-	// 	return -1;
-	// }
-	memset(&addr_in, 0, sizeof(addr_in));
-	addr_in.sin_family = AF_INET;
-	addr_in.sin_port = htons(4000);
-	addr_in.sin_addr.s_addr = inet_addr("10.0.0.10");
-
-
-	// inet_pton(AF_INET, "9.0.0.10", &addr_in.sin_addr);
-
-	// inet_aton("9.0.0.10", &addr_in.sin_addr);
-
-	// addr_in.sin_addr.s_addr = INADDR_ANY;
-
-	if (bind(fd, (struct sockaddr *) &addr_in, sizeof(addr_in)) != 0) {
-		printf("Couldn't bind socket to DCACP port %d: %s\n", port,
-				strerror(errno));
-		return -1;
-	}
-
-	for ( ; nextArg < argc; nextArg++) {
-		// if (strcmp(argv[nextArg], "close") == 0) {
-		// 	test_close();
-		// } else if (strcmp(argv[nextArg], "fill_memory") == 0) {
-		// 	test_fill_memory(fd, dest, buffer);
-		// } else if (strcmp(argv[nextArg], "invoke") == 0) {
-		// 	test_invoke(fd, dest, buffer);
-		// } else if (strcmp(argv[nextArg], "ioctl") == 0) {
-		// 	test_ioctl(fd, count);
-		// } else if (strcmp(argv[nextArg], "poll") == 0) {
-		// 	test_poll(fd, buffer);
-		// } else if (strcmp(argv[nextArg], "send") == 0) {
-		// 	test_send(fd, dest, buffer);
-		// } else if (strcmp(argv[nextArg], "read") == 0) {
-		// 	test_read(fd, count);
-		// } else if (strcmp(argv[nextArg], "rtt") == 0) {
-		// 	test_rtt(fd, dest, buffer);
-		// } else if (strcmp(argv[nextArg], "shutdown") == 0) {
-		// 	test_shutdown(fd);
-		// } else if (strcmp(argv[nextArg], "stream") == 0) {
-		// 	test_stream(fd, dest, buffer);
-		// } else 
-		if (strcmp(argv[nextArg], "tcp") == 0) {
-			test_tcp(host, port);
-		} else if (strcmp(argv[nextArg], "tcpstream") == 0) {
-			test_tcpstream(host, port);
-		} else if (strcmp(argv[nextArg], "udpclose") == 0) {
-			test_udpclose();
-		} else if (strcmp(argv[nextArg], "udpstream") == 0) {
-			test_udpstream(host, port);
-		} else if (strcmp(argv[nextArg], "dcacpstream") == 0) {
-			test_dcacpstream(fd, dest, buffer);
-		} else if (strcmp(argv[nextArg], "dcacpping") == 0) {
-			test_dcacpping(fd, dest, buffer);
+		printf("nextArg:%d\n", nextArg);
+		fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_DCACP);
+		if (fd < 0) {
+			printf("Couldn't open DCACP socket: %s\n", strerror(errno));
 		}
-		 else {
-			printf("Unknown operation '%s'\n", argv[nextArg]);
-			exit(1);
+		// int option = 1;
+		// if (setsockopt(fd, SOL_DCACP, SO_NO_CHECK, (void*)&option, sizeof(option))) {
+		// 	return -1;
+		// }
+		memset(&addr_in, 0, sizeof(addr_in));
+		addr_in.sin_family = AF_INET;
+		addr_in.sin_port = htons(4002);
+		addr_in.sin_addr.s_addr = inet_addr("9.0.0.10");
+
+
+		// inet_pton(AF_INET, "9.0.0.10", &addr_in.sin_addr);
+
+		// inet_aton("9.0.0.10", &addr_in.sin_addr);
+
+		// addr_in.sin_addr.s_addr = INADDR_ANY;
+
+		if (bind(fd, (struct sockaddr *) &addr_in, sizeof(addr_in)) != 0) {
+			printf("Couldn't bind socket to DCACP port %d: %s\n", port,
+					strerror(errno));
+			return -1;
 		}
+
+		for ( ; nextArg < argc; nextArg++) {
+			// if (strcmp(argv[nextArg], "close") == 0) {
+			// 	test_close();
+			// } else if (strcmp(argv[nextArg], "fill_memory") == 0) {
+			// 	test_fill_memory(fd, dest, buffer);
+			// } else if (strcmp(argv[nextArg], "invoke") == 0) {
+			// 	test_invoke(fd, dest, buffer);
+			// } else if (strcmp(argv[nextArg], "ioctl") == 0) {
+			// 	test_ioctl(fd, count);
+			// } else if (strcmp(argv[nextArg], "poll") == 0) {
+			// 	test_poll(fd, buffer);
+			// } else if (strcmp(argv[nextArg], "send") == 0) {
+			// 	test_send(fd, dest, buffer);
+			// } else if (strcmp(argv[nextArg], "read") == 0) {
+			// 	test_read(fd, count);
+			// } else if (strcmp(argv[nextArg], "rtt") == 0) {
+			// 	test_rtt(fd, dest, buffer);
+			// } else if (strcmp(argv[nextArg], "shutdown") == 0) {
+			// 	test_shutdown(fd);
+			// } else if (strcmp(argv[nextArg], "stream") == 0) {
+			// 	test_stream(fd, dest, buffer);
+			// } else 
+			if (strcmp(argv[nextArg], "tcp") == 0) {
+				test_tcp(host, port);
+			} else if (strcmp(argv[nextArg], "tcpstream") == 0) {
+				test_tcpstream(host, port);
+			} else if (strcmp(argv[nextArg], "udpclose") == 0) {
+				test_udpclose();
+			} else if (strcmp(argv[nextArg], "udpstream") == 0) {
+				test_udpstream(host, port);
+			} else if (strcmp(argv[nextArg], "dcacpstream") == 0) {
+				test_dcacpstream(fd, dest, buffer);
+			} else if (strcmp(argv[nextArg], "dcacpping") == 0) {
+				printf("call dcacpping\n");
+				test_dcacpping(fd, dest, buffer);
+			}
+			 else {
+				printf("Unknown operation '%s'\n", argv[nextArg]);
+				exit(1);
+			}
+		}
+		close(fd);
+		printf("i:%d\n", i);
 	}
-	close(fd);
+
 	exit(0);
 }
 
