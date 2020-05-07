@@ -90,6 +90,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb);
 int dcacp_handle_flow_sync_pkt(struct sk_buff *skb);
 int dcacp_handle_token_pkt(struct sk_buff *skb);
 int dcacp_handle_fin_pkt(struct sk_buff *skb);
+int dcacp_handle_ack_pkt(struct sk_buff *skb);
 int dcacp_data_queue(struct sock *sk, struct sk_buff *skb);
 bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check);
 int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb);

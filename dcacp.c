@@ -1586,6 +1586,8 @@ int dcacp_rcv(struct sk_buff *skb)
 		return dcacp_handle_token_pkt(skb);
 	} else if (dh->type == FIN) {
 		return dcacp_handle_fin_pkt(skb);
+	} else if (dh->type == ACK) {
+		return dcacp_handle_ack_pkt(skb);
 	} else if (dh->type == RTS) {
 		return dcacp_handle_rts(skb, &dcacp_match_table, &dcacp_epoch);
 	} else if (dh->type == GRANT) {

@@ -196,11 +196,11 @@ static struct ctl_table_header *dcacp_ctl_header;
 void dcacp_params_init(struct dcacp_params* params) {
     params->clean_match_sock = 0;
     params->match_socket_port = 3000;
-    params->bandwidth = 10;
+    params->bandwidth = 100;
     params->control_pkt_rtt = 60;
     params->rtt = 60;
     // params->bdp  = params->rtt * params->bandwidth / 8 * 1000;
-    params->bdp = 65536;
+    params->bdp = 438452;
     // matchiing parameters
     params->alpha = 2;
     params->beta = 5;

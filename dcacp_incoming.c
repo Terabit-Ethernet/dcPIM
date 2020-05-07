@@ -909,6 +909,54 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
 	return 0;
 }
 
+int dcacp_handle_ack_pkt(struct sk_buff *skb) {
+	struct dcacp_sock *dsk;
+	// struct inet_sock *inet;
+	// struct dcacp_peer *peer;
+	// struct iphdr *iph;
+	// struct dcacphdr *dh;
+	struct dcacp_ack_hdr *ah;
+	struct sock *sk;
+	int sdif = inet_sdif(skb);
+	bool refcounted = false;
+
+	if (!pskb_may_pull(skb, sizeof(struct dcacp_ack_hdr))) {
+		kfree_skb(skb);		/* No space for header. */
+		return 0;
+	}
+	ah = dcacp_ack_hdr(skb);
+	// sk = skb_steal_sock(skb);
+	// if(!sk) {
+	sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&ah->common), ah->common.source,
+            ah->common.dest, sdif, &refcounted);
+    // }
+
+	if(sk) {
+ 		bh_lock_sock(sk);
+		dsk = dcacp_sk(sk);
+		dsk->sender.snd_una = ah->rcv_nxt > dsk->sender.snd_una ? ah->rcv_nxt: dsk->sender.snd_una;
+		if (!sock_owned_by_user(sk)) {
+	 		dcacp_clean_rtx_queue(sk);
+	        kfree_skb(skb);
+        } else {
+            dcacp_add_backlog(sk, skb, true);
+        }
+        bh_unlock_sock(sk);
+
+		// printk("socket address: %p LINE:%d\n", dsk,  __LINE__);
+
+	} else {
+		kfree_skb(skb);
+		printk("doesn't find dsk address LINE:%d\n", __LINE__);
+	}
+
+    if (refcounted) {
+        sock_put(sk);
+    }
+
+	return 0;
+}
+
 int dcacp_handle_fin_pkt(struct sk_buff *skb) {
 	struct dcacp_sock *dsk;
 	// struct inet_sock *inet;
@@ -1212,7 +1260,9 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
         dcacp_write_queue_purge(sk);
 		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 		sk->sk_data_ready(sk);
-	} 
+	} else if (dh->type == ACK) {
+	 	dcacp_clean_rtx_queue(sk);
+	}
 	// else if (dh->type == TOKEN) {
 	// 	/* clean rtx queue */
 	// 	struct dcacp_token_hdr *th = dcacp_token_hdr(skb);

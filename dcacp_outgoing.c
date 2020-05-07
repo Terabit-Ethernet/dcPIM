@@ -235,24 +235,24 @@ struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
 	return skb;
 }
 
-// struct sk_buff* construct_ack_pkt(struct sock* sk, __u64 message_id) {
-// 	// int extra_bytes = 0;
-// 	struct sk_buff* skb = __construct_control_skb(sk, 0);
-// 	struct dcacp_ack_hdr* fh;
-// 	struct dcacphdr* dh; 
-// 	if(unlikely(!skb)) {
-// 		return NULL;
-// 	}
-// 	fh = (struct dcacp_ack_hdr *) skb_put(skb, sizeof(struct dcacp_ack_hdr));
-// 	dh = (struct dcacphdr*) (&fh->common);
-// 	dh->len = htons(sizeof(struct dcacp_ack_hdr));
-// 	dh->type = ACK;
-// 	fh->message_id = message_id;
-// 	// extra_bytes = DCACP_HEADER_MAX_SIZE - length;
-// 	// if (extra_bytes > 0)
-// 	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
-// 	return skb;
-// }
+struct sk_buff* construct_ack_pkt(struct sock* sk, __be32 rcv_nxt) {
+	// int extra_bytes = 0;
+	struct sk_buff* skb = __construct_control_skb(sk, 0);
+	struct dcacp_ack_hdr* ah;
+	struct dcacphdr* dh; 
+	if(unlikely(!skb)) {
+		return NULL;
+	}
+	ah = (struct dcacp_ack_hdr *) skb_put(skb, sizeof(struct dcacp_ack_hdr));
+	dh = (struct dcacphdr*) (&ah->common);
+	dh->len = htons(sizeof(struct dcacp_ack_hdr));
+	dh->type = ACK;
+	ah->rcv_nxt = rcv_nxt;
+	// extra_bytes = DCACP_HEADER_MAX_SIZE - length;
+	// if (extra_bytes > 0)
+	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
+	return skb;
+}
 
 struct sk_buff* construct_fin_pkt(struct sock* sk) {
 	// int extra_bytes = 0;
