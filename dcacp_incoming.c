@@ -914,20 +914,20 @@ int dcacp_handle_fin_pkt(struct sk_buff *skb) {
 	// struct inet_sock *inet;
 	// struct dcacp_peer *peer;
 	// struct iphdr *iph;
-	struct dcacp_ack_hdr *ah;
+	struct dcacphdr *dh;
 	struct sock *sk;
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
 
-	if (!pskb_may_pull(skb, sizeof(struct dcacp_ack_hdr))) {
-		kfree_skb(skb);		/* No space for header. */
-		return 0;
-	}
-	ah = dcacp_ack_hdr(skb);
+	// if (!pskb_may_pull(skb, sizeof(struct dcacp_ack_hdr))) {
+	// 	kfree_skb(skb);		/* No space for header. */
+	// 	return 0;
+	// }
+	dh = dcacp_hdr(skb);
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
-	sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&ah->common), ah->common.source,
-            ah->common.dest, sdif, &refcounted);
+	sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&dh), dh->source,
+            dh->common.dest, sdif, &refcounted);
     // }
 	if(sk) {
  		bh_lock_sock(sk);
