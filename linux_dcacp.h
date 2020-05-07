@@ -459,7 +459,6 @@ struct dcacp_sock {
 		int rmem_exhausted;
 		/* short flow waiting timer or long flow waiting timer; after all tokens arer granted */
 		struct hrtimer flow_wait_timer;
-		atomic_t backlog_len;
 
 		// struct work_struct token_xmit_struct;
 

@@ -493,16 +493,17 @@ int dcacp_clean_rtx_queue(struct sock *sk)
 static void dcacp_rcv_nxt_update(struct dcacp_sock *dsk, u32 seq)
 {
 	struct sock *sk = (struct sock*) dsk;
+	struct inet_sock *inet = inet_sk(sk);
 	u32 delta = seq - dsk->receiver.rcv_nxt;
 	dsk->receiver.bytes_received += delta;
 	WRITE_ONCE(dsk->receiver.rcv_nxt, seq);
 	// printk("update the seq:%d\n", dsk->receiver.rcv_nxt);
+	dcacp_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), dsk->peer, sk, inet->inet_dport); 
 
 	if(!dsk->receiver.finished_at_receiver && dsk->receiver.rcv_nxt == dsk->total_length) {
-		struct inet_sock *inet = inet_sk(sk);
 		dsk->receiver.finished_at_receiver = true;
 		hrtimer_cancel(&dsk->receiver.flow_wait_timer);
-		printk("send ack pkt\n");
+		printk("send fin pkt\n");
 		sk->sk_prot->unhash(sk);
 		/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
 		if (dcacp_sk(sk)->icsk_bind_hash) {
@@ -1032,6 +1033,14 @@ int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
 		dcacp_rmem_free_skb(sk, skb);
 		return 0;
 	}
+	if(atomic_read(&sk->sk_rmem_alloc) > sk->sk_rcvbuf) {
+		printk("seq num:%u\n", DCACP_SKB_CB(skb)->seq);
+	    printk("discard packet due to memory:%d\n", __LINE__);
+		sk_drops_add(sk, skb);
+		return 0;
+	}
+	atomic_add(skb->truesize, &sk->sk_rmem_alloc);
+
 	// skb_dst_drop(skb);
 	__skb_pull(skb, (dcacp_hdr(skb)->doff >> 2)+ sizeof(struct data_segment));
 	// printk("handle packet data queue?:%d\n", DCACP_SKB_CB(skb)->seq);
@@ -1113,11 +1122,13 @@ bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check)
 {
 		struct dcacp_sock *dsk = dcacp_sk(sk);
         u32 limit = READ_ONCE(sk->sk_rcvbuf) + READ_ONCE(sk->sk_sndbuf);
-        
+        skb_condense(skb);
+
         /* Only socket owner can try to collapse/prune rx queues
          * to reduce memory overhead, so add a little headroom here.
          * Few sockets backlog are possibly concurrently non empty.
          */
+
         limit += 64*1024;
         if (omit_check) {
         	limit = UINT_MAX;
@@ -1127,8 +1138,6 @@ bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check)
                 // __NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPBACKLOGDROP);
                 return true;
         }
-        atomic_add(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq, &dsk->receiver.backlog_len);
-        atomic_add_return(skb->truesize, &sk->sk_rmem_alloc);
         return false;
 
  }
@@ -1180,22 +1189,14 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
  		bh_lock_sock(sk);
         // ret = 0;
 		// printk("remaining tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
-		// printk("receive new skb end_seq:%u\n", DCACP_SKB_CB(skb)->end_seq);
-        if (atomic_read(&sk->sk_rmem_alloc) + skb->truesize < sk->sk_rcvbuf) {
-	        if (!sock_owned_by_user(sk)) {
-			        atomic_add_return(skb->truesize, &sk->sk_rmem_alloc);
-	                dcacp_data_queue(sk, skb);
-
-	        } else {
-	                if (dcacp_add_backlog(sk, skb, false)){
-	                	discard = true;
-                        // goto discard_and_relse;
-	                }
-	        }
+		printk("receive new skb end_seq:%u\n", DCACP_SKB_CB(skb)->end_seq);
+        if (!sock_owned_by_user(sk)) {
+            dcacp_data_queue(sk, skb);
         } else {
-	        bh_unlock_sock(sk);
-	        discard = true;
-        	// goto discard_and_relse;
+            if (dcacp_add_backlog(sk, skb, false)) {
+            	discard = true;
+                // goto discard_and_relse;
+            }
         }
         bh_unlock_sock(sk);
 	}
@@ -1204,7 +1205,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	if (!dh->free_token) {
 		dsk = dcacp_sk(sk);
 		atomic_sub(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq, &dcacp_epoch.remaining_tokens);
-		// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
+		printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
 
 		if (!dcacp_pq_empty_lockless(&dcacp_epoch.flow_q) &&
 			atomic_read(&dcacp_epoch.remaining_tokens) < dcacp_params.control_pkt_bdp / 2
@@ -1276,7 +1277,6 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
  // 		test_and_set_bit(DCACP_CLEAN_TIMER_DEFERRED, &sk->sk_tsq_flags);
 	// 	atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 	// }
-	atomic_sub(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq, &dsk->receiver.backlog_len);
 	kfree_skb(skb);
 	return 0;
 }

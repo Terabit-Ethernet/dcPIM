@@ -106,6 +106,7 @@ struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id,
 struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority, __u32 prev_grant_nxt,
 	 __u32 grant_nxt);
 struct sk_buff* construct_fin_pkt(struct sock* sk);
+struct sk_buff* construct_ack_pkt(struct sock* sk, __be32 rcv_nxt);
 struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz);
 struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool prompt);
 struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short iter, int epoch);
