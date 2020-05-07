@@ -780,6 +780,7 @@ EXPORT_SYMBOL_GPL(dcacp_destruct_sock);
 int dcacp_init_sock(struct sock *sk)
 {
 	struct dcacp_sock* dsk = dcacp_sk(sk);
+	printk("reach here:%d", __LINE__);
 	dcacp_set_state(sk, TCP_CLOSE);
 	skb_queue_head_init(&dcacp_sk(sk)->reader_queue);
 	dsk->peer = NULL;
@@ -801,8 +802,10 @@ int dcacp_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.rcv_nxt, 0);
 	WRITE_ONCE(dsk->receiver.copied_seq, 0);
 	WRITE_ONCE(dsk->receiver.grant_batch, 0);
+	WRITE_ONCE(dsk->receiver.max_gso_data, 0);
 	WRITE_ONCE(dsk->receiver.finished_at_receiver, false);
 	WRITE_ONCE(dsk->receiver.rmem_exhausted, 0);
+	atomic_set(&dsk->receiver.backlog_len, 0);
 	hrtimer_init(&dsk->receiver.flow_wait_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
 	dsk->receiver.flow_wait_timer.function = &dcacp_flow_wait_event;
 
@@ -1581,8 +1584,8 @@ int dcacp_rcv(struct sk_buff *skb)
 		return dcacp_handle_flow_sync_pkt(skb);
 	} else if (dh->type == TOKEN) {
 		return dcacp_handle_token_pkt(skb);
-	} else if (dh->type == ACK) {
-		return dcacp_handle_ack_pkt(skb);
+	} else if (dh->type == FIN) {
+		return dcacp_handle_fin_pkt(skb);
 	} else if (dh->type == RTS) {
 		return dcacp_handle_rts(skb, &dcacp_match_table, &dcacp_epoch);
 	} else if (dh->type == GRANT) {
@@ -1612,8 +1615,9 @@ void dcacp_destroy_sock(struct sock *sk)
 	hrtimer_cancel(&up->receiver.flow_wait_timer);
 	if(sk->sk_state == DCACP_SENDER || sk->sk_state == DCACP_RECEIVER) {
 		printk("send ack pkt\n");
-		dcacp_xmit_control(construct_ack_pkt(sk, 0), up->peer, sk, inet->inet_dport); 
+		dcacp_xmit_control(construct_fin_pkt(sk), up->peer, sk, inet->inet_dport); 
 	}
+	printk("reach here:%d", __LINE__);
 	dcacp_set_state(sk, TCP_CLOSE);
 	// dcacp_flush_pending_frames(sk);
 	dcacp_write_queue_purge(sk);

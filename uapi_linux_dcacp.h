@@ -34,18 +34,13 @@ enum dcacp_packet_type {
 	DATA               = 20,
 	TOKEN              = 21,
 	NOTIFICATION	   = 22,
-	ACK  			   = 23,
+	// ACK  			   = 23,
 	//For PIM
 	RTS                = 24,
 	GRANT			   = 25,
 	ACCEPT			   = 26,
 
-	BOGUS              = 27,      /* Used only in unit tests. */
-	/* If you add a new type here, you must also do the following:
-	 * 1. Change BOGUS so it is the highest opcode
-	 * 2. Add support for the new opcode in homa_print_packet,
-	 *    homa_print_packet_short, homa_symbol_for_type, and mock_skb_new.q
-	 */
+	FIN              = 27,
 };
 
 struct dcacphdr {
@@ -156,10 +151,10 @@ struct dcacp_flow_sync_hdr {
 // _Static_assert(sizeof(struct dcacp_flow_sync_hdr) <= DCACP_HEADER_MAX_SIZE,
 // 		"flow_sync_header too large");
 
-struct dcacp_ack_hdr {
-	struct dcacphdr common;
-	__be32 message_id;
-};
+// struct dcacp_ack_hdr {
+// 	struct dcacphdr common;
+// 	__be32 message_id;
+// };
 // _Static_assert(sizeof(struct dcacp_ack_hdr) <= DCACP_HEADER_MAX_SIZE,
 // 		"dcacp_ack_header too large");
 struct dcacp_rts_hdr {

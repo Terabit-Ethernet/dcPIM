@@ -477,6 +477,7 @@ int xmit_token(struct sock *sk) {
 	__u32 prev_grant_nxt = dsk->prev_grant_nxt;
 	inet = inet_sk(sk);
 	dsk->prev_grant_nxt = dsk->grant_nxt;
+	// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
 	if(atomic_read(&dcacp_epoch.remaining_tokens) >= dcacp_params.control_pkt_bdp / 2
 		) {
 		// WARN_ON(true);
@@ -485,12 +486,13 @@ int xmit_token(struct sock *sk) {
 	if(grant_bytes  > (sk->sk_rcvbuf - atomic_read(&sk->sk_rmem_alloc)) / 2) {
 		grant_bytes = (sk->sk_rcvbuf - atomic_read(&sk->sk_rmem_alloc)) / 2;
 	} 
-	if(grant_bytes != dsk->receiver.grant_batch) {
+	if(grant_bytes < dsk->receiver.max_gso_data) {
 		printk("RMEM_LIMIT\n");
     	test_and_set_bit(DCACP_RMEM_CHECK_DEFERRED, &sk->sk_tsq_flags);
 		push_bk = DCACP_RMEM_LIMIT;
 		return push_bk;
 	}
+	grant_bytes = grant_bytes / dsk->receiver.max_gso_data * dsk->receiver.max_gso_data;
 	/*compute total sack bytes*/
 
 	if(dsk->receiver.rcv_nxt < prev_grant_nxt) {
@@ -512,7 +514,8 @@ int xmit_token(struct sock *sk) {
 			i++;
 		}
 		retransmit_bytes = prev_grant_nxt - dsk->receiver.rcv_nxt - sum;
-		atomic_add_return(retransmit_bytes, &dcacp_epoch.remaining_tokens);
+		grant_len += retransmit_bytes;
+		// atomic_add_return(retransmit_bytes, &dcacp_epoch.remaining_tokens);
 	} 
 	/* if retransmit_bytes is larger, then we don't increment grant_nxt */
 	if (retransmit_bytes > dcacp_params.control_pkt_bdp / 2)

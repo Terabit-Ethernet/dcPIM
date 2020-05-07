@@ -89,7 +89,7 @@ enum hrtimer_restart dcacp_new_epoch(struct hrtimer *timer);
 int dcacp_handle_data_pkt(struct sk_buff *skb);
 int dcacp_handle_flow_sync_pkt(struct sk_buff *skb);
 int dcacp_handle_token_pkt(struct sk_buff *skb);
-int dcacp_handle_ack_pkt(struct sk_buff *skb);
+int dcacp_handle_fin_pkt(struct sk_buff *skb);
 int dcacp_data_queue(struct sock *sk, struct sk_buff *skb);
 bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check);
 int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb);
@@ -104,7 +104,7 @@ struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id,
 	uint32_t message_size, __u64 start_time);
 struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority, __u32 prev_grant_nxt,
 	 __u32 grant_nxt);
-struct sk_buff* construct_ack_pkt(struct sock* sk, __u64 message_id);
+struct sk_buff* construct_fin_pkt(struct sock* sk);
 struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz);
 struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool prompt);
 struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short iter, int epoch);

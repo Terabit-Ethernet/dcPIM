@@ -435,6 +435,7 @@ struct dcacp_sock {
 	    uint32_t bytes_received;
 	    uint32_t received_count;
 	    uint32_t grant_batch;
+	    uint32_t max_gso_data;
 	    /* current received bytes + 1*/
 	    uint32_t rcv_nxt;
 	    // struct dcacp_sack_block duplicate_sack[1]; /* D-SACK block */
@@ -449,7 +450,7 @@ struct dcacp_sock {
 	    int largest_token_data_seq_received;
 		/* DCACP metric */
 	    uint64_t latest_token_sent_time;
-	    double first_byte_receive_time;
+	    uint64_t first_byte_receive_time;
 
 		// struct list_head ready_link;
 
@@ -458,6 +459,8 @@ struct dcacp_sock {
 		int rmem_exhausted;
 		/* short flow waiting timer or long flow waiting timer; after all tokens arer granted */
 		struct hrtimer flow_wait_timer;
+		atomic_t backlog_len;
+
 		// struct work_struct token_xmit_struct;
 
     } receiver;

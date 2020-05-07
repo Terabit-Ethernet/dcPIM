@@ -28,8 +28,9 @@
 #include "dcacp_hashtables.h"
 
 
-static int set_grant_batch(struct dst_entry *dst) {
+static void set_grant_batch(struct dst_entry *dst, struct dcacp_sock* dsk) {
 	int bufs_per_gso, mtu, max_pkt_data, gso_size, max_gso_data;
+	int num_gso_per_bdp;
 	mtu = dst_mtu(dst);
 	gso_size = dst->dev->gso_max_size;
 	if (gso_size > dcacp_params.bdp)
@@ -38,7 +39,10 @@ static int set_grant_batch(struct dst_entry *dst) {
 	max_pkt_data = mtu - sizeof(struct iphdr) - sizeof(struct dcacp_data_hdr);
 	max_gso_data = bufs_per_gso * max_pkt_data;
 	// gso_size = bufs_per_gso * mtu;
-	return max_gso_data;
+	num_gso_per_bdp = dcacp_params.bdp / max_gso_data + 1;
+	printk("grant batch:%d\n",  num_gso_per_bdp * max_gso_data);
+	dsk->receiver.max_gso_data = max_gso_data;
+	dsk->receiver.grant_batch = num_gso_per_bdp * max_gso_data;
 }
 
 void reqsk_queue_alloc(struct request_sock_queue *queue)
@@ -1076,7 +1080,7 @@ struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
 	dsk = dcacp_sk(newsk);
 	dsk->flow_id = fhdr->flow_id;
 	dsk->total_length = ntohl(fhdr->flow_size);
-	dsk->receiver.grant_batch = set_grant_batch(dst);
+	set_grant_batch(dst, dsk);
 	/* set up max gso segment */
 	sk_setup_caps(newsk, dst);
 
@@ -1088,6 +1092,7 @@ struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
     newsk = dcacp_sk_reqsk_queue_add(sk, req, newsk);
     if(newsk) {
 		/* Unlike TCP, req_sock will not be inserted in the ehash table initially.*/
+
 	    dcacp_set_state(newsk, DCACP_RECEIVER);
 		dcacp_ehash_nolisten(newsk, NULL);
     	sock_rps_save_rxhash(newsk, skb);
