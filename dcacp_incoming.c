@@ -926,8 +926,8 @@ int dcacp_handle_fin_pkt(struct sk_buff *skb) {
 	dh = dcacp_hdr(skb);
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
-	sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&dh), dh->source,
-            dh->common.dest, sdif, &refcounted);
+	sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(dh), dh->source,
+            dh->dest, sdif, &refcounted);
     // }
 	if(sk) {
  		bh_lock_sock(sk);
