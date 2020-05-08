@@ -1034,7 +1034,7 @@ int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
 		return 0;
 	}
 	if(atomic_read(&sk->sk_rmem_alloc) > sk->sk_rcvbuf) {
-		printk("seq num:%u\n", DCACP_SKB_CB(skb)->seq);
+		printk("in data queue:%u\n", DCACP_SKB_CB(skb)->seq);
 	    printk("discard packet due to memory:%d\n", __LINE__);
 		sk_drops_add(sk, skb);
 		return 0;
@@ -1208,7 +1208,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 		printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
 
 		if (!dcacp_pq_empty_lockless(&dcacp_epoch.flow_q) &&
-			atomic_read(&dcacp_epoch.remaining_tokens) < dcacp_params.control_pkt_bdp / 2
+			atomic_read(&dcacp_epoch.remaining_tokens) <= dcacp_params.control_pkt_bdp / 2
 			) {
 			spin_lock_bh(&dcacp_epoch.lock);
 			// printk("dsk->receiver.rcv_nxt < prev_grant_nxt:%u < %u\n", dsk->receiver.rcv_nxt , dsk->prev_grant_nxt);

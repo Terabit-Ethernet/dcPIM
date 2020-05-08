@@ -39,8 +39,7 @@ static void set_grant_batch(struct dst_entry *dst, struct dcacp_sock* dsk) {
 	max_pkt_data = mtu - sizeof(struct iphdr) - sizeof(struct dcacp_data_hdr);
 	max_gso_data = bufs_per_gso * max_pkt_data;
 	// gso_size = bufs_per_gso * mtu;
-	num_gso_per_bdp = dcacp_params.bdp / max_gso_data + 1;
-	printk("grant batch:%d\n",  num_gso_per_bdp * max_gso_data);
+	num_gso_per_bdp = DIV_ROUND_UP(dcacp_params.bdp, max_gso_data);
 	dsk->receiver.max_gso_data = max_gso_data;
 	dsk->receiver.grant_batch = num_gso_per_bdp * max_gso_data;
 }
