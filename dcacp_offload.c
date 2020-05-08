@@ -182,7 +182,7 @@ struct sk_buff *dcacp_gro_receive(struct list_head *head, struct sk_buff *skb)
 	struct sk_buff *pp = NULL;
 	struct sk_buff *p;
 	struct dcacphdr *dh;
-	struct dcacphdr *dh2;
+	// struct dcacphdr *dh2;
 	struct dcacp_data_hdr *data_h;
 	struct dcacp_data_hdr *data_h2;
 	unsigned int len;

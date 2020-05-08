@@ -484,7 +484,7 @@ int xmit_token(struct sock *sk) {
 		return push_bk;
 	}
 	if(grant_bytes  > (sk->sk_rcvbuf - atomic_read(&sk->sk_rmem_alloc)) / 2) {
-		grant_bytes = (sk->sk_rcvbuf - atomic_read(&sk->sk_rmem_alloc)) - atomic_read(&dcacp_epoch.remaining_tokens);
+		grant_bytes = (sk->sk_rcvbuf - atomic_read(&sk->sk_rmem_alloc)) / 2;
 	} 
 	if(grant_bytes < (int)dsk->receiver.max_gso_data) {
 		printk("RMEM_LIMIT\n");
@@ -611,7 +611,7 @@ unlock:
 }
 
 void dcacp_xmit_token_handler(struct work_struct *work) {
-	struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, token_xmit_struct);
+	// struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, token_xmit_struct);
 }
 
 

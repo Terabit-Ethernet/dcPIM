@@ -938,22 +938,20 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb) {
 		dsk->sender.snd_una = ah->rcv_nxt > dsk->sender.snd_una ? ah->rcv_nxt: dsk->sender.snd_una;
 		if (!sock_owned_by_user(sk)) {
 	 		dcacp_clean_rtx_queue(sk);
-	        kfree_skb(skb);
         } else {
-            dcacp_add_backlog(sk, skb, true);
-        }
+	 		test_and_set_bit(DCACP_CLEAN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+	    }
         bh_unlock_sock(sk);
+	   
 
 		// printk("socket address: %p LINE:%d\n", dsk,  __LINE__);
 
-	} else {
-		kfree_skb(skb);
-		printk("doesn't find dsk address LINE:%d\n", __LINE__);
-	}
+	} 
 
     if (refcounted) {
         sock_put(sk);
     }
+ 	kfree_skb(skb);
 
 	return 0;
 }
@@ -1120,7 +1118,7 @@ queue_and_out:
 
 bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check)
 {
-		struct dcacp_sock *dsk = dcacp_sk(sk);
+		// struct dcacp_sock *dsk = dcacp_sk(sk);
         u32 limit = READ_ONCE(sk->sk_rcvbuf) + READ_ONCE(sk->sk_sndbuf);
         skb_condense(skb);
 
@@ -1249,7 +1247,7 @@ drop:
  */
 int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 	struct dcacphdr* dh;
-	struct dcacp_sock *dsk = dcacp_sk(sk);
+	// struct dcacp_sock *dsk = dcacp_sk(sk);
 	dh = dcacp_hdr(skb);
 	if(dh->type == DATA) {
 		return dcacp_data_queue(sk, skb);
@@ -1262,7 +1260,7 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 		sk->sk_data_ready(sk);
 	} else if (dh->type == ACK) {
-	 	dcacp_clean_rtx_queue(sk);
+		WARN_ON(true);
 	}
 	// else if (dh->type == TOKEN) {
 	// 	/* clean rtx queue */
