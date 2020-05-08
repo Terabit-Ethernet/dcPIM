@@ -13,6 +13,45 @@ bool flow_compare(const struct list_head* node1, const struct list_head* node2) 
 
 }
 
+static inline int dcacp_win_from_space(const struct sock *sk, int space)
+{
+	return space - (space >> 1);
+}
+
+/* Note: caller must be prepared to deal with negative returns */
+static inline int dcacp_space(const struct sock *sk)
+{
+	return dcacp_win_from_space(sk, READ_ONCE(sk->sk_rcvbuf) -
+				  READ_ONCE(sk->sk_backlog.len) -
+				  atomic_read(&sk->sk_rmem_alloc));
+}
+
+static inline int dcacp_full_space(const struct sock *sk)
+{
+	return dcacp_win_from_space(sk, READ_ONCE(sk->sk_rcvbuf));
+}
+
+int calc_grant_bytes(struct sock *sk) {
+	    struct dcacp_sock* dsk = dcacp_sk(sk);
+	    int max_gso_data = (int)dsk->receiver.max_gso_data;
+        int free_space = dcacp_space(sk);
+        int allowed_space = dcacp_full_space(sk);
+        int full_space = min_t(int, dsk->receiver.grant_batch, allowed_space);
+        int grant_bytes = dsk->receiver.grant_batch;
+
+        if (unlikely(max_gso_data > full_space)) {
+            return 0;
+        }
+        if (free_space < (full_space >> 1)) {
+            if (free_space < (allowed_space >> 4) || free_space < max_gso_data)
+                    return 0;
+        }
+        if (grant_bytes > free_space)
+        	grant_bytes = free_space;
+        grant_bytes = grant_bytes / dsk->receiver.max_gso_data * dsk->receiver.max_gso_data;
+        return grant_bytes;
+}
+
 // __u64 js, je;
 void dcacp_match_entry_init(struct dcacp_match_entry* entry, __be32 addr, 
  bool(*comp)(const struct list_head*, const struct list_head*)) {
@@ -483,16 +522,13 @@ int xmit_token(struct sock *sk) {
 		// WARN_ON(true);
 		return push_bk;
 	}
-	if(grant_bytes  > (sk->sk_rcvbuf - atomic_read(&sk->sk_rmem_alloc)) / 2) {
-		grant_bytes = (sk->sk_rcvbuf - atomic_read(&sk->sk_rmem_alloc)) / 2;
-	} 
-	if(grant_bytes < (int)dsk->receiver.max_gso_data) {
+	grant_bytes = calc_grant_bytes(sk);
+	if(grant_bytes  == 0) {
 		printk("RMEM_LIMIT\n");
     	test_and_set_bit(DCACP_RMEM_CHECK_DEFERRED, &sk->sk_tsq_flags);
 		push_bk = DCACP_RMEM_LIMIT;
 		return push_bk;
 	}
-	grant_bytes = grant_bytes / dsk->receiver.max_gso_data * dsk->receiver.max_gso_data;
 	// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
 	/*compute total sack bytes*/
 
@@ -544,7 +580,7 @@ int xmit_token(struct sock *sk) {
 		push_bk = DCACP_TIMER_SETUP;
 		/* TO DO: setup a timer here */
 		/* current set timer to be 10 RTT */
-		hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 5 * 1000), 
+		hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 10 * 1000), 
 			HRTIMER_MODE_REL_PINNED_SOFT);
 	}
 	// printk("xmit token grant next:%d\n", dsk->grant_nxt);
@@ -577,15 +613,15 @@ void dcacp_xmit_token(struct dcacp_epoch *epoch) {
 		dcacp_pq_pop(&epoch->flow_q);
  		bh_lock_sock(sk);
  		if(sk->sk_state == DCACP_RECEIVER) {
-	 		// if (!sock_owned_by_user(sk)) {
+	 		if (!sock_owned_by_user(sk)) {
 	 			not_push_bk = xmit_token(sk);
 	  			if(!not_push_bk)
 	  				dcacp_pq_push(&epoch->flow_q, &dsk->match_link);
 	 			 else if (not_push_bk == DCACP_RMEM_LIMIT)
 	 			    goto unlock;
-	 		// } else {
-	 		// 	test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
-	 		// }
+	 		} else {
+	 			test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+	 		}
  		} else {
  			goto unlock;
  		}

@@ -1187,7 +1187,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
  		bh_lock_sock(sk);
         // ret = 0;
 		// printk("remaining tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
-		printk("receive new skb end_seq:%u\n", DCACP_SKB_CB(skb)->end_seq);
+		// printk("receive new skb end_seq:%u\n", DCACP_SKB_CB(skb)->end_seq);
         if (!sock_owned_by_user(sk)) {
             dcacp_data_queue(sk, skb);
         } else {
@@ -1201,12 +1201,18 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	
 
 	if (!dh->free_token) {
+		int remaining_tokens = 0;
 		dsk = dcacp_sk(sk);
-		atomic_sub(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq, &dcacp_epoch.remaining_tokens);
-		printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
+		remaining_tokens = atomic_add_return(DCACP_SKB_CB(skb)->seq 
+			- DCACP_SKB_CB(skb)->end_seq, &dcacp_epoch.remaining_tokens);
+		if(remaining_tokens < 0) {
+			remaining_tokens = 0;
+			atomic_set(&dcacp_epoch.remaining_tokens, 0);
+		}
+		// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
 
 		if (!dcacp_pq_empty_lockless(&dcacp_epoch.flow_q) &&
-			atomic_read(&dcacp_epoch.remaining_tokens) <= dcacp_params.control_pkt_bdp / 2
+			remaining_tokens <= dcacp_params.control_pkt_bdp / 2
 			) {
 			spin_lock_bh(&dcacp_epoch.lock);
 			// printk("dsk->receiver.rcv_nxt < prev_grant_nxt:%u < %u\n", dsk->receiver.rcv_nxt , dsk->prev_grant_nxt);
