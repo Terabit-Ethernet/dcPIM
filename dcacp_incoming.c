@@ -280,28 +280,40 @@ void dcacp_rem_check_handler(struct sock *sk) {
 void dcacp_token_timer_defer_handler(struct sock *sk) {
 	bool pq_empty = false;
 	// int grant_bytes = calc_grant_bytes(sk);
-	// bool not_push_bk = xmit_batch_token(sk, grant_bytes, true);
+	bool not_push_bk = false;
 	struct dcacp_sock* dsk = dcacp_sk(sk);
 	struct inet_sock *inet = inet_sk(sk);
 	__u32 prev_grant_nxt = dsk->prev_grant_nxt;
-	int rtx_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
 
+	if(dsk->receiver.prev_grant_bytes == 0) {
+		int grant_bytes = calc_grant_bytes(sk);
+		not_push_bk = xmit_batch_token(sk, grant_bytes, true);
+	} else {
+		int rtx_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
+		if(rtx_bytes && sk->sk_state == DCACP_RECEIVER) {
+			dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->new_grant_nxt, true),
+		 	dsk->peer, sk, inet->inet_dport);
+			atomic_add(rtx_bytes, &dcacp_epoch.remaining_tokens);
+			dsk->receiver.prev_grant_bytes += rtx_bytes;
+		}
+		if(dsk->new_grant_nxt == dsk->total_length) {
+			not_push_bk = true;
+			/* TO DO: setup a timer here */
+			/* current set timer to be 10 RTT */
+			hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 10 * 1000), 
+				HRTIMER_MODE_REL_PINNED_SOFT);
+		}
+	}
 	/* change prev_grant_nxt here because of delay retransmission*/
 	dsk->prev_grant_nxt = dsk->grant_nxt;
-	if(rtx_bytes && sk->sk_state == DCACP_RECEIVER) {
-		dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->grant_nxt, true),
-	 	dsk->peer, sk, inet->inet_dport);
-		atomic_add(rtx_bytes, &dcacp_epoch.remaining_tokens);
-		dsk->receiver.prev_grant_bytes += rtx_bytes;
-	}
-
+	dsk->grant_nxt = dsk->new_grant_nxt;
 	// printk("token timer deferred\n");
 	// if(!not_push_bk) {
 	/* Deadlock won't happen because flow is not in flow_q. */
 	spin_lock(&dcacp_epoch.lock);
 	/* reduct extra grant batch */
 	atomic_sub(dsk->receiver.grant_batch, &dcacp_epoch.remaining_tokens);
-	if(sk->sk_state == DCACP_RECEIVER) {
+	if(sk->sk_state == DCACP_RECEIVER && !not_push_bk) {
 		dcacp_pq_push(&dcacp_epoch.flow_q, &dsk->match_link);
 	}
 	pq_empty = dcacp_pq_empty(&dcacp_epoch.flow_q);

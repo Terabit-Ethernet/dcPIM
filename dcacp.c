@@ -793,6 +793,8 @@ int dcacp_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->num_sacks, 0);
 	WRITE_ONCE(dsk->grant_nxt, 0);
 	WRITE_ONCE(dsk->prev_grant_nxt, 0);
+	WRITE_ONCE(dsk->new_grant_nxt, 0);
+
 	INIT_LIST_HEAD(&dsk->match_link);
 	WRITE_ONCE(dsk->sender.write_seq, 0);
 	WRITE_ONCE(dsk->sender.snd_nxt, 0);
@@ -930,6 +932,7 @@ EXPORT_SYMBOL(dcacp_ioctl);
 
 
 void dcacp_try_send_token(struct sock *sk) {
+	printk("call try send token\n");
 	if(test_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
 		struct dcacp_sock *dsk = dcacp_sk(sk);
 		// int grant_len = min_t(int, len, dsk->receiver.max_gso_data);
@@ -937,12 +940,14 @@ void dcacp_try_send_token(struct sock *sk) {
 		// if(grant_len > available_space || grant_len < )
 		// 	return;
 		int grant_bytes = calc_grant_bytes(sk);
-		if (grant_bytes != 0) 
+		printk("grant bytes delay:%d\n", grant_bytes);
+
+		if (grant_bytes != 0) {
+			printk("try to send token\n");
 			xmit_batch_token(sk, grant_bytes, false);
+		}
+		return;
 	}
-
-
-
 }
 /*
  * 	This should be easy, if there is something there we

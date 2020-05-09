@@ -397,6 +397,7 @@ struct dcacp_sock {
 	
 	uint32_t grant_nxt;
 	uint32_t prev_grant_nxt;
+	uint32_t new_grant_nxt;
     uint32_t num_sacks;
 	struct dcacp_sack_block selective_acks[16]; /* The SACKS themselves*/
 
