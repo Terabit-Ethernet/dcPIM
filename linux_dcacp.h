@@ -442,15 +442,15 @@ struct dcacp_sock {
 	    // uint32_t max_seq_no_recv;
 		/** @priority: Priority level to include in future GRANTS. */
 		int priority;
-	    int last_token_data_seq_sent;
+	    // int last_token_data_seq_sent;
 
-	    int token_count;
-	    int token_goal;
-	    int largest_token_seq_received;
-	    int largest_token_data_seq_received;
+	    // int token_count;
+	    // int token_goal;
+	    // int largest_token_seq_received;
+	    // int largest_token_data_seq_received;
 		/* DCACP metric */
-	    uint64_t latest_token_sent_time;
-	    uint64_t first_byte_receive_time;
+	    // uint64_t latest_token_sent_time;
+	    // uint64_t first_byte_receive_time;
 
 		// struct list_head ready_link;
 
@@ -459,7 +459,8 @@ struct dcacp_sock {
 		int rmem_exhausted;
 		/* short flow waiting timer or long flow waiting timer; after all tokens arer granted */
 		struct hrtimer flow_wait_timer;
-
+		int prev_grant_bytes;
+		atomic_t backlog_len;
 		// struct work_struct token_xmit_struct;
 
     } receiver;

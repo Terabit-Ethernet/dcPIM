@@ -13,24 +13,6 @@ bool flow_compare(const struct list_head* node1, const struct list_head* node2) 
 
 }
 
-static inline int dcacp_win_from_space(const struct sock *sk, int space)
-{
-	return space - (space >> 1);
-}
-
-/* Note: caller must be prepared to deal with negative returns */
-static inline int dcacp_space(const struct sock *sk)
-{
-	return dcacp_win_from_space(sk, READ_ONCE(sk->sk_rcvbuf) -
-				  READ_ONCE(sk->sk_backlog.len) -
-				  atomic_read(&sk->sk_rmem_alloc));
-}
-
-static inline int dcacp_full_space(const struct sock *sk)
-{
-	return dcacp_win_from_space(sk, READ_ONCE(sk->sk_rcvbuf));
-}
-
 int calc_grant_bytes(struct sock *sk) {
 	    struct dcacp_sock* dsk = dcacp_sk(sk);
 	    int max_gso_data = (int)dsk->receiver.max_gso_data;
@@ -491,7 +473,7 @@ enum hrtimer_restart dcacp_token_xmit_event(struct hrtimer *timer) {
 	printk("token timer handler is called 1\n");
 	spin_lock(&epoch->lock);
 	/* reset the remaining tokens to zero */
-	atomic_set(&epoch->remaining_tokens, 0);
+	// atomic_set(&epoch->remaining_tokens, 0);
 	dcacp_xmit_token(epoch);
 	spin_unlock(&epoch->lock);
 
@@ -506,58 +488,54 @@ enum hrtimer_restart dcacp_token_xmit_event(struct hrtimer *timer) {
  */
 #define DCACP_RMEM_LIMIT 1
 #define DCACP_TIMER_SETUP 2
-int xmit_token(struct sock *sk) {
+
+int rtx_bytes_count(struct dcacp_sock* dsk, __u32 prev_grant_nxt) {
+	int retransmit_bytes = 0; 
+	if(dsk->receiver.rcv_nxt < prev_grant_nxt) {
+		int i = 0;
+		__u32 sum = 0;
+		// printk("prev_grant_nxt:%u\n", prev_grant_nxt);
+		while(i < dsk->num_sacks) {
+			__u32 start_seq = dsk->selective_acks[i].start_seq;
+			__u32 end_seq = dsk->selective_acks[i].end_seq;
+			// printk("start seq: %u\n", start_seq);
+			// printk("end seq:%u\n", end_seq);
+			if(start_seq > prev_grant_nxt)
+				goto next;
+			if(end_seq > prev_grant_nxt) {
+				end_seq = prev_grant_nxt;
+			}
+			sum += end_seq - start_seq;
+		next:
+			i++;
+		}
+		retransmit_bytes = prev_grant_nxt - dsk->receiver.rcv_nxt - sum;
+		// atomic_add_return(retransmit_bytes, &dcacp_epoch.remaining_tokens);
+	} 
+	return retransmit_bytes;
+}
+int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 	struct dcacp_sock *dsk = dcacp_sk(sk);
-	int grant_bytes = dsk->receiver.grant_batch;
 	int grant_len = 0;
 	struct inet_sock *inet;
 	int push_bk = 0;
 	int retransmit_bytes = 0;
 	__u32 prev_grant_nxt = dsk->prev_grant_nxt;
 	inet = inet_sk(sk);
-	dsk->prev_grant_nxt = dsk->grant_nxt;
 	// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
-	if(atomic_read(&dcacp_epoch.remaining_tokens) >= dcacp_params.control_pkt_bdp / 2 && atomic_read(&dcacp_epoch.remaining_tokens) != 0
-		) {
-		// WARN_ON(true);
-		return push_bk;
-	}
-	grant_bytes = calc_grant_bytes(sk);
-	if(grant_bytes  == 0) {
-		printk("RMEM_LIMIT\n");
-    	test_and_set_bit(DCACP_RMEM_CHECK_DEFERRED, &sk->sk_tsq_flags);
-		push_bk = DCACP_RMEM_LIMIT;
-		return push_bk;
-	}
 	// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
 	/*compute total sack bytes*/
 
-	// if(dsk->receiver.rcv_nxt < prev_grant_nxt) {
-	// 	int i = 0;
-	// 	__u32 sum = 0;
-	// 	// printk("prev_grant_nxt:%u\n", prev_grant_nxt);
-	// 	while(i < dsk->num_sacks) {
-	// 		__u32 start_seq = dsk->selective_acks[i].start_seq;
-	// 		__u32 end_seq = dsk->selective_acks[i].end_seq;
-	// 		// printk("start seq: %u\n", start_seq);
-	// 		// printk("end seq:%u\n", end_seq);
-	// 		if(start_seq > prev_grant_nxt)
-	// 			goto next;
-	// 		if(end_seq > prev_grant_nxt) {
-	// 			end_seq = prev_grant_nxt;
-	// 		}
-	// 		sum += end_seq - start_seq;
-	// 	next:
-	// 		i++;
-	// 	}
-	// 	retransmit_bytes = prev_grant_nxt - dsk->receiver.rcv_nxt - sum;
-	// 	grant_len += retransmit_bytes;
-	// 	// atomic_add_return(retransmit_bytes, &dcacp_epoch.remaining_tokens);
-	// } 
+	if(handle_rtx && dsk->receiver.rcv_nxt < prev_grant_nxt) {
+		retransmit_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
+		grant_len += retransmit_bytes;
+		// atomic_add_return(retransmit_bytes, &dcacp_epoch.remaining_tokens);
+		if (retransmit_bytes > dcacp_params.control_pkt_bdp / 2)
+			grant_bytes = 0;
+	} 
 	/* if retransmit_bytes is larger, then we don't increment grant_nxt */
-	if (retransmit_bytes > dcacp_params.control_pkt_bdp / 2)
-		grant_bytes = 0;
-	printk("grant bytes:%u\n", grant_bytes);
+
+	// printk("grant bytes:%u\n", grant_bytes);
 	/* set grant next*/
 	/* receiver buffer bottleneck; or token is dropped */
 	// if(prev_grant_nxt == dsk->receiver.rcv_nxt) {
@@ -584,9 +562,9 @@ int xmit_token(struct sock *sk) {
 			HRTIMER_MODE_REL_PINNED_SOFT);
 	}
 	// printk("xmit token grant next:%d\n", dsk->grant_nxt);
-	atomic_add_return(grant_len, &dcacp_epoch.remaining_tokens);
-
-	dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->grant_nxt),
+	atomic_add(grant_len, &dcacp_epoch.remaining_tokens);
+	dsk->receiver.prev_grant_bytes = grant_len;
+	dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->grant_nxt, handle_rtx),
 	 dsk->peer, sk, inet->inet_dport);
 	return push_bk;
 }
@@ -606,6 +584,11 @@ void dcacp_xmit_token(struct dcacp_epoch *epoch) {
 
 	while(!dcacp_pq_empty(&epoch->flow_q)) {
 		bool not_push_bk = false;
+		if(atomic_read(&dcacp_epoch.remaining_tokens) >= dcacp_params.control_pkt_bdp / 2 
+			&& atomic_read(&dcacp_epoch.remaining_tokens) != 0) {
+			// WARN_ON(true);
+			return;
+		}
 		match_link = dcacp_pq_peek(&epoch->flow_q);
 		dsk =  list_entry(match_link, struct dcacp_sock, match_link);
 		sk = (struct sock*)dsk;
@@ -614,12 +597,23 @@ void dcacp_xmit_token(struct dcacp_epoch *epoch) {
  		bh_lock_sock(sk);
  		if(sk->sk_state == DCACP_RECEIVER) {
 	 		if (!sock_owned_by_user(sk)) {
-	 			not_push_bk = xmit_token(sk);
+	 			int grant_bytes = calc_grant_bytes(sk);
+	 			__u32 prev_grant_nxt = dsk->grant_nxt;
+	 			if(grant_bytes  == 0) {
+					printk("RMEM_LIMIT\n");
+			    	test_and_set_bit(DCACP_RMEM_CHECK_DEFERRED, &sk->sk_tsq_flags);
+			    	goto unlock;
+				}
+	 			not_push_bk = xmit_batch_token(sk, grant_bytes, true);
+				dsk->prev_grant_nxt = dsk->grant_nxt;
 	  			if(!not_push_bk)
 	  				dcacp_pq_push(&epoch->flow_q, &dsk->match_link);
-	 			 else if (not_push_bk == DCACP_RMEM_LIMIT)
-	 			    goto unlock;
 	 		} else {
+	 			// printk("delay \n");
+	 			// atomic_add(dsk->receiver.grant_batch, &epoch->remaining_tokens);
+	 			// atomic_add(dsk=>receiver.);
+	 			/* pre-assign the largest number of tokens; will be deleted later */
+				atomic_add(dsk->receiver.grant_batch, &dcacp_epoch.remaining_tokens);
 	 			test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
 	 		}
  		} else {

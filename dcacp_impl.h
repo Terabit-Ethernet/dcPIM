@@ -33,8 +33,10 @@ void dcacp_sysctl_changed(struct dcacp_params *params);
 void dcacp_params_init(struct dcacp_params *params);
 // DCACP matching logic
 // DCACP priority queue
-int xmit_token(struct sock *sk);
+int calc_grant_bytes(struct sock *sk);
+int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx);
 void dcacp_xmit_token(struct dcacp_epoch* epoch);
+int rtx_bytes_count(struct dcacp_sock* dsk, __u32 prev_grant_nxt);
 void dcacp_xmit_token_handler(struct work_struct *work);
 enum hrtimer_restart dcacp_token_xmit_event(struct hrtimer *timer);
 void dcacp_pq_init(struct dcacp_pq* pq, bool(*comp)(const struct list_head*, const struct list_head*));
@@ -104,7 +106,7 @@ enum hrtimer_restart dcacp_flow_wait_event(struct hrtimer *timer);
 struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id, 
 	uint32_t message_size, __u64 start_time);
 struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority, __u32 prev_grant_nxt,
-	 __u32 grant_nxt);
+	 __u32 grant_nxt, bool handle_rtx);
 struct sk_buff* construct_fin_pkt(struct sock* sk);
 struct sk_buff* construct_ack_pkt(struct sock* sk, __be32 rcv_nxt);
 struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz);

@@ -68,6 +68,26 @@ struct dcacp_skb_cb {
 };
 #define DCACP_SKB_CB(__skb)	((struct dcacp_skb_cb *)((__skb)->cb))
 
+
+static inline int dcacp_win_from_space(const struct sock *sk, int space)
+{
+	return space - (space >> 1);
+}
+
+/* Note: caller must be prepared to deal with negative returns */
+static inline int dcacp_space(const struct sock *sk)
+{
+	struct dcacp_sock *dsk = dcacp_sk(sk);
+	return dcacp_win_from_space(sk, READ_ONCE(sk->sk_rcvbuf) -
+				  atomic_read(&dsk->receiver.backlog_len) -
+				  atomic_read(&sk->sk_rmem_alloc));
+}
+
+static inline int dcacp_full_space(const struct sock *sk)
+{
+	return dcacp_win_from_space(sk, READ_ONCE(sk->sk_rcvbuf));
+}
+
 /**
  * dcacp_next_skb() - Compute address of DCACP's private link field in @skb.
  * @skb:     Socket buffer containing private link field.

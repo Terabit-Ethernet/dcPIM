@@ -805,6 +805,9 @@ int dcacp_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.max_gso_data, 0);
 	WRITE_ONCE(dsk->receiver.finished_at_receiver, false);
 	WRITE_ONCE(dsk->receiver.rmem_exhausted, 0);
+	WRITE_ONCE(dsk->rerceiver.prev_grant_bytes, 0);
+	atomic_set(&dsk->receiver.backlog_len, 0);
+
 	hrtimer_init(&dsk->receiver.flow_wait_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
 	dsk->receiver.flow_wait_timer.function = &dcacp_flow_wait_event;
 
@@ -925,6 +928,22 @@ int dcacp_ioctl(struct sock *sk, int cmd, unsigned long arg)
 EXPORT_SYMBOL(dcacp_ioctl);
 
 
+
+void dcacp_try_send_token(struct sock *sk) {
+	if(test_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
+		struct dcacp_sock *dsk = dcacp_sk(sk);
+		// int grant_len = min_t(int, len, dsk->receiver.max_gso_data);
+		// int available_space = dcacp_space(sk);
+		// if(grant_len > available_space || grant_len < )
+		// 	return;
+		int grant_bytes = calc_grant_bytes(sk);
+		if (grant_bytes != 0) 
+			xmit_batch_token(sk, grant_bytes, false);
+	}
+
+
+
+}
 /*
  * 	This should be easy, if there is something there we
  * 	return it, otherwise we block.
@@ -950,7 +969,7 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 
 	// if (unlikely(flags & MSG_ERRQUEUE))
 	// 	return inet_recv_error(sk, msg, len, addr_len);
-	// printk("start recvmsg \n");
+	printk("start recvmsg \n");
 	target = sock_rcvlowat(sk, flags & MSG_WAITALL, len);
 	// printk("target bytes:%d\n", target);
 
@@ -1091,6 +1110,7 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 		if (copied >= target) {
 			/* Do not sleep, just process backlog. */
 			/* Release sock will handle the backlog */
+			dcacp_try_send_token(sk);
 			release_sock(sk);
 			lock_sock(sk);
 		} else {
@@ -1132,6 +1152,7 @@ found_ok_skb:
 
 		if (!(flags & MSG_TRUNC)) {
 			err = skb_copy_datagram_msg(skb, offset, msg, used);
+			printk("copy data done: %d\n", used);
 			if (err) {
 				/* Exception. Bailout! */
 				if (!copied)
@@ -1185,6 +1206,8 @@ found_ok_skb:
 	if (dsk->receiver.copied_seq == dsk->total_length) {
 		printk("call tcp close in the recv msg\n");
 		dcacp_set_state(sk, TCP_CLOSE);
+	} else {
+		dcacp_try_send_token(sk);
 	}
 	release_sock(sk);
 
@@ -1196,11 +1219,11 @@ found_ok_skb:
 	// 		put_cmsg(msg, SOL_TCP, TCP_CM_INQ, sizeof(inq), &inq);
 	// 	}
 	// }
-	// printk("recvmsg\n");
+	printk("recvmsg\n");
 	return copied;
 
 out:
-	// printk("recvmsg err\n");
+	printk("recvmsg err\n");
 	release_sock(sk);
 	return err;
 

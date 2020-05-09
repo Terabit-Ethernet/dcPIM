@@ -234,9 +234,21 @@ enum hrtimer_restart dcacp_flow_wait_event(struct hrtimer *timer) {
 	// struct dcacp_grant* grant, temp;
 	struct dcacp_sock *dsk = container_of(timer, struct dcacp_sock, receiver.flow_wait_timer);
 	struct sock *sk = (struct sock*)dsk;
+	int remaining_tokens = atomic_read(&dcacp_epoch->remaining_tokens) - ;
 	printk("flow_wait_timer");
 	bh_lock_sock(sk);
-	dcacp_rem_check_handler(sk);
+	/* Deadlock won't happen because flow is not in flow_q. */
+	spin_lock(&dcacp_epoch.lock);
+	dcacp_pq_push(&dcacp_epoch.flow_q, &dsk->match_link);
+	atomic_sub(dsk->receiver.prev_grant_batch, &dcacp_epoch->remaining_tokens);
+	dsk->receiver.prev_grant_batch = 0;
+	if(atomic_read( &dcacp_epoch->remaining_tokens) < 0)
+		atomic_set(&dcacp_epoch->remaining_tokens, 0);
+	if(atomic_read(&dcacp_epoch->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
+		/* this part may change latter. */
+		hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0, 0), HRTIMER_MODE_REL_PINNED_SOFT);
+	}
+	spin_unlock(&dcacp_epoch.lock);
 	bh_unlock_sock(sk);
  	// queue_work(dcacp_epoch.wq, &dcacp_epoch.token_xmit_struct);
 	return HRTIMER_NORESTART;
@@ -247,7 +259,6 @@ enum hrtimer_restart dcacp_flow_wait_event(struct hrtimer *timer) {
  * Either read buffer is limited or all toknes has been sent but some pkts are dropped.
  */
 void dcacp_rem_check_handler(struct sock *sk) {
-	bool pq_empty = false;
 	struct dcacp_sock* dsk = dcacp_sk(sk);
 	// printk("handle rmem checker\n");
 	// printk("dsk->receiver.copied_seq:%u\n", dsk->receiver.copied_seq);
@@ -257,9 +268,8 @@ void dcacp_rem_check_handler(struct sock *sk) {
 	}
 	/* Deadlock won't happen because flow is not in flow_q. */
 	spin_lock(&dcacp_epoch.lock);
-	pq_empty = dcacp_pq_empty(&dcacp_epoch.flow_q);
 	dcacp_pq_push(&dcacp_epoch.flow_q, &dsk->match_link);
-	if(pq_empty) {
+	if(atomic_read(&dcacp_epoch->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
 		/* this part may change latter. */
 		hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0, 0), HRTIMER_MODE_REL_PINNED_SOFT);
 	}
@@ -269,21 +279,37 @@ void dcacp_rem_check_handler(struct sock *sk) {
 
 void dcacp_token_timer_defer_handler(struct sock *sk) {
 	bool pq_empty = false;
-	bool not_push_bk = xmit_token(sk);
+	// int grant_bytes = calc_grant_bytes(sk);
+	// bool not_push_bk = xmit_batch_token(sk, grant_bytes, true);
 	struct dcacp_sock* dsk = dcacp_sk(sk);
-	// printk("token timer deferred\n");
-	if(!not_push_bk) {
-	/* Deadlock won't happen because flow is not in flow_q. */
-		spin_lock(&dcacp_epoch.lock);
-		pq_empty = dcacp_pq_empty(&dcacp_epoch.flow_q);
-		dcacp_pq_push(&dcacp_epoch.flow_q, &dsk->match_link);
-		if(pq_empty) {
-			// printk("timer expire time:%d\n", dcacp_params.rtt * 10 * 1000);
-			// hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0,  dcacp_params.rtt * 10 * 1000), HRTIMER_MODE_ABS);
-			// dcacp_epoch.token_xmit_timer.function = &dcacp_token_xmit_event;
-		}
-		spin_unlock(&dcacp_epoch.lock);
+	struct inet_sock *inet = inet_sk(sk);
+	__u32 prev_grant_nxt = dsk->prev_grant_nxt;
+	int rtx_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
+
+	/* change prev_grant_nxt here because of delay retransmission*/
+	dsk->prev_grant_nxt = dsk->grant_nxt;
+	if(rtx_bytes && sk->state == DCACP_RECEIVER) {
+		dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->grant_nxt, true),
+	 	dsk->peer, sk, inet->inet_dport);
+		atomic_add(rtx_bytes, &dcacp_epoch.remaining_tokens);
+		dsk->receiver.prev_grant_nxt += rtx_bytes;
 	}
+
+	// printk("token timer deferred\n");
+	// if(!not_push_bk) {
+	/* Deadlock won't happen because flow is not in flow_q. */
+	spin_lock(&dcacp_epoch.lock);
+	/* reduct extra grant batch */
+	atomic_sub(dsk->receiver.grant_batch, &dcacp_epoch.remaining_tokens);
+	if(sk->state == DCACP_RECEIVER) {
+		dcacp_pq_push(&dcacp_epoch.flow_q, &dsk->match_link);
+	}
+	pq_empty = dcacp_pq_empty(&dcacp_epoch.flow_q);
+	if(!pq_empty && atomic_read(&dcacp_epoch.remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
+		hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0, 0), HRTIMER_MODE_REL_PINNED_SOFT);
+	}
+	spin_unlock(&dcacp_epoch.lock);
+	// }
 }
 
 void sk_stream_write_space(struct sock *sk)
@@ -1118,7 +1144,7 @@ queue_and_out:
 
 bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check)
 {
-		// struct dcacp_sock *dsk = dcacp_sk(sk);
+		struct dcacp_sock *dsk = dcacp_sk(sk);
         u32 limit = READ_ONCE(sk->sk_rcvbuf) + READ_ONCE(sk->sk_sndbuf);
         skb_condense(skb);
 
@@ -1126,7 +1152,6 @@ bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check)
          * to reduce memory overhead, so add a little headroom here.
          * Few sockets backlog are possibly concurrently non empty.
          */
-
         limit += 64*1024;
         if (omit_check) {
         	limit = UINT_MAX;
@@ -1136,6 +1161,8 @@ bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check)
                 // __NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPBACKLOGDROP);
                 return true;
         }
+        atomic_add(skb->truesize, &dsk->receiver.backlog_len);
+
         return false;
 
  }
@@ -1175,7 +1202,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
     	start = ktime_get();
     }
     total_bytes += skb->len;
-    if(total_bytes > 500000000) {
+    if(total_bytes > 300000000) {
     	end = ktime_get();
     	printk("throughput:%llu\n", total_bytes * 8 * 1000000 / ktime_to_us(ktime_sub(end, start)));
     	total_bytes = 0;
@@ -1186,8 +1213,9 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 		dcacp_v4_fill_cb(skb, iph, dh);
  		bh_lock_sock(sk);
         // ret = 0;
-		// printk("remaining tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
-		// printk("receive new skb end_seq:%u\n", DCACP_SKB_CB(skb)->end_seq);
+		printk("remaining tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
+		printk("receive new skb end_seq:%u\n", DCACP_SKB_CB(skb)->end_seq);
+		printk("atomic backlog len:%d\n", atomic_read(&dsk->receiver.backlog_len));
         if (!sock_owned_by_user(sk)) {
             dcacp_data_queue(sk, skb);
         } else {
@@ -1253,9 +1281,11 @@ drop:
  */
 int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 	struct dcacphdr* dh;
-	// struct dcacp_sock *dsk = dcacp_sk(sk);
+	struct dcacp_sock *dsk = dcacp_sk(sk);
 	dh = dcacp_hdr(skb);
+	atomic_sub(skb->truesize, &dsk->receiver.backlog_len);
 	if(dh->type == DATA) {
+		printk("backlog handling\n");
 		return dcacp_data_queue(sk, skb);
 		// return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
 	} else if (dh->type == FIN) {
