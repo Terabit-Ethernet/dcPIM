@@ -234,17 +234,17 @@ enum hrtimer_restart dcacp_flow_wait_event(struct hrtimer *timer) {
 	// struct dcacp_grant* grant, temp;
 	struct dcacp_sock *dsk = container_of(timer, struct dcacp_sock, receiver.flow_wait_timer);
 	struct sock *sk = (struct sock*)dsk;
-	int remaining_tokens = atomic_read(&dcacp_epoch->remaining_tokens) - ;
+	// int remaining_tokens = atomic_read(&dcacp_epoch->remaining_tokens) - ;
 	printk("flow_wait_timer");
 	bh_lock_sock(sk);
 	/* Deadlock won't happen because flow is not in flow_q. */
 	spin_lock(&dcacp_epoch.lock);
 	dcacp_pq_push(&dcacp_epoch.flow_q, &dsk->match_link);
-	atomic_sub(dsk->receiver.prev_grant_batch, &dcacp_epoch->remaining_tokens);
-	dsk->receiver.prev_grant_batch = 0;
-	if(atomic_read( &dcacp_epoch->remaining_tokens) < 0)
-		atomic_set(&dcacp_epoch->remaining_tokens, 0);
-	if(atomic_read(&dcacp_epoch->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
+	atomic_sub(dsk->receiver.prev_grant_bytes, &dcacp_epoch.remaining_tokens);
+	dsk->receiver.prev_grant_bytes = 0;
+	if(atomic_read( &dcacp_epoch.remaining_tokens) < 0)
+		atomic_set(&dcacp_epoch.remaining_tokens, 0);
+	if(atomic_read(&dcacp_epoch.remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
 		/* this part may change latter. */
 		hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0, 0), HRTIMER_MODE_REL_PINNED_SOFT);
 	}
@@ -269,7 +269,7 @@ void dcacp_rem_check_handler(struct sock *sk) {
 	/* Deadlock won't happen because flow is not in flow_q. */
 	spin_lock(&dcacp_epoch.lock);
 	dcacp_pq_push(&dcacp_epoch.flow_q, &dsk->match_link);
-	if(atomic_read(&dcacp_epoch->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
+	if(atomic_read(&dcacp_epoch.remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
 		/* this part may change latter. */
 		hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0, 0), HRTIMER_MODE_REL_PINNED_SOFT);
 	}
@@ -288,11 +288,11 @@ void dcacp_token_timer_defer_handler(struct sock *sk) {
 
 	/* change prev_grant_nxt here because of delay retransmission*/
 	dsk->prev_grant_nxt = dsk->grant_nxt;
-	if(rtx_bytes && sk->state == DCACP_RECEIVER) {
+	if(rtx_bytes && sk->sk_state == DCACP_RECEIVER) {
 		dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->grant_nxt, true),
 	 	dsk->peer, sk, inet->inet_dport);
 		atomic_add(rtx_bytes, &dcacp_epoch.remaining_tokens);
-		dsk->receiver.prev_grant_nxt += rtx_bytes;
+		dsk->receiver.prev_grant_bytes += rtx_bytes;
 	}
 
 	// printk("token timer deferred\n");
@@ -301,7 +301,7 @@ void dcacp_token_timer_defer_handler(struct sock *sk) {
 	spin_lock(&dcacp_epoch.lock);
 	/* reduct extra grant batch */
 	atomic_sub(dsk->receiver.grant_batch, &dcacp_epoch.remaining_tokens);
-	if(sk->state == DCACP_RECEIVER) {
+	if(sk->sk_state == DCACP_RECEIVER) {
 		dcacp_pq_push(&dcacp_epoch.flow_q, &dsk->match_link);
 	}
 	pq_empty = dcacp_pq_empty(&dcacp_epoch.flow_q);

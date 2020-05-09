@@ -805,7 +805,7 @@ int dcacp_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.max_gso_data, 0);
 	WRITE_ONCE(dsk->receiver.finished_at_receiver, false);
 	WRITE_ONCE(dsk->receiver.rmem_exhausted, 0);
-	WRITE_ONCE(dsk->rerceiver.prev_grant_bytes, 0);
+	WRITE_ONCE(dsk->receiver.prev_grant_bytes, 0);
 	atomic_set(&dsk->receiver.backlog_len, 0);
 
 	hrtimer_init(&dsk->receiver.flow_wait_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
