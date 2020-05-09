@@ -71,7 +71,7 @@ struct dcacp_skb_cb {
 
 static inline int dcacp_win_from_space(const struct sock *sk, int space)
 {
-	return space - (space >> 1);
+	return space - (space >> 3);
 }
 
 /* Note: caller must be prepared to deal with negative returns */

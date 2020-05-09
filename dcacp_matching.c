@@ -20,7 +20,8 @@ int calc_grant_bytes(struct sock *sk) {
         int allowed_space = dcacp_full_space(sk);
         int full_space = min_t(int, dsk->receiver.grant_batch, allowed_space);
         int grant_bytes = dsk->receiver.grant_batch;
-
+        // printk("allowed_space:%d\n", allowed_space);
+        // printk("free space:%d\n", free_space);
         if (unlikely(max_gso_data > full_space)) {
             return 0;
         }
@@ -30,6 +31,9 @@ int calc_grant_bytes(struct sock *sk) {
         }
         if (grant_bytes > free_space)
         	grant_bytes = free_space;
+        grant_bytes -= dsk->receiver.prev_grant_bytes;
+        if (grant_bytes <= 0)
+        	return 0;
         grant_bytes = grant_bytes / dsk->receiver.max_gso_data * dsk->receiver.max_gso_data;
         return grant_bytes;
 }
@@ -470,7 +474,7 @@ enum hrtimer_restart dcacp_token_xmit_event(struct hrtimer *timer) {
 	// struct dcacp_grant* grant, temp;
 	struct dcacp_epoch *epoch = container_of(timer, struct dcacp_epoch, token_xmit_timer);
 
-	printk("token timer handler is called 1\n");
+	// printk("token timer handler is called 1\n");
 	spin_lock(&epoch->lock);
 	/* reset the remaining tokens to zero */
 	// atomic_set(&epoch->remaining_tokens, 0);
@@ -522,11 +526,13 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 	int retransmit_bytes = 0;
 	__u32 prev_grant_nxt = dsk->prev_grant_nxt;
 	inet = inet_sk(sk);
-	dsk->new_grant_nxt = dsk->grant_nxt;
+	// dsk->new_grant_nxt = dsk->grant_nxt;
 	// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
 	// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
+	/* this is only exception for retransmission*/
+	if (grant_bytes < 0)
+		grant_bytes = 0;
 	/*compute total sack bytes*/
-
 	if(handle_rtx && dsk->receiver.rcv_nxt < prev_grant_nxt) {
 		retransmit_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
 		grant_len += retransmit_bytes;
@@ -564,7 +570,7 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 	}
 	// printk("xmit token grant next:%d\n", dsk->grant_nxt);
 	atomic_add(grant_len, &dcacp_epoch.remaining_tokens);
-	dsk->receiver.prev_grant_bytes = grant_len;
+	dsk->receiver.prev_grant_bytes += grant_len;
 	dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->new_grant_nxt, handle_rtx),
 	 dsk->peer, sk, inet->inet_dport);
 	return push_bk;
@@ -611,7 +617,7 @@ void dcacp_xmit_token(struct dcacp_epoch *epoch) {
 	  			if(!not_push_bk)
 	  				dcacp_pq_push(&epoch->flow_q, &dsk->match_link);
 	 		} else {
-	 			printk("delay \n");
+	 			// printk("delay \n");
 	 			// atomic_add(dsk->receiver.grant_batch, &epoch->remaining_tokens);
 	 			// atomic_add(dsk=>receiver.);
 	 			/* pre-assign the largest number of tokens; will be deleted later */

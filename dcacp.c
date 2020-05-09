@@ -932,7 +932,7 @@ EXPORT_SYMBOL(dcacp_ioctl);
 
 
 void dcacp_try_send_token(struct sock *sk) {
-	printk("call try send token\n");
+	// printk("call try send token\n");
 	if(test_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
 		struct dcacp_sock *dsk = dcacp_sk(sk);
 		// int grant_len = min_t(int, len, dsk->receiver.max_gso_data);
@@ -940,10 +940,10 @@ void dcacp_try_send_token(struct sock *sk) {
 		// if(grant_len > available_space || grant_len < )
 		// 	return;
 		int grant_bytes = calc_grant_bytes(sk);
-		printk("grant bytes delay:%d\n", grant_bytes);
+		// printk("grant bytes delay:%d\n", grant_bytes);
 
 		if (grant_bytes != 0) {
-			printk("try to send token\n");
+			// printk("grant bytes:%d\n", grant_bytes);
 			xmit_batch_token(sk, grant_bytes, false);
 		}
 		return;
@@ -974,7 +974,7 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 
 	// if (unlikely(flags & MSG_ERRQUEUE))
 	// 	return inet_recv_error(sk, msg, len, addr_len);
-	printk("start recvmsg \n");
+	// printk("start recvmsg \n");
 	target = sock_rcvlowat(sk, flags & MSG_WAITALL, len);
 	// printk("target bytes:%d\n", target);
 
@@ -1157,7 +1157,7 @@ found_ok_skb:
 
 		if (!(flags & MSG_TRUNC)) {
 			err = skb_copy_datagram_msg(skb, offset, msg, used);
-			printk("copy data done: %d\n", used);
+			// printk("copy data done: %d\n", used);
 			if (err) {
 				/* Exception. Bailout! */
 				if (!copied)
@@ -1174,6 +1174,8 @@ found_ok_skb:
 		__skb_unlink(skb, &sk->sk_receive_queue);
 		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 		kfree_skb(skb);
+		// dcacp_try_send_token(sk);
+
 		// tcp_rcv_space_adjust(sk);
 
 // skip_copy:
@@ -1224,11 +1226,11 @@ found_ok_skb:
 	// 		put_cmsg(msg, SOL_TCP, TCP_CM_INQ, sizeof(inq), &inq);
 	// 	}
 	// }
-	printk("recvmsg\n");
+	// printk("recvmsg\n");
 	return copied;
 
 out:
-	printk("recvmsg err\n");
+	// printk("recvmsg err\n");
 	release_sock(sk);
 	return err;
 

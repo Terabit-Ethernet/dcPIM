@@ -194,9 +194,9 @@ struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
 	fh->rcv_nxt = dsk->receiver.rcv_nxt;
 	fh->grant_nxt = grant_nxt;
 	fh->num_sacks = 0;
-	printk("TOKEN: new grant next:%u\n", fh->grant_nxt);
-	printk("prev_grant_nxt:%u\n", prev_grant_nxt);
-	printk("new rcv_nxt:%u\n", dsk->receiver.rcv_nxt);
+	// printk("TOKEN: new grant next:%u\n", fh->grant_nxt);
+	// printk("prev_grant_nxt:%u\n", prev_grant_nxt);
+	// printk("new rcv_nxt:%u\n", dsk->receiver.rcv_nxt);
 	// printk("copied seq:%u\n", dsk->receiver.copied_seq);
 	if(handle_rtx && dsk->receiver.rcv_nxt < prev_grant_nxt) {
 		printk("rcv_nxt:%u\n", dsk->receiver.rcv_nxt);

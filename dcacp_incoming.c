@@ -284,26 +284,30 @@ void dcacp_token_timer_defer_handler(struct sock *sk) {
 	struct dcacp_sock* dsk = dcacp_sk(sk);
 	struct inet_sock *inet = inet_sk(sk);
 	__u32 prev_grant_nxt = dsk->prev_grant_nxt;
-
-	if(dsk->receiver.prev_grant_bytes == 0) {
-		int grant_bytes = calc_grant_bytes(sk);
+	int grant_bytes = calc_grant_bytes(sk);
+	int rtx_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
+	if(rtx_bytes != 0 || grant_bytes != 0)
 		not_push_bk = xmit_batch_token(sk, grant_bytes, true);
-	} else {
-		int rtx_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
-		if(rtx_bytes && sk->sk_state == DCACP_RECEIVER) {
-			dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->new_grant_nxt, true),
-		 	dsk->peer, sk, inet->inet_dport);
-			atomic_add(rtx_bytes, &dcacp_epoch.remaining_tokens);
-			dsk->receiver.prev_grant_bytes += rtx_bytes;
-		}
-		if(dsk->new_grant_nxt == dsk->total_length) {
-			not_push_bk = true;
-			/* TO DO: setup a timer here */
-			/* current set timer to be 10 RTT */
-			hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 10 * 1000), 
-				HRTIMER_MODE_REL_PINNED_SOFT);
-		}
-	}
+
+	// if(dsk->receiver.prev_grant_bytes == 0) {
+	// 	int grant_bytes = calc_grant_bytes(sk);
+	// 	not_push_bk = xmit_batch_token(sk, grant_bytes, true);
+	// } else {
+	// 	int rtx_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
+	// 	if(rtx_bytes && sk->sk_state == DCACP_RECEIVER) {
+	// 		dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->new_grant_nxt, true),
+	// 	 	dsk->peer, sk, inet->inet_dport);
+	// 		atomic_add(rtx_bytes, &dcacp_epoch.remaining_tokens);
+	// 		dsk->receiver.prev_grant_bytes += rtx_bytes;
+	// 	}
+	// 	if(dsk->new_grant_nxt == dsk->total_length) {
+	// 		not_push_bk = true;
+	// 		/* TO DO: setup a timer here */
+	// 		/* current set timer to be 10 RTT */
+	// 		hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 10 * 1000), 
+	// 			HRTIMER_MODE_REL_PINNED_SOFT);
+	// 	}
+	// }
 	/* change prev_grant_nxt here because of delay retransmission*/
 	dsk->prev_grant_nxt = dsk->grant_nxt;
 	dsk->grant_nxt = dsk->new_grant_nxt;
@@ -1225,9 +1229,9 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 		dcacp_v4_fill_cb(skb, iph, dh);
  		bh_lock_sock(sk);
         // ret = 0;
-		printk("remaining tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
-		printk("receive new skb end_seq:%u\n", DCACP_SKB_CB(skb)->end_seq);
-		printk("atomic backlog len:%d\n", atomic_read(&dsk->receiver.backlog_len));
+		// printk("remaining tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
+		// printk("receive new skb end_seq:%u\n", DCACP_SKB_CB(skb)->end_seq);
+		// printk("atomic backlog len:%d\n", atomic_read(&dsk->receiver.backlog_len));
         if (!sock_owned_by_user(sk)) {
             dcacp_data_queue(sk, skb);
         } else {
@@ -1297,7 +1301,7 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 	dh = dcacp_hdr(skb);
 	atomic_sub(skb->truesize, &dsk->receiver.backlog_len);
 	if(dh->type == DATA) {
-		printk("backlog handling\n");
+		// printk("backlog handling\n");
 		return dcacp_data_queue(sk, skb);
 		// return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
 	} else if (dh->type == FIN) {
