@@ -760,6 +760,7 @@ struct sock *dcacp_sk_accept(struct sock *sk, int flags, int *err, bool kern)
 	int error;
 
 	lock_sock(sk);
+	dcacp_rps_record_flow(sk);
 
 	/* We need to make sure that this socket is listening,
 	 * and that it has something pending.

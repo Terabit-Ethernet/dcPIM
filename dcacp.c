@@ -496,6 +496,7 @@ int dcacp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 {
 	int ret;
 	lock_sock(sk);
+	dcacp_rps_record_flow(sk);
 	ret = dcacp_sendmsg_locked(sk, msg, len);
 	release_sock(sk);
 	return ret;
@@ -985,7 +986,6 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 		sk_busy_loop(sk, nonblock);
 
 	lock_sock(sk);
-
 	err = -ENOTCONN;
 
 
@@ -1012,6 +1012,7 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 
 		/* 'common' recv queue MSG_PEEK-ing */
 //	}
+	dcacp_rps_record_flow(sk);
 
 	seq = &dsk->receiver.copied_seq;
 	// if (flags & MSG_PEEK) {
@@ -1113,11 +1114,10 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 		}
 
 		// tcp_cleanup_rbuf(sk, copied);
-
+		dcacp_try_send_token(sk);
 		if (copied >= target) {
 			/* Do not sleep, just process backlog. */
 			/* Release sock will handle the backlog */
-			dcacp_try_send_token(sk);
 			release_sock(sk);
 			lock_sock(sk);
 		} else {

@@ -925,6 +925,7 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
  		dcacp_get_sack_info(sk, skb);
 		/* start doing transmission (this part may move to different places later)*/
 	    if(!sock_owned_by_user(sk)) {
+	    	sock_rps_save_rxhash(sk, skb);
 	 		dcacp_clean_rtx_queue(sk);
 	    } else {
 	 		test_and_set_bit(DCACP_CLEAN_TIMER_DEFERRED, &sk->sk_tsq_flags);
@@ -1229,11 +1230,14 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 		iph = ip_hdr(skb);
 		dcacp_v4_fill_cb(skb, iph, dh);
  		bh_lock_sock(sk);
+
         // ret = 0;
 		// printk("remaining tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
 		// printk("receive new skb end_seq:%u\n", DCACP_SKB_CB(skb)->end_seq);
 		// printk("atomic backlog len:%d\n", atomic_read(&dsk->receiver.backlog_len));
         if (!sock_owned_by_user(sk)) {
+			/* current place to set rxhash for RFS/RPS */
+		 	sock_rps_save_rxhash(sk, skb);
             dcacp_data_queue(sk, skb);
         } else {
             if (dcacp_add_backlog(sk, skb, false)) {
@@ -1301,6 +1305,8 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 	struct dcacp_sock *dsk = dcacp_sk(sk);
 	dh = dcacp_hdr(skb);
 	atomic_sub(skb->truesize, &dsk->receiver.backlog_len);
+	/* current place to set rxhash for RFS/RPS */
+ 	sock_rps_save_rxhash(sk, skb);
 	if(dh->type == DATA) {
 		// printk("backlog handling\n");
 		return dcacp_data_queue(sk, skb);
