@@ -1309,7 +1309,7 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 
         dcacp_set_state(sk, TCP_CLOSE);
         dcacp_write_queue_purge(sk);
-		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+		// atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 		sk->sk_data_ready(sk);
 	} else if (dh->type == ACK) {
 		WARN_ON(true);
