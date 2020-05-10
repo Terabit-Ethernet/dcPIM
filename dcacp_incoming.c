@@ -237,6 +237,7 @@ enum hrtimer_restart dcacp_flow_wait_event(struct hrtimer *timer) {
 	// int remaining_tokens = atomic_read(&dcacp_epoch->remaining_tokens) - ;
 	printk("flow_wait_timer");
 	bh_lock_sock(sk);
+	dsk->receiver.flow_wait = false;
 	/* Deadlock won't happen because flow is not in flow_q. */
 	spin_lock(&dcacp_epoch.lock);
 	dcacp_pq_push(&dcacp_epoch.flow_q, &dsk->match_link);

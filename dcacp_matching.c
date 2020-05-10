@@ -477,7 +477,7 @@ enum hrtimer_restart dcacp_token_xmit_event(struct hrtimer *timer) {
 	// printk("token timer handler is called 1\n");
 	spin_lock(&epoch->lock);
 	/* reset the remaining tokens to zero */
-	// atomic_set(&epoch->remaining_tokens, 0);
+	// atomic_set(&epoch->remaining_tokens, 0);	
 	dcacp_xmit_token(epoch);
 	spin_unlock(&epoch->lock);
 
@@ -529,6 +529,8 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 	// dsk->new_grant_nxt = dsk->grant_nxt;
 	// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
 	// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
+	if (dsk->receiver.flow_wait)
+		return DCACP_TIMER_SETUP;
 	/* this is only exception for retransmission*/
 	if (grant_bytes < 0)
 		grant_bytes = 0;
@@ -550,7 +552,7 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 	// 	printk("shrink grant nxt:%d\n", dsk->grant_nxt);
 	// }
 	/* this is a temporary solution */
-	if(dsk->grant_nxt + grant_bytes > dsk->total_length) {
+	if(dsk->new_grant_nxt + grant_bytes > dsk->total_length) {
 		grant_bytes =  dsk->total_length - dsk->grant_nxt;
 		dsk->new_grant_nxt = dsk->total_length;
 	} else {
@@ -565,10 +567,12 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 		push_bk = DCACP_TIMER_SETUP;
 		/* TO DO: setup a timer here */
 		/* current set timer to be 10 RTT */
+		dsk->receiver.flow_wait = true;
 		hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 10 * 1000), 
 			HRTIMER_MODE_REL_PINNED_SOFT);
 	}
 	// printk("xmit token grant next:%d\n", dsk->grant_nxt);
+	// printk("grant_len:%d\n", grant_len);
 	atomic_add(grant_len, &dcacp_epoch.remaining_tokens);
 	dsk->receiver.prev_grant_bytes += grant_len;
 	dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->new_grant_nxt, handle_rtx),

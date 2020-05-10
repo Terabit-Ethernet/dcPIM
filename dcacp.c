@@ -786,6 +786,7 @@ int dcacp_init_sock(struct sock *sk)
 	dsk->peer = NULL;
 	printk("init sock\n");
 	// next_going_id 
+	// printk("remaining tokens:%d\n", dcacp_epoch.remaining_tokens);
 	atomic64_set(&dsk->next_outgoing_id, 1);
 	// initialize the ready queue and its lock
 	sk->sk_destruct = dcacp_destruct_sock;
@@ -806,6 +807,7 @@ int dcacp_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.grant_batch, 0);
 	WRITE_ONCE(dsk->receiver.max_gso_data, 0);
 	WRITE_ONCE(dsk->receiver.finished_at_receiver, false);
+	WRITE_ONCE(dsk->receiver.flow_wait, false);
 	WRITE_ONCE(dsk->receiver.rmem_exhausted, 0);
 	WRITE_ONCE(dsk->receiver.prev_grant_bytes, 0);
 	atomic_set(&dsk->receiver.backlog_len, 0);
