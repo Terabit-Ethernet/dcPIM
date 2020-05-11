@@ -811,6 +811,7 @@ int dcacp_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.flow_wait, false);
 	WRITE_ONCE(dsk->receiver.rmem_exhausted, 0);
 	WRITE_ONCE(dsk->receiver.prev_grant_bytes, 0);
+	atomic_set(&dsk->receiver.in_flight_bytes, 0);
 	atomic_set(&dsk->receiver.backlog_len, 0);
 
 	hrtimer_init(&dsk->receiver.flow_wait_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
@@ -970,10 +971,12 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 	// int inq;
 	int target;		/* Read at least this many bytes */
 	long timeo;
+	int trigger_tokens = 1;
 	struct sk_buff *skb, *last, *tmp;
 	// u32 urg_hole = 0;
 	// struct scm_timestamping_internal tss;
 	// int cmsg_flags;
+	dcacp_rps_record_flow(sk);
 
 	// if (unlikely(flags & MSG_ERRQUEUE))
 	// 	return inet_recv_error(sk, msg, len, addr_len);
@@ -1012,7 +1015,6 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 
 		/* 'common' recv queue MSG_PEEK-ing */
 //	}
-	dcacp_rps_record_flow(sk);
 
 	seq = &dsk->receiver.copied_seq;
 	// if (flags & MSG_PEEK) {
@@ -1176,6 +1178,11 @@ found_ok_skb:
 		__skb_unlink(skb, &sk->sk_receive_queue);
 		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 		kfree_skb(skb);
+
+		if (copied > trigger_tokens * dsk->receiver.max_gso_data * 3) {
+			trigger_tokens += 1;
+			dcacp_try_send_token(sk);
+		}
 		// dcacp_try_send_token(sk);
 
 		// tcp_rcv_space_adjust(sk);

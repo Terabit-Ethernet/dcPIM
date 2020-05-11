@@ -463,6 +463,8 @@ struct dcacp_sock {
 		bool flow_wait;
 		int prev_grant_bytes;
 		atomic_t backlog_len;
+		atomic_t in_flight_bytes;
+
 		// struct work_struct token_xmit_struct;
 
     } receiver;

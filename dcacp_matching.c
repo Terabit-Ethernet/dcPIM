@@ -26,7 +26,7 @@ int calc_grant_bytes(struct sock *sk) {
             return 0;
         }
         if (free_space < (full_space >> 1)) {
-            if (free_space < (allowed_space >> 4) || free_space < max_gso_data)
+            if (free_space < max_gso_data)
                     return 0;
         }
         if (grant_bytes > free_space)
@@ -575,6 +575,7 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 	// printk("grant_len:%d\n", grant_len);
 	atomic_add(grant_len, &dcacp_epoch.remaining_tokens);
 	dsk->receiver.prev_grant_bytes += grant_len;
+	atomic_add(grant_len, &dsk->receiver.in_flight_bytes);
 	dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->new_grant_nxt, handle_rtx),
 	 dsk->peer, sk, inet->inet_dport);
 	return push_bk;
@@ -610,6 +611,7 @@ void dcacp_xmit_token(struct dcacp_epoch *epoch) {
  			dsk->receiver.prev_grant_bytes = 0;
 	 		if (!sock_owned_by_user(sk)) {
 	 			int grant_bytes = calc_grant_bytes(sk);
+	 			// printk("grant bytes:%d\n", grant_bytes);
 	 			if(grant_bytes  == 0) {
 					printk("RMEM_LIMIT\n");
 			    	test_and_set_bit(DCACP_RMEM_CHECK_DEFERRED, &sk->sk_tsq_flags);

@@ -237,6 +237,7 @@ enum hrtimer_restart dcacp_flow_wait_event(struct hrtimer *timer) {
 	// int remaining_tokens = atomic_read(&dcacp_epoch->remaining_tokens) - ;
 	printk("flow_wait_timer");
 	bh_lock_sock(sk);
+	atomic_set(&dsk->receiver.in_flight_bytes, 0);
 	dsk->receiver.flow_wait = false;
 	/* Deadlock won't happen because flow is not in flow_q. */
 	spin_lock(&dcacp_epoch.lock);
@@ -1230,13 +1231,17 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 		iph = ip_hdr(skb);
 		dcacp_v4_fill_cb(skb, iph, dh);
  		bh_lock_sock(sk);
-
+ 		atomic_sub(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq, &dsk->receiver.in_flight_bytes);
+ 		if(atomic_read(&dsk->receiver.in_flight_bytes) < 0) {
+ 			atomic_set(&dsk->receiver.in_flight_bytes, 0);
+ 		}
         // ret = 0;
 		// printk("remaining tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
 		// printk("receive new skb end_seq:%u\n", DCACP_SKB_CB(skb)->end_seq);
 		// printk("atomic backlog len:%d\n", atomic_read(&dsk->receiver.backlog_len));
         if (!sock_owned_by_user(sk)) {
 			/* current place to set rxhash for RFS/RPS */
+			// printk("skb->hash:%u\n", skb->hash);
 		 	sock_rps_save_rxhash(sk, skb);
             dcacp_data_queue(sk, skb);
         } else {

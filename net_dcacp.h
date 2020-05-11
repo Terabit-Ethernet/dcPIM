@@ -71,7 +71,7 @@ struct dcacp_skb_cb {
 /* window space */
 static inline int dcacp_win_from_space(const struct sock *sk, int space)
 {
-	return space - (space >> 3);
+	return space;
 }
 
 /* Note: caller must be prepared to deal with negative returns */
@@ -80,7 +80,7 @@ static inline int dcacp_space(const struct sock *sk)
 	struct dcacp_sock *dsk = dcacp_sk(sk);
 	return dcacp_win_from_space(sk, READ_ONCE(sk->sk_rcvbuf) -
 				  atomic_read(&dsk->receiver.backlog_len) -
-				  atomic_read(&sk->sk_rmem_alloc));
+				  atomic_read(&sk->sk_rmem_alloc) - atomic_read(&dsk->receiver.in_flight_bytes));
 }
 
 static inline int dcacp_full_space(const struct sock *sk)
@@ -102,8 +102,10 @@ static inline void dcacp_rps_record_flow(const struct sock *sk)
 		 * OR	an additional socket flag
 		 * [1] : sk_state and sk_prot are in the same cache line.
 		 */
-		if (sk->sk_state == DCACP_RECEIVER || sk->sk_state == DCACP_SENDER)
+		if (sk->sk_state == DCACP_RECEIVER || sk->sk_state == DCACP_SENDER || sk->sk_state == DCACP_LISTEN) {
+			// printk("rfs:rxhash:%u\n", sk->sk_rxhash);
 			sock_rps_record_flow_hash(sk->sk_rxhash);
+		}
 	}
 #endif
 }
