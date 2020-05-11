@@ -18,6 +18,7 @@ extern struct dcacp_params dcacp_params;
 extern struct dcacp_epoch dcacp_epoch;
 extern struct request_sock_ops dcacp_request_sock_ops;
 
+extern struct dcacp_core_table dcacp_core_table;
 void* allocate_hash_table(const char *tablename,
 				     unsigned long bucketsize,
 				     unsigned long numentries,
@@ -62,14 +63,14 @@ void dcacp_mattab_delete_match_entry(struct dcacp_match_tab *table, struct dcacp
 
 void dcacp_epoch_init(struct dcacp_epoch *epoch);
 void dcacp_epoch_destroy(struct dcacp_epoch *epoch);
-void dcacp_send_all_rts (struct dcacp_match_tab *table, struct dcacp_epoch* epoch);
+// void dcacp_send_all_rts (struct dcacp_match_tab *table, struct dcacp_epoch* epoch);
 
-int dcacp_handle_rts (struct sk_buff *skb, struct dcacp_match_tab *table, struct dcacp_epoch *epoch);
+// int dcacp_handle_rts (struct sk_buff *skb, struct dcacp_match_tab *table, struct dcacp_epoch *epoch);
 
-void dcacp_handle_all_rts(struct dcacp_match_tab* table, struct dcacp_epoch *epoch);
-int dcacp_handle_grant(struct sk_buff *skb, struct dcacp_match_tab *table, struct dcacp_epoch *epoch);
-void dcacp_handle_all_grants(struct dcacp_match_tab *table, struct dcacp_epoch *epoch);
-int dcacp_handle_accept(struct sk_buff *skb, struct dcacp_match_tab *table, struct dcacp_epoch *epoch);
+// void dcacp_handle_all_rts(struct dcacp_match_tab* table, struct dcacp_epoch *epoch);
+// int dcacp_handle_grant(struct sk_buff *skb, struct dcacp_match_tab *table, struct dcacp_epoch *epoch);
+// void dcacp_handle_all_grants(struct dcacp_match_tab *table, struct dcacp_epoch *epoch);
+// int dcacp_handle_accept(struct sk_buff *skb, struct dcacp_match_tab *table, struct dcacp_epoch *epoch);
 
 
 int dcacp_fragment(struct sock *sk, enum dcacp_queue dcacp_queue,
