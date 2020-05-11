@@ -945,7 +945,7 @@ void dcacp_try_send_token(struct sock *sk) {
 		// 	return;
 		int grant_bytes = calc_grant_bytes(sk);
 		// printk("grant bytes delay:%d\n", grant_bytes);
-
+		// printk("try to send token \n");
 		if (grant_bytes != 0) {
 			// printk("grant bytes:%d\n", grant_bytes);
 			xmit_batch_token(sk, grant_bytes, false);
@@ -1626,13 +1626,14 @@ int dcacp_rcv(struct sk_buff *skb)
 		return dcacp_handle_fin_pkt(skb);
 	} else if (dh->type == ACK) {
 		return dcacp_handle_ack_pkt(skb);
-	} else if (dh->type == RTS) {
-		return dcacp_handle_rts(skb, &dcacp_match_table, &dcacp_epoch);
-	} else if (dh->type == GRANT) {
-		return dcacp_handle_grant(skb, &dcacp_match_table, &dcacp_epoch);
-	} else if (dh->type == ACCEPT) {
-		return dcacp_handle_accept(skb, &dcacp_match_table, &dcacp_epoch);
-	}
+	} 
+	// else if (dh->type == RTS) {
+	// 	return dcacp_handle_rts(skb, &dcacp_match_table, &dcacp_epoch);
+	// } else if (dh->type == GRANT) {
+	// 	return dcacp_handle_grant(skb, &dcacp_match_table, &dcacp_epoch);
+	// } else if (dh->type == ACCEPT) {
+	// 	return dcacp_handle_accept(skb, &dcacp_match_table, &dcacp_epoch);
+	// }
 
 
 drop:
