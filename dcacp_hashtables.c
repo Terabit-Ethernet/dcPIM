@@ -130,6 +130,7 @@ void dcacp_hashtable_init(struct inet_hashinfo* hashinfo, unsigned long thash_en
 
 void dcacp_hashtable_destroy(struct inet_hashinfo* hashinfo) {
 	vfree(hashinfo->bhash);
+	kvfree(hashinfo->ehash_locks);
 	kmem_cache_destroy(hashinfo->bind_bucket_cachep);
 	vfree(hashinfo->lhash2);
 	vfree(hashinfo->ehash);
