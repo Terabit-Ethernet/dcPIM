@@ -20,11 +20,13 @@ int calc_grant_bytes(struct sock *sk) {
         int allowed_space = dcacp_full_space(sk);
         int full_space = min_t(int, dsk->receiver.grant_batch, allowed_space);
         int grant_bytes = dsk->receiver.grant_batch;
-        // printk("allowed_space:%d\n", allowed_space);
+        // printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
         // printk("free space:%d\n", free_space);
         if (unlikely(max_gso_data > full_space)) {
             return 0;
         }
+        if (dsk->receiver.prev_grant_bytes >= dsk->receiver.grant_batch)
+        	return 0;
         if (free_space < (full_space >> 1)) {
             if (free_space < max_gso_data) {
             	// printk("free_space < max_gso_data grant bytes: 0\n");
@@ -166,7 +168,7 @@ void dcacp_mattab_delete_match_entry(struct dcacp_match_tab *table, struct dcacp
 	return;
 }
 
-void dcacp_core_table_entry_init(struct dcacp_core_entry *entry) {
+void receiver_core_table_entry_init(struct receiver_core_entry *entry) {
 	spin_lock_init(&entry->lock);
 	/* token xmit timer*/
 	atomic_set(&entry->remaining_tokens, 0);
@@ -181,11 +183,11 @@ void dcacp_core_table_entry_init(struct dcacp_core_entry *entry) {
 	dcacp_pq_init(&entry->flow_q, flow_compare);
 }
 
-void dcacp_core_table_init(struct dcacp_core_table *tab) {
+void receiver_core_table_init(struct receiver_core_table *tab) {
 	int i;
 	atomic_set(&tab->remaining_tokens, 0);
 	for (i = 0; i < NR_CPUS; i++) {
-		dcacp_core_table_entry_init(&tab->table[i]);
+		receiver_core_table_entry_init(&tab->table[i]);
 	}
 }
 void dcacp_epoch_init(struct dcacp_epoch *epoch) {
@@ -600,7 +602,10 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 		hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 10 * 1000), 
 			HRTIMER_MODE_REL_PINNED_SOFT);
 	}
-	// printk("xmit token grant next:%d\n", dsk->grant_nxt);
+	// printk("xmit token grant next:%u\n", dsk->new_grant_nxt);
+	// printk("prev_grant_nxt:%u\n", dsk->prev_grant_nxt);
+	// printk ("dsk->receiver.rcv_nxt:%u\n", dsk->receiver.rcv_nxt);
+	// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
 	// printk("grant_len:%d\n", grant_len);
 	atomic_add(grant_len, &dcacp_epoch.remaining_tokens);
 	dsk->receiver.prev_grant_bytes += grant_len;
@@ -622,7 +627,7 @@ void dcacp_xmit_token(struct dcacp_epoch *epoch) {
 	struct dcacp_sock *dsk;
 	struct inet_sock *inet;
 		// start2 = ktime_get();
-
+	// printk("dcacp xmit token\n");
 	while(!dcacp_pq_empty(&epoch->flow_q)) {
 		bool not_push_bk = false;
 		if(atomic_read(&dcacp_epoch.remaining_tokens) >= dcacp_params.control_pkt_bdp / 2 
@@ -641,26 +646,39 @@ void dcacp_xmit_token(struct dcacp_epoch *epoch) {
 	 		if (!sock_owned_by_user(sk)) {
 	 			int grant_bytes = calc_grant_bytes(sk);
 	 			// printk("grant bytes:%d\n", grant_bytes);
-	 			if (grant_bytes  == 0) {
-					printk("RMEM_LIMIT\n");
-			    	test_and_set_bit(DCACP_RMEM_CHECK_DEFERRED, &sk->sk_tsq_flags);
-			    	goto unlock;
-				}
 	 			not_push_bk = xmit_batch_token(sk, grant_bytes, true);
-				dsk->prev_grant_nxt = dsk->grant_nxt;
-				dsk->grant_nxt = dsk->new_grant_nxt;
-	  			if (!not_push_bk)
-	  				dcacp_pq_push(&epoch->flow_q, &dsk->match_link);
+		 		if(grant_bytes == dsk->receiver.grant_batch) {
+					dsk->prev_grant_nxt = dsk->grant_nxt;
+					dsk->grant_nxt = dsk->new_grant_nxt;
+		  			if (!not_push_bk){
+		  				dcacp_pq_push(&epoch->flow_q, &dsk->match_link);
+		  			}
+		 		}
+		 		else {
+	 				// xmit_batch_token(sk, grant_bytes, true);
+					// atomic_add(dsk->receiver.grant_batch, &dcacp_epoch.remaining_tokens);
+					// printk("set timer deferred 1\n");
+	 				test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+		 		}
+
+	 		// 	if (grant_bytes < dsk->receiver.grant_batch) {
+				// 	printk("RMEM_LIMIT\n");
+			 //    	test_and_set_bit(DCACP_RMEM_CHECK_DEFERRED, &sk->sk_tsq_flags);
+			 //    	goto unlock;
+				// } else {
+					
+				// }
 	 		} else {
 	 			// printk("delay \n");
 	 			int grant_bytes = calc_grant_bytes(sk);
 	 			if (!grant_bytes)
-	 				 xmit_batch_token(sk, grant_bytes, true);
-	 			// printk("delay grant bytes:%d\n", grant_bytes);
+	 				 xmit_batch_token(sk, grant_bytes, false);
+	 			// printk("delay bytes:%d\n", grant_bytes);
 	 			// atomic_add(dsk->receiver.grant_batch, &epoch->remaining_tokens);
 	 			// atomic_add(dsk=>receiver.);
 	 			/* pre-assign the largest number of tokens; will be deleted later */
-				atomic_add(dsk->receiver.grant_batch, &dcacp_epoch.remaining_tokens);
+				// atomic_add(dsk->receiver.grant_batch, &dcacp_epoch.remaining_tokens);
+				// printk("set timer deferred\n");
 	 			test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
 	 		}
  		} else {

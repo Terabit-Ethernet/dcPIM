@@ -935,7 +935,7 @@ EXPORT_SYMBOL(dcacp_ioctl);
 
 
 
-void dcacp_try_send_token(struct sock *sk) {
+bool dcacp_try_send_token(struct sock *sk) {
 	// printk("call try send token\n");
 	if(test_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
 		struct dcacp_sock *dsk = dcacp_sk(sk);
@@ -943,14 +943,16 @@ void dcacp_try_send_token(struct sock *sk) {
 		// int available_space = dcacp_space(sk);
 		// if(grant_len > available_space || grant_len < )
 		// 	return;
+		// printk("try to send token \n");
 		int grant_bytes = calc_grant_bytes(sk);
 		// printk("grant bytes delay:%d\n", grant_bytes);
-		// printk("try to send token \n");
+		// printk("intend grant bytes:%d\n", grant_bytes);
 		if (grant_bytes != 0) {
 			// printk("grant bytes:%d\n", grant_bytes);
 			xmit_batch_token(sk, grant_bytes, false);
+			return true;
 		}
-		return;
+		return false;
 	}
 }
 /*
@@ -976,6 +978,9 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 	// u32 urg_hole = 0;
 	// struct scm_timestamping_internal tss;
 	// int cmsg_flags;
+	// printk("recvmsg: sk->rxhash:%u\n", sk->sk_rxhash);
+	// printk("rcvmsg core:%d\n", raw_smp_processor_id());
+
 	dcacp_rps_record_flow(sk);
 
 	// if (unlikely(flags & MSG_ERRQUEUE))
@@ -1179,9 +1184,10 @@ found_ok_skb:
 		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 		kfree_skb(skb);
 
-		if (copied > trigger_tokens * dsk->receiver.max_gso_data * 3) {
-			trigger_tokens += 1;
+		if (copied > 3 * trigger_tokens * dsk->receiver.max_gso_data) {
 			dcacp_try_send_token(sk);
+			trigger_tokens += 1;
+			
 		}
 		// dcacp_try_send_token(sk);
 

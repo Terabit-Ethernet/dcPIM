@@ -149,7 +149,7 @@ struct dcacp_peer {
 
 #define DCACP_MATCH_BUCKETS 1024
 
-struct dcacp_core_entry {
+struct receiver_core_entry {
 	struct spinlock lock;
 	/* sender side */
 	struct sk_buff_head token_q;
@@ -164,9 +164,9 @@ struct dcacp_core_entry {
 
 };
 
-struct dcacp_core_table{
+struct receiver_core_table{
 	atomic_t remaining_tokens;
-	struct dcacp_core_entry table[NR_CPUS];
+	struct receiver_core_entry table[NR_CPUS];
 };
 struct dcacp_epoch {
 

@@ -201,6 +201,7 @@ void dcacp_params_init(struct dcacp_params* params) {
     params->rtt = 60;
     // params->bdp  = params->rtt * params->bandwidth / 8 * 1000;
     params->bdp = 500000;
+    params->gso_size = 1500;
     // matchiing parameters
     params->alpha = 2;
     params->beta = 5;
@@ -208,7 +209,7 @@ void dcacp_params_init(struct dcacp_params* params) {
     params->num_iters = 5;
     params->iter_size = params->beta * params->control_pkt_rtt * 1000;
     params->epoch_size = params->num_iters * params->iter_size * params->alpha;
-    params->rmem_default = 1052672;
+    params->rmem_default = 3052672;
     params->wmem_default = 1052672;
     params->short_flow_size = params->bdp;
     params->control_pkt_bdp = params->control_pkt_rtt * params->bandwidth * 1000 / 8;

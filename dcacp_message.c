@@ -277,11 +277,10 @@ int dcacp_fill_packets(struct sock *sk,
 	int bytes_left, sent_len = 0;
 	struct sk_buff *skb;
 	// struct sk_buff *first = NULL;
-	int err, mtu, max_pkt_data, gso_size, max_gso_data, rtt_bytes;
+	int err, mtu, max_pkt_data, gso_size, max_gso_data;
 	// struct sk_buff **last_link;
 	struct dst_entry *dst;
 	struct dcacp_sock* dsk = dcacp_sk(sk);
-	rtt_bytes = 10000;
 	/* check socket has enough space */
 	if (unlikely(len == 0)) {
 		err = -EINVAL;
@@ -307,7 +306,8 @@ int dcacp_fill_packets(struct sock *sk,
 		gso_size = dst->dev->gso_max_size;
 		if (gso_size > dcacp_params.bdp)
 			gso_size = dcacp_params.bdp;
-		
+		if(gso_size > dcacp_params.gso_size)
+			gso_size = dcacp_params.gso_size;
 		/* Round gso_size down to an even # of mtus. */
 		bufs_per_gso = gso_size / mtu;
 		if (bufs_per_gso == 0) {
