@@ -80,7 +80,7 @@ struct dcacp_params {
 	int control_pkt_bdp;
 	int bdp;
 	int short_flow_size;
-	int gso_size;
+	// int gso_size;
 	// matching related parameters
 	int alpha;
 	int beta;

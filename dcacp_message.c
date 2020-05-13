@@ -306,8 +306,8 @@ int dcacp_fill_packets(struct sock *sk,
 		gso_size = dst->dev->gso_max_size;
 		if (gso_size > dcacp_params.bdp)
 			gso_size = dcacp_params.bdp;
-		if(gso_size > dcacp_params.gso_size)
-			gso_size = dcacp_params.gso_size;
+		// if(gso_size > dcacp_params.gso_size)
+		// 	gso_size = dcacp_params.gso_size;
 		/* Round gso_size down to an even # of mtus. */
 		bufs_per_gso = gso_size / mtu;
 		if (bufs_per_gso == 0) {

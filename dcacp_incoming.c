@@ -926,6 +926,7 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
  		dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
  		/* add sack info */
  		dcacp_get_sack_info(sk, skb);
+ 		printk("grant_nxt:%u\n", dsk->grant_nxt);
 		/* start doing transmission (this part may move to different places later)*/
 	    if(!sock_owned_by_user(sk)) {
 	    	sock_rps_save_rxhash(sk, skb);
