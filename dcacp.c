@@ -468,6 +468,10 @@ int dcacp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	sent_len = dcacp_fill_packets(sk, msg, len);
 	if(sent_len < 0)
 		return sent_len;
+	if(sent_len == 0) {
+		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
+		sk_stream_wait_memory(sk, &timeo);
+	}
 	if(dsk->total_length < dcacp_params.short_flow_size) {
 		struct sk_buff *skb;
 		dsk->grant_nxt = dsk->total_length;

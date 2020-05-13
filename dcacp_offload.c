@@ -97,7 +97,7 @@ struct sk_buff *dcacp_gso_segment(struct sk_buff *skb,
 		// else
 		// 	th->check = gso_make_checksum(skb, ~th->check);
 
-		seq += mss;
+		// seq += mss;
 		dh->len = htons(mss);
 		datalen -= mss;
 		// if (copy_destructor) {
@@ -108,7 +108,7 @@ struct sk_buff *dcacp_gso_segment(struct sk_buff *skb,
 		skb = skb->next;
 		dh = dcacp_hdr(skb);
 
-		dh->seq = htonl(seq);
+		// dh->seq = htonl(seq);
 		// th->cwr = 0;
 
 	}
@@ -472,7 +472,7 @@ int dcacp_gro_complete(struct sk_buff *skb, int dhoff)
 
 static const struct net_offload dcacpv4_offload = {
 	.callbacks = {
-		// .gso_segment = dcacp4_gso_segment,
+		.gso_segment = dcacp4_gso_segment,
 		.gro_receive  =	dcacp_gro_receive,
 		.gro_complete =	dcacp_gro_complete,
 	},
