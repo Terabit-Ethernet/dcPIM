@@ -3,16 +3,6 @@
 // static void recevier_iter_event_handler(struct work_struct *work);
 // static void sender_iter_event_handler(struct work_struct *work);
 
-bool flow_compare(const struct list_head* node1, const struct list_head* node2) {
-    struct dcacp_sock *e1, *e2;
-    e1 = list_entry(node1, struct dcacp_sock, match_link);
-    e2 = list_entry(node2, struct dcacp_sock, match_link);
-    if(e1->total_length > e2->total_length)
-        return true;
-    return false;
-
-}
-
 int calc_grant_bytes(struct sock *sk) {
 	    struct dcacp_sock* dsk = dcacp_sk(sk);
 	    int max_gso_data = (int)dsk->receiver.max_gso_data;
@@ -168,28 +158,6 @@ void dcacp_mattab_delete_match_entry(struct dcacp_match_tab *table, struct dcacp
 	return;
 }
 
-void receiver_core_table_entry_init(struct receiver_core_entry *entry) {
-	spin_lock_init(&entry->lock);
-	/* token xmit timer*/
-	atomic_set(&entry->remaining_tokens, 0);
-	// atomic_set(&epoch->pending_flows, 0);
-
-	hrtimer_init(&entry->token_xmit_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
-	entry->token_xmit_timer.function = &dcacp_token_xmit_event;
-
-	// INIT_WORK(&epoch->token_xmit_struct, dcacp_xmit_token_handler);
-	skb_queue_head_init(&entry->token_q);
-	/* pHost Queue */
-	dcacp_pq_init(&entry->flow_q, flow_compare);
-}
-
-void receiver_core_table_init(struct receiver_core_table *tab) {
-	int i;
-	atomic_set(&tab->remaining_tokens, 0);
-	for (i = 0; i < NR_CPUS; i++) {
-		receiver_core_table_entry_init(&tab->table[i]);
-	}
-}
 void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 	int ret;
 	// struct inet_sock *inet;

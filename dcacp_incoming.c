@@ -923,22 +923,21 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
 			/* clean rtx queue */
 		dsk->sender.snd_una = th->rcv_nxt > dsk->sender.snd_una ? th->rcv_nxt: dsk->sender.snd_una;
 		/* add token */
- 		dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
- 		/* add sack info */
- 		dcacp_get_sack_info(sk, skb);
- 		printk("grant_nxt:%u\n", dsk->grant_nxt);
-		/* start doing transmission (this part may move to different places later)*/
+ 		// dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
+ 	// 	/* add sack info */
+ 	// 	dcacp_get_sack_info(sk, skb);
+		// /* start doing transmission (this part may move to different places later)*/
 	    if(!sock_owned_by_user(sk)) {
 	    	sock_rps_save_rxhash(sk, skb);
 	 		dcacp_clean_rtx_queue(sk);
 	    } else {
 	 		test_and_set_bit(DCACP_CLEAN_TIMER_DEFERRED, &sk->sk_tsq_flags);
 	    }
-	    if(!sock_owned_by_user(sk) || dsk->num_sacks == 0) {
-	 		dcacp_write_timer_handler(sk);
-	    } else {
-	 		test_and_set_bit(DCACP_RTX_DEFERRED, &sk->sk_tsq_flags);
-	    }
+	 //    if(!sock_owned_by_user(sk) || dsk->num_sacks == 0) {
+	 // 		dcacp_write_timer_handler(sk);
+	 //    } else {
+	 // 		test_and_set_bit(DCACP_RTX_DEFERRED, &sk->sk_tsq_flags);
+	 //    }
 
         // } else {
         // 	// if(backlog_time % 100 == 0) {
@@ -950,7 +949,8 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
         // }
         bh_unlock_sock(sk);
 	}
-	kfree_skb(skb);
+	xmit_handle_new_token(skb);
+	// kfree_skb(skb);
 
     if (refcounted) {
         sock_put(sk);
@@ -1283,6 +1283,8 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 			// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
 			dcacp_xmit_token(&dcacp_epoch);
 			spin_unlock_bh(&dcacp_epoch.lock);
+			// printk("in softIRQ:%lu\n", in_softirq());
+
 		}
 	} 
     if (refcounted) {

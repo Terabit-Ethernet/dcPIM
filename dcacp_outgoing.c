@@ -636,22 +636,25 @@ void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_to
 
 /* Called with bottom-half processing disabled.
    assuming hold the socket lock */
-void dcacp_write_timer_handler(struct sock *sk)
+int dcacp_write_timer_handler(struct sock *sk)
 {    
 	struct dcacp_sock *dsk = dcacp_sk(sk);
 	struct sk_buff *skb;
+	int sent_bytes = 0;
 	if(dsk->num_sacks > 0) {
-		printk("retransmit\n");
+		// printk("retransmit\n");
 		dcacp_retransmit(sk);
 	}
 	while((skb = skb_dequeue(&sk->sk_write_queue)) != NULL) {
 		if (DCACP_SKB_CB(skb)->end_seq <= dsk->grant_nxt) {
 			dcacp_xmit_data(skb, dsk, false);
+			sent_bytes = DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq;
 		} else {
 			skb_queue_head(&sk->sk_write_queue, skb);
 			break;
 		}
 	}
+	return sent_bytes;
 
 //         struct inet_connection_sock *icsk = inet_csk(sk);
 //         int event;

@@ -10,6 +10,7 @@ dcacp_module-y = dcacp_sock.o\
 				 dcacp_incoming.o\
 				 dcacp_outgoing.o \
 				 dcacp.o \
+				 dcacp_scheduling.o\
 				 dcacp_offload.o\
 				 dcacp_plumbing.o
 

@@ -91,6 +91,8 @@ struct dcacp_params {
 	int rmem_default;
 	int wmem_default;
 
+	int data_budget;
+
 };
 
 struct dcacp_pq {
@@ -150,25 +152,42 @@ struct dcacp_peer {
 
 #define DCACP_MATCH_BUCKETS 1024
 
-struct receiver_core_entry {
+struct rcv_core_entry {
 	struct spinlock lock;
-	/* sender side */
-	struct sk_buff_head token_q;
 	/*receiver side */
 	/* remaining tokens */
 	atomic_t remaining_tokens;
 	// atomic_t pending_flows;
 	struct hrtimer token_xmit_timer;
-	struct work_struct token_xmit_struct;
+	// struct work_struct token_xmit_struct;
 	/* for phost queue */
 	struct dcacp_pq flow_q;
+	struct list_head list_link;
 
 };
 
-struct receiver_core_table{
+struct rcv_core_table {
+	struct spinlock lock;
 	atomic_t remaining_tokens;
-	struct receiver_core_entry table[NR_CPUS];
+	int num_active_cores;
+	struct list_head sche_list;
+	struct rcv_core_entry table[NR_CPUS];
 };
+
+struct xmit_core_entry {
+	struct spinlock lock;
+	struct sk_buff_head token_q;
+	struct hrtimer data_xmit_timer;
+	struct list_head list_link;
+};
+struct xmit_core_table {
+	struct spinlock lock;
+	int num_active_cores;
+	struct xmit_core_entry table[NR_CPUS];
+	struct list_head sche_list;
+
+}; 
+
 struct dcacp_epoch {
 
 	uint64_t epoch;

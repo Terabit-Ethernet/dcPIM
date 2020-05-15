@@ -73,6 +73,14 @@ void dcacp_epoch_destroy(struct dcacp_epoch *epoch);
 // int dcacp_handle_accept(struct sk_buff *skb, struct dcacp_match_tab *table, struct dcacp_epoch *epoch);
 
 
+/* scheduling */
+bool flow_compare(const struct list_head* node1, const struct list_head* node2);
+void rcv_core_entry_init(struct rcv_core_entry *entry);
+void rcv_core_table_init(struct rcv_core_table *tab);
+void xmit_core_entry_init(struct xmit_core_entry *entry);
+void xmit_core_table_init(struct xmit_core_table *tab);
+enum hrtimer_restart dcacp_xmit_data_event(struct hrtimer *timer);
+
 int dcacp_fragment(struct sock *sk, enum dcacp_queue dcacp_queue,
 		 struct sk_buff *skb, u32 len,
 		 unsigned int mss_now, gfp_t gfp);
@@ -119,10 +127,9 @@ void dcacp_retransmit_data(struct sk_buff *skb, struct dcacp_sock* dsk);
 void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_token);
 void dcacp_retransmit(struct sock* sk);
 
-void dcacp_write_timer_handler(struct sock *sk);
+int dcacp_write_timer_handler(struct sock *sk);
 
 void dcacp_write_queue_purge(struct sock *sk);
-void dcacp_write_timer_handler(struct sock *sk);
 
 void dcacp_release_cb(struct sock *sk);
 int __dcacp4_lib_rcv(struct sk_buff *, struct udp_table *, int);

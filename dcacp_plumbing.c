@@ -213,6 +213,7 @@ void dcacp_params_init(struct dcacp_params* params) {
     params->wmem_default = 3289600;
     params->short_flow_size = params->bdp;
     params->control_pkt_bdp = params->control_pkt_rtt * params->bandwidth * 1000 / 8;
+    params->data_budget = 1000000;
     printk("params->control_pkt_bdp:%d\n", params->control_pkt_bdp);
 }
 /**
