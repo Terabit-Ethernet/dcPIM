@@ -13,6 +13,7 @@
 
 #include "net_dcacp.h"
 
+
 struct sk_buff *dcacp_gso_segment(struct sk_buff *skb,
 				netdev_features_t features)
 {
@@ -293,6 +294,7 @@ out:
 int dcacp_gro_complete(struct sk_buff *skb, int dhoff)
 {
 	struct dcacphdr *dh = dcacp_hdr(skb);
+	const u32 ports = (((u32)dh->source) << 16) | (__force u32)dh->dest;
 
 	skb->csum_start = (unsigned char *)dh - skb->head;
 	skb->csum_offset = offsetof(struct dcacphdr, check);
@@ -300,6 +302,12 @@ int dcacp_gro_complete(struct sk_buff *skb, int dhoff)
 	skb_shinfo(skb)->gso_type |= SKB_GSO_DCACP;
 	skb_shinfo(skb)->gso_segs = NAPI_GRO_CB(skb)->count;
 	
+	__skb_set_sw_hash(skb, jhash_3words(ip_hdr(skb)->saddr,
+		ip_hdr(skb)->daddr, ports, 0), false);
+	// printk("gro packet core:%d\n", raw_smp_processor_id());
+	// struct rps_dev_flow voidflow, *rflow = &voidflow;
+	// int cpu = get_rps_cpu(skb->dev, skb, &rflow);
+	// printk("rps cpu:%d\n", cpu);
 	// if (th->cwr)
 	// 	skb_shinfo(skb)->gso_type |= SKB_GSO_TCP_ECN;
 
