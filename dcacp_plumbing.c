@@ -309,7 +309,9 @@ static int __init dcacp_load(void) {
 
         dcacp_init();
         dcacp_mattab_init(&dcacp_match_table, NULL);
-
+        /* initialize rcv_core table and xmit_core table */
+        rcv_core_table_init(&rcv_core_tab);
+        xmit_core_table_init(&xmit_core_tab);
         status = proto_register(&dcacp_prot, 1);
         if (status != 0) {
                 printk(KERN_ERR "proto_register failed in dcacp_init: %d\n",

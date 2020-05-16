@@ -18,7 +18,8 @@ extern struct dcacp_params dcacp_params;
 extern struct dcacp_epoch dcacp_epoch;
 extern struct request_sock_ops dcacp_request_sock_ops;
 
-extern struct dcacp_core_table dcacp_core_table;
+extern struct xmit_core_table xmit_core_tab;
+extern struct rcv_core_table rcv_core_tab;
 void* allocate_hash_table(const char *tablename,
 				     unsigned long bucketsize,
 				     unsigned long numentries,
@@ -80,6 +81,9 @@ void rcv_core_table_init(struct rcv_core_table *tab);
 void xmit_core_entry_init(struct xmit_core_entry *entry);
 void xmit_core_table_init(struct xmit_core_table *tab);
 enum hrtimer_restart dcacp_xmit_data_event(struct hrtimer *timer);
+void xmit_handle_new_token(struct xmit_core_table *tab, struct sk_buff* skb);
+
+
 
 int dcacp_fragment(struct sock *sk, enum dcacp_queue dcacp_queue,
 		 struct sk_buff *skb, u32 len,
