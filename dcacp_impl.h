@@ -91,6 +91,9 @@ void dcacp_xmit_data_event(struct work_struct *w);
 void dcacp_xmit_token_event(struct work_struct *w);
 void rcv_handle_new_flow(struct dcacp_sock* dsk);
 void rcv_flowlet_done(struct rcv_core_entry *entry);
+enum hrtimer_restart flowlet_done_event(struct hrtimer *timer);
+
+
 
 int dcacp_fragment(struct sock *sk, enum dcacp_queue dcacp_queue,
 		 struct sk_buff *skb, u32 len,

@@ -165,6 +165,7 @@ struct rcv_core_entry {
 	int core_id;
 
 	struct spinlock lock;
+	struct hrtimer flowlet_done_timer;
 	/*receiver side */
 	/* remaining tokens */
 	atomic_t remaining_tokens;
@@ -444,7 +445,7 @@ struct dcacp_sock {
 	/**
 	 * flow id
 	 */
-    uint64_t flow_id;
+    int core_id;
 
 	struct rb_root	out_of_order_queue;
 	/**

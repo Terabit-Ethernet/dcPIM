@@ -23,8 +23,8 @@ void rcv_core_entry_init(struct rcv_core_entry *entry, int core_id) {
 	// atomic_set(&epoch->pending_flows, 0);
 	entry->core_id = 0;
 	entry->state = DCACP_IDLE;
-	// hrtimer_init(&entry->token_xmit_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
-	// entry->token_xmit_timer.function = &dcacp_token_xmit_event;
+	hrtimer_init(&entry->flowlet_done_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
+	entry->flowlet_done_timer.function = &flowlet_done_event;
 
 	/* pHost Queue */
 	dcacp_pq_init(&entry->flow_q, flow_compare);
@@ -77,7 +77,7 @@ void rcv_invoke_next(struct rcv_core_table* tab) {
 
 int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 	struct dcacp_sock *dsk = dcacp_sk(sk);
-	struct rcv_core_entry* entry = &rcv_core_tab.table[raw_smp_processor_id()];
+	struct rcv_core_entry* entry = &rcv_core_tab.table[dsk->core_id];
 	int grant_len = 0;
 	struct inet_sock *inet;
 	int push_bk = 0;
@@ -86,7 +86,7 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 	inet = inet_sk(sk);
 	// dsk->new_grant_nxt = dsk->grant_nxt;
 	// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
-	// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
+	// printk("xmit token cpu:%d\n", dsk->core_id);
 	if (dsk->receiver.flow_wait)
 		return DCACP_TIMER_SETUP;
 	/* this is only exception for retransmission*/
@@ -135,6 +135,7 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 	// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
 	// printk("grant_len:%d\n", grant_len);
 	atomic_add(grant_len, &entry->remaining_tokens);
+	// printk("remaining_tokens: %d\n", atomic_read(&entry->remaining_tokens));
 	dsk->receiver.prev_grant_bytes += grant_len;
 	atomic_add(grant_len, &dsk->receiver.in_flight_bytes);
 	dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->new_grant_nxt, handle_rtx),
@@ -167,16 +168,20 @@ bool dcacp_xmit_token_single_core(struct rcv_core_entry *entry) {
 					dsk->prev_grant_nxt = dsk->grant_nxt;
 					dsk->grant_nxt = dsk->new_grant_nxt;
 		  			if (!not_push_bk){
+		  				// printk("reach here:%d\n", __LINE__);
 		  				dcacp_pq_push(&entry->flow_q, &dsk->match_link);
 		  			}
 		 		}
 		 		else {
+		 			atomic_add(dsk->receiver.grant_batch, &entry->remaining_tokens);
 	 				test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
 		 		}
 	 		} else {
+	 			// printk("sock sock_owned_by_user \n");
 	 			int grant_bytes = calc_grant_bytes(sk);
 	 			if (!grant_bytes)
 	 				 xmit_batch_token(sk, grant_bytes, false);
+ 				atomic_add(dsk->receiver.grant_batch, &entry->remaining_tokens);
 	 			test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
 	 		}
  		} else {
@@ -221,7 +226,7 @@ not_find_flow:
 }
 
 void rcv_handle_new_flow(struct dcacp_sock* dsk) {
-	int core_id = raw_smp_processor_id();
+	int core_id = dsk->core_id;
 	// bool is_empty = false;
 	struct rcv_core_entry* entry = &rcv_core_tab.table[core_id];
 	spin_lock(&entry->lock);
@@ -230,6 +235,7 @@ void rcv_handle_new_flow(struct dcacp_sock* dsk) {
 	// if(dcacp_pq_size(&entry->flow_q) == 1) {
 	// 	is_empty = true;
 	// }
+	// printk("handle new flow core id:%d\n", core_id);
 	if(entry->state == DCACP_IDLE) {
 		spin_lock(&rcv_core_tab.lock);
 		/* list empty*/
@@ -256,18 +262,22 @@ void rcv_flowlet_done(struct rcv_core_entry *entry) {
 	if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2 
 		&& entry->state == DCACP_ACTIVE) {
 		spin_lock(&rcv_core_tab.lock);
+		// printk("control pkt bdp / 2:%d\n", dcacp_params.control_pkt_bdp / 2);
 		if(pq_empty) {
 			entry->state = DCACP_IDLE;
 			rcv_core_tab.num_active_cores -= 1;
+			// printk("reach here:%d\n", __LINE__);
 			rcv_invoke_next(&rcv_core_tab);
 		} else if (list_empty(&rcv_core_tab.sche_list)) {
 			/* send next token in the same core */
 			spin_unlock(&rcv_core_tab.lock);
+			// printk("reach here:%d\n", __LINE__);
 			dcacp_xmit_token_single_core(entry);
 			goto end;
 		} else {
 			entry->state = DCACP_IN_QUEUE;
 			rcv_core_tab.num_active_cores -= 1;
+			// printk("reach here:%d\n", __LINE__);
 			list_add_tail(&entry->list_link, &rcv_core_tab.sche_list);
 			rcv_invoke_next(&rcv_core_tab);
 		}
@@ -278,7 +288,39 @@ end:
 	return;
 }
 
+/* called by token_timer_defer_handler because it might need to grab the socket lock */
+enum hrtimer_restart flowlet_done_event(struct hrtimer *timer) {
+	// struct dcacp_grant* grant, temp;
+	struct rcv_core_entry *entry = container_of(timer, struct rcv_core_entry, flowlet_done_timer);
 
+	// printk("flowlet done timer is called\n");
+	spin_lock(&entry->lock);
+	/* reset the remaining tokens to zero */
+	// atomic_set(&epoch->remaining_tokens, 0);	
+	if(entry->state == DCACP_ACTIVE) {
+		// printk("reach here:%d\n", __LINE__);
+		rcv_flowlet_done(entry);
+	} else if(entry->state == DCACP_IDLE) {
+		spin_lock(&rcv_core_tab.lock);
+		/* list empty*/
+		if(rcv_core_tab.num_active_cores < MAX_ACTIVE_CORE) {
+			rcv_core_tab.num_active_cores += 1;
+			entry->state = DCACP_ACTIVE;
+			spin_unlock(&rcv_core_tab.lock);
+			dcacp_xmit_token_single_core(entry);
+			goto end;
+		} else {
+			entry->state = DCACP_IN_QUEUE;
+			list_add_tail(&entry->list_link, &rcv_core_tab.sche_list);
+		}
+		spin_unlock(&rcv_core_tab.lock);
+	}
+end:
+	spin_unlock(&entry->lock);
+ 	// queue_work(dcacp_epoch.wq, &dcacp_epoch.token_xmit_struct);
+	return HRTIMER_NORESTART;
+
+}
 
 
 void xmit_core_entry_init(struct xmit_core_entry *entry, int core_id) {
@@ -433,8 +475,8 @@ start_sent:
 		spin_unlock_bh(&entry->lock);
 		break;
 	}
-	spin_lock_bh(&xmit_core_tab.lock);
 	spin_lock_bh(&entry->lock);
+	spin_lock_bh(&xmit_core_tab.lock);
 
 	if (!skb_queue_empty(&entry->token_q)) {
 		if(xmit_core_tab.num_active_cores <= MAX_ACTIVE_CORE) {
@@ -448,9 +490,9 @@ start_sent:
 	}
 	xmit_core_tab.num_active_cores -= 1;
 	
-	spin_unlock_bh(&entry->lock);
 	xmit_invoke_next(&xmit_core_tab);
 	spin_unlock_bh(&xmit_core_tab.lock);
+	spin_unlock_bh(&entry->lock);
  	// queue_work(dcacp_epoch.wq, &dcacp_epoch.token_xmit_struct);
 	return;
 

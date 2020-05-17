@@ -785,10 +785,10 @@ EXPORT_SYMBOL_GPL(dcacp_destruct_sock);
 int dcacp_init_sock(struct sock *sk)
 {
 	struct dcacp_sock* dsk = dcacp_sk(sk);
-	printk("reach here:%d", __LINE__);
 	dcacp_set_state(sk, TCP_CLOSE);
 	skb_queue_head_init(&dcacp_sk(sk)->reader_queue);
 	dsk->peer = NULL;
+	dsk->core_id = raw_smp_processor_id();
 	printk("init sock\n");
 	// next_going_id 
 	// printk("remaining tokens:%d\n", dcacp_epoch.remaining_tokens);

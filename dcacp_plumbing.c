@@ -308,7 +308,7 @@ static int __init dcacp_load(void) {
         dcacp_params_init(&dcacp_params);
 
         dcacp_init();
-        dcacp_mattab_init(&dcacp_match_table, NULL);
+        // dcacp_mattab_init(&dcacp_match_table, NULL);
 
         status = proto_register(&dcacp_prot, 1);
         if (status != 0) {
@@ -420,8 +420,11 @@ static void __exit dcacp_unload(void) {
         // dcacp_epoch_destroy(&dcacp_epoch);
         unregister_net_sysctl_table(dcacp_ctl_header);
         printk("unregister sysctl table\n");
-        dcacp_mattab_destroy(&dcacp_match_table);
-        printk("remove match table\n");
+        rcv_core_table_destory(&rcv_core_tab);
+        xmit_core_table_destory(&xmit_core_tab);
+
+        // dcacp_mattab_destroy(&dcacp_match_table);
+        // printk("remove match table\n");
 
         dcacp_destroy();
         printk("remove dcacp table\n");
