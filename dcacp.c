@@ -956,8 +956,9 @@ bool dcacp_try_send_token(struct sock *sk) {
 			xmit_batch_token(sk, grant_bytes, false);
 			return true;
 		}
-		return false;
 	}
+	return false;
+
 }
 /*
  * 	This should be easy, if there is something there we
@@ -1661,6 +1662,7 @@ void dcacp_destroy_sock(struct sock *sk)
 	// 				     dcacp_sk(sk)->dcacp_port_hash);
 	struct dcacp_sock *up = dcacp_sk(sk);
 	struct inet_sock *inet = inet_sk(sk);
+	struct rcv_core_entry *entry = &rcv_core_tab.table[raw_smp_processor_id()];
 	local_bh_disable();
 	bh_lock_sock(sk);
 	hrtimer_cancel(&up->receiver.flow_wait_timer);
@@ -1678,9 +1680,9 @@ void dcacp_destroy_sock(struct sock *sk)
 	local_bh_enable();
 
 	printk("sk->sk_wmem_queued:%d\n",sk->sk_wmem_queued);
-	spin_lock_bh(&dcacp_epoch.lock);
-	dcacp_pq_delete(&dcacp_epoch.flow_q, &up->match_link);
-	spin_unlock_bh(&dcacp_epoch.lock);
+	spin_lock_bh(&entry->lock);
+	dcacp_pq_delete(&entry->flow_q, &up->match_link);
+	spin_unlock_bh(&entry->lock);
 	if (static_branch_unlikely(&dcacp_encap_needed_key)) {
 		if (up->encap_type) {
 			void (*encap_destroy)(struct sock *sk);

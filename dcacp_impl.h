@@ -76,14 +76,21 @@ void dcacp_epoch_destroy(struct dcacp_epoch *epoch);
 
 /* scheduling */
 bool flow_compare(const struct list_head* node1, const struct list_head* node2);
-void rcv_core_entry_init(struct rcv_core_entry *entry);
-void rcv_core_table_init(struct rcv_core_table *tab);
-void xmit_core_entry_init(struct xmit_core_entry *entry);
-void xmit_core_table_init(struct xmit_core_table *tab);
-enum hrtimer_restart dcacp_xmit_data_event(struct hrtimer *timer);
+void rcv_core_entry_init(struct rcv_core_entry *entry, int core_id);
+int rcv_core_table_init(struct rcv_core_table *tab);
+void xmit_core_entry_init(struct xmit_core_entry *entry, int core_id);
+int xmit_core_table_init(struct xmit_core_table *tab);
+void rcv_core_table_destory(struct rcv_core_table *tab);
+void xmit_core_table_destory(struct xmit_core_table *tab);
+
+/* sender */
 void xmit_handle_new_token(struct xmit_core_table *tab, struct sk_buff* skb);
+void dcacp_xmit_data_event(struct work_struct *w);
 
-
+/* receiver */
+void dcacp_xmit_token_event(struct work_struct *w);
+void rcv_handle_new_flow(struct dcacp_sock* dsk);
+void rcv_flowlet_done(struct rcv_core_entry *entry);
 
 int dcacp_fragment(struct sock *sk, enum dcacp_queue dcacp_queue,
 		 struct sk_buff *skb, u32 len,

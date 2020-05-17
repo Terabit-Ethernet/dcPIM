@@ -489,8 +489,6 @@ enum hrtimer_restart dcacp_token_xmit_event(struct hrtimer *timer) {
  * Return 1 if RMEM is unavailable.
  * Return 2 if timer is setup.
  */
-#define DCACP_RMEM_LIMIT 1
-#define DCACP_TIMER_SETUP 2
 
 int rtx_bytes_count(struct dcacp_sock* dsk, __u32 prev_grant_nxt) {
 	int retransmit_bytes = 0; 
@@ -516,71 +514,6 @@ int rtx_bytes_count(struct dcacp_sock* dsk, __u32 prev_grant_nxt) {
 		// atomic_add_return(retransmit_bytes, &dcacp_epoch.remaining_tokens);
 	} 
 	return retransmit_bytes;
-}
-int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
-	struct dcacp_sock *dsk = dcacp_sk(sk);
-	int grant_len = 0;
-	struct inet_sock *inet;
-	int push_bk = 0;
-	int retransmit_bytes = 0;
-	__u32 prev_grant_nxt = dsk->prev_grant_nxt;
-	inet = inet_sk(sk);
-	// dsk->new_grant_nxt = dsk->grant_nxt;
-	// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
-	// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
-	if (dsk->receiver.flow_wait)
-		return DCACP_TIMER_SETUP;
-	/* this is only exception for retransmission*/
-	if (grant_bytes < 0)
-		grant_bytes = 0;
-	/*compute total sack bytes*/
-	if(handle_rtx && dsk->receiver.rcv_nxt < prev_grant_nxt) {
-		retransmit_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
-		grant_len += retransmit_bytes;
-		// atomic_add_return(retransmit_bytes, &dcacp_epoch.remaining_tokens);
-		if (retransmit_bytes > dcacp_params.control_pkt_bdp / 2)
-			grant_bytes = 0;
-	} 
-	/* if retransmit_bytes is larger, then we don't increment grant_nxt */
-
-	// printk("grant bytes:%u\n", grant_bytes);
-	/* set grant next*/
-	/* receiver buffer bottleneck; or token is dropped */
-	// if(prev_grant_nxt == dsk->receiver.rcv_nxt) {
-	// 	dsk->grant_nxt = dsk->receiver.rcv_nxt;
-	// 	printk("shrink grant nxt:%d\n", dsk->grant_nxt);
-	// }
-	/* this is a temporary solution */
-	if(dsk->new_grant_nxt + grant_bytes > dsk->total_length) {
-		grant_bytes =  dsk->total_length - dsk->grant_nxt;
-		dsk->new_grant_nxt = dsk->total_length;
-	} else {
-		dsk->new_grant_nxt += grant_bytes;
-	}
-
-	grant_len += grant_bytes;
-	if (grant_len == 0) {
-		dsk->receiver.rmem_exhausted += 1;
-	}
-	if(dsk->new_grant_nxt == dsk->total_length) {
-		push_bk = DCACP_TIMER_SETUP;
-		/* TO DO: setup a timer here */
-		/* current set timer to be 10 RTT */
-		dsk->receiver.flow_wait = true;
-		hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 10 * 1000), 
-			HRTIMER_MODE_REL_PINNED_SOFT);
-	}
-	// printk("xmit token grant next:%u\n", dsk->new_grant_nxt);
-	// printk("prev_grant_nxt:%u\n", dsk->prev_grant_nxt);
-	// printk ("dsk->receiver.rcv_nxt:%u\n", dsk->receiver.rcv_nxt);
-	// printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
-	// printk("grant_len:%d\n", grant_len);
-	atomic_add(grant_len, &dcacp_epoch.remaining_tokens);
-	dsk->receiver.prev_grant_bytes += grant_len;
-	atomic_add(grant_len, &dsk->receiver.in_flight_bytes);
-	dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->new_grant_nxt, handle_rtx),
-	 dsk->peer, sk, inet->inet_dport);
-	return push_bk;
 }
 
 /* Assume BH is disabled and epoch->lock is hold

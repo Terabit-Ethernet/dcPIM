@@ -32,6 +32,13 @@ struct dcacp_sock;
 
 
 enum {
+	/* Core State */
+	DCACP_IDLE = 1,
+	DCACP_IN_QUEUE,
+	DCACP_ACTIVE,
+};
+
+enum {
 	/* The initial state is TCP_CLOSE */
 	/* Sender and receiver state are easier to debug.*/
 	DCACP_RECEIVER = 1,
@@ -152,39 +159,50 @@ struct dcacp_peer {
 
 #define DCACP_MATCH_BUCKETS 1024
 
+
 struct rcv_core_entry {
+	int state;
+	int core_id;
+
 	struct spinlock lock;
 	/*receiver side */
 	/* remaining tokens */
 	atomic_t remaining_tokens;
 	// atomic_t pending_flows;
-	struct hrtimer token_xmit_timer;
+	// struct hrtimer token_xmit_timer;
 	// struct work_struct token_xmit_struct;
 	/* for phost queue */
 	struct dcacp_pq flow_q;
 	struct list_head list_link;
+	struct work_struct token_xmit_struct;
 
 };
 
 struct rcv_core_table {
 	struct spinlock lock;
-	atomic_t remaining_tokens;
+	// atomic_t remaining_tokens;
 	int num_active_cores;
 	struct list_head sche_list;
 	struct rcv_core_entry table[NR_CPUS];
+	struct workqueue_struct *wq;
+
 };
 
 struct xmit_core_entry {
+	int core_id;
 	struct spinlock lock;
 	struct sk_buff_head token_q;
-	struct hrtimer data_xmit_timer;
+	// struct hrtimer data_xmit_timer;
 	struct list_head list_link;
+	struct work_struct data_xmit_struct;
 };
 struct xmit_core_table {
 	struct spinlock lock;
 	int num_active_cores;
 	struct xmit_core_entry table[NR_CPUS];
 	struct list_head sche_list;
+
+	struct workqueue_struct *wq;
 
 }; 
 

@@ -271,7 +271,7 @@ void dcacp_sysctl_changed(struct dcacp_params *params)
     if(params->clean_match_sock == 1) {
         // sock_release(dcacp_match_table.sock);
         // dcacp_match_table.sock = NULL;
-        dcacp_epoch_destroy(&dcacp_epoch);
+        // dcacp_epoch_destroy(&dcacp_epoch);
         params->clean_match_sock = 0;
     }
 }
@@ -309,9 +309,7 @@ static int __init dcacp_load(void) {
 
         dcacp_init();
         dcacp_mattab_init(&dcacp_match_table, NULL);
-        /* initialize rcv_core table and xmit_core table */
-        rcv_core_table_init(&rcv_core_tab);
-        xmit_core_table_init(&xmit_core_tab);
+
         status = proto_register(&dcacp_prot, 1);
         if (status != 0) {
                 printk(KERN_ERR "proto_register failed in dcacp_init: %d\n",
@@ -326,7 +324,16 @@ static int __init dcacp_load(void) {
                     status);
                 goto out_cleanup;
         }
-        dcacp_epoch_init(&dcacp_epoch);
+        // dcacp_epoch_init(&dcacp_epoch);
+        /* initialize rcv_core table and xmit_core table */
+        status = rcv_core_table_init(&rcv_core_tab);
+        if(status != 0) {
+            goto out_cleanup;
+        }
+        status = xmit_core_table_init(&xmit_core_tab);
+        if(status != 0) {
+            goto out_cleanup;
+        }
         // if (status)
         //         goto out_cleanup;
         // dcacplite4_register();
@@ -368,7 +375,9 @@ out_cleanup:
         // proc_remove(metrics_dir_entry);
         if (dcacpv4_offload_end() != 0)
             printk(KERN_ERR "DCACP couldn't stop offloads\n");
-        dcacp_epoch_destroy(&dcacp_epoch);
+        // dcacp_epoch_destroy(&dcacp_epoch);
+        rcv_core_table_destory(&rcv_core_tab);
+        xmit_core_table_destory(&xmit_core_tab);
         unregister_net_sysctl_table(dcacp_ctl_header);
         dcacp_destroy();
         inet_del_protocol(&dcacp_protocol, IPPROTO_DCACP);
