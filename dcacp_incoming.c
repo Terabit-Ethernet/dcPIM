@@ -317,8 +317,6 @@ void dcacp_token_timer_defer_handler(struct sock *sk) {
 	/* reduct extra grant batch */
 	atomic_sub(dsk->receiver.grant_batch, &entry->remaining_tokens);
 	if(sk->sk_state == DCACP_RECEIVER && !not_push_bk) {
-		printk("pq push back flow\n");
-
 		dcacp_pq_push(&entry->flow_q, &dsk->match_link);
 	}
 	hrtimer_start(&entry->flowlet_done_timer, ns_to_ktime(0), HRTIMER_MODE_REL_PINNED_SOFT);
@@ -1252,7 +1250,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	}
 	
 
-	if (!dh->free_token && sk) {
+	if (!dh->free_token && sk &&  sk->sk_state == DCACP_RECEIVER) {
 		dsk = dcacp_sk(sk);
 		int remaining_tokens = 0;
 		struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
