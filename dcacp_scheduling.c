@@ -126,6 +126,7 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 		/* TO DO: setup a timer here */
 		/* current set timer to be 10 RTT */
 		dsk->receiver.flow_wait = true;
+		// printk("set up flow wait timer\n");
 		hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 10 * 1000), 
 			HRTIMER_MODE_REL_PINNED_SOFT);
 	}
@@ -151,7 +152,8 @@ bool dcacp_xmit_token_single_core(struct rcv_core_entry *entry) {
 	struct inet_sock *inet;
 	struct sock* sk;
 	while(!dcacp_pq_empty(&entry->flow_q)) {
-		bool not_push_bk = false;
+		int not_push_bk = 0;
+		bool handle_rtx = false;
 		match_link = dcacp_pq_peek(&entry->flow_q);
 		dsk =  list_entry(match_link, struct dcacp_sock, match_link);
 		sk = (struct sock*)dsk;
@@ -160,29 +162,27 @@ bool dcacp_xmit_token_single_core(struct rcv_core_entry *entry) {
  		bh_lock_sock(sk);
  		if(sk->sk_state == DCACP_RECEIVER) {
  			dsk->receiver.prev_grant_bytes = 0;
+ 			int grant_bytes = calc_grant_bytes(sk);
+
 	 		if (!sock_owned_by_user(sk)) {
-	 			int grant_bytes = calc_grant_bytes(sk);
-	 			// printk("grant bytes:%d\n", grant_bytes);
-	 			not_push_bk = xmit_batch_token(sk, grant_bytes, true);
-		 		if(grant_bytes == dsk->receiver.grant_batch) {
-					dsk->prev_grant_nxt = dsk->grant_nxt;
-					dsk->grant_nxt = dsk->new_grant_nxt;
-		  			if (!not_push_bk){
-		  				// printk("reach here:%d\n", __LINE__);
-		  				dcacp_pq_push(&entry->flow_q, &dsk->match_link);
-		  			}
-		 		}
-		 		else {
-		 			atomic_add(dsk->receiver.grant_batch, &entry->remaining_tokens);
-	 				test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
-		 		}
-	 		} else {
-	 			// printk("sock sock_owned_by_user \n");
-	 			int grant_bytes = calc_grant_bytes(sk);
-	 			if (!grant_bytes)
-	 				 xmit_batch_token(sk, grant_bytes, false);
- 				atomic_add(dsk->receiver.grant_batch, &entry->remaining_tokens);
-	 			test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+	 			handle_rtx = true;
+	 			// printk("socket not owned grant bytes:%d\n", grant_bytes);
+	 		}
+
+ 			not_push_bk = xmit_batch_token(sk, grant_bytes, handle_rtx);
+	 		if(grant_bytes == dsk->receiver.grant_batch || not_push_bk == DCACP_TIMER_SETUP) {
+				dsk->prev_grant_nxt = dsk->grant_nxt;
+				dsk->grant_nxt = dsk->new_grant_nxt;
+	  			if (!not_push_bk){
+	  				// printk("reach here:%d\n", __LINE__);
+	  				dcacp_pq_push(&entry->flow_q, &dsk->match_link);
+	  			}
+  				// printk("reach here:%d\n", __LINE__);
+	 		}
+	 		else {
+  				// printk("reach here:%d\n", __LINE__);
+	 			atomic_add(dsk->receiver.grant_batch, &entry->remaining_tokens);
+ 				test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
 	 		}
  		} else {
  			goto unlock;
@@ -236,6 +236,8 @@ void rcv_handle_new_flow(struct dcacp_sock* dsk) {
 	// 	is_empty = true;
 	// }
 	// printk("handle new flow core id:%d\n", core_id);
+	// printk("entry state:%d\n", entry->state);
+	// printk("entry remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
 	if(entry->state == DCACP_IDLE) {
 		spin_lock(&rcv_core_tab.lock);
 		/* list empty*/

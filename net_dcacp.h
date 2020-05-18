@@ -92,6 +92,7 @@ static inline void dcacp_rps_record_flow(const struct sock *sk)
 {
 	struct dcacp_sock *dsk = dcacp_sk(sk);
 	dsk->core_id = raw_smp_processor_id();
+	// printk("dsk->core_id:%u\n", dsk->core_id);
 #ifdef CONFIG_RPS
 	if (static_branch_unlikely(&rfs_needed)) {
 		/* Reading sk->sk_rxhash might incur an expensive cache line

@@ -283,10 +283,16 @@ void dcacp_token_timer_defer_handler(struct sock *sk) {
 	// struct inet_sock *inet = inet_sk(sk);
 	struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
 	__u32 prev_grant_nxt = dsk->prev_grant_nxt;
-	int grant_bytes = calc_grant_bytes(sk);
-	int rtx_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
-	if(rtx_bytes != 0 || grant_bytes != 0)
-		not_push_bk = xmit_batch_token(sk, grant_bytes, true);
+
+	if(!dsk->receiver.flow_wait && dsk->receiver.rcv_nxt < dsk->total_length) {
+		int grant_bytes = calc_grant_bytes(sk);
+		int rtx_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
+		if(dsk->receiver.rcv_nxt < dsk->total_length && (rtx_bytes != 0 || grant_bytes != 0))
+			not_push_bk = xmit_batch_token(sk, grant_bytes, true);
+	} else {
+		not_push_bk = true;
+	}
+
 
 	// if(dsk->receiver.prev_grant_bytes == 0) {
 	// 	int grant_bytes = calc_grant_bytes(sk);
@@ -310,13 +316,12 @@ void dcacp_token_timer_defer_handler(struct sock *sk) {
 	/* change prev_grant_nxt here because of delay retransmission*/
 	dsk->prev_grant_nxt = dsk->grant_nxt;
 	dsk->grant_nxt = dsk->new_grant_nxt;
-	// printk("token timer deferred\n");
 	// if(!not_push_bk) {
 	/* Deadlock won't happen because flow is not in flow_q. */
 	spin_lock(&entry->lock);
 	/* reduct extra grant batch */
 	atomic_sub(dsk->receiver.grant_batch, &entry->remaining_tokens);
-	if(sk->sk_state == DCACP_RECEIVER && !not_push_bk) {
+	if(!not_push_bk) {
 		dcacp_pq_push(&entry->flow_q, &dsk->match_link);
 	}
 	hrtimer_start(&entry->flowlet_done_timer, ns_to_ktime(0), HRTIMER_MODE_REL_PINNED_SOFT);
@@ -543,8 +548,8 @@ static void dcacp_rcv_nxt_update(struct dcacp_sock *dsk, u32 seq)
 		struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
 		dsk->receiver.finished_at_receiver = true;
 		hrtimer_cancel(&dsk->receiver.flow_wait_timer);
-		printk("send fin pkt\n");
-		printk("dsk->in_flight:%d\n", atomic_read(&dsk->receiver.in_flight_bytes));
+		// printk("send fin pkt\n");
+		// printk("dsk->in_flight:%d\n", atomic_read(&dsk->receiver.in_flight_bytes));
 		atomic_sub(atomic_read(&dsk->receiver.in_flight_bytes), &entry->remaining_tokens);
 		sk->sk_prot->unhash(sk);
 		/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
@@ -1018,7 +1023,7 @@ int dcacp_handle_fin_pkt(struct sk_buff *skb) {
  		bh_lock_sock(sk);
 		dsk = dcacp_sk(sk);
 		if (!sock_owned_by_user(sk)) {
-			printk("reach here:%d", __LINE__);
+			// printk("reach here:%d", __LINE__);
 
 	        dcacp_set_state(sk, TCP_CLOSE);
 	        dcacp_write_queue_purge(sk);
@@ -1223,7 +1228,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	dcacp_v4_fill_cb(skb, iph, dh);
 	// printk("packet hash %u\n", skb->hash);
 	// printk("oacket is l4 hash:%d\n", skb->l4_hash);
-	// printk("packet core:%d\n", raw_smp_processor_id());
+	// printk("receive packet core:%d\n", raw_smp_processor_id());
 	if(sk && sk->sk_state == DCACP_RECEIVER) {
 		dsk = dcacp_sk(sk);
 		iph = ip_hdr(skb);
