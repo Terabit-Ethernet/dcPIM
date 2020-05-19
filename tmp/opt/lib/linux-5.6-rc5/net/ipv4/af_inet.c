@@ -1441,9 +1441,10 @@ struct sk_buff *inet_gro_receive(struct list_head *head, struct sk_buff *skb)
 	if (ip_is_fragment(iph))
 		goto out_unlock;
 
-	if (unlikely(ip_fast_csum((u8 *)iph, 5)))
+	if (unlikely(ip_fast_csum((u8 *)iph, 5) && proto != 18)) {
+		printk("fast cum failed proto:%d\n", proto);
 		goto out_unlock;
-
+	}
 	id = ntohl(*(__be32 *)&iph->id);
 	flush = (u16)((ntohl(*(__be32 *)iph) ^ skb_gro_len(skb)) | (id & ~IP_DF));
 	id >>= 16;
