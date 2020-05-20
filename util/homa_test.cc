@@ -125,6 +125,7 @@ void print_help(const char *name)
 		"tests). The following options are supported:\n\n"
 		"--count      Number of times to repeat a test (default: 1000)\n"
 		"--length     Size of messages, in bytes (default: 100)\n"
+		"--sp       src port of connection \n"
 		"--seed       Used to compute message contents (default: 12345)\n",
 		name);
 }
@@ -618,6 +619,7 @@ void test_tcpstream(char *server_name, int port)
 	int64_t bytes_sent = 0;
 	int64_t start_bytes = 0;
 	uint64_t start_cycles = 0;
+	int64_t total_sent = 0;
 	double elapsed, rate;
 	
 	memset(&hints, 0, sizeof(struct addrinfo));
@@ -662,7 +664,7 @@ void test_tcpstream(char *server_name, int port)
 				return;
 			}
 			bytes_sent += 1000000;
-
+			total_sent += 1000000;
 	    }
 		/* Don't start timing until we've sent a few bytes to warm
 		 * everything up.
@@ -675,6 +677,8 @@ void test_tcpstream(char *server_name, int port)
 		rate = ((double) bytes_sent - start_bytes) / elapsed;
 		printf("TCP throughput using %d byte buffers: %.2f Gb/sec\n",
 			length, rate * 1e-09 * 8);	
+        if(total_sent > 3000000000)
+            break;
 	}
 }
 
@@ -905,7 +909,7 @@ void test_dcacpping(int fd, struct sockaddr *dest, char* buffer)
 	    	int result = write(fd, buffer, buffer_size);			
 			if( result < 0 ) {
 				if(errno == EMSGSIZE) {
-					printf("Socket write failed: %s %d\n", strerror(errno), result);
+					// printf("Socket write failed: %s %d\n", strerror(errno), result);
 					break;
 				}
 			} else {
@@ -919,7 +923,7 @@ void test_dcacpping(int fd, struct sockaddr *dest, char* buffer)
 		}
 	// }
 
-		printf("end\n");
+		// printf("end\n");
 		 //    result = write(fd, buffer, 10000);			
 			// if( result < 0 ) {
 			// 	printf("Socket write failed: %s %d\n", strerror(errno), result);
@@ -1110,6 +1114,7 @@ int main(int argc, char** argv)
 	int status;
 	int fd;
 	int i;
+	int srcPort = 0;
 	if ((argc >= 2) && (strcmp(argv[1], "--help") == 0)) {
 		print_help(argv[0]);
 		exit(0);
@@ -1157,15 +1162,15 @@ int main(int argc, char** argv)
 				length = 1000000;
 				printf("Reducing message length to %d\n", length);
 			}
-		} else if (strcmp(argv[nextArg], "--seed") == 0) {
+		} else if (strcmp(argv[nextArg], "--sp") == 0) {
 			if (nextArg == (argc-1)) {
 				printf("No value provided for %s option\n",
 					argv[nextArg]);
 				exit(1);
 			}
 			nextArg++;
-			seed = get_int(argv[nextArg],
-				"Bad seed %s; must be positive integer\n");
+			srcPort = get_int(argv[nextArg],
+				"Bad srcPort %s; must be positive integer\n");
 		} else {
 			printf("Unknown option %s; type '%s --help' for help\n",
 				argv[nextArg], argv[0]);
@@ -1188,7 +1193,7 @@ int main(int argc, char** argv)
 	// ibuf[0] = ibuf[1] = length;
 	// seed_buffer(&ibuf[2], sizeof32(buffer) - 2*sizeof32(int), seed);
 	tempArg = nextArg;
-	for(i = 0; i < 1; i++) {
+	for(i = 0; i < count; i++) {
 		nextArg = tempArg;
 
 		printf("nextArg:%d\n", nextArg);
@@ -1202,15 +1207,9 @@ int main(int argc, char** argv)
 		// }
 		memset(&addr_in, 0, sizeof(addr_in));
 		addr_in.sin_family = AF_INET;
-		addr_in.sin_port = htons(4002);
+		addr_in.sin_port = htons(srcPort);
 		addr_in.sin_addr.s_addr = inet_addr("9.0.0.10");
 
-
-		// inet_pton(AF_INET, "9.0.0.10", &addr_in.sin_addr);
-
-		// inet_aton("9.0.0.10", &addr_in.sin_addr);
-
-		// addr_in.sin_addr.s_addr = INADDR_ANY;
 
 		if (bind(fd, (struct sockaddr *) &addr_in, sizeof(addr_in)) != 0) {
 			printf("Couldn't bind socket to DCACP port %d: %s\n", port,
