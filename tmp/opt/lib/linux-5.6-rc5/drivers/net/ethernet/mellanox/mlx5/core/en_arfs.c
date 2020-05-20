@@ -679,24 +679,16 @@ int mlx5e_rx_flow_steer(struct net_device *dev, const struct sk_buff *skb,
 	struct flow_keys fk;
 
 	if (!skb_flow_dissect_flow_keys(skb, &fk, 0)) {
-		printk("skb flow dissect failed\n");
 		return -EPROTONOSUPPORT;
 	}
 	if (fk.basic.n_proto != htons(ETH_P_IP) &&
 	    fk.basic.n_proto != htons(ETH_P_IPV6))
 		return -EPROTONOSUPPORT;
-	if(fk.basic.ip_proto == IPPROTO_DCACP) {
-		printk("fk.ports.src:%d\n", ntohs(fk.ports.src));
-	//	fk.ports.src = ntohs(5000);
-	//	fk.ports.dst = ntohs(5000);
-	}
 	if (skb->encapsulation)
 		return -EPROTONOSUPPORT;
 
 	arfs_t = arfs_get_table(arfs, fk.basic.ip_proto, fk.basic.n_proto);
 	if (!arfs_t){
-		printk("arfs table didn't get\n");
-		printk("proto numberr:%d\n", fk.basic.ip_proto);
 		return -EPROTONOSUPPORT;
 	
 	}
