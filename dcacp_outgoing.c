@@ -453,6 +453,7 @@ int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct sock
 	dh->source = inet->inet_sport;
 	dh->dest = inet->inet_dport;
 	dh->check = 0;
+	dh->doff = (sizeof(struct dcacphdr)) << 2;
 	// inet->tos = IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL;
 	skb->sk = sk;
 	// dst_confirm_neigh(peer->dst, &fl4->daddr);
