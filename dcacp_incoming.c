@@ -1075,6 +1075,7 @@ int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
 		return 0;
 	}
 	if(atomic_read(&sk->sk_rmem_alloc) > sk->sk_rcvbuf) {
+	    printk("seq num:%u\n", DCACP_SKB_CB(skb)->seq);
 	    printk("discard packet due to memory:%d\n", __LINE__);
 		sk_drops_add(sk, skb);
 		kfree_skb(skb);
@@ -1238,7 +1239,8 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
  			atomic_set(&dsk->receiver.in_flight_bytes, 0);
  		}
         // ret = 0;
-		// printk("receive new skb end_seq:%u\n", DCACP_SKB_CB(skb)->end_seq);
+		// printk("receive new skb length:%u\n", DCACP_SKB_CB(skb)->end_seq - 
+		// 	DCACP_SKB_CB(skb)->seq);
 		// printk("atomic backlog len:%d\n", atomic_read(&dsk->receiver.backlog_len));
         if (!sock_owned_by_user(sk)) {
 			/* current place to set rxhash for RFS/RPS */
