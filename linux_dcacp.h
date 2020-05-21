@@ -488,6 +488,7 @@ struct dcacp_sock {
 		bool is_ready;
 		/* short flow and hasn't reached timeout yet */
 		bool free_flow;
+		bool in_pq;
 	    bool flow_sync_received;
 	 	bool finished_at_receiver;
 		uint32_t copied_seq;
