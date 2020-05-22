@@ -816,6 +816,7 @@ int dcacp_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.rmem_exhausted, 0);
 	WRITE_ONCE(dsk->receiver.prev_grant_bytes, 0);
 	WRITE_ONCE(dsk->receiver.in_pq, false);
+	WRITE_ONCE(dsk->receiver.last_rtx_time, ktime_get());
 	atomic_set(&dsk->receiver.in_flight_bytes, 0);
 	atomic_set(&dsk->receiver.backlog_len, 0);
 
@@ -1128,10 +1129,11 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 		}
 
 		// tcp_cleanup_rbuf(sk, copied);
-		dcacp_try_send_token(sk);
+		// dcacp_try_send_token(sk);
 		if (copied >= target) {
 			/* Do not sleep, just process backlog. */
 			/* Release sock will handle the backlog */
+			// printk("call release sock1\n");
 			release_sock(sk);
 			lock_sock(sk);
 		} else {
@@ -1192,7 +1194,7 @@ found_ok_skb:
 		kfree_skb(skb);
 
 		if (copied > 3 * trigger_tokens * dsk->receiver.max_gso_data) {
-			dcacp_try_send_token(sk);
+			// dcacp_try_send_token(sk);
 			trigger_tokens += 1;
 			
 		}
@@ -1236,7 +1238,7 @@ found_ok_skb:
 		printk("call tcp close in the recv msg\n");
 		dcacp_set_state(sk, TCP_CLOSE);
 	} else {
-		dcacp_try_send_token(sk);
+		// dcacp_try_send_token(sk);
 	}
 	release_sock(sk);
 

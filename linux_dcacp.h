@@ -496,6 +496,7 @@ struct dcacp_sock {
 	    uint32_t received_count;
 	    uint32_t grant_batch;
 	    uint32_t max_gso_data;
+	    ktime_t last_rtx_time;
 	    /* current received bytes + 1*/
 	    uint32_t rcv_nxt;
 	    // struct dcacp_sack_block duplicate_sack[1]; /* D-SACK block */

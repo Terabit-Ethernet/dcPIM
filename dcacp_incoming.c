@@ -235,14 +235,14 @@ enum hrtimer_restart dcacp_flow_wait_event(struct hrtimer *timer) {
 	struct dcacp_sock *dsk = container_of(timer, struct dcacp_sock, receiver.flow_wait_timer);
 	struct sock *sk = (struct sock*)dsk;
 	struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
-	printk("flow_wait_timer");
+	// printk("flow_wait_timer");
 	bh_lock_sock(sk);
 	atomic_sub(atomic_read(&dsk->receiver.in_flight_bytes), &entry->remaining_tokens);
 	atomic_set(&dsk->receiver.in_flight_bytes, 0);
 	dsk->receiver.flow_wait = false;
 	dsk->receiver.prev_grant_bytes = 0;
 	if(test_and_clear_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
-		atomic_sub(dsk->receiver.grant_batch,  &entry->remaining_tokens);
+		// atomic_sub(dsk->receiver.grant_batch,  &entry->remaining_tokens);
 	}
 	bh_unlock_sock(sk);
 
@@ -255,7 +255,6 @@ enum hrtimer_restart dcacp_flow_wait_event(struct hrtimer *timer) {
 		atomic_set(&entry->remaining_tokens, 0);
 	spin_unlock(&entry->lock);
 	flowlet_done_event(&entry->flowlet_done_timer);
-
 	return HRTIMER_NORESTART;
 
 }
@@ -290,13 +289,13 @@ void dcacp_token_timer_defer_handler(struct sock *sk) {
 	// struct inet_sock *inet = inet_sk(sk);
 	struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
 	__u32 prev_grant_nxt = dsk->prev_grant_nxt;
-	printk("timer defer\n");
+	// printk("timer defer\n");
 	if(!dsk->receiver.flow_wait && dsk->receiver.rcv_nxt < dsk->total_length) {
 		int grant_bytes = calc_grant_bytes(sk);
 		int rtx_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
-		printk("defer grant bytes:%d\n", grant_bytes);
+		// printk("defer grant bytes:%d\n", grant_bytes);
 		if(dsk->receiver.rcv_nxt < dsk->total_length && (rtx_bytes != 0 || grant_bytes != 0)) {
-			printk("call timer defer xmit token\n");
+			// printk("call timer defer xmit token\n");
 			not_push_bk = xmit_batch_token(sk, grant_bytes, true);
 		}
 	} else {
@@ -330,7 +329,7 @@ void dcacp_token_timer_defer_handler(struct sock *sk) {
 	/* Deadlock won't happen because flow is not in flow_q. */
 	spin_lock(&entry->lock);
 	/* reduct extra grant batch */
-	atomic_sub(dsk->receiver.grant_batch, &entry->remaining_tokens);
+	// atomic_sub(dsk->receiver.grant_batch, &entry->remaining_tokens);
 	if(!not_push_bk && !dsk->receiver.in_pq) {
 		dcacp_pq_push(&entry->flow_q, &dsk->match_link);
 	}
@@ -554,11 +553,11 @@ static void dcacp_rcv_nxt_update(struct dcacp_sock *dsk, u32 seq)
 	struct sock *sk = (struct sock*) dsk;
 	struct inet_sock *inet = inet_sk(sk);
 	u32 delta = seq - dsk->receiver.rcv_nxt;
+	// int grant_bytes = calc_grant_bytes(sk);
+
 	dsk->receiver.bytes_received += delta;
 	WRITE_ONCE(dsk->receiver.rcv_nxt, seq);
 	// printk("update the seq:%d\n", dsk->receiver.rcv_nxt);
-	int grant_bytes = calc_grant_bytes(sk);
-	printk("calc grant bytes in rcv nxt update:%d\n", grant_bytes);
 	dcacp_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), dsk->peer, sk, inet->inet_dport); 
 
 	if(!dsk->receiver.finished_at_receiver && dsk->receiver.rcv_nxt == dsk->total_length) {
@@ -1341,7 +1340,34 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
  	sock_rps_save_rxhash(sk, skb);
 	if(dh->type == DATA) {
 		// printk("backlog handling\n");
-		return dcacp_data_queue(sk, skb);
+		dcacp_data_queue(sk, skb);
+		if(test_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
+			bool push_back = false;
+			struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
+			spin_lock_bh(&sk->sk_lock.slock);
+			if(dsk->receiver.rcv_nxt >= dsk->prev_grant_nxt) {
+				push_back = true;
+				// printk("handle in backlogv\n");
+				dsk->prev_grant_nxt = dsk->grant_nxt;
+				dsk->grant_nxt = dsk->new_grant_nxt;
+				clear_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+			}
+			spin_unlock_bh(&sk->sk_lock.slock);
+			if(push_back) {
+				spin_lock_bh(&entry->lock);
+				if(!dsk->receiver.in_pq) {
+					dcacp_pq_push(&entry->flow_q, &dsk->match_link);
+					dsk->receiver.in_pq = true;
+				}
+				// atomic_sub(dsk->receiver.grant_batch, &entry->remaining_tokens);
+				spin_unlock_bh(&entry->lock);
+				local_bh_disable();
+				flowlet_done_event(&entry->flowlet_done_timer);
+				local_bh_enable();
+
+			}
+		}
+		return;
 		// return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
 	} else if (dh->type == FIN) {
 		// printk("reach here:%d", __LINE__);
@@ -1353,6 +1379,7 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 	} else if (dh->type == ACK) {
 		WARN_ON(true);
 	}
+
 	// else if (dh->type == TOKEN) {
 	// 	/* clean rtx queue */
 	// 	struct dcacp_token_hdr *th = dcacp_token_hdr(skb);
