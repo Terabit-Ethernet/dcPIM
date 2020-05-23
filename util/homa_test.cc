@@ -56,7 +56,7 @@
 int length = 1000000;
 
 /* How many iterations to perform for the test. */
-int count = 1000;
+int count = 100;
 
 /* Used to generate "somewhat random but predictable" contents for buffers. */
 int seed = 12345;
@@ -1208,7 +1208,7 @@ int main(int argc, char** argv)
 		memset(&addr_in, 0, sizeof(addr_in));
 		addr_in.sin_family = AF_INET;
 		addr_in.sin_port = htons(srcPort);
-		addr_in.sin_addr.s_addr = inet_addr("9.0.0.10");
+		addr_in.sin_addr.s_addr = inet_addr("192.168.10.114");
 
 
 		if (bind(fd, (struct sockaddr *) &addr_in, sizeof(addr_in)) != 0) {
