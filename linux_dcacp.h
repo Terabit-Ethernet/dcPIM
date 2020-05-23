@@ -458,7 +458,7 @@ struct dcacp_sock {
 	uint32_t new_grant_nxt;
     uint32_t num_sacks;
 	struct dcacp_sack_block selective_acks[16]; /* The SACKS themselves*/
-
+    ktime_t start_time;
 	struct list_head match_link;
     /* sender */
     struct dcacp_sender {
@@ -488,6 +488,7 @@ struct dcacp_sock {
 		bool is_ready;
 		/* short flow and hasn't reached timeout yet */
 		bool free_flow;
+		bool in_pq;
 	    bool flow_sync_received;
 	 	bool finished_at_receiver;
 		uint32_t copied_seq;
@@ -495,6 +496,7 @@ struct dcacp_sock {
 	    uint32_t received_count;
 	    uint32_t grant_batch;
 	    uint32_t max_gso_data;
+	    ktime_t last_rtx_time;
 	    /* current received bytes + 1*/
 	    uint32_t rcv_nxt;
 	    // struct dcacp_sack_block duplicate_sack[1]; /* D-SACK block */
@@ -528,7 +530,7 @@ struct dcacp_sock {
     } receiver;
 
 
-	atomic64_t next_outgoing_id;
+	// atomic64_t next_outgoing_id;
 
 	int unsolved;
 };

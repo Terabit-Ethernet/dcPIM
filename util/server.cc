@@ -24,6 +24,7 @@
  * Type "server --help" for documenation on the options.
  */
  #include <arpa/inet.h>
+#include <atomic>
 #include <chrono>         // std::chrono::seconds
 
 #include <iostream>
@@ -59,6 +60,40 @@ int port = 4000;
  */
 bool validate = false;
 
+
+struct Agg_Stats {
+	std::atomic<unsigned long> total_bytes;
+	std::atomic<unsigned long> interval_bytes;
+	uint64_t start_cycle;
+	int interval_sec;
+};
+
+struct Agg_Stats agg_stats;
+void init_agg_stats(struct Agg_Stats* stats, int interval_sec) {
+	atomic_store(&stats->total_bytes, (unsigned long)0);
+	atomic_store(&stats->interval_bytes, (unsigned long)0);
+	stats->start_cycle = rdtsc();
+	stats->interval_sec = interval_sec;
+}
+
+void aggre_thread(struct Agg_Stats *stats) {
+	init_agg_stats(stats, 1);
+	while(1) {
+		uint64_t start_cycle = rdtsc();
+		uint64_t end_cycle;
+		double rate;
+		double bytes;
+    	std::this_thread::sleep_for (std::chrono::seconds(stats->interval_sec));
+    	end_cycle = rdtsc();
+    	bytes = atomic_load(&stats->interval_bytes);
+    	rate = (bytes)/ to_seconds(
+			end_cycle - start_cycle);
+		printf("Throughput: "
+		"%.2f Gbps, bytes: %f, time: %f\n", rate * 1e-09 * 8, (double) bytes, to_seconds(
+		end_cycle - start_cycle));
+    	atomic_store(&stats->interval_bytes, (unsigned long)0);
+	}
+}
 /**
  * homa_server() - Opens a Homa socket and handles all requests arriving on
  * that socket.
@@ -186,6 +221,7 @@ void tcp_connection(int fd, struct sockaddr_in source)
 	    perror("getsockname");
 	else
 	    printf("port number %d\n", ntohs(sin.sin_port));
+	start_cycle = rdtsc();
 	while (1) {
 		int result = read(fd, buffer + cur_length,
 				sizeof(buffer) - cur_length);
@@ -323,7 +359,7 @@ void dcacp_connection(int fd, struct sockaddr_in source)
 	// bool streaming = false;
 	uint64_t count = 0;
 	uint64_t total_length = 0;
-	uint64_t start_cycle = 0, end_cycle = 0;
+	// uint64_t start_cycle = 0, end_cycle = 0;
 	struct sockaddr_in sin;
 	socklen_t len = sizeof(sin);
 	// int *int_buffer = reinterpret_cast<int*>(buffer);
@@ -334,7 +370,7 @@ void dcacp_connection(int fd, struct sockaddr_in source)
 	    perror("getsockname");
 	else
 	    printf("port number %d\n", ntohs(sin.sin_port));
-	start_cycle = rdtsc();
+	// start_cycle = rdtsc();
 	printf("start connection\n");
 	while (1) {
 		int result = read(fd, buffer,
@@ -350,19 +386,23 @@ void dcacp_connection(int fd, struct sockaddr_in source)
 		count++;
 		if (result == 0)
 			break;
-		if(count % 10000 == 0) {
-			end_cycle = rdtsc();
-			printf("count:%lu\n", count);
-			double rate = ((double) total_length)/ to_seconds(
-				end_cycle - start_cycle);
-			total_length = 0;
+		std::atomic_fetch_add(&agg_stats.interval_bytes, (unsigned long)result);
+		std::atomic_fetch_add(&agg_stats.total_bytes, (unsigned long)result);
 
-			start_cycle = rdtsc();
-			if(count != 0) {
-				printf("DCACP throughput: "
-				"%.2f Gbps\n", rate * 1e-09 * 8);
-			}
-		}
+		// if(count % 1000 == 0) {
+		// 	end_cycle = rdtsc();
+		// 	printf("count:%lu\n", count);
+		// 	double rate = ((double) total_length)/ to_seconds(
+		// 		end_cycle - start_cycle);
+		// 	// if(count != 0) {
+		// 	// 	printf("DCACP throughput: "
+		// 	// 	"%.2f Gbps, bytes: %f, time: %f\n", rate * 1e-09 * 8, (double) total_length, to_seconds(
+		// 	// 	end_cycle - start_cycle));
+		// 	// }
+		// 	total_length = 0;
+
+		// 	start_cycle = rdtsc();
+		// }
 		// /* The connection can be used in two modes. If the first
 		//  * word received is -1, then the connection is in streaming
 		//  * mode: we just read bytes and throw them away. If the
@@ -636,7 +676,7 @@ int main(int argc, char** argv) {
 	workers.push_back(std::thread(tcp_server, port));
 	workers.push_back(std::thread(udp_server, port));
 	workers.push_back(std::thread(dcacp_server, port));
-
+	workers.push_back(std::thread(aggre_thread, &agg_stats));
 	for(int i = 0; i < num_ports; i++) {
 		workers[i].join();
 	}

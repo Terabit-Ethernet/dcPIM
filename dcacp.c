@@ -792,7 +792,7 @@ int dcacp_init_sock(struct sock *sk)
 	printk("init sock\n");
 	// next_going_id 
 	// printk("remaining tokens:%d\n", dcacp_epoch.remaining_tokens);
-	atomic64_set(&dsk->next_outgoing_id, 1);
+	// atomic64_set(&dsk->next_outgoing_id, 1);
 	// initialize the ready queue and its lock
 	sk->sk_destruct = dcacp_destruct_sock;
 	dsk->unsolved = 0;
@@ -815,9 +815,11 @@ int dcacp_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.flow_wait, false);
 	WRITE_ONCE(dsk->receiver.rmem_exhausted, 0);
 	WRITE_ONCE(dsk->receiver.prev_grant_bytes, 0);
+	WRITE_ONCE(dsk->receiver.in_pq, false);
+	WRITE_ONCE(dsk->receiver.last_rtx_time, ktime_get());
 	atomic_set(&dsk->receiver.in_flight_bytes, 0);
 	atomic_set(&dsk->receiver.backlog_len, 0);
-
+	dsk->start_time = ktime_get();
 	hrtimer_init(&dsk->receiver.flow_wait_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
 	dsk->receiver.flow_wait_timer.function = &dcacp_flow_wait_event;
 
@@ -828,6 +830,7 @@ int dcacp_init_sock(struct sock *sk)
 	/* reuse tcp rtx queue*/
 	sk->tcp_rtx_queue = RB_ROOT;
 	dsk->out_of_order_queue = RB_ROOT;
+	// printk("flow wait at init:%d\n", dsk->receiver.flow_wait);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(dcacp_init_sock);
@@ -940,7 +943,6 @@ EXPORT_SYMBOL(dcacp_ioctl);
 
 
 bool dcacp_try_send_token(struct sock *sk) {
-	// printk("call try send token\n");
 	if(test_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
 		struct dcacp_sock *dsk = dcacp_sk(sk);
 		// int grant_len = min_t(int, len, dsk->receiver.max_gso_data);
@@ -949,11 +951,12 @@ bool dcacp_try_send_token(struct sock *sk) {
 		// 	return;
 		// printk("try to send token \n");
 		int grant_bytes = calc_grant_bytes(sk);
+
 		// printk("grant bytes delay:%d\n", grant_bytes);
-		// printk("intend grant bytes:%d\n", grant_bytes);
 		if (grant_bytes != 0) {
-			// printk("grant bytes:%d\n", grant_bytes);
+			spin_lock_bh(&sk->sk_lock.slock);
 			xmit_batch_token(sk, grant_bytes, false);
+			spin_unlock_bh(&sk->sk_lock.slock);
 			return true;
 		}
 	}
@@ -1126,10 +1129,11 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 		}
 
 		// tcp_cleanup_rbuf(sk, copied);
-		dcacp_try_send_token(sk);
+		// dcacp_try_send_token(sk);
 		if (copied >= target) {
 			/* Do not sleep, just process backlog. */
 			/* Release sock will handle the backlog */
+			// printk("call release sock1\n");
 			release_sock(sk);
 			lock_sock(sk);
 		} else {
@@ -1190,7 +1194,7 @@ found_ok_skb:
 		kfree_skb(skb);
 
 		if (copied > 3 * trigger_tokens * dsk->receiver.max_gso_data) {
-			dcacp_try_send_token(sk);
+			// dcacp_try_send_token(sk);
 			trigger_tokens += 1;
 			
 		}
@@ -1234,7 +1238,7 @@ found_ok_skb:
 		printk("call tcp close in the recv msg\n");
 		dcacp_set_state(sk, TCP_CLOSE);
 	} else {
-		dcacp_try_send_token(sk);
+		// dcacp_try_send_token(sk);
 	}
 	release_sock(sk);
 
@@ -1679,9 +1683,11 @@ void dcacp_destroy_sock(struct sock *sk)
 	bh_unlock_sock(sk);
 	local_bh_enable();
 
-	printk("sk->sk_wmem_queued:%d\n",sk->sk_wmem_queued);
+	// printk("sk->sk_wmem_queued:%d\n",sk->sk_wmem_queued);
 	spin_lock_bh(&entry->lock);
-	dcacp_pq_delete(&entry->flow_q, &up->match_link);
+	// printk("dsk->match_link:%p\n", &up->match_link);
+	if(up->receiver.in_pq)
+		dcacp_pq_delete(&entry->flow_q, &up->match_link);
 	spin_unlock_bh(&entry->lock);
 	if (static_branch_unlikely(&dcacp_encap_needed_key)) {
 		if (up->encap_type) {

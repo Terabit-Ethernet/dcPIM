@@ -202,7 +202,6 @@ struct sk_buff *dcacp_gro_receive(struct list_head *head, struct sk_buff *skb)
 		if (unlikely(!dh))
 			goto out;
 	}
-
 	if (dh->type != DATA) {
 		goto out;
 	}
@@ -294,7 +293,7 @@ out:
 int dcacp_gro_complete(struct sk_buff *skb, int dhoff)
 {
 	struct dcacphdr *dh = dcacp_hdr(skb);
-	const u32 ports = (((u32)dh->source) << 16) | (__force u32)dh->dest;
+	// const u32 ports = (((u32)dh->source) << 16) | (__force u32)dh->dest;
 
 	skb->csum_start = (unsigned char *)dh - skb->head;
 	skb->csum_offset = offsetof(struct dcacphdr, check);
