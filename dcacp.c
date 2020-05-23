@@ -792,7 +792,7 @@ int dcacp_init_sock(struct sock *sk)
 	printk("init sock\n");
 	// next_going_id 
 	// printk("remaining tokens:%d\n", dcacp_epoch.remaining_tokens);
-	atomic64_set(&dsk->next_outgoing_id, 1);
+	// atomic64_set(&dsk->next_outgoing_id, 1);
 	// initialize the ready queue and its lock
 	sk->sk_destruct = dcacp_destruct_sock;
 	dsk->unsolved = 0;
@@ -819,7 +819,7 @@ int dcacp_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.last_rtx_time, ktime_get());
 	atomic_set(&dsk->receiver.in_flight_bytes, 0);
 	atomic_set(&dsk->receiver.backlog_len, 0);
-
+	dsk->start_time = ktime_get();
 	hrtimer_init(&dsk->receiver.flow_wait_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
 	dsk->receiver.flow_wait_timer.function = &dcacp_flow_wait_event;
 

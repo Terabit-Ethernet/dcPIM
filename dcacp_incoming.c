@@ -289,7 +289,7 @@ void dcacp_token_timer_defer_handler(struct sock *sk) {
 	// struct inet_sock *inet = inet_sk(sk);
 	struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
 	__u32 prev_grant_nxt = dsk->prev_grant_nxt;
-	// printk("timer defer\n");
+	printk("timer defer\n");
 	if(!dsk->receiver.flow_wait && dsk->receiver.rcv_nxt < dsk->total_length) {
 		int grant_bytes = calc_grant_bytes(sk);
 		int rtx_bytes = rtx_bytes_count(dsk, prev_grant_nxt);

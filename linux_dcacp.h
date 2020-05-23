@@ -458,7 +458,7 @@ struct dcacp_sock {
 	uint32_t new_grant_nxt;
     uint32_t num_sacks;
 	struct dcacp_sack_block selective_acks[16]; /* The SACKS themselves*/
-
+    ktime_t start_time;
 	struct list_head match_link;
     /* sender */
     struct dcacp_sender {
@@ -530,7 +530,7 @@ struct dcacp_sock {
     } receiver;
 
 
-	atomic64_t next_outgoing_id;
+	// atomic64_t next_outgoing_id;
 
 	int unsolved;
 };
