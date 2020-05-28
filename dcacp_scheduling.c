@@ -12,7 +12,7 @@ bool flow_compare(const struct list_head* node1, const struct list_head* node2) 
     e2 = list_entry(node2, struct dcacp_sock, match_link);
     if(e1->total_length > e2->total_length)
         return true;
-    if(ktime_compare(e1->start_time, e2->start_time))
+    if(ktime_compare(e1->start_time, e2->start_time) > 0)
     	return true;
     return false;
 
@@ -23,7 +23,7 @@ void rcv_core_entry_init(struct rcv_core_entry *entry, int core_id) {
 	/* token xmit timer*/
 	atomic_set(&entry->remaining_tokens, 0);
 	// atomic_set(&epoch->pending_flows, 0);
-	entry->core_id = 0;
+	entry->core_id = core_id;
 	entry->state = DCACP_IDLE;
 	hrtimer_init(&entry->flowlet_done_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
 	entry->flowlet_done_timer.function = &flowlet_done_event;
@@ -88,7 +88,9 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 	__u32 prev_grant_nxt = dsk->prev_grant_nxt;
 	inet = inet_sk(sk);
 	// dsk->new_grant_nxt = dsk->grant_nxt;
-	printk("remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
+	// printk("process core id:%d\n", raw_smp_processor_id());
+	// printk("entry core id:%d\n", entry->core_id);
+	// printk("entry address:%p\n", entry);
 	// printk("xmit token cpu:%d\n", dsk->core_id);
 	if (dsk->receiver.flow_wait) {
 		// printk("flow wait\n");
@@ -191,6 +193,7 @@ bool dcacp_xmit_token_single_core(struct rcv_core_entry *entry) {
 	 		// printk("dsk address:%p\n", dsk);
  			// printk("single core grant bytes:%d\n", grant_bytes);
  			// printk("retransmit byte:%d\n", retransmit_bytes);
+
  			not_push_bk = xmit_batch_token(sk, grant_bytes, handle_rtx);
  			/* need morer work on that */
 	 		if(!sock_owned_by_user(sk) || not_push_bk == DCACP_TIMER_SETUP || retransmit_bytes == 0) {
@@ -254,6 +257,7 @@ void rcv_handle_new_flow(struct dcacp_sock* dsk) {
 	// bool is_empty = false;
 	struct rcv_core_entry* entry = &rcv_core_tab.table[core_id];
 	spin_lock(&entry->lock);
+
 	/* push the long flow to the control plane for scheduling*/
 	dcacp_pq_push(&entry->flow_q, &dsk->match_link);
 	dsk->receiver.in_pq = true;
@@ -270,6 +274,7 @@ void rcv_handle_new_flow(struct dcacp_sock* dsk) {
 	// printk("entry remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
 	if(entry->state == DCACP_IDLE) {
 		spin_lock(&rcv_core_tab.lock);
+
 		/* list empty*/
 		if(rcv_core_tab.num_active_cores < MAX_ACTIVE_CORE) {
 			rcv_core_tab.num_active_cores += 1;
@@ -306,6 +311,7 @@ void rcv_flowlet_done(struct rcv_core_entry *entry) {
 			/* send next token in the same core */
 			spin_unlock(&rcv_core_tab.lock);
 			// printk("reach here:%d\n", __LINE__);
+
 			find_flow = dcacp_xmit_token_single_core(entry);
 			if(!find_flow) {
 				entry->state = DCACP_IDLE;
@@ -338,11 +344,11 @@ enum hrtimer_restart flowlet_done_event(struct hrtimer *timer) {
 	struct rcv_core_entry *entry = container_of(timer, struct rcv_core_entry, flowlet_done_timer);
 
 	// printk("flowlet done timer is called\n");
+
 	spin_lock(&entry->lock);
 	/* reset the remaining tokens to zero */
 	// atomic_set(&epoch->remaining_tokens, 0);	
 	if(entry->state == DCACP_ACTIVE) {
-		// printk("reach here:%d\n", __LINE__);
 		rcv_flowlet_done(entry);
 	} else if(entry->state == DCACP_IDLE && !dcacp_pq_empty(&entry->flow_q)) {
 		bool find_flow = false;

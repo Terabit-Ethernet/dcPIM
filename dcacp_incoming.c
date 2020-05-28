@@ -235,7 +235,7 @@ enum hrtimer_restart dcacp_flow_wait_event(struct hrtimer *timer) {
 	struct dcacp_sock *dsk = container_of(timer, struct dcacp_sock, receiver.flow_wait_timer);
 	struct sock *sk = (struct sock*)dsk;
 	struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
-	// printk("flow_wait_timer");
+	printk("flow_wait_timer");
 	bh_lock_sock(sk);
 	atomic_sub(atomic_read(&dsk->receiver.in_flight_bytes), &entry->remaining_tokens);
 	atomic_set(&dsk->receiver.in_flight_bytes, 0);
@@ -332,6 +332,7 @@ void dcacp_token_timer_defer_handler(struct sock *sk) {
 	// atomic_sub(dsk->receiver.grant_batch, &entry->remaining_tokens);
 	if(!not_push_bk && !dsk->receiver.in_pq) {
 		dcacp_pq_push(&entry->flow_q, &dsk->match_link);
+		dsk->receiver.in_pq = true;
 	}
 	// printk("call flowlet done timer\n");
 	// hrtimer_start(&entry->flowlet_done_timer, ns_to_ktime(0), HRTIMER_MODE_REL_PINNED_SOFT);
@@ -1150,6 +1151,7 @@ queue_and_out:
 	}
 	if (!after(DCACP_SKB_CB(skb)->end_seq, dsk->receiver.rcv_nxt)) {
 		printk("duplicate drop\n");
+		printk("duplicate seq:%u\n", DCACP_SKB_CB(skb)->seq);
 		dcacp_rmem_free_skb(sk, skb);
 		dcacp_drop(sk, skb);
 		return 0;
@@ -1233,6 +1235,8 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	// if(!sk) {
 	sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&dh->common), dh->common.source,
             dh->common.dest, sdif, &refcounted);
+    if(!sk)
+    	goto drop;
     // }
     // if(total_bytes == 0) {
     // 	start = ktime_get();
@@ -1247,10 +1251,12 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	// printk("packet hash %u\n", skb->hash);
 	// printk("oacket is l4 hash:%d\n", skb->l4_hash);
 	// printk("receive packet core:%d\n", raw_smp_processor_id());
+
 	if(sk && sk->sk_state == DCACP_RECEIVER) {
 		dsk = dcacp_sk(sk);
 		iph = ip_hdr(skb);
  		bh_lock_sock(sk);
+
  		atomic_sub(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq, &dsk->receiver.in_flight_bytes);
  		if(atomic_read(&dsk->receiver.in_flight_bytes) < 0) {
  			atomic_set(&dsk->receiver.in_flight_bytes, 0);
@@ -1281,8 +1287,12 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 		int remaining_tokens = 0;
 		struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
 		// printk("remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
-		remaining_tokens = atomic_add_return(DCACP_SKB_CB(skb)->seq 
-			- DCACP_SKB_CB(skb)->end_seq, &entry->remaining_tokens);
+		// printk("core id:%d\n", dsk->core_id);
+		// printk("process core id:%d\n", raw_smp_processor_id());
+		// printk("entry address:%p\n", entry);
+
+		remaining_tokens = atomic_sub_return( DCACP_SKB_CB(skb)->end_seq - 
+			DCACP_SKB_CB(skb)->seq, &entry->remaining_tokens);
 		// if(DCACP_SKB_CB(skb)->end_seq == dsk->total_length) {
 		// 	printk("remaining_tokens:%d\n", );
 		// }
@@ -1291,26 +1301,34 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 			remaining_tokens = 0;
 			atomic_set(&entry->remaining_tokens, 0);
 		}
+		// printk("remaining_tokens variable:%d\n", remaining_tokens);
+		// printk("remaining_tokens of core 15:%d\n", atomic_read(&rcv_core_tab.table[15].remaining_tokens));
+
 		// printk("cpu core:%d\n", dsk->core_id);
 		// printk("remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
 		if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
 			// spin_lock_bh(&entry->lock);
 			// printk("call flowlet done event here:%d\n", __LINE__);
+			// printk("remaining_tokens of core 15:%d\n", atomic_read(&rcv_core_tab.table[15].remaining_tokens));
+			// printk("entry address:%p\n", entry);
+
 			flowlet_done_event(&entry->flowlet_done_timer);
 			// spin_unlock_bh(&entry->lock);
 		}
 
 	} 
-    if (refcounted) {
-        sock_put(sk);
-    }
 
 	if (discard) {
 	    printk("seq num:%u\n", DCACP_SKB_CB(skb)->seq);
 	    printk("discard packet:%d\n", __LINE__);
 		sk_drops_add(sk, skb);
-		goto drop;
 	}
+
+    if (refcounted) {
+        sock_put(sk);
+    }
+
+
 
     return 0;
 drop:
