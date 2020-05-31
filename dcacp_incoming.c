@@ -241,6 +241,7 @@ enum hrtimer_restart dcacp_flow_wait_event(struct hrtimer *timer) {
 	atomic_set(&dsk->receiver.in_flight_bytes, 0);
 	dsk->receiver.flow_wait = false;
 	dsk->receiver.prev_grant_bytes = 0;
+	dsk->prev_grant_nxt = dsk->grant_nxt;
 	if(test_and_clear_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
 		// atomic_sub(dsk->receiver.grant_batch,  &entry->remaining_tokens);
 	}
@@ -290,11 +291,11 @@ void dcacp_token_timer_defer_handler(struct sock *sk) {
 	struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
 	__u32 prev_grant_nxt = dsk->prev_grant_nxt;
 	printk("timer defer\n");
-	if(!dsk->receiver.flow_wait && dsk->receiver.rcv_nxt < dsk->total_length) {
+	if(!dsk->receiver.flow_wait && !dsk->receiver.finished_at_receiver) {
 		int grant_bytes = calc_grant_bytes(sk);
 		int rtx_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
 		// printk("defer grant bytes:%d\n", grant_bytes);
-		if(dsk->receiver.rcv_nxt < dsk->total_length && (rtx_bytes != 0 || grant_bytes != 0)) {
+		if(!dsk->receiver.finished_at_receiver && (rtx_bytes != 0 || grant_bytes != 0)) {
 			// printk("call timer defer xmit token\n");
 			not_push_bk = xmit_batch_token(sk, grant_bytes, true);
 		}
@@ -559,12 +560,18 @@ static void dcacp_rcv_nxt_update(struct dcacp_sock *dsk, u32 seq)
 	dsk->receiver.bytes_received += delta;
 	WRITE_ONCE(dsk->receiver.rcv_nxt, seq);
 	// printk("update the seq:%d\n", dsk->receiver.rcv_nxt);
-	dcacp_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), dsk->peer, sk, inet->inet_dport); 
+	if(dsk->receiver.rcv_nxt >= dsk->receiver.last_ack + dsk->receiver.grant_batch) {
+		dcacp_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), dsk->peer, sk, inet->inet_dport); 
+		dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
+	}
 
 	if(!dsk->receiver.finished_at_receiver && dsk->receiver.rcv_nxt == dsk->total_length) {
 		struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
 		dsk->receiver.finished_at_receiver = true;
-		hrtimer_cancel(&dsk->receiver.flow_wait_timer);
+		if(dsk->receiver.flow_wait) {
+			hrtimer_cancel(&dsk->receiver.flow_wait_timer);
+			dsk->receiver.flow_wait = false;
+		} 
 		// printk("send fin pkt\n");
 		printk("dsk->in_flight:%d\n", atomic_read(&dsk->receiver.in_flight_bytes));
 		printk("dentry->remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
@@ -579,6 +586,8 @@ static void dcacp_rcv_nxt_update(struct dcacp_sock *dsk, u32 seq)
 			printk("cannot put port\n");
 		}
 		dcacp_xmit_control(construct_fin_pkt(sk), dsk->peer, sk, inet->inet_dport); 
+
+		// if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {}
 	}
 }
 
@@ -1262,7 +1271,6 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
  			atomic_set(&dsk->receiver.in_flight_bytes, 0);
  		}
         // ret = 0;
-		// printk("receive new skb end seq:%u\n", DCACP_SKB_CB(skb)->end_seq);
 		// printk("atomic backlog len:%d\n", atomic_read(&dsk->receiver.backlog_len));
         if (!sock_owned_by_user(sk)) {
 			/* current place to set rxhash for RFS/RPS */

@@ -142,13 +142,15 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 		hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 10 * 1000), 
 			HRTIMER_MODE_REL_PINNED_SOFT);
 	} else {
+		// printk("setup flow wait timer\n");
+		// printk("expire time:%d\n", dcacp_params.rtt * 10 * 1000);
 		hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 10 * 1000), 
 			HRTIMER_MODE_REL_PINNED_SOFT);
 	}
-	printk("xmit token grant next:%u\n", dsk->new_grant_nxt);
+	// printk("xmit token grant next:%u\n", dsk->new_grant_nxt);
 	// printk("prev_grant_nxt:%u\n", dsk->prev_grant_nxt);
 	// printk ("dsk->receiver.rcv_nxt:%u\n", dsk->receiver.rcv_nxt);
-	printk("remaining_tokens before:%d\n", atomic_read(&entry->remaining_tokens));
+	// printk("remaining_tokens before:%d\n", atomic_read(&entry->remaining_tokens));
 	// printk("grant_len:%d\n", grant_len);
 	atomic_add(grant_len, &entry->remaining_tokens);
 	// printk("remaining_tokens: %d\n", atomic_read(&entry->remaining_tokens));
@@ -171,7 +173,7 @@ bool dcacp_xmit_token_single_core(struct rcv_core_entry *entry) {
 	while(!dcacp_pq_empty(&entry->flow_q)) {
 		int not_push_bk = 0;
 		bool handle_rtx = false;
-		printk("pq size:%d\n", dcacp_pq_size(&entry->flow_q));
+		// printk("pq size:%d\n", dcacp_pq_size(&entry->flow_q));
 		match_link = dcacp_pq_peek(&entry->flow_q);
 		dsk =  list_entry(match_link, struct dcacp_sock, match_link);
 		sk = (struct sock*)dsk;
@@ -179,16 +181,16 @@ bool dcacp_xmit_token_single_core(struct rcv_core_entry *entry) {
 		dcacp_pq_pop(&entry->flow_q);
  		bh_lock_sock(sk);
  		dsk->receiver.in_pq = false;
- 		printk("xmit token for socket:%d\n", ntohs(inet->inet_dport));
- 		if(sk->sk_state == DCACP_RECEIVER && dsk->receiver.rcv_nxt < dsk->total_length) {
+ 		// printk("xmit token for socket:%d\n", ntohs(inet->inet_dport));
+ 		if(sk->sk_state == DCACP_RECEIVER && !dsk->receiver.finished_at_receiver) {
  			int grant_bytes; 
-			int retransmit_bytes;
+			// int retransmit_bytes;
 			dsk->receiver.prev_grant_bytes = 0;
 			grant_bytes = calc_grant_bytes(sk);
-			retransmit_bytes = rtx_bytes_count(dsk, dsk->prev_grant_nxt);
+			// retransmit_bytes = rtx_bytes_count(dsk, dsk->prev_grant_nxt);
 	 		if (!sock_owned_by_user(sk)) {
 	 			handle_rtx = true;
-	 			printk("sock_owned_by_user\n");
+	 			// printk("sock_owned_by_user\n");
 	 		}
 	 		// printk("dsk address:%p\n", dsk);
  			// printk("single core grant bytes:%d\n", grant_bytes);
@@ -196,18 +198,18 @@ bool dcacp_xmit_token_single_core(struct rcv_core_entry *entry) {
 
  			not_push_bk = xmit_batch_token(sk, grant_bytes, handle_rtx);
  			/* need morer work on that */
-	 		if(!sock_owned_by_user(sk) || not_push_bk == DCACP_TIMER_SETUP || retransmit_bytes == 0) {
+	 		if(!sock_owned_by_user(sk) || dsk->receiver.flow_wait) {
 				dsk->prev_grant_nxt = dsk->grant_nxt;
 				dsk->grant_nxt = dsk->new_grant_nxt;
 	  			if (!not_push_bk){
-	  				printk("push back socket \n");
+	  				// printk("push back socket \n");
 	  				dcacp_pq_push(&entry->flow_q, &dsk->match_link);
 	  				dsk->receiver.in_pq = true;
 	  			}
   				// printk("reach here:%d\n", __LINE__);
 	 		}
 	 		else if(!test_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
-  				printk("token timer deferred set\n");
+  				// printk("token timer deferred set\n");
 	 			// atomic_add(dsk->receiver.grant_batch, &entry->remaining_tokens);
  				test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
 	 		}
@@ -233,14 +235,21 @@ void dcacp_xmit_token_event(struct work_struct *w) {
 	// printk("dcacp xmit token\n");
 	spin_lock_bh(&entry->lock);
 	// WARN_ON(entry->is_active);
+	WARN_ON(entry->state != DCACP_IN_QUEUE);
 	if(entry->state == DCACP_ACTIVE) {
+		// WARN_ON(true);
 		goto not_find_flow;
 	}
-	WARN_ON(entry->state != DCACP_IN_QUEUE);
 	entry->state = DCACP_ACTIVE;
 	find_flow = dcacp_xmit_token_single_core(entry);
 	if(!find_flow)
 		entry->state = DCACP_IDLE;
+
+	/* not enough pkt is granted */
+	if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
+		entry->state = DCACP_IDLE;
+		find_flow = false;
+	}
 
 not_find_flow:
 	spin_unlock_bh(&entry->lock);
@@ -272,6 +281,8 @@ void rcv_handle_new_flow(struct dcacp_sock* dsk) {
 	// printk("handle new flow core id:%d\n", core_id);
 	// printk("entry state:%d\n", entry->state);
 	// printk("entry remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
+	// printk("entry state:%d\n", entry->state);
+
 	if(entry->state == DCACP_IDLE) {
 		spin_lock(&rcv_core_tab.lock);
 
@@ -317,6 +328,11 @@ void rcv_flowlet_done(struct rcv_core_entry *entry) {
 				entry->state = DCACP_IDLE;
 				goto not_find_flow;
 			}
+			/* not enough pkt is granted */
+			if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
+				entry->state = DCACP_IDLE;
+				goto not_find_flow;
+			}
 			goto end;
 		} else {
 			entry->state = DCACP_IN_QUEUE;
@@ -338,7 +354,7 @@ not_find_flow:
 	spin_unlock(&rcv_core_tab.lock);
 }
 
-/* called by token_timer_defer_handler because it might need to grab the socket lock */
+/* handle flowlet done, flow came back after timeour or retranmission; */
 enum hrtimer_restart flowlet_done_event(struct hrtimer *timer) {
 	// struct dcacp_grant* grant, temp;
 	struct rcv_core_entry *entry = container_of(timer, struct rcv_core_entry, flowlet_done_timer);
@@ -360,6 +376,11 @@ enum hrtimer_restart flowlet_done_event(struct hrtimer *timer) {
 			spin_unlock(&rcv_core_tab.lock);
 			find_flow = dcacp_xmit_token_single_core(entry);
 			if(!find_flow) {
+				entry->state = DCACP_IDLE;
+				goto not_find_flow;
+			}
+			/* not enough pkt is granted */
+			if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
 				entry->state = DCACP_IDLE;
 				goto not_find_flow;
 			}
