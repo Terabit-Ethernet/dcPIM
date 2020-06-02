@@ -100,8 +100,9 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 	if (grant_bytes < 0)
 		grant_bytes = 0;
 	/*compute total sack bytes*/
-	if(handle_rtx && dsk->receiver.rcv_nxt < prev_grant_nxt 
-		&& ktime_to_us(ktime_sub(tx_time, dsk->receiver.last_rtx_time)) > 50) {
+	if(handle_rtx && dsk->receiver.rcv_nxt < prev_grant_nxt && 
+		(dsk->receiver.rcv_nxt + dsk->receiver.grant_batch < dsk->grant_nxt) &&
+		ktime_to_us(ktime_sub(tx_time, dsk->receiver.last_rtx_time)) > 50) {
 		// printk("previous grant next:%u\n", prev_grant_nxt);
 		dsk->receiver.last_rtx_time = ktime_get();
 		retransmit_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
@@ -203,10 +204,13 @@ bool dcacp_xmit_token_single_core(struct rcv_core_entry *entry) {
 	 		if(!sock_owned_by_user(sk) || dsk->receiver.flow_finish_wait) {
 				dsk->prev_grant_nxt = dsk->grant_nxt;
 				dsk->grant_nxt = dsk->new_grant_nxt;
-	  			if (!not_push_bk){
+	  			if (!dsk->receiver.flow_finish_wait && grant_bytes != 0){
 	  				// printk("push back socket \n");
 	  				dcacp_pq_push(&entry->flow_q, &dsk->match_link);
 	  				dsk->receiver.in_pq = true;
+	  			} 
+	  			if (!dsk->receiver.flow_finish_wait && grant_bytes == 0) {
+	  				test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
 	  			}
   				// printk("reach here:%d\n", __LINE__);
 	 		}
