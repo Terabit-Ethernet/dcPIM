@@ -100,8 +100,13 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 	if (grant_bytes < 0)
 		grant_bytes = 0;
 	/*compute total sack bytes*/
-	if(handle_rtx && dsk->receiver.rcv_nxt < prev_grant_nxt && 
-		(dsk->receiver.rcv_nxt + dsk->receiver.grant_batch < dsk->grant_nxt) &&
+	if(handle_rtx && 
+		/* rcv next must be smaller than previous round grant nxt */
+		dsk->receiver.rcv_nxt < prev_grant_nxt && 
+		/* rcv next should be less than current grant nxt - grant_batch */
+		(dsk->receiver.rcv_nxt + dsk->receiver.grant_batch < dsk->grant_nxt 
+			|| dsk->grant_nxt == dsk->total_length) &&
+		/* don't to immediate retransmission */
 		ktime_to_us(ktime_sub(tx_time, dsk->receiver.last_rtx_time)) > 50) {
 		// printk("previous grant next:%u\n", prev_grant_nxt);
 		dsk->receiver.last_rtx_time = ktime_get();
@@ -210,6 +215,7 @@ bool dcacp_xmit_token_single_core(struct rcv_core_entry *entry) {
 	  				dsk->receiver.in_pq = true;
 	  			} 
 	  			if (!dsk->receiver.flow_finish_wait && grant_bytes == 0) {
+	  				// printk("token timer deferred set\n");
 	  				test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
 	  			}
   				// printk("reach here:%d\n", __LINE__);
@@ -289,10 +295,10 @@ void rcv_handle_new_flow(struct dcacp_sock* dsk) {
 	// printk("entry state:%d\n", entry->state);
 	// printk("entry remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
 	// printk("entry state:%d\n", entry->state);
-	printk("handle new flow\n");
+	// printk("handle new flow\n");
 	if(entry->state == DCACP_IDLE) {
 		spin_lock(&rcv_core_tab.lock);
-		printk("entry state:%d\n", entry->state);
+		// printk("entry state:%d\n", entry->state);
 
 		/* list empty*/
 		if(rcv_core_tab.num_active_cores < MAX_ACTIVE_CORE) {

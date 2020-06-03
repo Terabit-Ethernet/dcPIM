@@ -293,7 +293,7 @@ void dcacp_token_timer_defer_handler(struct sock *sk) {
 	// struct inet_sock *inet = inet_sk(sk);
 	struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
 	__u32 prev_grant_nxt = dsk->prev_grant_nxt;
-	printk("timer defer handling\n");
+	// printk("timer defer handling\n");
 	if(!dsk->receiver.flow_finish_wait && !dsk->receiver.finished_at_receiver) {
 		int grant_bytes = calc_grant_bytes(sk);
 		int rtx_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
@@ -557,14 +557,15 @@ static void dcacp_check_flow_finished_at_receiver(struct dcacp_sock *dsk) {
 		struct sock* sk = (struct sock*) dsk;
 		struct inet_sock *inet = inet_sk(sk);
 		struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
+
 		dsk->receiver.finished_at_receiver = true;
 		if(dsk->receiver.flow_finish_wait) {
 			hrtimer_cancel(&dsk->receiver.flow_wait_timer);
 			dsk->receiver.flow_finish_wait = false;
 		} 
 		// printk("send fin pkt\n");
-		// printk("dsk->in_flight:%d\n", atomic_read(&dsk->receiver.in_flight_bytes));
-		// printk("dentry->remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
+		printk("dsk->in_flight:%d\n", atomic_read(&dsk->receiver.in_flight_bytes));
+		printk("dentry->remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
 		atomic_sub(atomic_read(&dsk->receiver.in_flight_bytes), &entry->remaining_tokens);
 		sk->sk_prot->unhash(sk);
 		/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
@@ -576,7 +577,9 @@ static void dcacp_check_flow_finished_at_receiver(struct dcacp_sock *dsk) {
 			printk("cannot put port\n");
 		}
 		dcacp_xmit_control(construct_fin_pkt(sk), dsk->peer, sk, inet->inet_dport); 
-
+		bh_unlock_sock(sk);
+		flowlet_done_event(&entry->flowlet_done_timer);
+		bh_lock_sock(sk);
 		// if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {}
 	}
 
@@ -1110,7 +1113,9 @@ int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
 		return 0;
 	}
 	if(atomic_read(&sk->sk_rmem_alloc) > sk->sk_rcvbuf) {
+		struct inet_sock *inet = inet_sk(sk);
 	    printk("seq num:%u\n", DCACP_SKB_CB(skb)->seq);
+	    printk("inet sk dport:%d\n", ntohs(inet->inet_dport));
 	    printk("discard packet due to memory:%d\n", __LINE__);
 		sk_drops_add(sk, skb);
 		kfree_skb(skb);
