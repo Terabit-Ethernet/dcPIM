@@ -813,7 +813,7 @@ int dcacp_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.grant_batch, 0);
 	WRITE_ONCE(dsk->receiver.max_gso_data, 0);
 	WRITE_ONCE(dsk->receiver.finished_at_receiver, false);
-	WRITE_ONCE(dsk->receiver.flow_wait, false);
+	WRITE_ONCE(dsk->receiver.flow_finish_wait, false);
 	WRITE_ONCE(dsk->receiver.rmem_exhausted, 0);
 	WRITE_ONCE(dsk->receiver.prev_grant_bytes, 0);
 	WRITE_ONCE(dsk->receiver.in_pq, false);
