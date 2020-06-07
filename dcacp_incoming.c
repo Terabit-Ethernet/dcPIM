@@ -1273,7 +1273,9 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	// printk("packet hash %u\n", skb->hash);
 	// printk("oacket is l4 hash:%d\n", skb->l4_hash);
 	// printk("receive packet core:%d\n", raw_smp_processor_id());
-
+	// printk("dport:%d\n", ntohs(inet_sk(sk)->inet_dport));
+	// printk("skb seq:%u\n", DCACP_SKB_CB(skb)->seq);
+	// printk("skb address:%p\n", skb);
 	if(sk && sk->sk_state == DCACP_RECEIVER) {
 		dsk = dcacp_sk(sk);
 		iph = ip_hdr(skb);
@@ -1388,7 +1390,7 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 			bool push_back = false;
 			struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
 			spin_lock_bh(&sk->sk_lock.slock);
-			if(dsk->receiver.rcv_nxt >= dsk->prev_grant_nxt) {
+			if(dsk->receiver.rcv_nxt >= dsk->prev_grant_nxt && dcacp_space(sk) > 0) {
 				push_back = true;
 				// printk("handle in backlogv\n");
 				dsk->prev_grant_nxt = dsk->grant_nxt;
