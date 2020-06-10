@@ -17,11 +17,11 @@ int calc_grant_bytes(struct sock *sk) {
         }
         if (dsk->receiver.prev_grant_bytes >= dsk->receiver.grant_batch)
         	return 0;
-        if (free_space < (full_space >> 1)) {
-            if (free_space < max_gso_data) {
+        if (free_space < dsk->receiver.grant_batch * 2) {
+        	// printk("free space:%d\n", free_space);
+        	// printk("max gso data:%d\n", max_gso_data);
             	// printk("free_space < max_gso_data grant bytes: 0\n");
                 return 0;
-            }
         }
         if (grant_bytes > free_space)
         	grant_bytes = free_space;
