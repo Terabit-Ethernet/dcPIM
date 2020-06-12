@@ -195,6 +195,12 @@ bool dcacp_xmit_token_single_core(struct rcv_core_entry *entry) {
 			// int retransmit_bytes;
 			dsk->receiver.prev_grant_bytes = 0;
 			grant_bytes = calc_grant_bytes(sk);
+			// if(ntohs(inet->inet_dport) == 1000) {
+				// printk("port:%d", ntohs(inet->inet_dport));
+				// printk(" grant bytes:%d", grant_bytes);
+				// printk(" space: %d\n", dcacp_space(sk));
+
+			// }
 			// retransmit_bytes = rtx_bytes_count(dsk, dsk->prev_grant_nxt);
 	 		if (!sock_owned_by_user(sk)) {
 	 			handle_rtx = true;
@@ -207,10 +213,10 @@ bool dcacp_xmit_token_single_core(struct rcv_core_entry *entry) {
  			not_push_bk = xmit_batch_token(sk, grant_bytes, handle_rtx);
  			/* need morer work on that */
 	 		if(!sock_owned_by_user(sk) || dsk->receiver.flow_finish_wait) {
-				dsk->prev_grant_nxt = dsk->grant_nxt;
-				dsk->grant_nxt = dsk->new_grant_nxt;
 	  			if (!dsk->receiver.flow_finish_wait && grant_bytes != 0){
 	  				// printk("push back socket \n");
+					dsk->prev_grant_nxt = dsk->grant_nxt;
+					dsk->grant_nxt = dsk->new_grant_nxt;
 	  				dcacp_pq_push(&entry->flow_q, &dsk->match_link);
 	  				dsk->receiver.in_pq = true;
 	  			} 
