@@ -522,6 +522,7 @@ void xmit_handle_new_token(struct xmit_core_table *tab, struct sk_buff* skb) {
 	bool is_empty = false;
 	int core_id = raw_smp_processor_id();
 	struct xmit_core_entry *entry = &tab->table[core_id];
+	struct sk_buff* new_skb;
 	spin_lock(&entry->lock);
 	if(skb_queue_empty(&entry->token_q))
 		is_empty = true;
@@ -542,7 +543,8 @@ void xmit_handle_new_token(struct xmit_core_table *tab, struct sk_buff* skb) {
 		}
 		spin_unlock(&tab->lock);
 		if(send_now) {
-			__skb_dequeue_tail(&entry->token_q);
+			new_skb = __skb_dequeue(&entry->token_q);
+			WARN_ON(new_skb != skb);
 			xmit_use_token(skb);
 			spin_lock(&tab->lock);
 			tab->num_active_cores -= 1;
