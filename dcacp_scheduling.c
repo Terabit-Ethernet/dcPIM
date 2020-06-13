@@ -590,7 +590,7 @@ start_sent:
 	spin_lock_bh(&xmit_core_tab.lock);
 
 	if (!skb_queue_empty(&entry->token_q)) {
-		if(xmit_core_tab.num_active_cores <= MAX_ACTIVE_CORE) {
+		if(xmit_core_tab.num_active_cores < MAX_ACTIVE_CORE) {
 			spin_unlock_bh(&entry->lock);
 			spin_unlock_bh(&xmit_core_tab.lock);
 			goto start_sent;
