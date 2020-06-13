@@ -863,7 +863,7 @@ void dcacp_data_ready(struct sock *sk)
         const struct dcacp_sock *dsk = dcacp_sk(sk);
         int avail = dsk->receiver.rcv_nxt - dsk->receiver.copied_seq;
 
-        if ((avail < sk->sk_rcvlowat || dsk->receiver.rcv_nxt == dsk->total_length) && !sock_flag(sk, SOCK_DONE)) {
+        if ((avail < sk->sk_rcvlowat && dsk->receiver.rcv_nxt != dsk->total_length) && !sock_flag(sk, SOCK_DONE)) {
         	return;
         }
         sk->sk_data_ready(sk);
@@ -952,6 +952,7 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
 	if(sk) {
  		dsk = dcacp_sk(sk);
  		bh_lock_sock(sk);
+ 		skb->sk = sk;
  		// if (!sock_owned_by_user(sk)) {
 			/* clean rtx queue */
 		dsk->sender.snd_una = th->rcv_nxt > dsk->sender.snd_una ? th->rcv_nxt: dsk->sender.snd_una;
@@ -981,8 +982,10 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
         //     dcacp_add_backlog(sk, skb, true);
         // }
         bh_unlock_sock(sk);
-	}
-	xmit_handle_new_token(&xmit_core_tab, skb);
+		xmit_handle_new_token(&xmit_core_tab, skb);
+	} else {
+		kfree_skb(skb);
+	};
 	// kfree_skb(skb);
 
     if (refcounted) {

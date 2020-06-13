@@ -1,6 +1,6 @@
 #include "dcacp_impl.h"
 
-#define MAX_ACTIVE_CORE 3
+#define MAX_ACTIVE_CORE 4
 
 struct xmit_core_table xmit_core_tab;
 struct rcv_core_table rcv_core_tab;
@@ -473,13 +473,14 @@ int xmit_use_token(struct sk_buff* skb) {
 	struct dcacp_token_hdr *th;
 	struct sock* sk;
 	struct dcacp_sock *dsk;
-	int sdif = inet_sdif(skb);
-	bool refcounted = false;
+	// int sdif = inet_sdif(skb);
+	// bool refcounted = false;
 	int sent_bytes = 0;
 
 	th = dcacp_token_hdr(skb);
-	sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&th->common), th->common.source,
-            th->common.dest, sdif, &refcounted);
+	// sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&th->common), th->common.source,
+ //            th->common.dest, sdif, &refcounted);
+	sk = skb->sk;
 	if(sk) {
 		// printk("reach here:%d\n", __LINE__);
 		// printk("use token\n");
@@ -496,9 +497,9 @@ int xmit_use_token(struct sk_buff* skb) {
 	    }
 	    bh_unlock_sock(sk);
 	}
-	if (refcounted) {
-        sock_put(sk);
-    }
+	// if (refcounted) {
+ //        sock_put(sk);
+ //    }
 	kfree_skb(skb);
 	return sent_bytes;
 }
@@ -520,7 +521,7 @@ void xmit_invoke_next(struct xmit_core_table *tab) {
 void xmit_handle_new_token(struct xmit_core_table *tab, struct sk_buff* skb) {
 	bool send_now = false;
 	bool is_empty = false;
-	int core_id = raw_smp_processor_id();
+	int core_id = dcacp_sk(skb->sk)->core_id;
 	struct xmit_core_entry *entry = &tab->table[core_id];
 	struct sk_buff* new_skb;
 	spin_lock(&entry->lock);
