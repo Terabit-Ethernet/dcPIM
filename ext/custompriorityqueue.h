@@ -67,7 +67,7 @@ public:
     {
         assert(v.size() > 0);
         _Tp best = *v.begin();
-        for(int i = 0; i < v.size(); i++)
+        for(unsigned int i = 0; i < v.size(); i++)
         {
             if(!comp(v[i],best)){
                 best = v[i];

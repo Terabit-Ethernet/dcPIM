@@ -230,8 +230,8 @@ num_host_types: 13
 conf_str_pim = '''init_cwnd: 2
 max_cwnd: 6
 retx_timeout: 9.50003e-06
-queue_size: 36864
-propagation_delay: 0.0000002
+queue_size: 500000
+propagation_delay: 0.00000065
 bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 116
@@ -254,8 +254,9 @@ burst_at_beginning: 0
 pim_iter_limit: 4
 pim_beta: 1.3
 pim_alpha: 1
+pim_k: 4
 token_initial: 1
-token_timeout: 2
+token_timeout: 8
 token_resend_timeout: 1
 token_window: 1
 token_window_timeout: 1.1

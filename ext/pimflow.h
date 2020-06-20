@@ -46,8 +46,8 @@ public:
     Pim_Token* use_token();
     bool has_token();
 
-    void send_req(int iter, int epoch);
-    void send_accept_pkt(int iter, int epoch);
+    void send_req(int iter, int epoch, int total_links);
+    void send_accept_pkt(int iter, int epoch, int total_links);
     void receive_ack(PIMAck* p);
     Packet* send(uint32_t, uint32_t, int);
     void send_pending_data();
@@ -55,10 +55,10 @@ public:
     std::list<Pim_Token*> tokens;
 
     // receiver logic
-    void send_grants(int iter, int epoch, int remaining_sz, bool prompt);
+    void send_grants(int iter, int epoch, int remaining_sz, int total_link, bool prompt);
     void send_offer_pkt(int iter, int epoch, bool is_free);
     void send_ack(Packet* p);
-    void send_grantsr(int iter, int epoch);
+    void send_grantsr(int iter, int epoch, int total_links);
     int remaining_pkts();
     int token_gap();
     void relax_token_gap();

@@ -65,10 +65,11 @@ DecisionPkt::DecisionPkt(Flow *flow, Host *src, Host *dst, bool accept, int iter
     this->epoch = epoch;
 }
 
-AcceptPkt::AcceptPkt(Flow *flow, Host *src, Host *dst, int iter, int epoch) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+AcceptPkt::AcceptPkt(Flow *flow, Host *src, Host *dst, int iter, int epoch, int total_links) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = ACCEPT_PACKET;
     this->iter = iter;
     this->epoch = epoch;
+    this->total_links = total_links;
 }
 
 CTS::CTS(Flow *flow, Host *src, Host *dst) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
@@ -79,24 +80,27 @@ FlowRTS::FlowRTS(Flow *flow, Host *src, Host *dst, int size_in_pkt) : Packet(0, 
     this->type = FLOW_RTS;
     this->size_in_pkt = size_in_pkt;
 }
-GrantsR::GrantsR(Flow *flow, Host *src, Host *dst, int iter, int epoch) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+GrantsR::GrantsR(Flow *flow, Host *src, Host *dst, int iter, int epoch, int total_links) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = GRANTSR_PACKET;
     this->iter = iter;
     this->epoch = epoch;
+    this->total_links = total_links;
 }
-PIMGrants::PIMGrants(Flow *flow, Host *src, Host *dst, int iter, int epoch, int remaining_sz, bool prompt) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+PIMGrants::PIMGrants(Flow *flow, Host *src, Host *dst, int iter, int epoch, int remaining_sz, int total_links, bool prompt) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = PIM_GRANTS_PACKET;
     this->iter = iter;
     this->epoch = epoch;
     this->remaining_sz = remaining_sz;
-    this->prompt = prompt;
+    this->total_links = total_links;
+    // this->prompt = prompt;
 }
 
-PIMREQ::PIMREQ(Flow *flow, Host *src, Host *dst, int iter, int epoch, int remaining) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+PIMREQ::PIMREQ(Flow *flow, Host *src, Host *dst, int iter, int epoch, int remaining, int total_links) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = PIM_REQ_PACKET;
     this->iter = iter;
     this->epoch = epoch;
     this->remaining_sz = remaining;
+    this->total_links = total_links;
 }
 
 PIMToken::PIMToken(Flow *flow, Host *src, Host *dst, double ttl, int remaining, int token_seq_num, int data_seq_num) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {

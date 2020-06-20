@@ -123,6 +123,14 @@ void LeafSpineTopology::set_up_parameter() {
         // params.pim_epoch *= params.BDP * params.get_full_pkt_tran_delay();
         params.pim_iter_epoch = params.pim_beta * (this->get_control_pkt_rtt(143));
         params.pim_epoch = params.pim_iter_limit * params.pim_iter_epoch * (1 + params.pim_alpha);
+        params.pim_link_pkts = params.pim_iter_limit * params.pim_iter_epoch * params.pim_alpha /  params.get_full_pkt_tran_delay() / params.pim_k;
+        // std::cout << "pim iter epoch:" << params.pim_iter_epoch << std::endl;
+        // std::cout << "pim epoch:" << params.pim_epoch << std::endl;
+
+        // std::cout << "params.pim_iter_epoc:" << params.pim_iter_epoch << std::endl;
+        // std::cout << "params.pim_epoch:" << params.pim_epoch << std::endl;
+        // std::cout << " params.token_window_timeout" << params.token_window_timeout << std::endl;
+
     }
 }
 

@@ -46,37 +46,40 @@ void PimFlow::start_flow()
 bool PimFlow::is_small_flow() {
     return this->size_in_pkt <= params.pim_small_flow;
 }
-void PimFlow::send_grants(int iter, int epoch, int remaining_sz, bool prompt) {
+void PimFlow::send_grants(int iter, int epoch, int remaining_sz, int total_links, bool prompt) {
 
     if(debug_flow(id) || debug_host(this->dst->id)) {
         std::cout << this->dst->id << std::endl;
-        std::cout << get_current_time() << " iter " << iter << "send grants for flow " << id  << " to dst:" << this->dst->id << std::endl; 
+        std::cout << get_current_time() << " iter " << iter << "send grants for flow " 
+        << id  << " to dst:" << this->dst->id << "link: " << total_links << std::endl; 
     }
-    PIMGrants* grants = new PIMGrants(this, this->src, this->dst, iter, epoch, remaining_sz, prompt);
+    PIMGrants* grants = new PIMGrants(this, this->src, this->dst, iter, epoch, remaining_sz, total_links, prompt);
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), grants, src->queue));
 }
 
-void PimFlow::send_grantsr(int iter, int epoch) {
+void PimFlow::send_grantsr(int iter, int epoch, int total_link) {
     if(debug_flow(id)) {
         std::cout << get_current_time() << " iter " << iter <<  " send grantsr for flow " << id  << " to dst:" << this->dst->id << std::endl; 
     }
-    GrantsR* grantsr = new GrantsR(this, this->src, this->dst, iter, epoch);
+    GrantsR* grantsr = new GrantsR(this, this->src, this->dst, iter, epoch, total_link);
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), grantsr, src->queue));
 }
 
-void PimFlow::send_req(int iter, int epoch) {
+void PimFlow::send_req(int iter, int epoch, int total_links) {
     if(debug_flow(id)) {
-        std::cout << get_current_time() << "send req for flow " << id << " to src:" << this->src->id << std::endl; 
+        std::cout << get_current_time() << "send req for flow " << id 
+        << " to src:" << this->src->id << "link: " << total_links << std::endl; 
     }
-    PIMREQ* req = new PIMREQ(this, this->dst, this->src, iter, epoch, this->remaining_pkts());
+    PIMREQ* req = new PIMREQ(this, this->dst, this->src, iter, epoch, this->remaining_pkts(), total_links);
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), req, dst->queue));
 }
 
-void PimFlow::send_accept_pkt(int iter, int epoch){
+void PimFlow::send_accept_pkt(int iter, int epoch, int total_links){
     if(debug_flow(id) || debug_host(this->dst->id)) {
-        std::cout << get_current_time() << " iter " << iter  <<  " send accept for flow " << id  << " to src:" << this->src->id << std::endl; 
+        std::cout << get_current_time() << " iter " << iter  << 
+        " send accept for flow " << id  << " to src:" << this->src->id << "link: " << total_links << std::endl; 
     }
-    AcceptPkt* dpkt = new AcceptPkt(this, this->dst, this->src, iter, epoch);
+    AcceptPkt* dpkt = new AcceptPkt(this, this->dst, this->src, iter, epoch, total_links);
     add_to_event_queue(new PacketQueuingEvent(get_current_time(), dpkt, dst->queue));
 }
 // void PimFlow::send_offer_pkt(int iter, int epoch, bool is_free) {
@@ -267,15 +270,19 @@ void PimFlow::receive(Packet *p) {
                  // std::cout << "flow id" << p->flow->id << "source id:" << p->src->id << " " <<  p->dst->id << std::endl;
                 auto best_large_flow = dst->get_top_unfinish_flow(p->flow->src->id);
                 // std::cout << p->flow->id << " " << p->flow->dst->id << std::endl;
-                if(dst->sender == (PimHost*)p->flow->src &&
-                best_large_flow == (PimFlow*)p->flow) { 
-                    if (dst->token_send_evt != NULL && dst->token_send_evt->is_timeout_evt) {
-                        dst->token_send_evt->cancelled = true;
-                        dst->token_send_evt = NULL;
-                    }
+                if(best_large_flow == (PimFlow*)p->flow) {
+                    for(unsigned int i = 0; i < dst->match_sender_links.size(); i++) {
+                        if(dst->match_sender_links[i].target == (PimHost*)p->flow->src) {
+                            if (dst->match_sender_links[i].token_send_evt != NULL && 
+                                dst->match_sender_links[i].token_send_evt->is_timeout_evt) {
+                                dst->match_sender_links[i].token_send_evt->cancelled = true;
+                                dst->match_sender_links[i].token_send_evt = NULL;
+                            }
 
-                    if(dst->token_send_evt == NULL){
-                        dst->schedule_token_proc_evt(0, false);
+                            if(dst->match_sender_links[i].token_send_evt == NULL)
+                                dst->match_sender_links[i].schedule_token_proc_evt(0, false);
+                            
+                        }
                     }
                 }
             }

@@ -21,7 +21,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     params.print_max_min_fairness = false;
     params.num_hosts = 144;
     params.debug_controller_queue = false;
-    params.debug_queue = false;
+    params.debug_queue = true;
     params.debug_queue_interval = 0.000002;
     // params.policy = "rtt";
     params.topology = "LeafSpine";
@@ -241,6 +241,9 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         else if (key == "pim_beta") {
             lineStream >> params.pim_beta;
         }
+        else if (key == "pim_k") {
+            lineStream >> params.pim_k;
+        }
         // -----------------
         else if (key == "ddc") {
             lineStream >> params.ddc;
@@ -332,6 +335,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
 int DCExpParams::packet_priority(int size_in_pkt, int base) {
     if (base == 0)
         return 1;
+    base = 7;
     int priority = 1;
     int size = base;
     while(size_in_pkt > size) {

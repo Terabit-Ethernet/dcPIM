@@ -121,6 +121,7 @@ class DCExpParams {
         // Multi Round Distributed protoocl
         uint32_t pim_iter_limit;
         uint32_t pim_select_min_iters;
+        uint32_t pim_k;
         double pim_alpha;
         double pim_beta;
         double pim_iter_epoch;
@@ -130,6 +131,7 @@ class DCExpParams {
         double pim_window_timeout;
         double pim_resend_timeout;
         int pim_low_priority;
+        int pim_link_pkts;
         double get_full_pkt_tran_delay(uint32_t size_in_byte = 1500)
         {
             return size_in_byte * 8 / this->bandwidth;

@@ -21,15 +21,44 @@ class NewEpochEvent;
 class PimHost;
 class PimTokenProcessingEvent;
 
+struct PIM_Vlink {
+    int id;
+    int total_links;
+    int prompt_links;
+    // bool prompt;
+    PimHost* host;
+    PimHost* target;
+    PimTokenProcessingEvent *token_send_evt;
+
+    void schedule_token_proc_evt(double time, bool is_timeout);
+    void send_token();
+    PIM_Vlink() {
+        host = NULL;
+        target = NULL;
+        token_send_evt = NULL;
+        id = 0;
+        // prompt = 0;
+        total_links = 0;
+        prompt_links = 0;
+    }
+
+};
 struct PIM_REQ {
     int iter;
-    PimFlow *f;
     int remaining_sz;
-
+    int total_links;
+    int prompt_links;
+    PimFlow *f;
     PIM_REQ() {
         iter = 0;
         f = NULL;
         remaining_sz = INT_MAX;
+        total_links = 0;
+        prompt_links = 0;
+    }
+    bool operator < (const PIM_REQ& req) const
+    {
+        return (remaining_sz < req.remaining_sz);
     }
 };
 struct PIM_Grants {
@@ -37,11 +66,19 @@ struct PIM_Grants {
     int iter;
     PimFlow *f;
     int remaining_sz;
+    int total_links;
+    int prompt_links;
     PIM_Grants() {
         prompt = false;
         iter = 0;
         f = NULL;
         remaining_sz = INT_MAX;    
+        total_links = 0;
+        prompt_links = 0;
+    }
+    bool operator < (const PIM_Grants& grant) const
+    {
+        return (remaining_sz < grant.remaining_sz);
     }
 };
 
@@ -49,16 +86,23 @@ class PimEpoch {
 public:
     int epoch;
     int iter;
-    bool prompt;
+    // int occupied_link;
+    // bool prompt;
     PimHost* host;
-    PimHost* match_receiver;
-    PimHost* match_sender;
+    std::vector<PIM_Vlink> match_receiver_links;
+    std::vector<PIM_Vlink> match_sender_links;
+    unsigned num_tx_link;
+    unsigned num_tx_prompt_link;
+    unsigned num_rx_link;
+    unsigned num_rx_prompt_link;
+    // PimHost* match_receiver;
+    // PimHost* match_sender;
     ProcessSenderIterEvent* proc_sender_iter_evt;
     ProcessReceiverIterEvent* proc_receiver_iter_evt;
     std::vector<PIM_Grants> grants_q;
     std::vector<PIM_REQ> req_q;
-    PIM_REQ min_req;
-    PIM_Grants min_grant;
+    // PIM_REQ min_req;
+    // PIM_Grants min_grant;
     // std::vector<bool> receiver_state;
     PimEpoch();
     ~PimEpoch();
@@ -101,19 +145,19 @@ class PimHost : public SchedulingHost {
         void start_host();
         //void send();
         void send();
-        void send_token();
+        // void send_token();
         void receive_rts(FlowRTS* pkt);
         void start_new_epoch(double time, int epoch);
         void advance_iter();
         void schedule_host_proc_evt();
-        void schedule_token_proc_evt(double time, bool is_timeout);
+        // void schedule_token_proc_evt(double time, bool is_timeout);
         void receive_token(PIMToken* pkt);
         void flow_finish_at_receiver(Packet* pkt);
         PimFlow* get_top_unfinish_flow(uint32_t src_id);
         bool flow_compare(PimFlow* long_flow, PimFlow* short_flow);
 
         NewEpochEvent* new_epoch_evt;
-        PimTokenProcessingEvent *token_send_evt;
+        // PimTokenProcessingEvent *token_send_evt;
 
         // std::vector<bool> receiver_state;
         std::unordered_map<uint32_t, CustomPriorityQueue<PimFlow*, std::vector<PimFlow*>, PimFlowComparatorAtReceiver>> src_to_flows;
@@ -125,10 +169,12 @@ class PimHost : public SchedulingHost {
         // std::vector<PIM_RTS> rts_q;
         // who send data to the host
         // PimHost* match_sender;
-        PimHost* sender;
+        // PimHost* sender;
         // send data to whom
         // PimHost* match_receiver;
-        PimHost* receiver;
+        // PimHost* receiver;
+        std::vector<PIM_Vlink> match_receiver_links;
+        std::vector<PIM_Vlink> match_sender_links;
         // uint32_t epoch;
         // uint32_t iter;
         double iter_epoch;
@@ -187,10 +233,10 @@ class NewEpochEvent : public Event {
 #define PIM_TOKEN_PROCESSING 24
 class PimTokenProcessingEvent : public Event {
     public:
-        PimTokenProcessingEvent(double time, PimHost *host, bool is_timeout);
+        PimTokenProcessingEvent(double time, PIM_Vlink *l, bool is_timeout);
         ~PimTokenProcessingEvent();
         void process_event();
-        PimHost *host;
+        PIM_Vlink *link;
         bool is_timeout_evt;
 };
 #endif
