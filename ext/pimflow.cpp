@@ -90,12 +90,12 @@ void PimFlow::send_accept_pkt(int iter, int epoch, int total_links){
 //     add_to_event_queue(new PacketQueuingEvent(get_current_time(), offer_pkt, dst->queue));
 // }
 
-void PimFlow::send_pending_data()
+void PimFlow::send_pending_data(Pim_Token* token) 
 {
-    auto token = this->use_token();
+    // auto token = this->use_token();
     int token_data_seq = token->data_seq_num;
     int token_seq = token->seq_num;
-    delete token;
+    // delete token;
 
     Packet *p;
     if (next_seq_no + mss <= this->size) {
@@ -351,39 +351,39 @@ void PimFlow::relax_token_gap()
 }
 
 void PimFlow::clear_token(){
-    for(auto i = this->tokens.begin(); i != this->tokens.end(); i++) {
-        delete (*i);
-        *i = NULL;
-    }
-    this->tokens.clear();
+    // for(auto i = this->tokens.begin(); i != this->tokens.end(); i++) {
+    //     delete (*i);
+    //     *i = NULL;
+    // }
+    // this->tokens.clear();
 }
 
-bool PimFlow::has_token(){
-    while(!this->tokens.empty()){
-        //expired token
-        if(this->tokens.front()->timeout < get_current_time())
-        {
-            if(debug_flow(this->id)) {
-                std::cout << get_current_time() << " token timeout " << this->tokens.front()->timeout << " data seq num:" <<  this->tokens.front()->data_seq_num << std::endl;
-            }
-            delete this->tokens.front();
-            this->tokens.pop_front();
-        }
-        //not expired
-        else
-        {
-            return true;
-        }
-    }
-    return false;
-}
+// bool PimFlow::has_token(){
+//     while(!this->tokens.empty()){
+//         //expired token
+//         if(this->tokens.front()->timeout < get_current_time())
+//         {
+//             if(debug_flow(this->id)) {
+//                 std::cout << get_current_time() << " token timeout " << this->tokens.front()->timeout << " data seq num:" <<  this->tokens.front()->data_seq_num << std::endl;
+//             }
+//             delete this->tokens.front();
+//             this->tokens.pop_front();
+//         }
+//         //not expired
+//         else
+//         {
+//             return true;
+//         }
+//     }
+//     return false;
+// }
 
-Pim_Token* PimFlow::use_token(){
-    assert(!this->tokens.empty() && this->tokens.front()->timeout >= get_current_time());
-    auto token = this->tokens.front();
-    this->tokens.pop_front();
-    return token;
-}
+// Pim_Token* PimFlow::use_token(){
+//     assert(!this->tokens.empty() && this->tokens.front()->timeout >= get_current_time());
+//     auto token = this->tokens.front();
+//     this->tokens.pop_front();
+//     return token;
+// }
 
 // sender side
 void PimFlow::assign_init_token(){
@@ -398,7 +398,10 @@ void PimFlow::assign_init_token(){
         c->timeout = get_current_time() + 100000000.0;
         c->seq_num = i;
         c->data_seq_num = i;
-        this->tokens.push_back(c);
+        c->flow = this;
+        c->priority = 0;
+        // this->tokens.push_back(c);
+        ((PimHost*) this->src)->token_q.push(c);
     }
 }
 

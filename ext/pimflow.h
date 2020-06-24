@@ -7,6 +7,7 @@
 #include "fountainflow.h"
 #include "custompriorityqueue.h"
 
+class PimFlow;
 // struct Capability //for extendability
 // {
 //     double timeout;
@@ -27,6 +28,8 @@ public:
     int seq_num;
     int data_seq_num;
     int create_time;
+    int priority;
+    PimFlow* flow;
 };
 
 class PimFlow : public FountainFlow {
@@ -50,7 +53,7 @@ public:
     void send_accept_pkt(int iter, int epoch, int total_links);
     void receive_ack(PIMAck* p);
     Packet* send(uint32_t, uint32_t, int);
-    void send_pending_data();
+    void send_pending_data(Pim_Token* token);
     void send_pending_data_low_priority();
     std::list<Pim_Token*> tokens;
 
