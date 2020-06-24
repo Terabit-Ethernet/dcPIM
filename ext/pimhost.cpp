@@ -456,6 +456,7 @@ void PimEpoch::handle_all_grants() {
             link.host = this->host;
             link.total_links = need_link;
             link.prompt_links = 0;
+            link.shortest_flow_size = this->grants_q[index].remaining_sz;
             // link.prompt = false;
             this->match_sender_links.push_back(link);
         }
@@ -554,6 +555,15 @@ void PimEpoch::schedule_receiver_iter_evt() {
                 this->host->match_sender_links[i].token_send_evt->cancelled = true;
                 this->host->match_sender_links[i].token_send_evt = NULL;
             }
+        }
+        /* sort the sender link based on the shortest flow size */
+        std::sort(this->match_sender_links.begin(), this->match_sender_links.end());
+        /* change the id and priority */
+        int priority = 2;
+        for (int i = 0; i < this->match_sender_links.size(); i++) {
+            this->match_sender_links[i].id = i;
+            this->match_sender_links[i].priority = priority;
+            priority += this->match_sender_links[i].total_links;
         }
         // pipeline code
         this->host->match_sender_links = this->match_sender_links;
@@ -790,7 +800,7 @@ void PimHost::receive_token(PIMToken* pkt) {
     t->timeout = get_current_time() + pkt->ttl;
     t->seq_num = pkt->token_seq_num;
     t->data_seq_num = pkt->data_seq_num;
-    t->priority = 1;
+    t->priority = pkt->priority;
     t->flow = f;
     // f->tokens.push_back(t);
     f->remaining_pkts_at_sender = pkt->remaining_sz;
@@ -949,7 +959,7 @@ void PIM_Vlink::send_token() {
                         std::cout << get_current_time() << " sending tokens for flow " << f->id << std::endl;   
                 }
                 auto next_data_seq = f->get_next_token_seq_num();
-                f->send_token_pkt();
+                f->send_token_pkt(this->priority);
                 token_sent = true;
                 // this->token_hist.push_back(this->recv_flow->id);
                 if(next_data_seq >= f->get_next_token_seq_num()) {

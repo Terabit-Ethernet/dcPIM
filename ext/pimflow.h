@@ -66,7 +66,7 @@ public:
     int token_gap();
     void relax_token_gap();
     int get_next_token_seq_num();
-    void send_token_pkt();
+    void send_token_pkt(int priority);
     void receive_short_flow();
     void sending_ack();
     void sending_rts();

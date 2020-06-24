@@ -166,11 +166,12 @@ class PIMAck : public Packet {
 class PIMToken : public Packet
 {
     public:
-        PIMToken(Flow *flow, Host *src, Host *dst, double ttl, int remaining, int token_seq_num, int data_seq_num);
+        PIMToken(Flow *flow, Host *src, Host *dst, double ttl, int remaining, int token_seq_num, int data_seq_num, int priority);
         double ttl;
         int remaining_sz;
         int token_seq_num;
         int data_seq_num;
+        int priority;
 };
 
 class CapabilityPkt : public Packet{

@@ -26,6 +26,8 @@ struct PIM_Vlink {
     int total_links;
     int prompt_links;
     // bool prompt;
+    int shortest_flow_size;
+    int priority;
     PimHost* host;
     PimHost* target;
     PimTokenProcessingEvent *token_send_evt;
@@ -40,8 +42,13 @@ struct PIM_Vlink {
         // prompt = 0;
         total_links = 0;
         prompt_links = 0;
+        shortest_flow_size = 0;
+        priority = 0;
     }
-
+    bool operator < (const PIM_Vlink& l) const
+    {
+        return (shortest_flow_size < l.shortest_flow_size);
+    }
 };
 struct PIM_REQ {
     int iter;

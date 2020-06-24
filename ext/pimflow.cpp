@@ -399,7 +399,7 @@ void PimFlow::assign_init_token(){
         c->seq_num = i;
         c->data_seq_num = i;
         c->flow = this;
-        c->priority = 0;
+        c->priority = 1;
         // this->tokens.push_back(c);
         ((PimHost*) this->src)->token_q.push(c);
     }
@@ -430,14 +430,14 @@ int PimFlow::get_next_token_seq_num()
     assert(false);
 }
 
-void PimFlow::send_token_pkt(){
+void PimFlow::send_token_pkt(int priority){
     int data_seq_num = this->get_next_token_seq_num();
     if(debug_flow(this->id)) {
         std::cout << get_current_time() << " flow " << this->id << " send token " << this->token_count << "data seq number:" << data_seq_num << "\n";
     } 
     last_token_data_seq_num_sent = data_seq_num;
 
-    auto cp = new PIMToken(this, this->dst, this->src, params.token_timeout, this->remaining_pkts(), this->token_count, data_seq_num);
+    auto cp = new PIMToken(this, this->dst, this->src, params.token_timeout, this->remaining_pkts(), this->token_count, data_seq_num, priority);
     this->token_count++;
     this->token_packet_sent_count++;
     this->latest_token_sent_time = get_current_time();

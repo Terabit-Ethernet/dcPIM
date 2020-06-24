@@ -103,12 +103,13 @@ PIMREQ::PIMREQ(Flow *flow, Host *src, Host *dst, int iter, int epoch, int remain
     this->total_links = total_links;
 }
 
-PIMToken::PIMToken(Flow *flow, Host *src, Host *dst, double ttl, int remaining, int token_seq_num, int data_seq_num) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
+PIMToken::PIMToken(Flow *flow, Host *src, Host *dst, double ttl, int remaining, int token_seq_num, int data_seq_num, int priority) : Packet(0, flow, 0, 0, params.hdr_size, src, dst) {
     this->type = PIM_TOKEN;
     this->ttl = ttl;
     this->remaining_sz = remaining;
     this->token_seq_num = token_seq_num;
     this->data_seq_num = data_seq_num;
+    this->priority = priority;
 }
 
 PIMAck::PIMAck(Flow *flow, uint32_t seq_no_acked, uint32_t data_seq_no_acked, uint32_t size, Host* src, Host *dst) : Packet(0, flow, seq_no_acked, 0, size, src, dst) {
