@@ -203,7 +203,7 @@ void PimEpoch::receive_grantsr(GrantsR *p) {
     for(unsigned int i = 0; i < match_sender_links.size();) {
         if(p->total_links == 0)
             break;
-        if(match_sender_links[i].host == p->flow->src) {
+        if(match_sender_links[i].target == p->flow->src) {
             if(match_sender_links[i].total_links <= p->total_links) {
                 p->total_links -= match_sender_links[i].total_links;
                 match_sender_links.erase(match_sender_links.begin() + i);
@@ -215,6 +215,9 @@ void PimEpoch::receive_grantsr(GrantsR *p) {
             continue;
         } 
         i++;
+    }
+    if(p->total_links != 0) {
+        std::cout << p->total_links << std::endl;
     }
     assert(p->total_links == 0);
     // if(this->host->cur_epoch == this->epoch || this->prompt) {
@@ -269,7 +272,7 @@ void PimEpoch::receive_accept_pkt(AcceptPkt *p) {
     // if(p->accept) {
     if(this->num_rx_link + p->total_links > params.pim_k) {
         int diff = p->total_links + this->num_rx_link - params.pim_k;
-        p->total_links = params.pim_k - diff;
+        p->total_links = p->total_links - diff;
         ((PimFlow*)p->flow)->send_grantsr(this->iter, this->epoch, diff);
     }
     if(p->total_links == 0)
