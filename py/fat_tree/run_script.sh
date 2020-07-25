@@ -1,6 +1,6 @@
 #!/bin/bash
 
-algos=(pfabric phost ruf)
+algos=(pim)
 aids=()
 OUTPUT_FOLDER=../result/fat_tree
 DATE=$1
