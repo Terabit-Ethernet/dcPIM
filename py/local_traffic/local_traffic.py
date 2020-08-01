@@ -365,7 +365,7 @@ for r in runs:
                 elif r == 'fastpass':
                     for i in range(2):
                         conf_str = conf_str_fastpass.format(w, l_load, r_load, os_ratio, bdp, i)
-                        confFile = "conf_{0}_{1}_{2}_{3}_{4}.txt".format(r, w, o, l_load, r_load, i)
+                        confFile = "conf_{0}_{1}_{2}_{3}_{4}_{5}.txt".format(r, w, o, l_load, r_load, i)
                         with open(confFile, 'w') as f:
                             f.write(conf_str)
                 else:
