@@ -83,11 +83,19 @@ for r in runs:
                             p = subprocess.Popen(["../../simulator", "2", confFile],stdout=f)
                             pros.append(p)
                             f.close()
+                elif r == "fastpass":
+                    for i in range(2):
+                        confFile = "conf_{0}_{1}_{2}_{3}_{4}.txt".format(r, w, o, l_load, r_load, i)
+                        resultFile = "{0}/{1}/result_{2}_{3}_{4}_{5}_{6}_{7}.txt".format(OUTPUT_FOLDER,DATE, r, w, o, l_load, r_load, i)
+                        f = safe_open_w(resultFile)
+                        p = subprocess.Popen(["../../simulator", "2", confFile],stdout=f)
+                        pros.append(p)
+                        f.close()
                 else:
                     confFile = "conf_{0}_{1}_{2}_{3}_{4}.txt".format(r, w, o, l_load, r_load)
                     resultFile = "{0}/{1}/result_{2}_{3}_{4}_{5}_{6}.txt".format(OUTPUT_FOLDER,DATE, r, w, o, l_load, r_load)
                     f = safe_open_w(resultFile)
-                    p = subprocess.Popen(["../../simulator", "1", confFile],stdout=f)
+                    p = subprocess.Popen(["../../simulator", "2", confFile],stdout=f)
                     pros.append(p)
                     f.close()
         for p in pros:

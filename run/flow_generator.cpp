@@ -239,7 +239,7 @@ void FlowReader::make_flows() {
             Factory::get_flow(id, start_time, size, topo->hosts[s], topo->hosts[d], params.flow_type)
         );
     }
-    params.num_flows_to_run = flows_to_schedule.size();
+    // params.num_flows_to_run = flows_to_schedule.size();
     input.close();
 }
 

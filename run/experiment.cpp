@@ -192,8 +192,16 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
     // Make the camparision apple to apple;
     srand(0);
     if (params.use_flow_trace) {
-        fg = new FlowReader(num_flows, topology, params.cdf_or_flow_trace);
-        fg->make_flows();
+        if(params.cdf_or_flow_trace != "") {
+            fg = new FlowReader(num_flows, topology, params.cdf_or_flow_trace);
+            fg->make_flows();
+        }
+        if(params.incast_trace != "") {
+            fg = new FlowReader(num_flows, topology, params.incast_trace);
+            fg->make_flows();
+        }
+        params.num_flows_to_run = flows_to_schedule.size();
+
     }
     else if (params.interarrival_cdf != "none") {
         fg = new CustomCDFFlowGenerator(num_flows, topology, params.cdf_or_flow_trace, params.interarrival_cdf);

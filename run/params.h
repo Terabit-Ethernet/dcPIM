@@ -30,6 +30,7 @@ class DCExpParams {
         uint32_t num_flows_to_run;
         double end_time;
         std::string cdf_or_flow_trace;
+        std::string incast_trace;
         uint32_t bytes_mode;
         uint32_t cut_through;
         uint32_t mean_flow_size;
@@ -89,6 +90,8 @@ class DCExpParams {
         uint32_t dctcp_mark_thresh;
         //uint32_t dctcp_delayed_ack_freq;
         uint32_t fastpass_epoch_pkts;
+        bool fastpass_localize;
+        bool fastpass_limit_conns;
         // Ruf Algorithm
         double BDP;
         double token_timeout;

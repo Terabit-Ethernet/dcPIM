@@ -18,6 +18,19 @@ extern DCExpParams params;
 extern Topology *topology;
 
 bool FastpassFlowComparator::operator() (FastpassFlow* a, FastpassFlow* b) {
+    if(params.fastpass_localize) {
+        bool a_same_rack = topology->is_same_rack(a->src->id, a->dst->id);
+        bool b_same_rack = topology->is_same_rack(b->src->id, b->dst->id);
+        if(a_same_rack && b_same_rack) {
+            return a->arbiter_remaining_num_pkts > b->arbiter_remaining_num_pkts;
+        } else if (a_same_rack) {
+            return false; 
+        } else if (b_same_rack) {
+            return true;
+        } else {
+            return a->arbiter_remaining_num_pkts > b->arbiter_remaining_num_pkts;
+        }
+    }
     return a->arbiter_remaining_num_pkts > b->arbiter_remaining_num_pkts;
 }
 
@@ -68,8 +81,11 @@ std::map<int, FastpassFlow*> FastpassArbiter::schedule_timeslot()
     std::set<int> sender_used;
     std::set<int> receiver_used;
 
+    std::map <int, int> send_tor_cons;
+    std::map <int, int> recv_tor_cons;
 
     std::queue<FastpassFlow*> flows_tried;
+    int con_limit = topology->num_hosts_per_tor() * params.os_ratio;
     while(!sending_flows.empty())
     {
         FastpassFlow* f = sending_flows.top();
@@ -77,8 +93,18 @@ std::map<int, FastpassFlow*> FastpassArbiter::schedule_timeslot()
         if(f->arbiter_finished){
             continue;
         }
+
+        int sender_tor = f->src->id / topology->num_hosts_per_tor();
+        int receiver_tor = f->dst->id / topology->num_hosts_per_tor();
         bool sender_free = sender_used.count(f->src->id) == 0;
         bool receiver_free = receiver_used.count(f->dst->id) == 0;
+        if (send_tor_cons.count(sender_tor) == 0)
+            send_tor_cons[sender_tor] = 0;
+        if (recv_tor_cons.count(receiver_tor) == 0)
+            recv_tor_cons[receiver_tor] = 0;
+        bool send_tor_avil = send_tor_cons[sender_tor] < con_limit;
+        bool recv_tor_avil = recv_tor_cons[receiver_tor] < con_limit;
+
         if(debug_flow(f->id) && get_current_time() >= 1.03000023262123){
             std::cout << get_current_time() << " attempting schedule flow " << f->id << " " << f->src->id << "->" << f->dst->id << " for epoch " <<
                 get_current_time() + params.fastpass_epoch_time << " s_free" << sender_free << " r_free" << receiver_free << " arb_remaining " << f->arbiter_remaining_num_pkts <<
@@ -88,15 +114,34 @@ std::map<int, FastpassFlow*> FastpassArbiter::schedule_timeslot()
         }
 
         if(f->arbiter_remaining_num_pkts > 0 && sender_free && receiver_free){
-            f->arbiter_remaining_num_pkts--;
-            sender_used.insert(f->src->id);
-            receiver_used.insert(f->dst->id);
-            schedule[f->src->id] = f;
-            if(debug_flow(f->id))
-                std::cout << get_current_time() << " scheduled flow " << f->id << " for epoch " << get_current_time() + params.fastpass_epoch_time <<
-                    " remaining pkts " << f->arbiter_remaining_num_pkts << "\n";
+            if(params.fastpass_limit_conns) {
+                if (sender_tor == receiver_tor || (send_tor_avil && recv_tor_avil)) {
+                    if (sender_tor != receiver_tor) {
+                        send_tor_cons[sender_tor] += 1;
+                        recv_tor_cons[receiver_tor] += 1;
+                    }
+                    f->arbiter_remaining_num_pkts--;
+                    sender_used.insert(f->src->id);
+                    receiver_used.insert(f->dst->id);
+                    schedule[f->src->id] = f;
+                    if(debug_flow(f->id)) {
+                        std::cout << get_current_time() << " scheduled flow " << f->id << " for epoch " << get_current_time() + params.fastpass_epoch_time <<
+                            " remaining pkts " << f->arbiter_remaining_num_pkts << "\n";
+                    }
+                }
+            } else {
+                f->arbiter_remaining_num_pkts--;
+                sender_used.insert(f->src->id);
+                receiver_used.insert(f->dst->id);
+                schedule[f->src->id] = f;
+                if(debug_flow(f->id)) {
+                    std::cout << get_current_time() << " scheduled flow " << f->id << " for epoch " << get_current_time() + params.fastpass_epoch_time <<
+                        " remaining pkts " << f->arbiter_remaining_num_pkts << "\n";
+                }
+            }
         }
         flows_tried.push(f);
+
     }
 
     while(!flows_tried.empty())

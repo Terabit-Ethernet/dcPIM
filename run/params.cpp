@@ -31,6 +31,11 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     params.remote_load = -1;
     params.ruf_localize = false;
     params.ruf_limit_conns = false;
+    params.cdf_or_flow_trace = "";
+    params.incast_trace = "";
+
+    params.fastpass_localize = false;
+    params.fastpass_limit_conns = false;
     while (std::getline(input, line)) {
         std::istringstream lineStream(line);
         if (line.empty()) {
@@ -84,6 +89,9 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         }
         else if (key == "flow_trace") {
             lineStream >> params.cdf_or_flow_trace;
+        }
+        else if (key == "incast_trace") {
+            lineStream >> params.incast_trace;
         }
         else if (key == "cut_through") {
             lineStream >> params.cut_through;
@@ -310,6 +318,12 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         // ----- fastpass ----
         else if (key == "fastpass_epoch_pkts") {
             lineStream >> params.fastpass_epoch_pkts;
+        }
+        else if (key == "fastpass_localize") {
+            lineStream >> params.fastpass_localize;
+        } 
+        else if (key == "fastpass_limit_conns") {
+            lineStream >> params.fastpass_limit_conns;
         }
         //else if (key == "dctcp_delayed_ack_freq") {
         //    lineStream >> params.dctcp_delayed_ack_freq;
