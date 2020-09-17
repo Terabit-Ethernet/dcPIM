@@ -26,7 +26,7 @@ set style line 2 lt rgb "#00A000" lw 2 pt 6
 set style line 3 lt rgb "#5060D0" lw 2 pt 2
 set style line 4 lt rgb "#F25900" lw 2 pt 9
 set style line 5 lt rgb "#CC0066" lw 2 pt 7
-set style line 6 lt rgb "#003300" lw 2 pt 7
+set style line 6 lt rgb "#00A000" lw 2 pt 7
 
 set xlabel 'Number of Senders'
 set ylabel 'Mean Slowdown'
@@ -36,17 +36,18 @@ set key bottom right
 set xrange [5:50]
 set xtics 5,5,50
 
-set yrange [0: 30]
+set yrange [0: 100]
 
 set output "img/incast_slowdown.eps"
 
 
-plot "data/incast_slowdown.dat" using 1:2 with lp ls 1 title 'pFabric',\
-'' using 1:3 with lp ls 4 title 'Fastpass',\
-'' using 1:4 with lp ls 3 title 'pHost',\
-'' using 1:5 with lp ls 2 title 'c-MP3',\
-'' using 1:6 with lp ls 6 title 'd-MP3'
-#'' using 1:6 with lp ls 5 title 'NDP' ,\
+plot "data/incast_slowdown.dat" using 1:2:3 with lp ls 1 title 'pFabric',\
+'' using 1:4:5 with lp ls 6 title 'dcPIM'
+#'' using 1:4:5 with lp ls 4 title 'Fastpass',\
+#'' using 1:6:7 with lp ls 3 title 'pHost',\
+#'' using 1:10:11 with lp ls 6 title 'dcPIM'
+#'' using 1:10:11 with lp ls 2 title 'c-dcPIM',\
+#'' using 1:14:15 with lp ls 5 title 'NDP' ,\
 
 
 # set terminal xterm

@@ -28,7 +28,4 @@ set boxwidth 1.0 absolute
 set style fill   pattern 7 border
 
 set output "img/fat_tree_util.eps"
-plot 'data/fat_tree_util.dat' using 2:xtic(1) title 'pFabric' fillstyle pattern 1, \
-	'' using 3 title 'pHost' fillstyle pattern 4 transparent lc rgb "#FF8000", \
-	'' using 4 title 'c-MP3' fillstyle pattern 6 transparent lc rgb "#009900", \
-	'' using 5 title 'd-MP3' fillstyle pattern 2 transparent lc rgb "#003300"
+plot 'data/fat_tree_util.dat' using 5 title 'dcPIM' fillstyle pattern 2 transparent lc rgb "#00A000"

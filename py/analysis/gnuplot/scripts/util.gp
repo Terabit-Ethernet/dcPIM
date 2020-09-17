@@ -42,5 +42,5 @@ set output "img/".ARG1."_util.eps"
 plot 'data/'.ARG1.'_util.dat' using 2:xtic(1) title 'pFabric' fillstyle pattern 1, \
 	'' using 3 title 'Fastpass' fillstyle pattern 5 transparent lc rgb "#FF8000", \
 	'' using 4 title 'pHost' fillstyle pattern 4, \
-	'' using 5 title 'c-MP3' fillstyle pattern 6 transparent lc rgb "#009900", \
-	'' using 6 title 'd-MP3' fillstyle pattern 2 transparent lc rgb "#003300"
+#	'' using 5 title 'c-dcPIM' fillstyle pattern 6 transparent lc rgb "#009900", \
+	'' using 6 title 'dcPIM' fillstyle pattern 2 transparent lc rgb "#00A000"

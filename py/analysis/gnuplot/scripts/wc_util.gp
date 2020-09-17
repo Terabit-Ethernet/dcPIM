@@ -42,7 +42,7 @@ set yrange [0:1]
 #set ytics 0, 1, 0.1
 set output "img/".ARG1."_util.eps"
 
-plot "data/".ARG1."_util.txt" using 3:4 with lp ls 1 title ARG2,\
-'' using 1:2 with lp ls 2 title "RUF"
+plot "data/".ARG1."_util.txt" using 1:2 with lp ls 1 title ARG2, \
+ "data/pim_".ARG1."_util.dat" using 1:2 with lp ls 2 title "dcPIM"
 # set terminal xterm
 # replot
