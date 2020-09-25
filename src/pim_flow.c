@@ -38,14 +38,15 @@ struct pim_flow* pflow_new(struct rte_mempool* pool) {
 	flow->buf = buf;
 	return flow;
 }
-void pflow_init(struct pim_flow* pim_f, uint32_t id, uint32_t size, uint32_t src_addr, uint32_t dst_addr, double start_time, int receiver_side) {
-	init_flow(&(pim_f->_f), id, size, src_addr, dst_addr, start_time, receiver_side);
+void pflow_init(struct pim_flow* pim_f, uint32_t id, uint32_t size, uint32_t src_addr, uint32_t dst_addr,
+struct ether_addr* ether_addr, double start_time, int receiver_side) {
+	init_flow(&(pim_f->_f), id, size, src_addr, dst_addr, ether_addr, start_time, receiver_side);
     pim_f->flow_sync_received = false;
     pim_f->token_goal = (int)(ceil(pim_f->_f.size_in_pkt * 1.00));
     pim_f->remaining_pkts_at_sender = pim_f->_f.size_in_pkt;
     pim_f->largest_token_seq_received = -1;
     pim_f->largest_token_data_seq_received = -1;
-    pim_f->latest_token_sent_time = -1;
+    pim_f->latest_token_sent_time = 0;
     pim_f->latest_data_pkt_sent_time = -1;
     pim_f->last_token_data_seq_num_sent = -1;
     pim_f->rd_ctrl_timeout_times = 0;
@@ -53,6 +54,7 @@ void pflow_init(struct pim_flow* pim_f, uint32_t id, uint32_t size, uint32_t src
     rte_timer_init(&pim_f->finish_timeout);
     pim_f->rd_ctrl_timeout_params = NULL;
     pim_f->finish_timeout_params = NULL;
+    pim_f->token_count = 0;
 }
 
 // void pim_flow_free(struct rte_mempool* pool){}
@@ -81,6 +83,9 @@ int pflow_token_gap(const struct pim_flow* f) {
     return f->token_count - f->largest_token_seq_received - 1;
 }
 
+void pflow_relax_token_gap(struct pim_flow* f) {
+    f->largest_token_seq_received = f->token_count - params.token_window;
+}
 bool pflow_get_finish_at_receiver(struct pim_flow* flow) {
     return flow->finished_at_receiver;
 }
@@ -153,7 +158,13 @@ struct rte_mbuf* pflow_get_token_pkt(struct pim_flow* flow, uint32_t data_seq, b
     uint32_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
         sizeof(struct pim_hdr) + sizeof(struct pim_token_hdr);
     rte_pktmbuf_append(p, size);
-    add_ether_hdr(p);
+    if(free_token) {
+        struct ether_hdr* ether_hdr = rte_pktmbuf_mtod_offset(p, struct ether_hdr*, 0);
+        ether_addr_copy(&params.ether_addr, &ether_hdr->d_addr);
+        ether_addr_copy(&flow->_f.dst_ether_addr, &ether_hdr->s_addr);
+    } else {
+        add_ether_hdr(p, &flow->_f.src_ether_addr);
+    }
     struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, 
                 sizeof(struct ether_hdr));
     struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
@@ -178,6 +189,7 @@ struct rte_mbuf* pflow_get_token_pkt(struct pim_flow* flow, uint32_t data_seq, b
         flow->token_count++;
         flow->token_packet_sent_count++;
         flow->last_token_data_seq_num_sent = data_seq;
+        flow->latest_token_sent_time = rte_get_tsc_cycles();
     }
     // flow->next_seq_no += 1;
     // flow->last_data_seq_num_sent = pim_token_hdr->data_seq_no;
@@ -198,7 +210,7 @@ struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow) {
     uint16_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
                 sizeof(struct pim_hdr) + sizeof(struct pim_ack_hdr);
     rte_pktmbuf_append(p, size);
-    add_ether_hdr(p);
+    add_ether_hdr(p, &flow->_f.src_ether_addr);
     struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, 
                 sizeof(struct ether_hdr));
     struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
@@ -212,6 +224,7 @@ struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow) {
     pim_hdr->type = PIM_ACK;
 
     pim_ack_hdr->flow_id = flow->_f.id;
+    pim_ack_hdr->rd_ctrl_times = flow->rd_ctrl_timeout_times;
     // pim_ack_hdr->data_seq_no_acked = pim_data_hdr->data_seq_no;
     // pim_ack_hdr->seq_no = pim_data_hdr->seq_no;
 
@@ -287,12 +300,18 @@ void pflow_rd_ctrl_timeout_handler(__rte_unused struct rte_timer *timer, void* a
         printf("redundancy ctl timeout for flow flow%u\n", flow->_f.id);
     }
     rte_free(timeout_params);
-    if(flow->_f.finished) {
+    if(flow->_f.finished || flow->finished_at_receiver) {
         return;
     }
+    if(flow->_f.src_addr == params.ip) {
+        Pq* pq = lookup_table_entry(host->dst_minflow_table, flow->_f.dst_addr);
+        pq_push(pq, flow);
+    } else {
+        Pq* pq = lookup_table_entry(host->src_minflow_table, flow->_f.src_addr);
+        pq_push(pq, flow);
+    }
     // failed short flows will be treated as long flows
-    Pq* pq = lookup_table_entry(host->src_minflow_table, flow->_f.src_addr);
-    pq_push(pq, flow);
+
     
 }
 

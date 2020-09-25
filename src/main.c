@@ -51,9 +51,10 @@
 #include "pim_host.h"
 #include "pim_pacer.h"
 #include "random_variable.h"
-#define TIMER_RESOLUTION_CYCLES 3000UL /* around 10ms at 2 Ghz */
 
 int mode;
+uint64_t start, end;
+
 /* Per-port statistics struct */
 struct l2fwd_port_statistics {
 	uint64_t tx;
@@ -66,11 +67,12 @@ struct l2fwd_port_statistics flow_stats;
 // char sendpath[8];
 static struct rte_eth_conf port_conf = {
 	.rxmode = {
-		.split_hdr_size = 0,
+		.mq_mode = ETH_MQ_RX_NONE
+		//.split_hdr_size = 0,
 		//.offloads = DEV_RX_OFFLOAD_CRC_STRIP,
 	},
 	.txmode = {
-		.offloads = 0,
+		.mq_mode = ETH_MQ_TX_NONE,
 	},
 };
 #define MAX_RX_QUEUE_PER_LCORE 16
@@ -102,6 +104,7 @@ struct pim_pacer pacer;
 char *cdf_file;
 static volatile bool force_quit;
 
+bool start_signal;
 #define TARGET_NUM 5000
 
 static unsigned char
@@ -134,22 +137,25 @@ static void host_main_loop(void) {
 	printf("iter size :%f\n",params.pim_iter_epoch * 1000000);
 	printf("epoch:%f\n", params.pim_epoch * 1000000);
 	printf("new epoch start:%f\n", 1000000 * (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit));
+	uint64_t cycle_per_us = (uint64_t)(rte_get_timer_hz() / 1000000.0);
+	printf("cycle per us:%"PRIu64"\n", cycle_per_us);
 	// pim_init_epoch(&epoch, &host, &pacer);
 	// pim_receive_start(&epoch, &host, &pacer);
 
 	// pim_receive_start(&epoch, &host, &pacer);
-	rte_timer_reset(&host.pim_send_token_timer, rte_get_timer_hz() * get_transmission_delay(1500) * params.batch_tokens,
-	 	PERIODICAL, rte_lcore_id(), &pim_send_token_evt_handler, (void *)&epoch.pim_timer_params);
+	// rte_timer_reset(&host.pim_send_token_timer, rte_get_timer_hz() * get_transmission_delay(1500) * params.batch_tokens,
+	//  	PERIODICAL, rte_lcore_id(), &pim_send_token_evt_handler, (void *)&epoch.pim_timer_params);
 
 	// rte_timer_reset(&epoch.epoch_timer, rte_get_timer_hz() * (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit),
 	//  PERIODICAL, 1, &pim_start_new_epoch, (void *)(&epoch.pim_timer_params));
 	while(!force_quit) {
 		for (i = 0; i < qconf->n_rx_port; i++) {
+			if(i == 1)
+				continue;
 			portid = qconf->rx_port_list[i];
 
 			nb_rx = rte_eth_rx_burst(portid, 0,
 						 pkts_burst, MAX_PKT_BURST);
-
 			for (j = 0; j < nb_rx; j++) {
 				p = pkts_burst[j];
 				// rte_vlan_strip(p);
@@ -158,7 +164,7 @@ static void host_main_loop(void) {
 		}
 		cur_tsc = rte_rdtsc();
         diff_tsc = cur_tsc - prev_tsc;
-         if (diff_tsc > 300) {
+         if (diff_tsc > cycle_per_us / 10) {
                 rte_timer_manage();
                  prev_tsc = cur_tsc;
          }
@@ -183,12 +189,28 @@ static void pacer_main_loop(void) {
 				rte_exit(EXIT_FAILURE, "deque ring\n");
 			}
 			struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, sizeof(struct ether_hdr));
+    		struct pim_hdr *pim_hdr;
+
+    		uint32_t offset = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr);
+
+   		 	pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, offset);
+
 			pacer.remaining_bytes += rte_be_to_cpu_16(ipv4_hdr->total_length) + sizeof(struct ether_hdr);
 			
 			uint32_t dst_addr = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
 			// insert vlan header with highest priority;
 			// use tos in ipheader instead;
+
+			ipv4_hdr->version_ihl = (0x40 | 0x05);
 			ipv4_hdr->type_of_service = TOS_7;
+			ipv4_hdr->fragment_offset = IP_DN_FRAGMENT_FLAG;
+			ipv4_hdr->next_proto_id = 6;
+			ipv4_hdr->time_to_live = 64;
+			ipv4_hdr->hdr_checksum = 0;
+			ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
+			// if(pim_hdr->type == PIM_RTS) {
+			// 	printf("send control packet type:%u\n", pim_hdr->type);
+			// }
 			// p->vlan_tci = TCI_7;
 			// rte_vlan_insert(&p); 
 			// send packets; hard code the port;
@@ -223,23 +245,31 @@ static void start_main_loop(void) {
 	rte_delay_us_block(2000000);
 	int ips[1] = {24};
 	int i = 0;
-	for (; i < 1; i++) {
-		 struct rte_mbuf* p = NULL;
+	for (; i < params.num_hosts; i++) {
+		if(params.dst_ips[i] == params.ip){
+			continue;
+		}
+		struct rte_mbuf* p = NULL;
 	    p = rte_pktmbuf_alloc(pktmbuf_pool);
 	    uint16_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
 	                sizeof(struct pim_hdr);
 	    rte_pktmbuf_append(p, size);
-	    add_ether_hdr(p);
+	    add_ether_hdr(p, &params.dst_ethers[i]);
 	    struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, 
 	    	struct ipv4_hdr*, sizeof(struct ether_hdr));
 	    struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
 	    	sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
-	    ipv4_hdr->src_addr = rte_cpu_to_be_32(24);
-	    ipv4_hdr->dst_addr = rte_cpu_to_be_32(ips[i]);
-	    ipv4_hdr->total_length = rte_cpu_to_be_16(size);
-
+	    ipv4_hdr->src_addr = rte_cpu_to_be_32(params.ip);
+	    ipv4_hdr->dst_addr = rte_cpu_to_be_32(params.dst_ips[i]);
+	    ipv4_hdr->total_length = rte_cpu_to_be_16(size - sizeof(struct ether_hdr));
+		ipv4_hdr->version_ihl = (0x40 | 0x05);
+		ipv4_hdr->type_of_service = TOS_7;
+		ipv4_hdr->time_to_live = 64;
+		ipv4_hdr->hdr_checksum = 0;
+		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 	    pim_hdr->type = PIM_START;
 		rte_eth_tx_burst(get_port_by_ip(ips[i]) ,0, &p, 1);
+		start = rte_get_timer_cycles();
 	}
 	pim_receive_start(&epoch, &host, &pacer, 3);
 	// lcore_id = rte_lcore_id();
@@ -266,9 +296,11 @@ static void start_main_loop(void) {
 }
 
 static void flow_generate_loop(void) {
-	rte_delay_us_block(5000000);
+	// rte_delay_us_block(5000000);
 	int i = 0;
     uint64_t prev_tsc = 0, cur_tsc, diff_tsc;
+    double TIMER_RESOLUTION_CYCLES = rte_get_timer_hz() / 1000000.0; /* how many cycles in 1 us */
+
     uint64_t prev_tsc_2 = 0, diff_tsc_2 = TIMER_RESOLUTION_CYCLES * 100000;
 	struct exp_random_variable exp_r;
 	struct empirical_random_variable emp_r;
@@ -279,10 +311,13 @@ static void flow_generate_loop(void) {
     double time = value_exp(&exp_r);
     // double acc_time = 0;
     // double acc_flow_size = 0;
+    while(!start_signal && !force_quit) {
+	    rte_delay_us_block(10000);
+    }
 	while(!force_quit) {
 		cur_tsc = rte_rdtsc();
         diff_tsc = cur_tsc - prev_tsc;
-         if (diff_tsc > TIMER_RESOLUTION_CYCLES * time * 1000000.0) {
+         if (diff_tsc > TIMER_RESOLUTION_CYCLES * time * 1000000.0 && i < TARGET_NUM) {
          	if(i == 0) {
 			 	host.start_cycle = rte_get_tsc_cycles();
          	}
@@ -291,7 +326,19 @@ static void flow_generate_loop(void) {
 			// printf("flow size:%u\n", flow_size);
 			// printf("acc_time:%f\n", acc_time);
 			// printf("avg load: %f\n", acc_flow_size * 8 / (params.bandwidth * acc_time));
-			pim_new_flow_comes(&host, & pacer, i, params.dst_ip, flow_size);
+			uint32_t dst_ip = params.ip;
+			struct ether_addr dst_ether;
+			while(1) {
+				uint32_t index = (uint32_t)(rte_rand() % params.num_hosts);
+			 	dst_ip = params.dst_ips[index];
+			 	if(dst_ip == params.ip){
+			 		continue;
+			 	}
+			 	ether_addr_copy(&params.dst_ethers[index], &dst_ether);
+			 	break;
+			}
+
+			pim_new_flow_comes(&host, & pacer, i + params.index * 100000, dst_ip, &dst_ether, flow_size);
             // printf("flow id%u\n", i);
             // printf("flow size:%u\n", flow_size);
             // printf("time:%f\n", time);
@@ -301,32 +348,29 @@ static void flow_generate_loop(void) {
         	time = value_exp(&exp_r);
          }
         if(cur_tsc - prev_tsc_2 > diff_tsc_2) {
-			host.end_cycle = rte_get_tsc_cycles();
-			double time = (double)(host.end_cycle - host.start_cycle) / (double)rte_get_tsc_hz();
-			uint32_t old_sentbytes = host.sent_bytes;
-			uint32_t old_receivebytes = host.received_bytes;
-			double sent_tpt = (double)(old_sentbytes) * 8 / time;
-			double receive_tpt = (double)(old_receivebytes) * 8 / time;
+			// host.end_cycle = rte_get_tsc_cycles();
+			// double time = (double)(host.end_cycle - host.start_cycle) / (double)rte_get_tsc_hz();
+			// uint32_t old_sentbytes = host.sent_bytes;
+			// uint32_t old_receivebytes = host.received_bytes;
+			// double sent_tpt = (double)(old_sentbytes) * 8 / time;
+			// double receive_tpt = (double)(old_receivebytes) * 8 / time;
 			
-			host.start_cycle = host.end_cycle;
+			// host.start_cycle = host.end_cycle;
 
-			printf("-------------------------------\n");
-			printf("sent throughput: %f\n", sent_tpt);
-			printf("received throughput: %f\n", receive_tpt); 
-			printf("size of long flow token q: %u\n",rte_ring_count(host.long_flow_token_q));
-			printf("size of short flow token q: %u\n",rte_ring_count(host.short_flow_token_q));
+			// printf("-------------------------------\n");
+			// printf("sent throughput: %f\n", sent_tpt);
+			// printf("received throughput: %f\n", receive_tpt); 
+			// printf("size of long flow token q: %u\n",rte_ring_count(host.long_flow_token_q));
+			// printf("size of short flow token q: %u\n",rte_ring_count(host.short_flow_token_q));
 
-			printf("size of temp_pkt_buffer: %u\n",rte_ring_count(host.temp_pkt_buffer));
-			printf("size of control q: %u\n", rte_ring_count(pacer.ctrl_q));
-			printf("size of data q: %u\n", rte_ring_count(pacer.data_q));
-			printf("number of unfinished flow: %u\n", rte_hash_count(host.rx_flow_table));
+			// printf("size of temp_pkt_buffer: %u\n",rte_ring_count(host.temp_pkt_buffer));
+			// printf("size of control q: %u\n", rte_ring_count(pacer.ctrl_q));
+			// printf("size of data q: %u\n", rte_ring_count(pacer.data_q));
+			// //printf("number of unfinished flow: %u\n", rte_hash_count(host.rx_flow_table));
 
-			host.sent_bytes -= old_sentbytes;
-			host.received_bytes -= old_receivebytes;
-			prev_tsc_2 = cur_tsc;
-        }
-        if(i == TARGET_NUM) {
-        	break;
+			// host.sent_bytes -= old_sentbytes;
+			// host.received_bytes -= old_receivebytes;
+			// prev_tsc_2 = cur_tsc;
         }
 	}
 }
@@ -420,7 +464,7 @@ signal_handler(int signum)
 		printf("\n\nSignal %d received, preparing to exit...\n",
 				signum);
 		force_quit = true;
-		if(mode == 1) {
+		if(mode == 1 || mode == 2) {
 			uint32_t* flow_id = 0;
 			int32_t position = 0;
 			uint32_t next = 0;
@@ -459,7 +503,7 @@ signal_handler(int signum)
 				pflow_dump(flow);
 			}
 			printf("------------\n");
-			printf("Unfinished received flows:%u\n", rte_hash_count(host.rx_flow_table));
+			//printf("Unfinished received flows:%u\n", rte_hash_count(host.rx_flow_table));
 			position = 0;
  			next = 0;
 			while(1) {
@@ -517,6 +561,7 @@ main(int argc, char **argv)
 	argv += ret;
 
 	force_quit = false;
+	start_signal = false;
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
 
@@ -530,7 +575,7 @@ main(int argc, char **argv)
 		cdf_file = argv[2];
 	}
 	/* exit if no ports open*/
-	num_ports = rte_eth_dev_count_avail();
+	num_ports = rte_eth_dev_count();
 	if (num_ports == 0)
 		rte_exit(EXIT_FAILURE, "No Ethernet ports - bye\n");
 
@@ -579,18 +624,18 @@ main(int argc, char **argv)
 			rte_exit(EXIT_FAILURE, "Cannot configure device: err=%d, port=%u\n", ret, portid);
 		}
 
-		ret = rte_eth_dev_adjust_nb_rx_tx_desc(portid, &nb_rxd, &nb_txd);
+		// ret = rte_eth_dev_adjust_nb_rx_tx_desc(portid, &nb_rxd, &nb_txd);
 
-		if (ret < 0){
-			rte_exit(EXIT_FAILURE, "Cannot adjust number of descriptors: err=%d, port=%u\n", ret, portid);
-		}
+		// if (ret < 0){
+		// 	rte_exit(EXIT_FAILURE, "Cannot adjust number of descriptors: err=%d, port=%u\n", ret, portid);
+		// }
 
 		// rte_eth_macaddr_get(portid, &r2c2_ports_eth_addr[portid]);
 
 		/*init one RX queue*/
 		fflush(stdout);
 		rxq_conf = dev_info.default_rxconf;
-		rxq_conf.offloads = local_port_conf.rxmode.offloads;
+		// rxq_conf.offloads = local_port_conf.rxmode.offloads;
 		ret = rte_eth_rx_queue_setup(portid, 0, nb_rxd, rte_eth_dev_socket_id(portid), &rxq_conf, pktmbuf_pool);
 		if (ret < 0){
 			rte_exit(EXIT_FAILURE, "rte_eth_rx_queue_setup:err=%d, port=%u\n", ret, portid);
@@ -598,7 +643,7 @@ main(int argc, char **argv)
 		/* init one TX queues on each port */
 		fflush(stdout);
 		txq_conf = dev_info.default_txconf;
-		txq_conf.offloads = local_port_conf.txmode.offloads;
+		// txq_conf.offloads = local_port_conf.txmode.offloads;
 		ret = rte_eth_tx_queue_setup(portid, 0, nb_txd,
 				rte_eth_dev_socket_id(portid),
 				&txq_conf);
@@ -621,7 +666,7 @@ main(int argc, char **argv)
 
 		printf("done: \n");
 
-		rte_eth_promiscuous_enable(portid);
+		rte_eth_promiscuous_disable(portid);
 
 		// printf("Port %u, MAC address: %02X:%02X:%02X:%02X:%02X:%02X\n\n",
 		// 		portid,
@@ -639,7 +684,9 @@ main(int argc, char **argv)
 
 	check_all_ports_link_status();
 	ret = 0;
-
+	init_config(&params);
+	printf("window timeout cycle:%"PRIu64"\n", params.token_window_timeout_cycle);
+	rte_eth_macaddr_get(0, &params.ether_addr);
 	/* initialize flow rates and flow nums */
 	// for(int i = 0; i < NUM_FLOW_TYPES; i++) {
 	// 	flow_remainder[i] = 0;
@@ -647,7 +694,7 @@ main(int argc, char **argv)
 	// 	num_flows[i] = 8;
 	// }
 
-	if(mode == 1) {
+	if(mode == 1 || mode == 2) {
 		// allocate all data structure on socket 1(Numa node 1) because
 		// NIC is connected to node 1.
 	    pim_init_host(&host, 1);
@@ -656,9 +703,11 @@ main(int argc, char **argv)
 		rte_eal_remote_launch(launch_host_lcore, NULL, 3);
 		rte_eal_remote_launch(launch_pacer_lcore, NULL, 5);
 	    rte_eal_remote_launch(launch_flowgen_lcore, NULL, 7);
-		rte_eal_remote_launch(launch_start_lcore, NULL, 9);
+		// rte_eal_remote_launch(launch_start_lcore, NULL, 9);
 
-	} else {
+	}  
+	if(mode == 2){
+		rte_eal_remote_launch(launch_start_lcore, NULL, 9);
 	}
 
 	while(!force_quit){

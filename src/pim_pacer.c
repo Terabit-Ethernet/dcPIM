@@ -95,7 +95,7 @@ void pim_pacer_send_data_pkt_handler(__rte_unused struct rte_timer *timer, void*
 	if(p != NULL) {
 		// fetch token info and ip info
 		// construct new packet
-
+		struct ether_hdr* ether_token_hdr =  rte_pktmbuf_mtod_offset(p, struct ether_hdr *, 0);
 		struct pim_token_hdr* pim_token_hdr =  rte_pktmbuf_mtod_offset(p, struct pim_token_hdr *, sizeof(struct ether_hdr) 
 			+ sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
 		struct ipv4_hdr* token_ip_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr *, sizeof(struct ether_hdr));
@@ -114,7 +114,7 @@ void pim_pacer_send_data_pkt_handler(__rte_unused struct rte_timer *timer, void*
 		if(data == NULL) {
 			rte_exit(EXIT_FAILURE, "Fail to append data");
 		}
-		add_ether_hdr(sent_p);
+		add_ether_hdr(sent_p, &ether_token_hdr->s_addr);
 
 		struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(sent_p, struct ipv4_hdr *, sizeof(struct ether_hdr));
 		struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(sent_p, struct pim_hdr *, sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
@@ -122,11 +122,21 @@ void pim_pacer_send_data_pkt_handler(__rte_unused struct rte_timer *timer, void*
 			sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
 
 
-
 		ipv4_hdr->src_addr = token_ip_hdr->dst_addr;
 		ipv4_hdr->dst_addr = token_ip_hdr->src_addr;
-		ipv4_hdr->total_length = rte_cpu_to_be_16(1500);
+		ipv4_hdr->total_length = rte_cpu_to_be_16(1500 - sizeof(struct ether_hdr));
+		ipv4_hdr->version_ihl = (0x40 | 0x05);
 		ipv4_hdr->type_of_service = get_tos(pim_token_hdr->priority);
+		ipv4_hdr->time_to_live = 64;
+		ipv4_hdr->fragment_offset = IP_DN_FRAGMENT_FLAG;
+		ipv4_hdr->next_proto_id = 6;
+		ipv4_hdr->hdr_checksum = 0;
+		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
+		// printf("ipv4_hdr->src_addr:%u\n", rte_be_to_cpu_32(ipv4_hdr->src_addr));
+		// printf("ipv4_hdr->dst_addr:%u\n", rte_be_to_cpu_32(ipv4_hdr->dst_addr));
+		// rte_pktmbuf_dump(stdout, p, 60);
+		// fflush(stdout);
+		// rte_exit(EXIT_FAILURE ,"exit");
 		pim_hdr->type = DATA;
 		pim_data_hdr->flow_id = pim_token_hdr->flow_id;
 		pim_data_hdr->data_seq_no = pim_token_hdr->data_seq_no;
@@ -189,7 +199,13 @@ void pim_pacer_send_token_handler(__rte_unused struct rte_timer *timer, void* ar
 		// this part need to change after the topology set up;
 		uint32_t dst_addr = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
 		// insert vlan header with highest priority or tos for ip;
+		ipv4_hdr->version_ihl = (0x40 | 0x05);
 		ipv4_hdr->type_of_service = TOS_7;
+		ipv4_hdr->time_to_live = 64;
+		ipv4_hdr->fragment_offset = IP_DN_FRAGMENT_FLAG;
+		ipv4_hdr->next_proto_id = 6;
+		ipv4_hdr->hdr_checksum = 0;
+		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 		// p->vlan_tci = TCI_7;
 		// rte_vlan_insert(&p); 
 		// send packets; hard code the port;

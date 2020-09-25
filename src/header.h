@@ -2,7 +2,7 @@
 #define HEADER_H
 
 #include "debug.h"
-
+#include "config.h"
 #include <rte_mbuf.h>
 #include <rte_ether.h>
 #include <rte_ip.h>
@@ -59,6 +59,7 @@ struct pim_accept_hdr {
 
 struct pim_ack_hdr {
 	uint32_t flow_id;
+	uint32_t rd_ctrl_times;
 };
 
 
@@ -81,7 +82,7 @@ struct pim_token_hdr{
 };
 
 void parse_header(struct rte_mbuf* p, struct ipv4_hdr** ipv4_hdr, struct pim_hdr** pim_hdr);
-void add_ether_hdr(struct rte_mbuf* p);
+void add_ether_hdr(struct rte_mbuf* p, struct ether_addr* dst);
 // void add_ip_hdr(struct rte_mbuf* p, struct ipv4_hdr* ipv4_hdr);
 // void add_pim_hdr(struct rte_mbuf* p, struct pim_hdr* pim_hdr);
 // void add_pim_rts_hdr(struct rte_mbuf *p, struct pim_rts_hdr* pim_rts_hdr);

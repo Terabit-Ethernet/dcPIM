@@ -2,6 +2,9 @@
 #define CONFIG_H
 
 #include <stdint.h>
+#include <rte_ether.h>
+#include <rte_timer.h>
+#include <rte_cycles.h>
 
 #define MY_ID 22
 #define PORT_0 20
@@ -12,6 +15,7 @@
 
 #define NUM_FLOW_TYPES 12
 #define NUM_LINKS 6
+#define IP_DN_FRAGMENT_FLAG 0x0040
 
 // highest to lowest: 7 - 1
 // #define TCI_7 0xE000
@@ -32,31 +36,6 @@
 #define TOS_1 0x20
 #define TOS_0 0x00
 
-extern uint32_t id_to_ip[];
-extern int node_flow_types[];
-extern char flow_path0[];
-extern char flow_path1[]; 
-extern char flow_path2[]; 
-extern char flow_path3[]; 
-extern char flow_path4[];
-extern char flow_path5[];
-extern char flow_path6[];
-extern char flow_path7[];
-extern char flow_path8[]; 
-extern char flow_path9[];
-extern char flow_path10[];
-extern char flow_path11[];
-extern char *flow_paths[];
-
-extern char link_correspondence0[];
-extern char link_correspondence1[];
-extern char link_correspondence2[];
-extern char link_correspondence3[];
-extern char link_correspondence4[];
-extern char link_correspondence5[];
-extern char *link_correspondence[];
-
-
 struct Params {
 	double load;
 	double BDP;
@@ -72,8 +51,15 @@ struct Params {
 	double pim_iter_epoch;
 	double pim_epoch;
 	double pipe_epoch;
+	uint32_t token_window;
+	double token_window_timeout;
+	uint64_t token_window_timeout_cycle;
 	// debug purpose
-	uint32_t dst_ip;
+	uint32_t index;
+	uint32_t num_hosts;
+	uint32_t dst_ips[8];
+	struct ether_addr dst_ethers[8];
+	struct ether_addr ether_addr;
 	uint32_t batch_tokens;
 	double propagation_delay;
 	uint32_t send_port;
@@ -86,4 +72,5 @@ double get_transmission_delay(double bytes);
 double get_rtt(double propagation_delay, int layer, double bytes);
 uint32_t get_port_by_ip(uint32_t ip);
 uint32_t ip_to_id(uint32_t ip);
+void init_config(struct Params* p);
 #endif

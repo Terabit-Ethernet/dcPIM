@@ -8,7 +8,8 @@
 #include "config.h"
 #include "flow.h"
 
-void init_flow(struct flow* f, uint32_t id, uint32_t size, uint32_t src_addr, uint32_t dst_addr, uint64_t start_time, int receiver_side){
+void init_flow(struct flow* f, uint32_t id, uint32_t size, uint32_t src_addr, uint32_t dst_addr, 
+    struct ether_addr* ether, uint64_t start_time, int receiver_side){
 	f->id = id;
     f->start_time = start_time;
     f->size = size;
@@ -29,6 +30,8 @@ void init_flow(struct flow* f, uint32_t id, uint32_t size, uint32_t src_addr, ui
     // }
 
     if(receiver_side == 1) {
+        ether_addr_copy(ether, &(f->src_ether_addr));
+
         uint32_t bmp_size = rte_bitmap_get_memory_footprint(size_in_pkt);
         void *mem = rte_zmalloc("bit map", bmp_size, 0);
         if (mem == NULL) {
@@ -37,6 +40,7 @@ void init_flow(struct flow* f, uint32_t id, uint32_t size, uint32_t src_addr, ui
        }
        f->bmp = rte_bitmap_init(size_in_pkt, mem, bmp_size);
     } else {
+        ether_addr_copy(ether, &(f->dst_ether_addr));
         f->bmp = NULL;
     }
 } 
@@ -102,6 +106,9 @@ void flow_dump(struct flow *f) {
     double fct = (double)(f->finish_time - f->start_time) / (double)(rte_get_tsc_hz());
     double waiting_time = (double)(f->first_byte_send_time - f->start_time) / (double)(rte_get_tsc_hz());
     printf("%u ", f->id);
+    printf("%u ", f->src_addr);
+    printf("%u ", f->dst_addr);
+
     // printf("%lu ", f->start_time);
     // printf("%lu ", f->finish_time);
     printf("%u ", f->size);
@@ -112,6 +119,9 @@ void flow_dump(struct flow *f) {
     printf("%u ", f->sent_bytes);
     printf("%u ", f->finished);
     printf("%u ", f->priority);
+    printf("%f ", (double)(f->start_time) / (double)(rte_get_tsc_hz()));
+    printf("%f ", (double)(f->finish_time) / (double)(rte_get_tsc_hz()));
+
 }
 
 double flow_oracle_fct(struct flow* f) {
