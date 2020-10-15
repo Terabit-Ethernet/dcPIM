@@ -576,7 +576,7 @@ static void dcacp_check_flow_finished_at_receiver(struct dcacp_sock *dsk) {
 			printk("userlook and SOCK_BINDPORT_LOCK:%d\n", !(sk->sk_userlocks & SOCK_BINDPORT_LOCK));
 			printk("cannot put port\n");
 		}
-		dcacp_xmit_control(construct_fin_pkt(sk), dsk->peer, sk, inet->inet_dport); 
+		dcacp_xmit_control(construct_fin_pkt(sk), sk, inet->inet_dport); 
 		bh_unlock_sock(sk);
 		flowlet_done_event(&entry->flowlet_done_timer);
 		bh_lock_sock(sk);
@@ -597,7 +597,7 @@ static void dcacp_rcv_nxt_update(struct dcacp_sock *dsk, u32 seq)
 	WRITE_ONCE(dsk->receiver.rcv_nxt, seq);
 	// printk("update the seq:%d\n", dsk->receiver.rcv_nxt);
 	if(dsk->receiver.rcv_nxt >= dsk->receiver.last_ack + dsk->receiver.grant_batch) {
-		dcacp_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), dsk->peer, sk, inet->inet_dport); 
+		dcacp_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk, inet->inet_dport); 
 		dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
 	}
 }

@@ -438,7 +438,7 @@ go_to_next:
  * Return:     Either zero (for success), or a negative errno value if there
  *             was a problem.
  */
-int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct sock *sk, int dport)
+int dcacp_xmit_control(struct sk_buff* skb, struct sock *sk, int dport)
 {
 	// struct dcacp_hdr *h;
 	int result;

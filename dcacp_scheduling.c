@@ -166,7 +166,7 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 
 	if(handle_rtx || grant_len != 0)
 		dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->new_grant_nxt, handle_rtx),
-	 dsk->peer, sk, inet->inet_dport);
+	 	sk, inet->inet_dport);
 	return push_bk;
 }
 

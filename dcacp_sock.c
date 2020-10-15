@@ -595,7 +595,7 @@ int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	// if(!dsk->peer)
 	// 	dsk->peer = dcacp_peer_find(&dcacp_peers_table, daddr, inet);
 
-	dcacp_xmit_control(construct_flow_sync_pkt(sk, 0, flow_len, 0), dsk->peer, sk, inet->inet_dport); 
+	dcacp_xmit_control(construct_flow_sync_pkt(sk, 0, flow_len, 0), sk, inet->inet_dport); 
 	dsk->total_length = flow_len;
 
 	if (err)

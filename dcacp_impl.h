@@ -7,7 +7,6 @@
 #include <net/inet_common.h>
 
 #include "net_dcacp.h"
-#include "net_dcacplite.h"
 #include "dcacp_hashtables.h"
 #include "dcacp_sock.h"
 extern struct inet_hashinfo dcacp_hashinfo;
@@ -135,7 +134,7 @@ struct sk_buff* construct_ack_pkt(struct sock* sk, __be32 rcv_nxt);
 struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz);
 struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool prompt);
 struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short iter, int epoch);
-int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct sock *dcacp_sk, int dport);
+int dcacp_xmit_control(struct sk_buff* skb, struct sock *dcacp_sk, int dport);
 void dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_token);
 void dcacp_retransmit_data(struct sk_buff *skb, struct dcacp_sock* dsk);
 void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_token);

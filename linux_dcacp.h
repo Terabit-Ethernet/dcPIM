@@ -391,7 +391,6 @@ struct dcacp_sock {
 	struct inet_bind_bucket	  *icsk_bind_hash;
 	struct hlist_node         icsk_listen_portaddr_node;
 	struct request_sock_queue icsk_accept_queue;
-	struct dcacp_peer* peer;
 
 	int		 pending;	/* Any pending frames ? */
 	unsigned int	 corkflag;	/* Cork is required */

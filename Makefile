@@ -3,7 +3,6 @@
 obj-m += dcacp_module.o
 dcacp_module-y = dcacp_sock.o\
 				 dcacp_hashtables.o \
-				 dcacp_peertab.o \
 				 dcacp_pq.o \
 				 dcacp_message.o\
 				 dcacp_matching.o\

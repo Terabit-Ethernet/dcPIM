@@ -787,7 +787,6 @@ int dcacp_init_sock(struct sock *sk)
 	struct dcacp_sock* dsk = dcacp_sk(sk);
 	dcacp_set_state(sk, TCP_CLOSE);
 	skb_queue_head_init(&dcacp_sk(sk)->reader_queue);
-	dsk->peer = NULL;
 	dsk->core_id = raw_smp_processor_id();
 	printk("init sock\n");
 	// next_going_id 
@@ -951,7 +950,7 @@ void dcacp_try_send_ack(struct sock *sk, int copied) {
 		// if(grant_len > available_space || grant_len < )
 		// 	return;
 		// printk("try to send ack \n");
-		dcacp_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), dsk->peer, sk, inet->inet_dport); 
+		dcacp_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk, inet->inet_dport); 
 		dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
 	}
 }
@@ -1687,7 +1686,7 @@ void dcacp_destroy_sock(struct sock *sk)
 	hrtimer_cancel(&up->receiver.flow_wait_timer);
 	if(sk->sk_state == DCACP_SENDER || sk->sk_state == DCACP_RECEIVER) {
 		printk("send ack pkt\n");
-		dcacp_xmit_control(construct_fin_pkt(sk), up->peer, sk, inet->inet_dport); 
+		dcacp_xmit_control(construct_fin_pkt(sk), sk, inet->inet_dport); 
 	}
 	printk("reach here:%d", __LINE__);
 	dcacp_set_state(sk, TCP_CLOSE);
@@ -1791,36 +1790,6 @@ int dcacp_lib_setsockopt(struct sock *sk, int level, int optname,
 		release_sock(sk);
 		break;
 
-	/*
-	 * 	DCACP-Lite's partial checksum coverage (RFC 3828).
-	 */
-	/* The sender sets actual checksum coverage length via this option.
-	 * The case coverage > packet length is handled by send module. */
-	case DCACPLITE_SEND_CSCOV:
-		// if (!is_dcacplite)          Disable the option on DCACP sockets 
-		// 	return -ENOPROTOOPT;
-		if (val != 0 && val < 8) /* Illegal coverage: use default (8) */
-			val = 8;
-		else if (val > USHRT_MAX)
-			val = USHRT_MAX;
-		up->pcslen = val;
-		up->pcflag |= DCACPLITE_SEND_CC;
-		break;
-
-	/* The receiver specifies a minimum checksum coverage value. To make
-	 * sense, this should be set to at least 8 (as done below). If zero is
-	 * used, this again means full checksum coverage.                     */
-	case DCACPLITE_RECV_CSCOV:
-		// if (!is_dcacplite)          Disable the option on DCACP sockets 
-		// 	return -ENOPROTOOPT;
-		if (val != 0 && val < 8) /* Avoid silly minimal values.       */
-			val = 8;
-		else if (val > USHRT_MAX)
-			val = USHRT_MAX;
-		up->pcrlen = val;
-		up->pcflag |= DCACPLITE_RECV_CC;
-		break;
-
 	default:
 		err = -ENOPROTOOPT;
 		break;
@@ -1884,17 +1853,6 @@ int dcacp_lib_getsockopt(struct sock *sk, int level, int optname,
 	case DCACP_SEGMENT:
 		val = up->gso_size;
 		break;
-
-	/* The following two cannot be changed on DCACP sockets, the return is
-	 * always 0 (which corresponds to the full checksum coverage of DCACP). */
-	case DCACPLITE_SEND_CSCOV:
-		val = up->pcslen;
-		break;
-
-	case DCACPLITE_RECV_CSCOV:
-		val = up->pcrlen;
-		break;
-
 	default:
 		return -ENOPROTOOPT;
 	}
@@ -2285,14 +2243,12 @@ void __init dcacp_init(void)
 	if (register_pernet_subsys(&dcacp_sysctl_ops)) 
 		panic("DCACP: failed to init sysctl parameters.\n");
 
-	dcacp_peertab_init(&dcacp_peers_table);
 	printk("DCACP init complete\n");
 
 }
 
 void dcacp_destroy() {
 	printk("try to destroy peer table\n");
-	dcacp_peertab_destroy(&dcacp_peers_table);
 	printk("try to destroy dcacp socket table\n");
 	dcacp_hashtable_destroy(&dcacp_hashinfo);
 	kfree(dcacp_busylocks);
