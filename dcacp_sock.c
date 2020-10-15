@@ -785,6 +785,7 @@ struct sock *dcacp_sk_accept(struct sock *sk, int flags, int *err, bool kern)
 	}
 	req = reqsk_queue_remove(queue, sk);
 	newsk = req->sk;
+	printk("accept core id:%d\n", raw_smp_processor_id());
 	dcacp_rps_record_flow(newsk);
 
 	// printk("src port:%d\n", inet_sk(newsk)->inet_num);
@@ -1081,7 +1082,8 @@ struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
 
 	/* set up flow ID and flow size */
 	dsk = dcacp_sk(newsk);
-	dsk->flow_id = fhdr->flow_id;
+	// dsk->flow_id = fhdr->flow_id;
+	dsk->core_id = dcacp_sk(sk)->core_id;
 	dsk->total_length = ntohl(fhdr->flow_size);
 	set_grant_batch(dst, dsk);
 	/* set up max gso segment */

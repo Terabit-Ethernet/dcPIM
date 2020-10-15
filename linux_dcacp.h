@@ -32,6 +32,13 @@ struct dcacp_sock;
 
 
 enum {
+	/* Core State */
+	DCACP_IDLE = 1,
+	DCACP_IN_QUEUE,
+	DCACP_ACTIVE,
+};
+
+enum {
 	/* The initial state is TCP_CLOSE */
 	/* Sender and receiver state are easier to debug.*/
 	DCACP_RECEIVER = 1,
@@ -90,6 +97,8 @@ struct dcacp_params {
 
 	int rmem_default;
 	int wmem_default;
+
+	int data_budget;
 
 };
 
@@ -150,25 +159,54 @@ struct dcacp_peer {
 
 #define DCACP_MATCH_BUCKETS 1024
 
-struct receiver_core_entry {
+
+struct rcv_core_entry {
+	int state;
+	int core_id;
+
 	struct spinlock lock;
-	/* sender side */
-	struct sk_buff_head token_q;
+	struct hrtimer flowlet_done_timer;
 	/*receiver side */
 	/* remaining tokens */
 	atomic_t remaining_tokens;
 	// atomic_t pending_flows;
-	struct hrtimer token_xmit_timer;
-	struct work_struct token_xmit_struct;
+	// struct hrtimer token_xmit_timer;
+	// struct work_struct token_xmit_struct;
 	/* for phost queue */
 	struct dcacp_pq flow_q;
+	struct list_head list_link;
+	struct work_struct token_xmit_struct;
 
 };
 
-struct receiver_core_table{
-	atomic_t remaining_tokens;
-	struct receiver_core_entry table[NR_CPUS];
+struct rcv_core_table {
+	struct spinlock lock;
+	// atomic_t remaining_tokens;
+	int num_active_cores;
+	struct list_head sche_list;
+	struct rcv_core_entry table[NR_CPUS];
+	struct workqueue_struct *wq;
+
 };
+
+struct xmit_core_entry {
+	int core_id;
+	struct spinlock lock;
+	struct sk_buff_head token_q;
+	// struct hrtimer data_xmit_timer;
+	struct list_head list_link;
+	struct work_struct data_xmit_struct;
+};
+struct xmit_core_table {
+	struct spinlock lock;
+	int num_active_cores;
+	struct xmit_core_entry table[NR_CPUS];
+	struct list_head sche_list;
+
+	struct workqueue_struct *wq;
+
+}; 
+
 struct dcacp_epoch {
 
 	uint64_t epoch;
@@ -407,7 +445,7 @@ struct dcacp_sock {
 	/**
 	 * flow id
 	 */
-    uint64_t flow_id;
+    int core_id;
 
 	struct rb_root	out_of_order_queue;
 	/**
@@ -415,12 +453,16 @@ struct dcacp_sock {
 	 */
     uint32_t total_length;
 	
+	/*protected by socket lock */
 	uint32_t grant_nxt;
 	uint32_t prev_grant_nxt;
 	uint32_t new_grant_nxt;
+
+	/* protected by socket user lock*/
     uint32_t num_sacks;
 	struct dcacp_sack_block selective_acks[16]; /* The SACKS themselves*/
 
+    ktime_t start_time;
 	struct list_head match_link;
     /* sender */
     struct dcacp_sender {
@@ -450,15 +492,27 @@ struct dcacp_sock {
 		bool is_ready;
 		/* short flow and hasn't reached timeout yet */
 		bool free_flow;
+
 	    bool flow_sync_received;
+
+	    /* protected by socket lock*/
 	 	bool finished_at_receiver;
+		bool flow_finish_wait;
+		int rmem_exhausted;
+		/* short flow waiting timer or long flow waiting timer; after all tokens arer granted */
+		struct hrtimer flow_wait_timer;
+		int prev_grant_bytes;
+	    ktime_t last_rtx_time;
+
+		/* protected by user lock */
 		uint32_t copied_seq;
 	    uint32_t bytes_received;
-	    uint32_t received_count;
+	    // uint32_t received_count;
 	    uint32_t grant_batch;
 	    uint32_t max_gso_data;
 	    /* current received bytes + 1*/
 	    uint32_t rcv_nxt;
+	    uint32_t last_ack;
 	    // struct dcacp_sack_block duplicate_sack[1]; /* D-SACK block */
 	    // uint32_t max_seq_no_recv;
 		/** @priority: Priority level to include in future GRANTS. */
@@ -476,12 +530,10 @@ struct dcacp_sock {
 		// struct list_head ready_link;
 
 		// link for DCACP matching table
+		/* protected by entry lock */
+		bool in_pq;
 		struct list_head match_link;
-		int rmem_exhausted;
-		/* short flow waiting timer or long flow waiting timer; after all tokens arer granted */
-		struct hrtimer flow_wait_timer;
-		bool flow_wait;
-		int prev_grant_bytes;
+
 		atomic_t backlog_len;
 		atomic_t in_flight_bytes;
 
@@ -490,7 +542,7 @@ struct dcacp_sock {
     } receiver;
 
 
-	atomic64_t next_outgoing_id;
+	// atomic64_t next_outgoing_id;
 
 	int unsolved;
 };

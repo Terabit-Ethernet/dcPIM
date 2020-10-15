@@ -46,6 +46,9 @@ void dcacp_pq_delete(struct dcacp_pq* pq, struct list_head* node) {
 		list_del_init(node);
 		pq->count--;
 	}
+	if(pq->count == 0) {
+		INIT_LIST_HEAD(&pq->list);
+	}
 	// spin_unlock_bh(&pq->lock);
 	return; 
 }
@@ -56,10 +59,12 @@ struct list_head* dcacp_pq_pop(struct dcacp_pq* pq) {
 		head = pq->list.next;
 		list_del_init(head);
 		pq->count--;
-		return head;
+	}
+	if(pq->count == 0) {
+		INIT_LIST_HEAD(&pq->list);
 	}
 	// spin_unlock_bh(&pq->lock);
-	return NULL; 
+	return head;
 }
 
 void dcacp_pq_push(struct dcacp_pq* pq, struct list_head* node) {

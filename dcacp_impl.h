@@ -18,7 +18,8 @@ extern struct dcacp_params dcacp_params;
 extern struct dcacp_epoch dcacp_epoch;
 extern struct request_sock_ops dcacp_request_sock_ops;
 
-extern struct dcacp_core_table dcacp_core_table;
+extern struct xmit_core_table xmit_core_tab;
+extern struct rcv_core_table rcv_core_tab;
 void* allocate_hash_table(const char *tablename,
 				     unsigned long bucketsize,
 				     unsigned long numentries,
@@ -73,6 +74,27 @@ void dcacp_epoch_destroy(struct dcacp_epoch *epoch);
 // int dcacp_handle_accept(struct sk_buff *skb, struct dcacp_match_tab *table, struct dcacp_epoch *epoch);
 
 
+/* scheduling */
+bool flow_compare(const struct list_head* node1, const struct list_head* node2);
+void rcv_core_entry_init(struct rcv_core_entry *entry, int core_id);
+int rcv_core_table_init(struct rcv_core_table *tab);
+void xmit_core_entry_init(struct xmit_core_entry *entry, int core_id);
+int xmit_core_table_init(struct xmit_core_table *tab);
+void rcv_core_table_destory(struct rcv_core_table *tab);
+void xmit_core_table_destory(struct xmit_core_table *tab);
+
+/* sender */
+void xmit_handle_new_token(struct xmit_core_table *tab, struct sk_buff* skb);
+void dcacp_xmit_data_event(struct work_struct *w);
+
+/* receiver */
+void dcacp_xmit_token_event(struct work_struct *w);
+void rcv_handle_new_flow(struct dcacp_sock* dsk);
+void rcv_flowlet_done(struct rcv_core_entry *entry);
+enum hrtimer_restart flowlet_done_event(struct hrtimer *timer);
+
+
+
 int dcacp_fragment(struct sock *sk, enum dcacp_queue dcacp_queue,
 		 struct sk_buff *skb, u32 len,
 		 unsigned int mss_now, gfp_t gfp);
@@ -119,10 +141,9 @@ void dcacp_retransmit_data(struct sk_buff *skb, struct dcacp_sock* dsk);
 void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_token);
 void dcacp_retransmit(struct sock* sk);
 
-void dcacp_write_timer_handler(struct sock *sk);
+int dcacp_write_timer_handler(struct sock *sk);
 
 void dcacp_write_queue_purge(struct sock *sk);
-void dcacp_write_timer_handler(struct sock *sk);
 
 void dcacp_release_cb(struct sock *sk);
 int __dcacp4_lib_rcv(struct sk_buff *, struct udp_table *, int);

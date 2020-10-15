@@ -135,7 +135,7 @@ struct sk_buff* __construct_control_skb(struct sock* sk, int size) {
 	// int extra_bytes;
 	if (unlikely(!skb))
 		return NULL;
-	skb_reserve(skb, sizeof(struct iphdr));
+	skb_reserve(skb, DCACP_HEADER_MAX_SIZE);
 	skb_reset_transport_header(skb);
 
 	// h = (struct dcacp_hdr *) skb_put(skb, length);
@@ -453,12 +453,13 @@ int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct sock
 	dh->source = inet->inet_sport;
 	dh->dest = inet->inet_dport;
 	dh->check = 0;
+	dh->doff = (sizeof(struct dcacphdr)) << 2;
 	// inet->tos = IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL;
 	skb->sk = sk;
 	// dst_confirm_neigh(peer->dst, &fl4->daddr);
 	dst_hold(__sk_dst_get(sk));
 	// skb_dst_set(skb, __sk_dst_get(sk));
-	skb_get(skb);
+	// skb_get(skb);
 	result = __ip_queue_xmit(sk, skb, &inet->cork.fl, IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL);
 	if (unlikely(result != 0)) {
 		// INC_METRIC(control_xmit_errors, 1);
@@ -471,11 +472,11 @@ int dcacp_xmit_control(struct sk_buff* skb, struct dcacp_peer *peer, struct sock
 		 * its memory used for some other purpose, resulting in
 		 * a bogus "reference count").
 		 */
-		if (refcount_read(&skb->users) > 1)
-			printk(KERN_NOTICE "ip_queue_xmit didn't free "
-					"DCACP control packet after error\n");
+		// if (refcount_read(&skb->users) > 1)
+		// 	printk(KERN_NOTICE "ip_queue_xmit didn't free "
+		// 			"DCACP control packet after error\n");
 	}
-	kfree_skb(skb);
+	// kfree_skb(skb);
 	// INC_METRIC(packets_sent[h->type - DATA], 1);
 	return result;
 }
@@ -636,22 +637,25 @@ void __dcacp_xmit_data(struct sk_buff *skb, struct dcacp_sock* dsk, bool free_to
 
 /* Called with bottom-half processing disabled.
    assuming hold the socket lock */
-void dcacp_write_timer_handler(struct sock *sk)
+int dcacp_write_timer_handler(struct sock *sk)
 {    
 	struct dcacp_sock *dsk = dcacp_sk(sk);
 	struct sk_buff *skb;
+	int sent_bytes = 0;
 	if(dsk->num_sacks > 0) {
-		printk("retransmit\n");
+		// printk("retransmit\n");
 		dcacp_retransmit(sk);
 	}
 	while((skb = skb_dequeue(&sk->sk_write_queue)) != NULL) {
 		if (DCACP_SKB_CB(skb)->end_seq <= dsk->grant_nxt) {
 			dcacp_xmit_data(skb, dsk, false);
+			sent_bytes += DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq;
 		} else {
 			skb_queue_head(&sk->sk_write_queue, skb);
 			break;
 		}
 	}
+	return sent_bytes;
 
 //         struct inet_connection_sock *icsk = inet_csk(sk);
 //         int event;

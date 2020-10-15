@@ -196,11 +196,11 @@ static struct ctl_table_header *dcacp_ctl_header;
 void dcacp_params_init(struct dcacp_params* params) {
     params->clean_match_sock = 0;
     params->match_socket_port = 3000;
-    params->bandwidth = 10;
-    params->control_pkt_rtt = 60;
-    params->rtt = 60;
-    // params->bdp  = params->rtt * params->bandwidth / 8 * 1000;
-    params->bdp = 500000;
+    params->bandwidth = 100;
+    params->control_pkt_rtt = 50;
+    params->rtt = 50;
+    params->bdp  = params->rtt * params->bandwidth / 8 * 1000;
+    // params->bdp = 500000;
     // params->gso_size = 1500;
     // matchiing parameters
     params->alpha = 2;
@@ -213,6 +213,7 @@ void dcacp_params_init(struct dcacp_params* params) {
     params->wmem_default = 3289600;
     params->short_flow_size = params->bdp;
     params->control_pkt_bdp = params->control_pkt_rtt * params->bandwidth * 1000 / 8;
+    params->data_budget = 1000000;
     printk("params->control_pkt_bdp:%d\n", params->control_pkt_bdp);
 }
 /**
@@ -270,7 +271,7 @@ void dcacp_sysctl_changed(struct dcacp_params *params)
     if(params->clean_match_sock == 1) {
         // sock_release(dcacp_match_table.sock);
         // dcacp_match_table.sock = NULL;
-        dcacp_epoch_destroy(&dcacp_epoch);
+        // dcacp_epoch_destroy(&dcacp_epoch);
         params->clean_match_sock = 0;
     }
 }
@@ -307,7 +308,7 @@ static int __init dcacp_load(void) {
         dcacp_params_init(&dcacp_params);
 
         dcacp_init();
-        dcacp_mattab_init(&dcacp_match_table, NULL);
+        // dcacp_mattab_init(&dcacp_match_table, NULL);
 
         status = proto_register(&dcacp_prot, 1);
         if (status != 0) {
@@ -323,7 +324,16 @@ static int __init dcacp_load(void) {
                     status);
                 goto out_cleanup;
         }
-        dcacp_epoch_init(&dcacp_epoch);
+        // dcacp_epoch_init(&dcacp_epoch);
+        /* initialize rcv_core table and xmit_core table */
+        status = rcv_core_table_init(&rcv_core_tab);
+        if(status != 0) {
+            goto out_cleanup;
+        }
+        status = xmit_core_table_init(&xmit_core_tab);
+        if(status != 0) {
+            goto out_cleanup;
+        }
         // if (status)
         //         goto out_cleanup;
         // dcacplite4_register();
@@ -365,7 +375,9 @@ out_cleanup:
         // proc_remove(metrics_dir_entry);
         if (dcacpv4_offload_end() != 0)
             printk(KERN_ERR "DCACP couldn't stop offloads\n");
-        dcacp_epoch_destroy(&dcacp_epoch);
+        // dcacp_epoch_destroy(&dcacp_epoch);
+        rcv_core_table_destory(&rcv_core_tab);
+        xmit_core_table_destory(&xmit_core_tab);
         unregister_net_sysctl_table(dcacp_ctl_header);
         dcacp_destroy();
         inet_del_protocol(&dcacp_protocol, IPPROTO_DCACP);
@@ -408,8 +420,11 @@ static void __exit dcacp_unload(void) {
         // dcacp_epoch_destroy(&dcacp_epoch);
         unregister_net_sysctl_table(dcacp_ctl_header);
         printk("unregister sysctl table\n");
-        dcacp_mattab_destroy(&dcacp_match_table);
-        printk("remove match table\n");
+        rcv_core_table_destory(&rcv_core_tab);
+        xmit_core_table_destory(&xmit_core_tab);
+
+        // dcacp_mattab_destroy(&dcacp_match_table);
+        // printk("remove match table\n");
 
         dcacp_destroy();
         printk("remove dcacp table\n");

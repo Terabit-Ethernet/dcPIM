@@ -202,7 +202,6 @@ struct sk_buff *dcacp_gro_receive(struct list_head *head, struct sk_buff *skb)
 		if (unlikely(!dh))
 			goto out;
 	}
-
 	if (dh->type != DATA) {
 		goto out;
 	}
@@ -294,7 +293,7 @@ out:
 int dcacp_gro_complete(struct sk_buff *skb, int dhoff)
 {
 	struct dcacphdr *dh = dcacp_hdr(skb);
-	const u32 ports = (((u32)dh->source) << 16) | (__force u32)dh->dest;
+	// const u32 ports = (((u32)dh->source) << 16) | (__force u32)dh->dest;
 
 	skb->csum_start = (unsigned char *)dh - skb->head;
 	skb->csum_offset = offsetof(struct dcacphdr, check);
@@ -302,8 +301,13 @@ int dcacp_gro_complete(struct sk_buff *skb, int dhoff)
 	skb_shinfo(skb)->gso_type |= SKB_GSO_DCACP;
 	skb_shinfo(skb)->gso_segs = NAPI_GRO_CB(skb)->count;
 	
-	__skb_set_sw_hash(skb, jhash_3words(ip_hdr(skb)->saddr,
-		ip_hdr(skb)->daddr, ports, 0), false);
+	// printk("skb queue mapping:%d\n", skb->queue_mapping);
+	// printk("old skb->hash:%d\n", skb->hash);
+	// printk("l4_hash:%d\n", skb->l4_hash);
+	// __skb_set_sw_hash(skb, jhash_3words(ip_hdr(skb)->saddr,
+	// 	ip_hdr(skb)->daddr, ports, 0), false);
+	// printk("new skb->hash:%d\n", skb->hash);
+	// printk("cpu:%d\n", raw_smp_processor_id());
 	// printk("gro packet core:%d\n", raw_smp_processor_id());
 	// struct rps_dev_flow voidflow, *rflow = &voidflow;
 	// int cpu = get_rps_cpu(skb->dev, skb, &rflow);
