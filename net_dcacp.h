@@ -30,16 +30,6 @@
 
 #include "linux_dcacp.h"
 
-#define TOS_7 0xE0
-#define TOS_6 0xC0
-#define TOS_5 0xA0
-#define TOS_4 0x80
-#define TOS_3 0x60
-#define TOS_2 0x40
-#define TOS_1 0x20
-#define TOS_0 0x00
-
-
 #define DCACP_NUM_SACKS 16
 enum dcacp_queue {
 	DCACP_FRAG_IN_WRITE_QUEUE,
@@ -301,8 +291,8 @@ static inline void dcacp_rmem_free_skb(struct sock *sk, struct sk_buff *skb) {
 	__kfree_skb(skb);
 }
 
-extern struct udp_table dcacp_table;
-void dcacp_table_init(struct udp_table *, const char *);
+// extern struct udp_table dcacp_table;
+// void dcacp_table_init(struct udp_table *, const char *);
 // static inline struct dcacp_hslot *dcacp_hashslot(struct dcacp_table *table,
 // 					     struct net *net, unsigned int num)
 // {
@@ -523,14 +513,14 @@ int dcacp_err(struct sk_buff *, u32);
 int dcacp_abort(struct sock *sk, int err);
 int dcacp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len);
 int dcacp_push_pending_frames(struct sock *sk);
-void dcacp_flush_pending_frames(struct sock *sk);
-int dcacp_cmsg_send(struct sock *sk, struct msghdr *msg, u16 *gso_size);
-void dcacp4_hwcsum(struct sk_buff *skb, __be32 src, __be32 dst);
+// void dcacp_flush_pending_frames(struct sock *sk);
+// int dcacp_cmsg_send(struct sock *sk, struct msghdr *msg, u16 *gso_size);
+// void dcacp4_hwcsum(struct sk_buff *skb, __be32 src, __be32 dst);
 int dcacp_rcv(struct sk_buff *skb);
 int dcacp_ioctl(struct sock *sk, int cmd, unsigned long arg);
 int dcacp_init_sock(struct sock *sk);
 int dcacp_pre_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len);
-int __dcacp_disconnect(struct sock *sk, int flags);
+// int __dcacp_disconnect(struct sock *sk, int flags);
 int dcacp_disconnect(struct sock *sk, int flags);
 // __poll_t dcacp_poll(struct file *file, struct socket *sock, poll_table *wait);
 // struct sk_buff *skb_dcacp_tunnel_segment(struct sk_buff *skb,
@@ -541,13 +531,13 @@ int dcacp_lib_getsockopt(struct sock *sk, int level, int optname,
 int dcacp_lib_setsockopt(struct sock *sk, int level, int optname,
 		       char __user *optval, unsigned int optlen,
 		       int (*push_pending_frames)(struct sock *));
-struct sock *dcacp4_lib_lookup(struct net *net, __be32 saddr, __be16 sport,
-			     __be32 daddr, __be16 dport, int dif);
-struct sock *__dcacp4_lib_lookup(struct net *net, __be32 saddr, __be16 sport,
-			       __be32 daddr, __be16 dport, int dif, int sdif,
-			       struct udp_table *tbl, struct sk_buff *skb);
-struct sock *dcacp4_lib_lookup_skb(struct sk_buff *skb,
-				 __be16 sport, __be16 dport);
+// struct sock *dcacp4_lib_lookup(struct net *net, __be32 saddr, __be16 sport,
+// 			     __be32 daddr, __be16 dport, int dif);
+// struct sock *__dcacp4_lib_lookup(struct net *net, __be32 saddr, __be16 sport,
+// 			       __be32 daddr, __be16 dport, int dif, int sdif,
+// 			       struct udp_table *tbl, struct sk_buff *skb);
+// struct sock *dcacp4_lib_lookup_skb(struct sk_buff *skb,
+// 				 __be16 sport, __be16 dport);
 // struct sock *dcacp6_lib_lookup(struct net *net,
 // 			     const struct in6_addr *saddr, __be16 sport,
 // 			     const struct in6_addr *daddr, __be16 dport,
@@ -683,13 +673,6 @@ struct dcacp_iter_state {
 	int			bucket;
 };
 
-void *dcacp_seq_start(struct seq_file *seq, loff_t *pos);
-void *dcacp_seq_next(struct seq_file *seq, void *v, loff_t *pos);
-void dcacp_seq_stop(struct seq_file *seq, void *v);
-
-extern const struct seq_operations dcacp_seq_ops;
-extern const struct seq_operations dcacp6_seq_ops;
-
 int dcacp4_proc_init(void);
 void dcacp4_proc_exit(void);
 #endif /* CONFIG_PROC_FS */
@@ -699,12 +682,6 @@ int dcacpv4_offload_end(void);
 void dcacp_init(void);
 
 void dcacp_destroy(void);
-DECLARE_STATIC_KEY_FALSE(dcacp_encap_needed_key);
-void dcacp_encap_enable(void);
-#if IS_ENABLED(CONFIG_IPV6)
-DECLARE_STATIC_KEY_FALSE(dcacpv6_encap_needed_key);
-void dcacpv6_encap_enable(void);
-#endif
 
 static inline struct sk_buff *dcacp_rcv_segment(struct sock *sk,
 					      struct sk_buff *skb, bool ipv4)

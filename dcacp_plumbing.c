@@ -104,10 +104,10 @@ struct proto dcacp_prot = {
     .h.hashinfo     = &dcacp_hashinfo,
     // .h.udp_table        = &dcacp_table,
     .max_header     = DCACP_HEADER_MAX_SIZE,
-#ifdef CONFIG_COMPAT
-    .compat_setsockopt  = compat_dcacp_setsockopt,
-    .compat_getsockopt  = compat_dcacp_getsockopt,
-#endif
+// #ifdef CONFIG_COMPAT
+//     .compat_setsockopt  = compat_dcacp_setsockopt,
+//     .compat_getsockopt  = compat_dcacp_getsockopt,
+// #endif
     .diag_destroy       = dcacp_abort,
 };
 // EXPORT_SYMBOL(dcacp_prot);

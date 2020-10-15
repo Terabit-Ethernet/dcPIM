@@ -234,7 +234,7 @@ enum hrtimer_restart dcacp_flow_wait_event(struct hrtimer *timer) {
 	// struct dcacp_grant* grant, temp;
 	struct dcacp_sock *dsk = container_of(timer, struct dcacp_sock, receiver.flow_wait_timer);
 	struct sock *sk = (struct sock*)dsk;
-	struct inet_sock* inet = inet_sk(sk);
+	// struct inet_sock* inet = inet_sk(sk);
 	struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
 	bh_lock_sock(sk);
 	atomic_sub(atomic_read(&dsk->receiver.in_flight_bytes), &entry->remaining_tokens);

@@ -80,6 +80,50 @@ struct inet_bind_bucket *inet_bind_bucket_create(struct kmem_cache *cachep,
 	return tb;
 }
 
+void* allocate_hash_table(const char *tablename,
+				     unsigned long bucketsize,
+				     unsigned long numentries,
+				     int scale,
+				     int flags,
+				     unsigned int *_hash_shift,
+				     unsigned int *_hash_mask,
+				     unsigned long low_limit,
+				     unsigned long high_limit) {
+	unsigned long long max = high_limit;
+	unsigned long log2qty, size;
+	void *table = NULL;
+	gfp_t gfp_flags;
+	numentries = roundup_pow_of_two(numentries);
+
+	max = min(max, 0x80000000ULL);
+
+	if (numentries < low_limit)
+		numentries = low_limit;
+	if (numentries > max)
+		numentries = max;
+
+	log2qty = ilog2(numentries);
+	gfp_flags = (flags & HASH_ZERO) ? GFP_ATOMIC | __GFP_ZERO : GFP_ATOMIC;
+
+	size = bucketsize << log2qty;
+
+	table = vmalloc(size);
+
+	if (!table)
+		panic("Failed to allocate %s hash table\n", tablename);
+
+	pr_info("%s hash table entries: %ld (order: %d, %lu bytes, %s)\n",
+		tablename, 1UL << log2qty, ilog2(size) - PAGE_SHIFT, size,
+		"vmalloc");
+
+	if (_hash_shift)
+		*_hash_shift = log2qty;
+	if (_hash_mask)
+		*_hash_mask = (1 << log2qty) - 1;
+
+	return table;
+}
+
 void dcacp_hashtable_init(struct inet_hashinfo* hashinfo, unsigned long thash_entries) {
 		int i = 0;
 	    inet_hashinfo_init(hashinfo);

@@ -2,7 +2,7 @@
 
 CFLAGS := -Wall -Werror -fno-strict-aliasing -O3 -I..
 
-BINS := tcp_mmap homa_test  server
+BINS := tcp_mmap dcacp_test  server
 
 OBJS := $(patsubst %,%.o,$(BINS))
 	
