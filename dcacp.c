@@ -810,15 +810,38 @@ out:
 
 int dcacp_pre_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 {
-	printk(KERN_WARNING "unimplemented pre_connect invoked on DCACP socket\n");
-	return -ENOSYS;
+	if (addr_len < sizeof(struct sockaddr_in))
+ 		return -EINVAL;
+
+ 	return BPF_CGROUP_RUN_PROG_INET4_CONNECT_LOCK(sk, uaddr);
 }
 EXPORT_SYMBOL(dcacp_pre_connect);
 
 int dcacp_disconnect(struct sock *sk, int flags)
 {
-	printk(KERN_WARNING "unimplemented disconnect invoked on DCACP socket\n");
-	return -ENOSYS;	
+	struct inet_sock *inet = inet_sk(sk);
+ 	/*
+ 	 *	1003.1g - break association.
+ 	 */
+
+ 	sk->sk_state = TCP_CLOSE;
+ 	inet->inet_daddr = 0;
+ 	inet->inet_dport = 0;
+ 	sock_rps_reset_rxhash(sk);
+ 	sk->sk_bound_dev_if = 0;
+ 	if (!(sk->sk_userlocks & SOCK_BINDADDR_LOCK)) {
+ 		inet_reset_saddr(sk);
+ 		if (sk->sk_prot->rehash &&
+ 		    (sk->sk_userlocks & SOCK_BINDPORT_LOCK))
+ 			sk->sk_prot->rehash(sk);
+ 	}
+
+ 	if (!(sk->sk_userlocks & SOCK_BINDPORT_LOCK)) {
+ 		sk->sk_prot->unhash(sk);
+ 		inet->inet_sport = 0;
+ 	}
+ 	sk_dst_reset(sk);
+ 	return 0;
 }
 EXPORT_SYMBOL(dcacp_disconnect);
 
