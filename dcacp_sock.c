@@ -33,8 +33,9 @@ static void set_grant_batch(struct dst_entry *dst, struct dcacp_sock* dsk) {
 	int num_gso_per_bdp;
 	mtu = dst_mtu(dst);
 	gso_size = dst->dev->gso_max_size;
-	if (gso_size > dcacp_params.bdp)
-		gso_size = dcacp_params.bdp;
+	/* we assume BDP is larger than max_gso_data for now */
+	// if (gso_size > dcacp_params.bdp)
+	// 	gso_size = dcacp_params.bdp;
 	// if (gso_size > dcacp_params.gso_size)
 	// 	gso_size = dcacp_params.gso_size;
 	bufs_per_gso = gso_size / mtu;
