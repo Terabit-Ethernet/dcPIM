@@ -430,7 +430,7 @@ int dcacp_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.rcv_nxt, 0);
 	WRITE_ONCE(dsk->receiver.last_ack, 0);
 	WRITE_ONCE(dsk->receiver.copied_seq, 0);
-	WRITE_ONCE(dsk->receiver.grant_batch, 0);
+	WRITE_ONCE(dsk->receiver.max_grant_batch, 0);
 	WRITE_ONCE(dsk->receiver.max_gso_data, 0);
 	WRITE_ONCE(dsk->receiver.finished_at_receiver, false);
 	WRITE_ONCE(dsk->receiver.flow_finish_wait, false);
@@ -471,7 +471,7 @@ EXPORT_SYMBOL(dcacp_ioctl);
 void dcacp_try_send_ack(struct sock *sk, int copied) {
 	struct dcacp_sock *dsk = dcacp_sk(sk);
 	struct inet_sock *inet = inet_sk(sk);
-	if(copied > 0 && dsk->receiver.rcv_nxt >= dsk->receiver.last_ack + dsk->receiver.grant_batch / 5) {
+	if(copied > 0 && dsk->receiver.rcv_nxt >= dsk->receiver.last_ack + dsk->receiver.max_grant_batch / 5) {
 		// int grant_len = min_t(int, len, dsk->receiver.max_gso_data);
 		// int available_space = dcacp_space(sk);
 		// if(grant_len > available_space || grant_len < )
@@ -482,27 +482,27 @@ void dcacp_try_send_ack(struct sock *sk, int copied) {
 	}
 }
 
-// bool dcacp_try_send_token(struct sock *sk) {
-// 	if(test_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
-// 		struct dcacp_sock *dsk = dcacp_sk(sk);
-// 		// int grant_len = min_t(int, len, dsk->receiver.max_gso_data);
-// 		// int available_space = dcacp_space(sk);
-// 		// if(grant_len > available_space || grant_len < )
-// 		// 	return;
-// 		// printk("try to send token \n");
-// 		int grant_bytes = calc_grant_bytes(sk);
+bool dcacp_try_send_token(struct sock *sk) {
+	if(test_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
+		struct dcacp_sock *dsk = dcacp_sk(sk);
+		// int grant_len = min_t(int, len, dsk->receiver.max_gso_data);
+		// int available_space = dcacp_space(sk);
+		// if(grant_len > available_space || grant_len < )
+		// 	return;
+		// printk("try to send token \n");
+		int grant_bytes = calc_grant_bytes(sk);
 
-// 		// printk("grant bytes delay:%d\n", grant_bytes);
-// 		if (grant_bytes != 0) {
-// 			spin_lock_bh(&sk->sk_lock.slock);
-// 			xmit_batch_token(sk, grant_bytes, false);
-// 			spin_unlock_bh(&sk->sk_lock.slock);
-// 			return true;
-// 		}
-// 	}
-// 	return false;
+		// printk("grant bytes delay:%d\n", grant_bytes);
+		if (grant_bytes > 0) {
+			// spin_lock_bh(&sk->sk_lock.slock);
+			xmit_batch_token(sk, grant_bytes, false);
+			// spin_unlock_bh(&sk->sk_lock.slock);
+			return true;
+		}
+	}
+	return false;
 
-// }
+}
 /*
  * 	This should be easy, if there is something there we
  * 	return it, otherwise we block.
@@ -669,7 +669,8 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 		}
 
 		// tcp_cleanup_rbuf(sk, copied);
-		// dcacp_try_send_ack(sk, copied);
+		dcacp_try_send_token(sk);
+		// printk("release sock");
 		if (copied >= target) {
 			/* Do not sleep, just process backlog. */
 			/* Release sock will handle the backlog */
@@ -694,6 +695,7 @@ found_ok_skb:
 		used = skb->len - offset;
 		if (len < used)
 			used = len;
+		dcacp_try_send_token(sk);
 
 		/* Do we have urgent data here? */
 		// if (tp->urg_data) {
@@ -774,7 +776,7 @@ found_ok_skb:
 
 	/* Clean up data we have read: This will do ACK frames. */
 	// tcp_cleanup_rbuf(sk, copied);
-	// dcacp_try_send_ack(sk, copied);
+	dcacp_try_send_token(sk);
 	if (dsk->receiver.copied_seq == dsk->total_length) {
 		printk("call tcp close in the recv msg\n");
 		dcacp_set_state(sk, TCP_CLOSE);
@@ -795,7 +797,6 @@ found_ok_skb:
 	return copied;
 
 out:
-	// printk("recvmsg err\n");
 	release_sock(sk);
 	return err;
 

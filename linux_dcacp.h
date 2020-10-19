@@ -64,6 +64,7 @@ enum dcacpcsq_enum {
 	DCACP_TOKEN_TIMER_DEFERRED, /* dcacp_xmit_token() found socket was owned */
 	DCACP_RMEM_CHECK_DEFERRED,  /* Read Memory Check once release sock */
 	DCACP_RTX_DEFERRED,
+	DCACP_WAIT_DEFERRED,
 };
 
 enum dcacpcsq_flags {
@@ -74,6 +75,7 @@ enum dcacpcsq_flags {
 	DCACPF_TOKEN_TIMER_DEFERRED	= (1UL << DCACP_TOKEN_TIMER_DEFERRED),
 	DCACPF_RMEM_CHECK_DEFERRED	= (1UL << DCACP_RMEM_CHECK_DEFERRED),
 	DCACPF_RTX_DEFERRED	= (1UL << DCACP_RTX_DEFERRED),
+	DCACPF_WAIT_DEFERRED = (1UL << DCACP_WAIT_DEFERRED),
 };
 
 struct dcacp_params {
@@ -452,12 +454,12 @@ struct dcacp_sock {
 	 */
     uint32_t total_length;
 	
-	/*protected by socket lock */
+	/*protected by entry scheduling lock */
 	uint32_t grant_nxt;
 	uint32_t prev_grant_nxt;
-	uint32_t new_grant_nxt;
 
 	/* protected by socket user lock*/
+	uint32_t new_grant_nxt;
     uint32_t num_sacks;
 	struct dcacp_sack_block selective_acks[16]; /* The SACKS themselves*/
 
@@ -494,7 +496,7 @@ struct dcacp_sock {
 
 	    bool flow_sync_received;
 
-	    /* protected by socket lock*/
+		/* protected by user lock */
 	 	bool finished_at_receiver;
 		bool flow_finish_wait;
 		int rmem_exhausted;
@@ -503,11 +505,11 @@ struct dcacp_sock {
 		int prev_grant_bytes;
 	    ktime_t last_rtx_time;
 
-		/* protected by user lock */
 		uint32_t copied_seq;
 	    uint32_t bytes_received;
 	    // uint32_t received_count;
-	    uint32_t grant_batch;
+	    uint32_t max_grant_batch;
+		uint32_t grant_batch;
 	    uint32_t max_gso_data;
 	    /* current received bytes + 1*/
 	    uint32_t rcv_nxt;
@@ -516,21 +518,15 @@ struct dcacp_sock {
 	    // uint32_t max_seq_no_recv;
 		/** @priority: Priority level to include in future GRANTS. */
 		int priority;
-	    // int last_token_data_seq_sent;
-
-	    // int token_count;
-	    // int token_goal;
-	    // int largest_token_seq_received;
-	    // int largest_token_data_seq_received;
 		/* DCACP metric */
 	    // uint64_t latest_token_sent_time;
 	    // uint64_t first_byte_receive_time;
 
 		// struct list_head ready_link;
 
-		// link for DCACP matching table
 		/* protected by entry lock */
 		bool in_pq;
+		// link for DCACP matching table
 		struct list_head match_link;
 
 		atomic_t backlog_len;

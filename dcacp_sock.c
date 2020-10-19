@@ -28,7 +28,7 @@
 #include "dcacp_hashtables.h"
 
 
-static void set_grant_batch(struct dst_entry *dst, struct dcacp_sock* dsk) {
+static void set_max_grant_batch(struct dst_entry *dst, struct dcacp_sock* dsk) {
 	int bufs_per_gso, mtu, max_pkt_data, gso_size, max_gso_data;
 	int num_gso_per_bdp;
 	mtu = dst_mtu(dst);
@@ -44,7 +44,7 @@ static void set_grant_batch(struct dst_entry *dst, struct dcacp_sock* dsk) {
 	// gso_size = bufs_per_gso * mtu;
 	num_gso_per_bdp = DIV_ROUND_UP(dcacp_params.bdp, max_gso_data);
 	dsk->receiver.max_gso_data = max_gso_data;
-	dsk->receiver.grant_batch = num_gso_per_bdp * max_gso_data;
+	dsk->receiver.max_grant_batch = num_gso_per_bdp * max_gso_data;
 }
 
 void reqsk_queue_alloc(struct request_sock_queue *queue)
@@ -1086,7 +1086,7 @@ struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
 	// dsk->flow_id = fhdr->flow_id;
 	dsk->core_id = dcacp_sk(sk)->core_id;
 	dsk->total_length = ntohl(fhdr->flow_size);
-	set_grant_batch(dst, dsk);
+	set_max_grant_batch(dst, dsk);
 	/* set up max gso segment */
 	sk_setup_caps(newsk, dst);
 

@@ -81,7 +81,8 @@ void xmit_core_entry_init(struct xmit_core_entry *entry, int core_id);
 int xmit_core_table_init(struct xmit_core_table *tab);
 void rcv_core_table_destory(struct rcv_core_table *tab);
 void xmit_core_table_destory(struct xmit_core_table *tab);
-
+void dcacp_update_and_schedule_sock(struct dcacp_sock *dsk);
+void dcacp_unschedule_sock(struct dcacp_sock *dsk);
 /* sender */
 void xmit_handle_new_token(struct xmit_core_table *tab, struct sk_buff* skb);
 void dcacp_xmit_data_event(struct work_struct *w);
@@ -107,6 +108,7 @@ struct dcacp_peer *dcacp_peer_find(struct dcacp_peertab *peertab, __be32 addr,
 	struct inet_sock *inet);
 
 /*DCACP incoming function*/
+bool dcacp_try_send_token(struct sock *sk);
 void dcacp_get_sack_info(struct sock *sk, struct sk_buff *skb);
 enum hrtimer_restart dcacp_new_epoch(struct hrtimer *timer);
 
@@ -124,6 +126,7 @@ void dcacp_token_timer_defer_handler(struct sock *sk);
 int dcacp_clean_rtx_queue(struct sock *sk);
 
 enum hrtimer_restart dcacp_flow_wait_event(struct hrtimer *timer);
+void dcacp_flow_wait_handler(struct sock *sk);
 /*DCACP outgoing function*/
 struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id, 
 	uint32_t message_size, __u64 start_time);

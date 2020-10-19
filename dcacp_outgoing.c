@@ -65,7 +65,8 @@
 			  DCACPF_CLEAN_TIMER_DEFERRED |	\
 			  DCACPF_TOKEN_TIMER_DEFERRED |	\
 			  DCACPF_RMEM_CHECK_DEFERRED | \
-			  DCACPF_RTX_DEFERRED)
+			  DCACPF_RTX_DEFERRED | \
+			  DCACPF_WAIT_DEFERRED)
 
 /**
  * dcacp_release_cb - dcacp release_sock() callback
@@ -116,6 +117,9 @@ void dcacp_release_cb(struct sock *sk)
 	}
 	if (flags & DCACPF_RTX_DEFERRED) {
 		dcacp_write_timer_handler(sk);
+	}
+	if (flags & DCACPF_WAIT_DEFERRED) {
+		dcacp_flow_wait_handler(sk);
 	}
 	// if (flags & TCPF_MTU_REDUCED_DEFERRED) {
 	// 	inet_csk(sk)->icsk_af_ops->mtu_reduced(sk);

@@ -2,40 +2,6 @@
 
 // static void recevier_iter_event_handler(struct work_struct *work);
 // static void sender_iter_event_handler(struct work_struct *work);
-
-int calc_grant_bytes(struct sock *sk) {
-	    struct dcacp_sock* dsk = dcacp_sk(sk);
-	    int max_gso_data = (int)dsk->receiver.max_gso_data;
-        int free_space = dcacp_space(sk);
-        int allowed_space = dcacp_full_space(sk);
-        int full_space = min_t(int, dsk->receiver.grant_batch, allowed_space);
-        int grant_bytes = dsk->receiver.grant_batch;
-        // printk("remaining_tokens:%d\n", atomic_read(&dcacp_epoch.remaining_tokens));
-        // printk("free space:%d\n", free_space);
-        if (unlikely(max_gso_data > full_space)) {
-            return 0;
-        }
-        if (dsk->receiver.prev_grant_bytes >= dsk->receiver.grant_batch)
-        	return 0;
-        if (free_space < dsk->receiver.grant_batch * 2) {
-        	// printk("free space:%d\n", free_space);
-        	// printk("max gso data:%d\n", max_gso_data);
-            	// printk("free_space < max_gso_data grant bytes: 0\n");
-                return 0;
-        }
-        if (grant_bytes > free_space)
-        	grant_bytes = free_space;
-        grant_bytes -= dsk->receiver.prev_grant_bytes;
-        if (grant_bytes <= 0) {
-        	// printk("prev grant bytes full grant bytes: 0\n");
-        	return 0;
-        }
-    	// printk("grant bytes: %d\n", grant_bytes);
-
-        grant_bytes = grant_bytes / dsk->receiver.max_gso_data * dsk->receiver.max_gso_data;
-        return grant_bytes;
-}
-
 // __u64 js, je;
 void dcacp_match_entry_init(struct dcacp_match_entry* entry, __be32 addr, 
  bool(*comp)(const struct list_head*, const struct list_head*)) {
@@ -548,7 +514,7 @@ void dcacp_xmit_token(struct dcacp_epoch *epoch) {
 	 			int grant_bytes = calc_grant_bytes(sk);
 	 			// printk("grant bytes:%d\n", grant_bytes);
 	 			not_push_bk = xmit_batch_token(sk, grant_bytes, true);
-		 		if(grant_bytes == dsk->receiver.grant_batch) {
+		 		if(grant_bytes == dsk->receiver.max_grant_batch) {
 					dsk->prev_grant_nxt = dsk->grant_nxt;
 					dsk->grant_nxt = dsk->new_grant_nxt;
 		  			if (!not_push_bk){
