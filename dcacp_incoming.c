@@ -245,8 +245,8 @@ void dcacp_flow_wait_handler(struct sock *sk) {
 	if(test_and_clear_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
 		// atomic_sub(dsk->receiver.grant_batch,  &entry->remaining_tokens);
 	}
-
-	dcacp_update_and_schedule_sock(dsk);
+	if(!dsk->receiver.finished_at_receiver)
+		dcacp_update_and_schedule_sock(dsk);
 	bh_unlock_sock(sk);
 	flowlet_done_event(&entry->flowlet_done_timer);
 	bh_lock_sock(sk);
@@ -555,6 +555,7 @@ static void dcacp_check_flow_finished_at_receiver(struct dcacp_sock *dsk) {
 		dsk->receiver.finished_at_receiver = true;
 		if(dsk->receiver.flow_finish_wait) {
 			hrtimer_cancel(&dsk->receiver.flow_wait_timer);
+			test_and_clear_bit(DCACP_WAIT_DEFERRED, &sk->sk_tsq_flags);
 			dsk->receiver.flow_finish_wait = false;
 		} 
 		// printk("send fin pkt\n");

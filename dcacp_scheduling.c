@@ -189,12 +189,10 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 	// printk("xmit token grant next:%u\n", dsk->new_grant_nxt);
 	// printk("prev_grant_nxt:%u\n", dsk->prev_grant_nxt);
 	// printk ("dsk->receiver.rcv_nxt:%u\n", dsk->receiver.rcv_nxt);
-	// printk("remaining_tokens before:%d\n", atomic_read(&entry->remaining_tokens));
 	// printk("grant_len:%d\n", grant_len);
-	atomic_add(grant_len, &entry->remaining_tokens);
-	// printk("remaining_tokens: %d\n", atomic_read(&entry->remaining_tokens));
+	// atomic_add(grant_len, &entry->remaining_tokens);
 	dsk->receiver.prev_grant_bytes += grant_len;
-	atomic_add(grant_len, &dsk->receiver.in_flight_bytes);
+	// atomic_add(grant_len, &dsk->receiver.in_flight_bytes);
 	// printk("send token");
 	if(handle_rtx || grant_len != 0)
 		dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->new_grant_nxt, handle_rtx),
@@ -242,12 +240,20 @@ bool dcacp_xmit_token_single_core(struct rcv_core_entry *entry) {
  			// printk("retransmit byte:%d\n", retransmit_bytes);
 
  			/* need morer work on that */
+			WARN_ON(dsk->receiver.grant_batch + dsk->grant_nxt >  dsk->total_length);
+			atomic_add(dsk->receiver.grant_batch, &entry->remaining_tokens);
+			atomic_add(dsk->receiver.grant_batch, &dsk->receiver.in_flight_bytes);
 	 		if(!sock_owned_by_user(sk)) {
 	 			int grant_bytes; 
 				grant_bytes = calc_grant_bytes(sk);
  				not_push_bk = xmit_batch_token(sk, grant_bytes, handle_rtx);
 	  			if (!dsk->receiver.flow_finish_wait && grant_bytes != 0){
 	  				// printk("push back socket \n");
+					/* reinitialize the state for the next time*/
+					if(dsk->receiver.grant_batch != dsk->receiver.prev_grant_bytes) {
+						atomic_sub(dsk->receiver.grant_batch - dsk->receiver.prev_grant_bytes, &entry->remaining_tokens);
+						atomic_sub(dsk->receiver.grant_batch - dsk->receiver.prev_grant_bytes, &dsk->receiver.in_flight_bytes);
+					}
 					dsk->prev_grant_nxt = dsk->grant_nxt;
 					dsk->grant_nxt = dsk->new_grant_nxt;
 	  				dcacp_pq_push(&entry->flow_q, &dsk->match_link);
@@ -263,7 +269,6 @@ bool dcacp_xmit_token_single_core(struct rcv_core_entry *entry) {
 	 		}
 	 		else if(!test_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
   				// printk("token timer deferred set\n");
-	 			// atomic_add(dsk->receiver.grant_batch, &entry->remaining_tokens);
  				test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
 	 		}
  		} else {
@@ -280,11 +285,16 @@ unlock:
 	return find_flow;
 }
 
-/* Assume local bh is disabled and dsk user lock is hold*/
+/* Assume local bh is disabled */
 void dcacp_update_and_schedule_sock(struct dcacp_sock *dsk) {
 	struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
 	WARN_ON(dsk->receiver.in_pq);
 	spin_lock(&entry->lock);
+	/* clean unsent token */
+	if(dsk->receiver.grant_batch != dsk->receiver.prev_grant_bytes) {
+		atomic_sub(dsk->receiver.grant_batch - dsk->receiver.prev_grant_bytes, &entry->remaining_tokens);
+		atomic_sub(dsk->receiver.grant_batch - dsk->receiver.prev_grant_bytes, &dsk->receiver.in_flight_bytes);
+	}
 	dsk->prev_grant_nxt = dsk->grant_nxt;
 	dsk->grant_nxt = dsk->new_grant_nxt;
 	dsk->receiver.prev_grant_bytes = 0;
@@ -294,7 +304,6 @@ void dcacp_update_and_schedule_sock(struct dcacp_sock *dsk) {
 		dcacp_pq_push(&entry->flow_q, &dsk->match_link);
 		dsk->receiver.in_pq = true;
 	}
-	// atomic_sub(dsk->receiver.grant_batch, &entry->remaining_tokens);
 	spin_unlock(&entry->lock);
 }
 
@@ -368,7 +377,6 @@ void rcv_handle_new_flow(struct dcacp_sock* dsk) {
 	// }
 	// printk("handle new flow core id:%d\n", core_id);
 	// printk("entry state:%d\n", entry->state);f
-	// printk("entry remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
 	// printk("handle new flow\n");
 	if(entry->state == DCACP_IDLE) {
 		spin_lock(&rcv_core_tab.lock);
@@ -448,14 +456,12 @@ not_find_flow:
 /* handle flowlet done, flow came back after timeour or retranmission; */
 enum hrtimer_restart flowlet_done_event(struct hrtimer *timer) {
 	// struct dcacp_grant* grant, temp;
-	WARN_ON(!in_softirq());
 	struct rcv_core_entry *entry = container_of(timer, struct rcv_core_entry, flowlet_done_timer);
-
+	WARN_ON(!in_softirq());
 	// printk("flowlet done timer is called\n");
 
 	spin_lock(&entry->lock);
 	/* reset the remaining tokens to zero */
-	// atomic_set(&epoch->remaining_tokens, 0);	
 	if(entry->state == DCACP_ACTIVE) {
 		rcv_flowlet_done(entry);
 	} else if(entry->state == DCACP_IDLE && !dcacp_pq_empty(&entry->flow_q)) {

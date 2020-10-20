@@ -945,6 +945,8 @@ void dcacp_destroy_sock(struct sock *sk)
 	local_bh_disable();
 	bh_lock_sock(sk);
 	hrtimer_cancel(&up->receiver.flow_wait_timer);
+	test_and_clear_bit(DCACP_WAIT_DEFERRED, &sk->sk_tsq_flags);
+	up->receiver.flow_finish_wait = false;
 	if(sk->sk_state == DCACP_SENDER || sk->sk_state == DCACP_RECEIVER) {
 		printk("send ack pkt\n");
 		dcacp_xmit_control(construct_fin_pkt(sk), sk, inet->inet_dport); 

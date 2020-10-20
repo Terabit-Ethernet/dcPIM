@@ -502,15 +502,14 @@ struct dcacp_sock {
 		int rmem_exhausted;
 		/* short flow waiting timer or long flow waiting timer; after all tokens arer granted */
 		struct hrtimer flow_wait_timer;
-		int prev_grant_bytes;
 	    ktime_t last_rtx_time;
 
 		uint32_t copied_seq;
 	    uint32_t bytes_received;
 	    // uint32_t received_count;
-	    uint32_t max_grant_batch;
-		uint32_t grant_batch;
 	    uint32_t max_gso_data;
+	    uint32_t max_grant_batch;
+
 	    /* current received bytes + 1*/
 	    uint32_t rcv_nxt;
 	    uint32_t last_ack;
@@ -529,6 +528,9 @@ struct dcacp_sock {
 		// link for DCACP matching table
 		struct list_head match_link;
 
+		/* protected by the entry lock */
+		uint32_t grant_batch;
+		int prev_grant_bytes;
 		atomic_t backlog_len;
 		atomic_t in_flight_bytes;
 
