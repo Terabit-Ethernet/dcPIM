@@ -599,7 +599,7 @@ main(int argc, char **argv)
 		nb_lcores * MEMPOOL_CACHE_SIZE), 8192U);
 	pktmbuf_pool = rte_pktmbuf_pool_create("mbuf_pool", nb_mbufs,
 		MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
-		1);
+		0);
 	printf("RTE_MBUF_DEFAULT_BUF_SIZE:%lu\n", sizeof(struct pim_flow));
 	printf("nb_mbufs:%d\n", nb_mbufs);
 	printf("default timer cycles:%"PRIu64"\n", rte_get_timer_hz());
@@ -697,12 +697,12 @@ main(int argc, char **argv)
 	if(mode == 1 || mode == 2) {
 		// allocate all data structure on socket 1(Numa node 1) because
 		// NIC is connected to node 1.
-	    pim_init_host(&host, 1);
-	    pim_init_pacer(&pacer, &host, 1);
+	    pim_init_host(&host, 0);
+	    pim_init_pacer(&pacer, &host, 0);
 	    pim_init_epoch(&epoch, &host, &pacer);
-		rte_eal_remote_launch(launch_host_lcore, NULL, 3);
-		rte_eal_remote_launch(launch_pacer_lcore, NULL, 5);
-	    rte_eal_remote_launch(launch_flowgen_lcore, NULL, 7);
+//		rte_eal_remote_launch(launch_host_lcore, NULL, 3);
+//		rte_eal_remote_launch(launch_pacer_lcore, NULL, 5);
+//	    rte_eal_remote_launch(launch_flowgen_lcore, NULL, 7);
 		// rte_eal_remote_launch(launch_start_lcore, NULL, 9);
 
 	}  
@@ -710,23 +710,24 @@ main(int argc, char **argv)
 		rte_eal_remote_launch(launch_start_lcore, NULL, 9);
 	}
 
-	while(!force_quit){
+	while(1){
 		// print_stats();
-		rte_delay_us_block(100000);
+		printf("in force quiit\n");
+//		rte_delay_us_sleep(10000000);
 	}
 
-	if(rte_eal_wait_lcore(3) < 0){
-		ret = -1;
-	}
-	if(rte_eal_wait_lcore(5) < 0){
-		ret = -1;
-	}
-	if(rte_eal_wait_lcore(7) < 0){
-		ret = -1;
-	}
-	if(rte_eal_wait_lcore(9) < 0){
-		ret = -1;
-	}
+//	if(rte_eal_wait_lcore(3) < 0){
+//	ret = -1;
+//	}
+//	if(rte_eal_wait_lcore(5) < 0){
+//		ret = -1;
+//	}
+//	if(rte_eal_wait_lcore(7) < 0){
+//		ret = -1;
+//	}
+//	if(rte_eal_wait_lcore(9) < 0){
+//		ret = -1;
+//	}
 	// print_stats();
 
 
