@@ -150,7 +150,7 @@ static void host_main_loop(void) {
 	//  PERIODICAL, 1, &pim_start_new_epoch, (void *)(&epoch.pim_timer_params));
 	while(!force_quit) {
 		for (i = 0; i < qconf->n_rx_port; i++) {
-			if(i == 1)
+			if(i == 0)
 				continue;
 			portid = qconf->rx_port_list[i];
 
@@ -615,6 +615,8 @@ main(int argc, char **argv)
 		struct rte_eth_conf local_port_conf = port_conf;
 		struct rte_eth_dev_info dev_info;
 		
+		if(portid != 1)
+			continue;
 		/* init port*/
 		printf("Initializing port %u... ", portid);
 		fflush(stdout);
@@ -700,7 +702,7 @@ main(int argc, char **argv)
 	    pim_init_host(&host, 0);
 	    pim_init_pacer(&pacer, &host, 0);
 	    pim_init_epoch(&epoch, &host, &pacer);
-//		rte_eal_remote_launch(launch_host_lcore, NULL, 3);
+//	    rte_eal_remote_launch(launch_host_lcore, NULL, 3);
 //		rte_eal_remote_launch(launch_pacer_lcore, NULL, 5);
 //	    rte_eal_remote_launch(launch_flowgen_lcore, NULL, 7);
 		// rte_eal_remote_launch(launch_start_lcore, NULL, 9);
@@ -710,15 +712,15 @@ main(int argc, char **argv)
 		rte_eal_remote_launch(launch_start_lcore, NULL, 9);
 	}
 
-	while(1){
+	while(!force_quit){
 		// print_stats();
-		printf("in force quiit\n");
-//		rte_delay_us_sleep(10000000);
+//		printf("in force quiit\n");
+		rte_delay_us_sleep(1000000);
 	}
 
-//	if(rte_eal_wait_lcore(3) < 0){
-//	ret = -1;
-//	}
+	if(rte_eal_wait_lcore(3) < 0){
+	ret = -1;
+	}
 //	if(rte_eal_wait_lcore(5) < 0){
 //		ret = -1;
 //	}
