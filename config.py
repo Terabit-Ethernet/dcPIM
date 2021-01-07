@@ -1,18 +1,18 @@
 import sys
+import netifaces as ni
 # ether_addrs = ["00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4"]
 ether_addrs = []
-def construct_ip(ip, small_ip, large_ip, ip_prefix = "10,10,1"):
-    ip = "IPv4({}, {})".format(ip_prefix, ip)
+def construct_ip(small_ip, large_ip, ip_prefix = "10,10,1"):
     num_dst = large_ip - small_ip + 1
     dst_ips = ""
     for i in range(num_dst):
-        dst_ips += "\tp->dst_ips[{}] = IPv4({}, {});".format(i,small_ip + i, ip_prefix)
+        dst_ips += "\tp->dst_ips[{}] = IPv4({}, {});".format(i, ip_prefix, small_ip + i)
         dst_ips += "\n"
-    return ip, num_dst, dst_ips
+    return num_dst, dst_ips
 
-def read_arp(file = "/proc/net/arp"):
+def read_arp_and_ip(file = "/proc/net/arp"):
     f = open(file, "r")
-    lines = f.readlines()
+    lines = f.readlines()[1:]
     dict_ip = {}
     for line in lines:
         e = line.split()
@@ -21,9 +21,15 @@ def read_arp(file = "/proc/net/arp"):
         if "10.10" in ip:
             dict_ip[ip] = eth
 
+    # read ip 
+    ip = ni.ifaddresses('eno1d1')[ni.AF_INET][0]['addr']
+    ether = ni.ifaddresses('eno1d1')[ni.AF_LINK][0]['addr']
+    dict_ip[ip] = ether
+
     for key in sorted(dict_ip.keys()):
-        print key, dict_ip[key]
         ether_addrs.append(dict_ip[key])
+
+    return ip
 
 def construct_ethers():
     i = 0
@@ -38,12 +44,13 @@ def construct_ethers():
     return output
 
 def main():
-    ip = sys.argv[1]
-    small_ip = sys.argv[2]
-    large_ip = sys.argv[3]
-    ip_str, num_dst, dst_ips = construct_ip(ip, int(small_ip), int(large_ip))
+    small_ip = sys.argv[1]
+    large_ip = sys.argv[2]
+    num_dst, dst_ips = construct_ip(int(small_ip), int(large_ip))
     # config_string.format(ip_str)
-    read_arp()
+    ip = read_arp_and_ip()
+    index = int(ip.split(".")[3])
+    ip_str =  "IPV4(" + ip.replace(".", ",") + ")"
     config_string = """
 #include "config.h"
 #include <rte_ip.h>
@@ -69,7 +76,7 @@ struct Params params = {{
     .token_window_timeout = 1.1,
     .num_hosts = {2}
 }};
-""".format(int(ip) - int(small_ip), ip_str, int(large_ip) - int(small_ip) + 1)
+""".format(int(index) - int(small_ip), ip_str, int(large_ip) - int(small_ip) + 1)
     statement = dst_ips
     statement += construct_ethers()
     statement += "\tparams.token_window_timeout_cycle = (uint64_t) (params.token_window_timeout * params.BDP * 1500 * 8 \n \t / params.bandwidth * rte_get_timer_hz());\n"
