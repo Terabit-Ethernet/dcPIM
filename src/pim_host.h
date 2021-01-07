@@ -21,6 +21,7 @@
 #include "pim_flow.h"
 #include "pq.h"
 
+#define PIM_NUM_HOST 40
 struct pim_flow;
 extern bool start_signal;
 struct pim_rts {
@@ -52,12 +53,12 @@ struct pim_epoch {
 	bool prompt;
 	uint32_t match_src_addr;
 	uint32_t match_dst_addr;
-	struct pim_grant grants_q[16];
-	struct pim_rts rts_q[16];
+	struct pim_grant grants_q[PIM_NUM_HOST];
+	struct pim_rts rts_q[PIM_NUM_HOST];
 	uint32_t grant_size;
 	uint32_t rts_size;
-	bool grant_bmp[16];
-	bool rts_bmp[16];
+	bool grant_bmp[PIM_NUM_HOST];
+	bool rts_bmp[PIM_NUM_HOST];
 	struct pim_rts* min_rts;
 	struct pim_grant* min_grant;
 	struct rte_timer epoch_timer;

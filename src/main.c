@@ -702,9 +702,9 @@ main(int argc, char **argv)
 	    pim_init_host(&host, 0);
 	    pim_init_pacer(&pacer, &host, 0);
 	    pim_init_epoch(&epoch, &host, &pacer);
-//	    rte_eal_remote_launch(launch_host_lcore, NULL, 3);
-//		rte_eal_remote_launch(launch_pacer_lcore, NULL, 5);
-//	    rte_eal_remote_launch(launch_flowgen_lcore, NULL, 7);
+	    rte_eal_remote_launch(launch_host_lcore, NULL, 3);
+		rte_eal_remote_launch(launch_pacer_lcore, NULL, 5);
+	    rte_eal_remote_launch(launch_flowgen_lcore, NULL, 7);
 		// rte_eal_remote_launch(launch_start_lcore, NULL, 9);
 
 	}  

@@ -44,7 +44,7 @@ void pim_init_epoch(struct pim_epoch* pim_epoch, struct pim_host* pim_host, stru
         rte_timer_init(&pim_epoch->sender_iter_timers[i]);
         rte_timer_init(&pim_epoch->receiver_iter_timers[i]);
     }
-    for (i = 0; i < 16; i++) {
+    for (i = 0; i < PIM_NUM_HOST; i++) {
         pim_epoch->rts_bmp[i] = false;
         pim_epoch->grant_bmp[i] = false;
     }
@@ -73,8 +73,8 @@ void pim_init_host(struct pim_host* host, uint32_t socket_id) {
     host->sent_bytes = 0;
     host->tx_flow_pool = create_mempool("tx_flow_pool", sizeof(struct pim_flow) + RTE_PKTMBUF_HEADROOM, 131072, socket_id);
     host->tx_flow_table = create_hash_table("tx_flow_table", sizeof(uint32_t), 131072, 0, socket_id);
-    host->dst_minflow_table = create_hash_table("dst_minflow_table", sizeof(uint32_t), 16, 0, socket_id);
-    host->src_minflow_table = create_hash_table("src_minflow_table", sizeof(uint32_t), 16, 0, socket_id);
+    host->dst_minflow_table = create_hash_table("dst_minflow_table", sizeof(uint32_t), 256, 0, socket_id);
+    host->src_minflow_table = create_hash_table("src_minflow_table", sizeof(uint32_t), 256, 0, socket_id);
     host->num_token_sent = 0;
     pq_init(&host->active_short_flows, pim_pflow_compare);
     rte_timer_init(&host->pim_send_token_timer);
@@ -390,7 +390,7 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ether_hdr* ether_hdr,
         // printf("current iter:%u\n",pim_epoch->iter);
         // printf("packet epoch:%u\n", pim_rts_hdr->epoch);
         // printf("packet iter:%u\n", pim_rts_hdr->iter);
-        int index = (rte_be_to_cpu_32(ipv4_hdr->src_addr) >> 24) - (params.dst_ips[0] >> 24);
+        int index = (rte_be_to_cpu_32(ipv4_hdr->src_addr) & 0xFF) - (params.dst_ips[0] & 0xFF);
         if(pim_epoch->rts_bmp[index] == false) {
             pim_epoch->rts_bmp[index] = true;
             struct pim_rts *pim_rts = &pim_epoch->rts_q[pim_epoch->rts_size];
@@ -443,7 +443,7 @@ void pim_receive_grant(struct pim_epoch* pim_epoch, struct ether_hdr* ether_hdr,
     if(pim_epoch->match_src_addr != 0) {
         return;
     }
-        int index = (rte_be_to_cpu_32(ipv4_hdr->src_addr) >> 24) - (params.dst_ips[0] >> 24);
+        int index = (rte_be_to_cpu_32(ipv4_hdr->src_addr) & 0xFF) - (params.dst_ips[0] & 0xFF);
         if(pim_epoch->grant_bmp[index] == false) {
             pim_epoch->grant_bmp[index] = true;
             struct pim_grant *pim_grant = &pim_epoch->grants_q[pim_epoch->grant_size];
@@ -452,8 +452,8 @@ void pim_receive_grant(struct pim_epoch* pim_epoch, struct ether_hdr* ether_hdr,
             pim_grant->prompt = pim_grant_hdr->prompt;
             ether_addr_copy(&ether_hdr->s_addr, &pim_grant->src_ether_addr);
             pim_epoch->grant_size++;
-            if(pim_epoch->grant_size > 16) {
-                printf("grant size > 16\n");
+            if(pim_epoch->grant_size > PIM_NUM_HOST) {
+                printf("grant size > 40\n");
                 rte_exit(EXIT_FAILURE , "grant size is larger than 16");
             }
             if(pim_epoch->min_grant == NULL || pim_epoch->min_grant->remaining_sz > pim_grant->remaining_sz) {
@@ -538,7 +538,7 @@ void pim_handle_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, stru
     pim_epoch->min_rts = NULL;
     pim_epoch->rts_size = 0;
     int i = 0;
-    for(; i < 16; i++) {
+    for(; i < PIM_NUM_HOST; i++) {
         pim_epoch->rts_bmp[i] = false;
     }
 
@@ -581,7 +581,7 @@ void pim_handle_all_grant(struct pim_epoch* pim_epoch, struct pim_host* host, st
     pim_epoch->min_grant = NULL;
     pim_epoch->grant_size = 0;
     int i = 0;
-    for(; i < 16; i++) {
+    for(; i < PIM_NUM_HOST; i++) {
         pim_epoch->grant_bmp[i] = false;
     }
 }
@@ -668,7 +668,7 @@ void pim_schedule_receiver_iter_evt(__rte_unused struct rte_timer *timer, void* 
         rte_timer_reset(&pim_host->pim_send_token_timer, rte_get_timer_hz() * get_transmission_delay(1500) * params.batch_tokens,
              PERIODICAL, rte_lcore_id(), &pim_send_token_evt_handler, (void *)&pim_epoch->pim_timer_params);
         int i = 0;
-        for(; i < 16; i++) {
+        for(; i < PIM_NUM_HOST; i++) {
             // pim_epoch->rts_bmp[i] = false;
             pim_epoch->grant_bmp[i] = false;
         }
