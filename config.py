@@ -50,7 +50,7 @@ def main():
     # config_string.format(ip_str)
     ip = read_arp_and_ip()
     index = int(ip.split(".")[3])
-    ip_str =  "IPV4(" + ip.replace(".", ",") + ")"
+    ip_str =  "IPv4(" + ip.replace(".", ",") + ")"
     config_string = """
 #include "config.h"
 #include <rte_ip.h>

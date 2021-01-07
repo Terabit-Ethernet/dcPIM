@@ -268,7 +268,8 @@ static void start_main_loop(void) {
 		ipv4_hdr->hdr_checksum = 0;
 		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 	    pim_hdr->type = PIM_START;
-		rte_eth_tx_burst(get_port_by_ip(ips[i]) ,0, &p, 1);
+		rte_pktmbuf_dump(stdout, p, rte_pktmbuf_pkt_len(p));
+	    	rte_eth_tx_burst(get_port_by_ip(ips[i]) ,0, &p, 1);
 		start = rte_get_timer_cycles();
 	}
 	pim_receive_start(&epoch, &host, &pacer, 3);
@@ -702,14 +703,15 @@ main(int argc, char **argv)
 	    pim_init_host(&host, 0);
 	    pim_init_pacer(&pacer, &host, 0);
 	    pim_init_epoch(&epoch, &host, &pacer);
-	    rte_eal_remote_launch(launch_host_lcore, NULL, 3);
-		rte_eal_remote_launch(launch_pacer_lcore, NULL, 5);
-	    rte_eal_remote_launch(launch_flowgen_lcore, NULL, 7);
-		// rte_eal_remote_launch(launch_start_lcore, NULL, 9);
+	    rte_eal_remote_launch(launch_host_lcore, NULL, 1);
+		rte_eal_remote_launch(launch_pacer_lcore, NULL, 2);
+	    rte_eal_remote_launch(launch_flowgen_lcore, NULL, 3);
+		// rte_eal_remote_launch(launch_start_lcore, NULL, 4);
 
 	}  
 	if(mode == 2){
-		rte_eal_remote_launch(launch_start_lcore, NULL, 9);
+		printf("launch start\n");
+		rte_eal_remote_launch(launch_start_lcore, NULL, 4);
 	}
 
 	while(!force_quit){
@@ -718,18 +720,18 @@ main(int argc, char **argv)
 		rte_delay_us_sleep(1000000);
 	}
 
-	if(rte_eal_wait_lcore(3) < 0){
+	if(rte_eal_wait_lcore(1) < 0){
 	ret = -1;
 	}
-//	if(rte_eal_wait_lcore(5) < 0){
-//		ret = -1;
-//	}
-//	if(rte_eal_wait_lcore(7) < 0){
-//		ret = -1;
-//	}
-//	if(rte_eal_wait_lcore(9) < 0){
-//		ret = -1;
-//	}
+	if(rte_eal_wait_lcore(2) < 0){
+		ret = -1;
+	}
+	if(rte_eal_wait_lcore(3) < 0){
+		ret = -1;
+	}
+	if(rte_eal_wait_lcore(4) < 0){
+		ret = -1;
+	}
 	// print_stats();
 
 
