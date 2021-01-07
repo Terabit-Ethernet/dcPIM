@@ -1,14 +1,29 @@
 import sys
-ether_addrs = ["00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4"]
-
-def construct_ip(ip, small_ip, large_ip, ip_prefix = "0, 0, 10"):
-    ip = "IPv4({}, {})".format(ip, ip_prefix)
+# ether_addrs = ["00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4"]
+ether_addrs = []
+def construct_ip(ip, small_ip, large_ip, ip_prefix = "10,10,1"):
+    ip = "IPv4({}, {})".format(ip_prefix, ip)
     num_dst = large_ip - small_ip + 1
     dst_ips = ""
     for i in range(num_dst):
         dst_ips += "\tp->dst_ips[{}] = IPv4({}, {});".format(i,small_ip + i, ip_prefix)
         dst_ips += "\n"
     return ip, num_dst, dst_ips
+
+def read_arp(file = "/proc/net/arp"):
+    f = open(file, "r")
+    lines = f.readlines()
+    dict_ip = {}
+    for line in lines:
+        e = line.split()
+        ip = e[0]
+        eth = e[3]
+        if "10.10" in ip:
+            dict_ip[ip] = eth
+
+    for key in sorted(dict_ip.keys()):
+        print key, dict_ip[key]
+        ether_addrs.append(dict_ip[key])
 
 def construct_ethers():
     i = 0
@@ -28,6 +43,7 @@ def main():
     large_ip = sys.argv[3]
     ip_str, num_dst, dst_ips = construct_ip(ip, int(small_ip), int(large_ip))
     # config_string.format(ip_str)
+    read_arp()
     config_string = """
 #include "config.h"
 #include <rte_ip.h>
