@@ -208,14 +208,16 @@ static void pacer_main_loop(void) {
 			ipv4_hdr->time_to_live = 64;
 			ipv4_hdr->hdr_checksum = 0;
 			ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
-			// if(pim_hdr->type == PIM_RTS) {
-			// 	printf("send control packet type:%u\n", pim_hdr->type);
-			// }
+//			if(pim_hdr->type == PIM_RTS) {
+//			 	printf("send control packet type:%u\n", pim_hdr->type);
+//			}
 			// p->vlan_tci = TCI_7;
 			// rte_vlan_insert(&p); 
 			// send packets; hard code the port;
 			// cycles[0] = rte_get_timer_cycles();
-
+		//	printf("dst:%u\n", dst_addr);
+		//	printf("port:%d\n", get_port_by_ip(dst_addr));
+			rte_pktmbuf_dump(stdout, p, rte_pktmbuf_pkt_len(p));
 			int sent = rte_eth_tx_burst(get_port_by_ip(dst_addr) ,0, &p, 1);
 		   	while(sent != 1) {
 		   		sent = rte_eth_tx_burst(get_port_by_ip(dst_addr) ,0, &p, 1);
@@ -272,7 +274,7 @@ static void start_main_loop(void) {
 	    	rte_eth_tx_burst(get_port_by_ip(ips[i]) ,0, &p, 1);
 		start = rte_get_timer_cycles();
 	}
-	pim_receive_start(&epoch, &host, &pacer, 3);
+	pim_receive_start(&epoch, &host, &pacer, 1);
 	// lcore_id = rte_lcore_id();
  //    uint64_t prev_tsc = 0, cur_tsc, diff_tsc;
  //    rte_timer_reset(&epoch.epoch_timer, 0,
