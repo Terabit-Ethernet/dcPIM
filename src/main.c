@@ -140,7 +140,7 @@ static void host_main_loop(void) {
 	uint64_t cycle_per_us = (uint64_t)(rte_get_timer_hz() / 1000000.0);
 	printf("cycle per us:%"PRIu64"\n", cycle_per_us);
 	// pim_init_epoch(&epoch, &host, &pacer);
-	// pim_receive_start(&epoch, &host, &pacer);
+	// pim_eceive_start(&epoch, &host, &pacer);
 
 	// pim_receive_start(&epoch, &host, &pacer);
 	// rte_timer_reset(&host.pim_send_token_timer, rte_get_timer_hz() * get_transmission_delay(1500) * params.batch_tokens,
@@ -204,20 +204,20 @@ static void pacer_main_loop(void) {
 			ipv4_hdr->version_ihl = (0x40 | 0x05);
 			ipv4_hdr->type_of_service = TOS_7;
 			ipv4_hdr->fragment_offset = IP_DN_FRAGMENT_FLAG;
-			ipv4_hdr->next_proto_id = 6;
+			//ipv4_hdr->next_proto_id = 6;
 			ipv4_hdr->time_to_live = 64;
 			ipv4_hdr->hdr_checksum = 0;
 			ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
-//			if(pim_hdr->type == PIM_RTS) {
-//			 	printf("send control packet type:%u\n", pim_hdr->type);
-//			}
+			//if(pim_hdr->type == PIM_RTS) {
+			// 	printf("send control packet type:%u\n", pim_hdr->type);
+			//}
 			// p->vlan_tci = TCI_7;
 			// rte_vlan_insert(&p); 
 			// send packets; hard code the port;
 			// cycles[0] = rte_get_timer_cycles();
 		//	printf("dst:%u\n", dst_addr);
-		//	printf("port:%d\n", get_port_by_ip(dst_addr));
-			rte_pktmbuf_dump(stdout, p, rte_pktmbuf_pkt_len(p));
+	//		printf("port:%d\n", get_port_by_ip(dst_addr));
+			//rte_pktmbuf_dump(stdout, p, rte_pktmbuf_pkt_len(p));
 			int sent = rte_eth_tx_burst(get_port_by_ip(dst_addr) ,0, &p, 1);
 		   	while(sent != 1) {
 		   		sent = rte_eth_tx_burst(get_port_by_ip(dst_addr) ,0, &p, 1);
@@ -270,7 +270,7 @@ static void start_main_loop(void) {
 		ipv4_hdr->hdr_checksum = 0;
 		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 	    pim_hdr->type = PIM_START;
-		rte_pktmbuf_dump(stdout, p, rte_pktmbuf_pkt_len(p));
+		//rte_pktmbuf_dump(stdout, p, rte_pktmbuf_pkt_len(p));
 	    	rte_eth_tx_burst(get_port_by_ip(ips[i]) ,0, &p, 1);
 		start = rte_get_timer_cycles();
 	}
@@ -691,7 +691,7 @@ main(int argc, char **argv)
 	ret = 0;
 	init_config(&params);
 	printf("window timeout cycle:%"PRIu64"\n", params.token_window_timeout_cycle);
-	rte_eth_macaddr_get(0, &params.ether_addr);
+	rte_eth_macaddr_get(1, &params.ether_addr);
 	/* initialize flow rates and flow nums */
 	// for(int i = 0; i < NUM_FLOW_TYPES; i++) {
 	// 	flow_remainder[i] = 0;
