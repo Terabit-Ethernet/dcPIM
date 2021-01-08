@@ -581,7 +581,7 @@ main(int argc, char **argv)
 		rte_exit(EXIT_FAILURE, "No Ethernet ports - bye\n");
 
 	/*initialize lcore 1 as RX for ports 0 and 1*/
-	qconf = &lcore_queue_conf[3];
+	qconf = &lcore_queue_conf[1];
 	// if(params.ip == 22) {
 	// 	qconf->rx_port_list[0] = 0;
 	// } else if (params.ip == 24) {
