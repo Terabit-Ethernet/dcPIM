@@ -57,8 +57,8 @@ struct Params {
 	// debug purpose
 	uint32_t index;
 	uint32_t num_hosts;
-	uint32_t dst_ips[8];
-	struct ether_addr dst_ethers[8];
+	uint32_t dst_ips[40];
+	struct ether_addr dst_ethers[40];
 	struct ether_addr ether_addr;
 	uint32_t batch_tokens;
 	double propagation_delay;
