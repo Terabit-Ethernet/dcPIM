@@ -594,7 +594,6 @@ void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct
     int32_t position = 0;
     uint32_t next = 0;
     Pq *pq;
-
     while(1) {
 
         position = rte_hash_iterate(host->src_minflow_table,(const void**) &src_addr, (void**)&pq, &next);
@@ -611,7 +610,7 @@ void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct
         if(smallest_flow != NULL) {
             struct rte_mbuf *p = pim_get_rts_pkt(smallest_flow, pim_epoch->iter, pim_epoch->epoch);
             // rte_eth_tx_burst(get_port_by_ip(smallest_flow->_f.dst_addr) ,0, &p, 1);
-            enqueue_ring(pacer->ctrl_q, p);
+     	    enqueue_ring(pacer->ctrl_q, p);
         } 
     }
 }
@@ -764,7 +763,7 @@ void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer, struc
     if(new_flow->_f.size_in_pkt <= params.small_flow_thre) {
         int init_token = pflow_init_token_size(new_flow);
         // set rd ctrl timeout
-        pflow_reset_rd_ctrl_timeout(host, new_flow, (init_token + params.BDP) * get_transmission_delay(1500));
+        pflow_reset_rd_ctrl_timeout(host, new_flow, (init_token + 3 * params.BDP) * get_transmission_delay(1500));
         // printf("ctrl timeout setup: %f\n", (init_token + params.BDP) * get_transmission_delay(1500));
         if(rte_ring_count(host->temp_pkt_buffer) != 0) {
             pim_iterate_temp_pkt_buf(host, pacer, pim_flow_sync_hdr->flow_id);
@@ -925,7 +924,7 @@ void pim_send_token_evt_handler(__rte_unused struct rte_timer *timer, void* arg)
                 rte_exit(EXIT_FAILURE, "rd ctrl timeout is not null");
             }
             // set up redundancy ctrl timeout
-            pflow_reset_rd_ctrl_timeout(pim_host, pim_flow, params.BDP * get_transmission_delay(1500));
+            pflow_reset_rd_ctrl_timeout(pim_host, pim_flow, 3 * params.BDP * get_transmission_delay(1500));
             pim_flow = get_smallest_unfinished_flow(pq);
             //pq_pop(pq);
             // receiver->gosrc_info.current_flow = ruf_flow;
