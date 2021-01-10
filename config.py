@@ -1,4 +1,6 @@
 import sys
+import socket
+import struct
 import netifaces as ni
 # ether_addrs = ["00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4", "00:01:e8:8b:2e:e4"]
 ether_addrs = []
@@ -10,6 +12,9 @@ def construct_ip(small_ip, large_ip, ip_prefix = "10,10,1"):
         dst_ips += "\n"
     return num_dst, dst_ips
 
+def ip2int(addr):
+    return struct.unpack("!I", socket.inet_aton(addr))[0]
+
 def read_arp_and_ip(file = "/proc/net/arp"):
     f = open(file, "r")
     lines = f.readlines()[1:]
@@ -19,16 +24,16 @@ def read_arp_and_ip(file = "/proc/net/arp"):
         ip = e[0]
         eth = e[3]
         if "10.10" in ip:
-            dict_ip[ip] = eth
+            dict_ip[ip2int(ip)] = eth
 
     # read ip 
     ip = ni.ifaddresses('eno1d1')[ni.AF_INET][0]['addr']
     ether = ni.ifaddresses('eno1d1')[ni.AF_LINK][0]['addr']
-    dict_ip[ip] = ether
+    dict_ip[ip2int(ip)] = ether
 
     for key in sorted(dict_ip.keys()):
         ether_addrs.append(dict_ip[key])
-
+    print ether_addrs
     return ip
 
 def construct_ethers():
