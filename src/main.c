@@ -130,7 +130,7 @@ static void host_main_loop(void) {
     uint64_t prev_tsc = 0, cur_tsc, diff_tsc;
 
 	qconf = &lcore_queue_conf[lcore_id];
-	bool print = false;
+	//bool print = false;
 	params.pim_iter_epoch = params.pim_beta * get_rtt(params.propagation_delay, 3, 40) + params.clock_bias;
 	params.pim_epoch = params.pim_iter_limit * params.pim_iter_epoch * (1 + params.pim_alpha);
 	printf("control packet rtt :%f\n", get_rtt(params.propagation_delay, 3, 40)* 1000000);
@@ -189,9 +189,9 @@ static void pacer_main_loop(void) {
 				rte_exit(EXIT_FAILURE, "deque ring\n");
 			}
 			struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, sizeof(struct ether_hdr));
-    		struct pim_hdr *pim_hdr;
+    	                struct pim_hdr *pim_hdr;
 
-    		uint32_t offset = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr);
+    		        uint32_t offset = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr);
 
    		 	pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, offset);
 
@@ -246,7 +246,7 @@ static void start_main_loop(void) {
 	// unsigned lcore_id;
 	rte_delay_us_block(2000000);
 	int ips[1] = {24};
-	int i = 0;
+	unsigned i = 0;
 	for (; i < params.num_hosts; i++) {
 		if(params.dst_ips[i] == params.ip){
 			continue;
@@ -266,6 +266,7 @@ static void start_main_loop(void) {
 	    ipv4_hdr->total_length = rte_cpu_to_be_16(size - sizeof(struct ether_hdr));
 		ipv4_hdr->version_ihl = (0x40 | 0x05);
 		ipv4_hdr->type_of_service = TOS_7;
+	        ipv4_hdr->next_proto_id = 6;
 		ipv4_hdr->time_to_live = 64;
 		ipv4_hdr->hdr_checksum = 0;
 		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);

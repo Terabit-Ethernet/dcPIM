@@ -96,10 +96,12 @@ bool pflow_get_finish(struct pim_flow* flow) {
 
 void pflow_set_finish_at_receiver(struct pim_flow* flow) {
     flow->finished_at_receiver = true;
+    flow->state = FINISH_WAIT;
 }
 void pflow_set_finish(struct pim_flow* flow) {
     flow->_f.finished = true;
     flow->_f.finish_time = rte_get_tsc_cycles();
+    flow->state = FINISH;
 }
 // void pim_relax_token_gap(pim_flow* f) {
 
@@ -345,6 +347,7 @@ void pflow_finish_timeout_handler(__rte_unused struct rte_timer *timer, void* ar
     delete_table_entry(host->rx_flow_table, timeout_params->flow_id);
     rte_free(flow->_f.bmp);
     // rte_bitmap_free(flow->_f.bmp);
+    flow->state = FINISH;
     if(flow->rd_ctrl_timeout_params == NULL) {
         rte_pktmbuf_free(flow->buf);
     }

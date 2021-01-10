@@ -15,9 +15,15 @@
 #include "pim_pacer.h"
 
 struct pim_pacer;
+
+enum pflow_state {SYNC_SENT, RTS_ACK,  // sender state
+	SYNC_RECEIVE, FINISH_WAIT, // receiver state
+	FINISH}; // finish state 
+
 struct pim_flow {
     struct flow _f;
     struct rte_mbuf* buf;
+    enum pflow_state state;
     bool flow_sync_received;
     bool finished_at_receiver;
     int last_token_data_seq_num_sent;
@@ -50,6 +56,11 @@ struct finish_timeout_params {
     uint32_t flow_id;
 };
 
+struct flow_sync_resent_timeout_params {
+   struct pim_host* host;
+   struct pim_flow *flow;
+   struct pim_pacer *pacer;
+};
 void pflow_dump(struct pim_flow* f);
 struct pim_flow* pflow_new(struct rte_mempool* pool);
 void pflow_init(struct pim_flow* pim_f, uint32_t id, uint32_t size, uint32_t src_addr, uint32_t dst_addr, 

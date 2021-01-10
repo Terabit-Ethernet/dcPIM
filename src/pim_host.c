@@ -110,6 +110,8 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
     }
 
     pflow_init(new_flow, flow_id, flow_size, params.ip, dst_addr, dst_ether, rte_get_tsc_cycles(), 0);
+    // set the state to be SYNC_SENT;
+    new_flow->state = SYNC_SENT;
     insert_table_entry(host->tx_flow_table, new_flow->_f.id, new_flow);
     // send rts
     if(debug_flow(flow_id)) {
@@ -480,7 +482,7 @@ void pim_receive_start(struct pim_epoch* pim_epoch, struct pim_host* pim_host, s
     rte_timer_reset(&pim_epoch->epoch_timer, epoch_size,
     PERIODICAL, core_id, &pim_start_new_epoch, (void *)(&pim_epoch->pim_timer_params));
     uint32_t i = 0;
-    uint64_t start_cycle = rte_get_tsc_cycles();
+    //uint64_t start_cycle = rte_get_tsc_cycles();
     uint32_t half_epoch_time = ceil(params.pim_iter_epoch / 2 * 1000000);
     for(; i <= params.pim_iter_limit; i++) {
         rte_timer_reset(&pim_epoch->receiver_iter_timers[i], epoch_size, PERIODICAL,
@@ -752,7 +754,10 @@ void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer, struc
     struct pim_flow* new_flow = pflow_new(host->rx_flow_pool);
     pflow_init(new_flow, pim_flow_sync_hdr->flow_id, pim_flow_sync_hdr->flow_size, src_addr, dst_addr, &ether_hdr->s_addr, pim_flow_sync_hdr->start_time, 1);
     new_flow->flow_sync_received = true;
+    new_flow->state = SYNC_RECEIVE;
     // pim_flow_dump(new_flow);
+    
+    printf("receive rts:%d\n", pim_flow_sync_hdr->flow_id);
     // insert new flow to the table entry
     insert_table_entry(host->rx_flow_table, new_flow->_f.id, new_flow);
     if(lookup_table_entry(host->src_minflow_table, src_addr) == NULL) {
@@ -871,7 +876,7 @@ void pim_send_flow_sync(struct pim_pacer* pacer, struct pim_host* host, struct p
 void pim_send_token_evt_handler(__rte_unused struct rte_timer *timer, void* arg) {
     struct pim_timer_params* pim_timer_params = (struct pim_timer_params*)arg;
     struct pim_host* pim_host = pim_timer_params->pim_host;
-    struct pim_pacer* pim_pacer  = pim_timer_params->pim_pacer;
+    //struct pim_pacer* pim_pacer  = pim_timer_params->pim_pacer;
 
     int sent_token = 0;
     if(pim_host->cur_match_src_addr == 0) {
