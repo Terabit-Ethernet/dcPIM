@@ -773,6 +773,7 @@ void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer, struc
     struct pim_flow* exist_flow = lookup_table_entry(host->rx_flow_table, pim_flow_sync_hdr->flow_id);
     // send back flow sync ack
     pim_send_flow_sync_ack(pacer, ether_hdr, ipv4_hdr, pim_flow_sync_hdr);
+    printf("receive rts:%d\n", pim_flow_sync_hdr->flow_id);
     if(exist_flow != NULL && exist_flow->_f.size_in_pkt > params.small_flow_thre) {
         //pflow_dump(exist_flow);
         //printf("long flow send twice RTS");
@@ -790,7 +791,7 @@ void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer, struc
     new_flow->state = SYNC_RECEIVE;
     // pim_flow_dump(new_flow);
     
-    printf("receive rts:%d\n", pim_flow_sync_hdr->flow_id);
+    //printf("receive rts:%d\n", pim_flow_sync_hdr->flow_id);
     // insert new flow to the table entry
     insert_table_entry(host->rx_flow_table, new_flow->_f.id, new_flow);
     if(lookup_table_entry(host->src_minflow_table, src_addr) == NULL) {
@@ -903,7 +904,7 @@ void pim_send_flow_sync(struct pim_pacer* pacer, struct pim_host* host, struct p
     pim_flow_sync_hdr->flow_size = flow->_f.size;
     pim_flow_sync_hdr->start_time = flow->_f.start_time;
     //push the packet
-
+    printf("send flow sync:%d\n", flow->_f.id);
     enqueue_ring(pacer->ctrl_q, p);
 }
 
