@@ -291,8 +291,8 @@ void pflow_receive_data(struct pim_host* host, struct pim_pacer* pacer, struct p
         f->flow_fin_resent_timeout_params.host = host;
         f->flow_fin_resent_timeout_params.flow = f;
         f->flow_fin_resent_timeout_params.pacer = pacer;
-        f->flow_fin_resent_timeout_params.time = 2 * params.BDP * get_transmission_delay(1500);
-        rte_timer_reset(&f->rtx_fin_timeout, f->flow_fin_resent_timeout_params.time,
+        f->flow_fin_resent_timeout_params.time = 4 * params.BDP * get_transmission_delay(1500);
+	rte_timer_reset(&f->rtx_fin_timeout, rte_get_timer_hz() * f->flow_fin_resent_timeout_params.time,
             SINGLE, rte_lcore_id(), &pflow_rtx_fin_timeout_handler, (void *)&f->flow_fin_resent_timeout_params);
         // clean up memory and timer;
         if(!pflow_is_rd_ctrl_timeout_params_null(f)){
@@ -341,7 +341,7 @@ void pflow_rtx_flow_sync_timeout_handler(__rte_unused struct rte_timer *timer, v
     }
     pim_send_flow_sync(pacer, host, flow); 
     // reset timer 
-    rte_timer_reset(&flow->rtx_flow_sync_timeout, flow->flow_sync_resent_timeout_params.time,
+    rte_timer_reset(&flow->rtx_flow_sync_timeout, rte_get_timer_hz() * flow->flow_sync_resent_timeout_params.time,
             SINGLE, rte_lcore_id(), &pflow_rtx_flow_sync_timeout_handler, (void *)&flow->flow_sync_resent_timeout_params);
 }
 
@@ -351,7 +351,7 @@ void pflow_rtx_fin_timeout_handler(__rte_unused struct rte_timer *timer, void* a
     struct pim_host *host = timeout_params->host;
     struct pim_pacer *pacer = timeout_params->pacer;
 
-    printf("rtx fin timeout handler\n");
+    printf("rtx fin timeout handler:%d %f\n", flow->_f.id, flow->flow_fin_resent_timeout_params.time);
     if(debug_flow(flow->_f.id)){
         printf("rtx flow sync timeout for flow flow%u\n", flow->_f.id);
     }
@@ -361,7 +361,7 @@ void pflow_rtx_fin_timeout_handler(__rte_unused struct rte_timer *timer, void* a
     struct rte_mbuf* p = pflow_get_fin_pkt(flow);
     enqueue_ring(pacer->ctrl_q, p);
             // reset timer 
-    rte_timer_reset(&flow->rtx_fin_timeout, flow->flow_fin_resent_timeout_params.time,
+    rte_timer_reset(&flow->rtx_fin_timeout, rte_get_timer_hz() * flow->flow_fin_resent_timeout_params.time,
             SINGLE, rte_lcore_id(), &pflow_rtx_fin_timeout_handler, (void *)&flow->flow_fin_resent_timeout_params);
 }
 

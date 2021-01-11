@@ -134,7 +134,7 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
         }
         // set rtx flow sync timer
         new_flow->flow_sync_resent_timeout_params.time = (new_flow->_f.size_in_pkt + params.BDP) * get_transmission_delay(1500);
-        rte_timer_reset(&new_flow->rtx_flow_sync_timeout, new_flow->flow_sync_resent_timeout_params.time,
+        rte_timer_reset(&new_flow->rtx_flow_sync_timeout, rte_get_timer_hz() * new_flow->flow_sync_resent_timeout_params.time,
             SINGLE, rte_lcore_id(), &pflow_rtx_flow_sync_timeout_handler, (void *)&new_flow->flow_sync_resent_timeout_params);
         // set timer for avoid PIM process for short flows
         pflow_reset_rd_ctrl_timeout(host, new_flow, (new_flow->_f.size_in_pkt + params.BDP) * get_transmission_delay(1500));
@@ -149,7 +149,7 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
 
         // set rtx flow sync timer 
         new_flow->flow_sync_resent_timeout_params.time = 2 * params.BDP * get_transmission_delay(1500);
-        rte_timer_reset(&new_flow->rtx_flow_sync_timeout, new_flow->flow_sync_resent_timeout_params.time,
+        rte_timer_reset(&new_flow->rtx_flow_sync_timeout, rte_get_timer_hz() * new_flow->flow_sync_resent_timeout_params.time,
             SINGLE, rte_lcore_id(), &pflow_rtx_flow_sync_timeout_handler, (void *)&new_flow->flow_sync_resent_timeout_params);
     }
     // printf("finish\n");
@@ -220,8 +220,10 @@ struct rte_mbuf* p) {
     } else if (pim_hdr->type == PIM_FIN_ACK) {
         struct pim_fin_ack_hdr *pim_fin_ack_hdr = rte_pktmbuf_mtod_offset(p, struct pim_fin_ack_hdr*, offset);
         struct pim_flow* flow = lookup_table_entry(host->rx_flow_table, pim_fin_ack_hdr->flow_id);
-        if(flow != NULL && flow->state != FINISH)
-            pflow_set_finish_timeout(host, flow);
+        if(flow != NULL && flow->state != FINISH) {
+            printf("receive fin ack: %d\n", pim_fin_ack_hdr->flow_id);
+	    pflow_set_finish_timeout(host, flow);
+	}
     } 
       else if (pim_hdr->type == PIM_TOKEN) {
         struct pim_token_hdr *pim_token_hdr = rte_pktmbuf_mtod_offset(p, struct pim_token_hdr*, offset);

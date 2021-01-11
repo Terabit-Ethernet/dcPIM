@@ -35,14 +35,14 @@ struct flow_sync_resent_timeout_params {
    struct pim_host *host;
    struct pim_flow *flow;
    struct pim_pacer *pacer;
-   uint64_t time;
+   double time;
 };
 
 struct flow_fin_resent_timeout_params {
    struct pim_host *host;
    struct pim_flow *flow;
    struct pim_pacer *pacer;
-   uint64_t time;
+   double time;
 };
 
 struct pim_flow {
