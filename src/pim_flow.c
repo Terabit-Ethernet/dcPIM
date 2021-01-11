@@ -332,7 +332,6 @@ void pflow_rtx_flow_sync_timeout_handler(__rte_unused struct rte_timer *timer, v
     struct pim_flow* flow = timeout_params->flow;
     struct pim_host *host = timeout_params->host;
     struct pim_pacer *pacer = timeout_params->pacer;
-
     if(debug_flow(flow->_f.id)){
         printf("rtx flow sync timeout for flow flow%u\n", flow->_f.id);
     }
@@ -351,7 +350,6 @@ void pflow_rtx_fin_timeout_handler(__rte_unused struct rte_timer *timer, void* a
     struct pim_host *host = timeout_params->host;
     struct pim_pacer *pacer = timeout_params->pacer;
 
-    printf("rtx fin timeout handler:%d %f\n", flow->_f.id, flow->flow_fin_resent_timeout_params.time);
     if(debug_flow(flow->_f.id)){
         printf("rtx flow sync timeout for flow flow%u\n", flow->_f.id);
     }

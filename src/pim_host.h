@@ -22,6 +22,7 @@
 #include "pq.h"
 
 #define PIM_NUM_HOST 40
+#define RECEIVE_CORE 1
 struct pim_flow;
 extern bool start_signal;
 struct pim_rts {

@@ -105,6 +105,7 @@ char *cdf_file;
 static volatile bool force_quit;
 
 bool start_signal;
+
 #define TARGET_NUM 5000
 
 static unsigned char
@@ -584,7 +585,7 @@ main(int argc, char **argv)
 		rte_exit(EXIT_FAILURE, "No Ethernet ports - bye\n");
 
 	/*initialize lcore 1 as RX for ports 0 and 1*/
-	qconf = &lcore_queue_conf[1];
+	qconf = &lcore_queue_conf[RECEIVE_CORE];
 	// if(params.ip == 22) {
 	// 	qconf->rx_port_list[0] = 0;
 	// } else if (params.ip == 24) {
@@ -706,7 +707,7 @@ main(int argc, char **argv)
 	    pim_init_host(&host, 0);
 	    pim_init_pacer(&pacer, &host, 0);
 	    pim_init_epoch(&epoch, &host, &pacer);
-	    rte_eal_remote_launch(launch_host_lcore, NULL, 1);
+	    rte_eal_remote_launch(launch_host_lcore, NULL, RECEIVE_CORE);
 		rte_eal_remote_launch(launch_pacer_lcore, NULL, 2);
 	    rte_eal_remote_launch(launch_flowgen_lcore, NULL, 3);
 		// rte_eal_remote_launch(launch_start_lcore, NULL, 4);
@@ -723,7 +724,7 @@ main(int argc, char **argv)
 		rte_delay_us_sleep(1000000);
 	}
 
-	if(rte_eal_wait_lcore(1) < 0){
+	if(rte_eal_wait_lcore(RECEIVE_CORE) < 0){
 	ret = -1;
 	}
 	if(rte_eal_wait_lcore(2) < 0){

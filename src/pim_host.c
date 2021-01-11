@@ -118,7 +118,7 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
     if(debug_flow(flow_id)) {
         printf("%"PRIu64" new flow arrives:%u; size: %u\n", rte_get_tsc_cycles(), flow_id, flow_size);
     }
-    //pim_send_flow_sync(pacer, host, new_flow);
+    pim_send_flow_sync(pacer, host, new_flow);
     // set rtx flow sync timer params
     new_flow->flow_sync_resent_timeout_params.host = host;
     new_flow->flow_sync_resent_timeout_params.flow = new_flow;
@@ -136,9 +136,9 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
         // set rtx flow sync timer
         new_flow->flow_sync_resent_timeout_params.time = (new_flow->_f.size_in_pkt + 4 * params.BDP) * get_transmission_delay(1500);
 	int ret =rte_timer_reset(&new_flow->rtx_flow_sync_timeout, rte_get_timer_hz() * new_flow->flow_sync_resent_timeout_params.time,
-            SINGLE, 1, &pflow_rtx_flow_sync_timeout_handler, (void *)&new_flow->flow_sync_resent_timeout_params);
+            SINGLE, RECEIVE_CORE, &pflow_rtx_flow_sync_timeout_handler, (void *)&new_flow->flow_sync_resent_timeout_params);
 	// set timer for avoid PIM process for short flows
-        pflow_reset_rd_ctrl_timeout(host, new_flow, (new_flow->_f.size_in_pkt + params.BDP) * get_transmission_delay(1500));
+        //cpflow_reset_rd_ctrl_timeout(host, new_flow, (new_flow->_f.size_in_pkt + params.BDP) * get_transmission_delay(1500));
     } else {
         if(lookup_table_entry(host->dst_minflow_table, dst_addr) == NULL) {
             Pq* pq = rte_zmalloc("Prioirty Queue", sizeof(Pq), 0);
@@ -151,7 +151,7 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
         // set rtx flow sync timer 
         new_flow->flow_sync_resent_timeout_params.time = 4 * params.BDP * get_transmission_delay(1500);
         rte_timer_reset(&new_flow->rtx_flow_sync_timeout, rte_get_timer_hz() * new_flow->flow_sync_resent_timeout_params.time,
-            SINGLE, 1, &pflow_rtx_flow_sync_timeout_handler, (void *)&new_flow->flow_sync_resent_timeout_params);
+            SINGLE, RECEIVE_CORE, &pflow_rtx_flow_sync_timeout_handler, (void *)&new_flow->flow_sync_resent_timeout_params);
     }
     // printf("finish\n");
 }
@@ -1124,7 +1124,6 @@ void pim_cancel_rtx_flow_sync(struct pim_host *pim_host, uint32_t flow_id) {
     struct pim_flow* f = lookup_table_entry(pim_host->tx_flow_table, flow_id);
     /* cancel flow sync rtx timeout */
     if(f != NULL && f->state == SYNC_SENT){
-        printf("cacnel\n");
 	rte_timer_stop(&f->rtx_flow_sync_timeout);
         f->state = SYNC_ACK;
     }
