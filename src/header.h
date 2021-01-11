@@ -13,10 +13,11 @@
 #define PIM_GRANT 3
 #define PIM_GRANTR 4
 #define PIM_ACCEPT 5 
-#define PIM_ACK 6
+#define PIM_FIN 6
 #define PIM_START 7
 #define PIM_TOKEN 8
-#define PIM_RTS_ACK 9
+#define PIM_FLOW_SYNC_ACK 9
+// #define PIM_FIN_SYNC_ACK 10
 #define PIM_FIN_ACK 10
 #define MSS 1460
 
@@ -64,7 +65,7 @@ struct pim_accept_hdr {
 
 };
 
-struct pim_ack_hdr {
+struct pim_fin_hdr {
 	uint32_t flow_id;
 	uint32_t rd_ctrl_times;
 };
