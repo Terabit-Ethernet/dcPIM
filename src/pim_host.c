@@ -72,7 +72,7 @@ void pim_init_host(struct pim_host* host, uint32_t socket_id) {
     host->finished_flow = 0;
     host->sent_bytes = 0;
     host->tx_flow_pool = create_mempool("tx_flow_pool", sizeof(struct pim_flow) + RTE_PKTMBUF_HEADROOM, 131072, socket_id);
-    host->tx_flow_table = create_hash_table("tx_flow_table", sizeof(uint32_t), 131072, 0, socket_id);
+    host->tx_flow_table = create_hash_table("tx_flow_table", sizeof(uint32_t), 131072, RTE_HASH_EXTRA_FLAGS_RW_CONCURRENCY_LF, socket_id);
     host->dst_minflow_table = create_hash_table("dst_minflow_table", sizeof(uint32_t), 256, 0, socket_id);
     host->src_minflow_table = create_hash_table("src_minflow_table", sizeof(uint32_t), 256, 0, socket_id);
     host->num_token_sent = 0;
@@ -112,12 +112,13 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
     pflow_init(new_flow, flow_id, flow_size, params.ip, dst_addr, dst_ether, rte_get_tsc_cycles(), 0);
     // set the state to be SYNC_SENT;
     new_flow->state = SYNC_SENT;
+    // this part might need to change for thread safety
     insert_table_entry(host->tx_flow_table, new_flow->_f.id, new_flow);
     // send rts
     if(debug_flow(flow_id)) {
         printf("%"PRIu64" new flow arrives:%u; size: %u\n", rte_get_tsc_cycles(), flow_id, flow_size);
     }
-    pim_send_flow_sync(pacer, host, new_flow);
+    //pim_send_flow_sync(pacer, host, new_flow);
     // set rtx flow sync timer params
     new_flow->flow_sync_resent_timeout_params.host = host;
     new_flow->flow_sync_resent_timeout_params.flow = new_flow;
@@ -133,10 +134,10 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
             // printf("push to short flow token q\n");
         }
         // set rtx flow sync timer
-        new_flow->flow_sync_resent_timeout_params.time = (new_flow->_f.size_in_pkt + params.BDP) * get_transmission_delay(1500);
-        rte_timer_reset(&new_flow->rtx_flow_sync_timeout, rte_get_timer_hz() * new_flow->flow_sync_resent_timeout_params.time,
-            SINGLE, rte_lcore_id(), &pflow_rtx_flow_sync_timeout_handler, (void *)&new_flow->flow_sync_resent_timeout_params);
-        // set timer for avoid PIM process for short flows
+        new_flow->flow_sync_resent_timeout_params.time = (new_flow->_f.size_in_pkt + 4 * params.BDP) * get_transmission_delay(1500);
+	int ret =rte_timer_reset(&new_flow->rtx_flow_sync_timeout, rte_get_timer_hz() * new_flow->flow_sync_resent_timeout_params.time,
+            SINGLE, 1, &pflow_rtx_flow_sync_timeout_handler, (void *)&new_flow->flow_sync_resent_timeout_params);
+	// set timer for avoid PIM process for short flows
         pflow_reset_rd_ctrl_timeout(host, new_flow, (new_flow->_f.size_in_pkt + params.BDP) * get_transmission_delay(1500));
     } else {
         if(lookup_table_entry(host->dst_minflow_table, dst_addr) == NULL) {
@@ -148,9 +149,9 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
         pq_push(pq, new_flow);
 
         // set rtx flow sync timer 
-        new_flow->flow_sync_resent_timeout_params.time = 2 * params.BDP * get_transmission_delay(1500);
+        new_flow->flow_sync_resent_timeout_params.time = 4 * params.BDP * get_transmission_delay(1500);
         rte_timer_reset(&new_flow->rtx_flow_sync_timeout, rte_get_timer_hz() * new_flow->flow_sync_resent_timeout_params.time,
-            SINGLE, rte_lcore_id(), &pflow_rtx_flow_sync_timeout_handler, (void *)&new_flow->flow_sync_resent_timeout_params);
+            SINGLE, 1, &pflow_rtx_flow_sync_timeout_handler, (void *)&new_flow->flow_sync_resent_timeout_params);
     }
     // printf("finish\n");
 }
@@ -221,7 +222,6 @@ struct rte_mbuf* p) {
         struct pim_fin_ack_hdr *pim_fin_ack_hdr = rte_pktmbuf_mtod_offset(p, struct pim_fin_ack_hdr*, offset);
         struct pim_flow* flow = lookup_table_entry(host->rx_flow_table, pim_fin_ack_hdr->flow_id);
         if(flow != NULL && flow->state != FINISH) {
-            printf("receive fin ack: %d\n", pim_fin_ack_hdr->flow_id);
 	    pflow_set_finish_timeout(host, flow);
 	}
     } 
@@ -774,9 +774,10 @@ void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer, struc
     // send back flow sync ack
     pim_send_flow_sync_ack(pacer, ether_hdr, ipv4_hdr, pim_flow_sync_hdr);
     if(exist_flow != NULL && exist_flow->_f.size_in_pkt > params.small_flow_thre) {
-        pflow_dump(exist_flow);
-        printf("long flow send twice RTS");
-        rte_exit(EXIT_FAILURE, "Twice RTS for long flow");
+        //pflow_dump(exist_flow);
+        //printf("long flow send twice RTS");
+        //rte_exit(EXIT_FAILURE, "Twice RTS for long flow");
+    	return;
     }
     if(exist_flow != NULL) {
         return;
@@ -1123,7 +1124,8 @@ void pim_cancel_rtx_flow_sync(struct pim_host *pim_host, uint32_t flow_id) {
     struct pim_flow* f = lookup_table_entry(pim_host->tx_flow_table, flow_id);
     /* cancel flow sync rtx timeout */
     if(f != NULL && f->state == SYNC_SENT){
-        rte_timer_stop(&f->rtx_flow_sync_timeout);
+        printf("cacnel\n");
+	rte_timer_stop(&f->rtx_flow_sync_timeout);
         f->state = SYNC_ACK;
     }
 }
