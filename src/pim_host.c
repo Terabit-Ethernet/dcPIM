@@ -904,7 +904,7 @@ void pim_send_flow_sync(struct pim_pacer* pacer, struct pim_host* host, struct p
     pim_flow_sync_hdr->flow_size = flow->_f.size;
     pim_flow_sync_hdr->start_time = flow->_f.start_time;
     //push the packet
-    printf("send flow sync:%d\n", flow->_f.id);
+   // printf("send flow sync:%d\n", flow->_f.id);
     enqueue_ring(pacer->ctrl_q, p);
 }
 
