@@ -134,7 +134,7 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
             // printf("push to short flow token q\n");
         }
         // set rtx flow sync timer
-        new_flow->flow_sync_resent_timeout_params.time = (new_flow->_f.size_in_pkt + 4 * params.BDP) * get_transmission_delay(1500);
+        new_flow->flow_sync_resent_timeout_params.time = (new_flow->_f.size_in_pkt +  params.BDP) * get_transmission_delay(1500);
 	int ret =rte_timer_reset(&new_flow->rtx_flow_sync_timeout, rte_get_timer_hz() * new_flow->flow_sync_resent_timeout_params.time,
             SINGLE, RECEIVE_CORE, &pflow_rtx_flow_sync_timeout_handler, (void *)&new_flow->flow_sync_resent_timeout_params);
 	// set timer for avoid PIM process for short flows
@@ -149,7 +149,7 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
         pq_push(pq, new_flow);
 
         // set rtx flow sync timer 
-        new_flow->flow_sync_resent_timeout_params.time = 4 * params.BDP * get_transmission_delay(1500);
+        new_flow->flow_sync_resent_timeout_params.time =  params.BDP * get_transmission_delay(1500);
         rte_timer_reset(&new_flow->rtx_flow_sync_timeout, rte_get_timer_hz() * new_flow->flow_sync_resent_timeout_params.time,
             SINGLE, RECEIVE_CORE, &pflow_rtx_flow_sync_timeout_handler, (void *)&new_flow->flow_sync_resent_timeout_params);
     }
@@ -802,7 +802,7 @@ void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer, struc
     if(new_flow->_f.size_in_pkt <= params.small_flow_thre) {
         int init_token = pflow_init_token_size(new_flow);
         // set rd ctrl timeout
-        pflow_reset_rd_ctrl_timeout(host, new_flow, (init_token + 3 * params.BDP) * get_transmission_delay(1500));
+        pflow_reset_rd_ctrl_timeout(host, new_flow, (init_token + params.BDP) * get_transmission_delay(1500));
         // printf("ctrl timeout setup: %f\n", (init_token + params.BDP) * get_transmission_delay(1500));
         if(rte_ring_count(host->temp_pkt_buffer) != 0) {
             pim_iterate_temp_pkt_buf(host, pacer, pim_flow_sync_hdr->flow_id);
@@ -1033,7 +1033,7 @@ void pim_send_token_evt_handler(__rte_unused struct rte_timer *timer, void* arg)
                 rte_exit(EXIT_FAILURE, "rd ctrl timeout is not null");
             }
             // set up redundancy ctrl timeout
-            pflow_reset_rd_ctrl_timeout(pim_host, pim_flow, 3 * params.BDP * get_transmission_delay(1500));
+            pflow_reset_rd_ctrl_timeout(pim_host, pim_flow, params.BDP * get_transmission_delay(1500));
             pim_flow = get_smallest_unfinished_flow(pq);
             //pq_pop(pq);
             // receiver->gosrc_info.current_flow = ruf_flow;

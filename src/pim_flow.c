@@ -291,7 +291,7 @@ void pflow_receive_data(struct pim_host* host, struct pim_pacer* pacer, struct p
         f->flow_fin_resent_timeout_params.host = host;
         f->flow_fin_resent_timeout_params.flow = f;
         f->flow_fin_resent_timeout_params.pacer = pacer;
-        f->flow_fin_resent_timeout_params.time = 4 * params.BDP * get_transmission_delay(1500);
+        f->flow_fin_resent_timeout_params.time = 2 * params.BDP * get_transmission_delay(1500);
 	rte_timer_reset(&f->rtx_fin_timeout, rte_get_timer_hz() * f->flow_fin_resent_timeout_params.time,
             SINGLE, rte_lcore_id(), &pflow_rtx_fin_timeout_handler, (void *)&f->flow_fin_resent_timeout_params);
         // clean up memory and timer;
