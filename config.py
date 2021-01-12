@@ -62,8 +62,8 @@ def main():
 #include <rte_common.h>
 struct Params params = {{
     .index = {0},
-    .BDP = 7,
-    .small_flow_thre = 7,
+    .BDP = 20,
+    .small_flow_thre = 20,
     .mss = 1460,
     .priority_limit = 6,
     .bandwidth = 10000000000,
