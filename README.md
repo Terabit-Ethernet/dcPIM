@@ -3,17 +3,20 @@ DPDK implementation for pipelined PIM
 
 1. Config the addresses of devices and NUMA memories;
 
-  To do that
-   ```
-   sudo ./run.sh $num_server
-   ```
+To do that
+ ```
+ sudo ./run.sh $num_server
+ ```
    
-2. Compile and Load net-driver kernel module:
- 
-   ```
-   make
-   sudo insmod nd_module.ko
-   ```
+2. Run: suppose we have n servers:
+   For first n-1 servers: run
+ ```
+ ./build/pim -- send CDF_$workload.txt > result_$workload.txt
+ ```
+ For the last server:
+  ```
+ ./build/pim -- start CDF_$workload.txt > result_$workload.txt
+ ```
 
  
 if you are using Cornell clusters, you need to do following changes:
@@ -26,10 +29,5 @@ The correct IP addresses are from (5.0.0.10 to 12.0.0.10) depending on the numbe
 
 2. Also, you need to change config.py line 7 for the correct IP prefix/surfix. The current is for cloudlab clusters.
 
-3. Change line 730, 733, 736:
-```
-rte_eal_wait_lcore(2) -> rte_eal_wait_lcore(3) 
-rte_eal_wait_lcore(3) -> rte_eal_wait_lcore(5)
-rte_eal_wait_lcore(4) -> rte_eal_wait_lcore(7)
-```
+3. 
 
