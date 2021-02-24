@@ -15,9 +15,6 @@ DPDK implementation for pipelined PIM
    sudo insmod nd_module.ko
    ```
 
- ```
- 
- 
  
 if you are using Cornell clusters, you need to do following changes:
 
@@ -29,4 +26,10 @@ The correct IP addresses are from (5.0.0.10 to 12.0.0.10) depending on the numbe
 
 2. Also, you need to change config.py line 7 for the correct IP prefix/surfix. The current is for cloudlab clusters.
 
-3
+3. Change line 730, 733, 736:
+```
+rte_eal_wait_lcore(2) -> rte_eal_wait_lcore(3) 
+rte_eal_wait_lcore(3) -> rte_eal_wait_lcore(5)
+rte_eal_wait_lcore(4) -> rte_eal_wait_lcore(7)
+```
+
