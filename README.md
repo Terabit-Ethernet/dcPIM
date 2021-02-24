@@ -18,7 +18,7 @@ To do that
  ./build/pim -- start CDF_$workload.txt > result_$workload.txt
  ```
 
- 
+ --------------------------------------------------------------------
 if you are using Cornell clusters, you need to do following changes:
 
 1. change line 6 to the correct end host addresses in config.sh:
