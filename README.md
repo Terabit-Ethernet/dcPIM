@@ -29,5 +29,17 @@ The correct IP addresses are from (5.0.0.10 to 12.0.0.10) depending on the numbe
 
 2. Also, you need to change config.py line 7 for the correct IP prefix/surfix. The current is for cloudlab clusters.
 
-3. 
+3. Copy the src/main.c from the main branch to src/main.c in this branch. Then, changes follwing to line:
+```
+line 273: pim_receive_start(&epoch, &host, &pacer, 3);
+line 702: rte_eal_remote_launch(launch_host_lcore, NULL, 3); 
+line 717: if(rte_eal_wait_lcore(3) < 0)
+```
+to 
+```
+line 273: pim_receive_start(&epoch, &host, &pacer, RECEIVE_CORE);
+line 702: rte_eal_remote_launch(launch_host_lcore, NULL, RECEIVE_CORE); 
+line 717: if(rte_eal_wait_lcore(RECEIVE_CORE) < 0)
+```
+
 
