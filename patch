@@ -100,3 +100,24 @@ index d545fb9..5613379 100644
  
  void inet_get_local_port_range(struct net *net, int *low, int *high)
  {
+diff --git a/net/ipv4/ip_input.c b/net/ipv4/ip_input.c
+index aa438c6..af5e42a 100644
+--- a/net/ipv4/ip_input.c
++++ b/net/ipv4/ip_input.c
+@@ -274,7 +274,6 @@ static inline bool ip_rcv_options(struct sk_buff *skb, struct net_device *dev)
+ 	iph = ip_hdr(skb);
+ 	opt = &(IPCB(skb)->opt);
+ 	opt->optlen = iph->ihl*4 - sizeof(struct iphdr);
+-
+ 	if (ip_options_compile(dev_net(dev), opt, skb)) {
+ 		__IP_INC_STATS(dev_net(dev), IPSTATS_MIB_INHDRERRORS);
+ 		goto drop;
+@@ -482,7 +481,7 @@ static struct sk_buff *ip_rcv_core(struct sk_buff *skb, struct net *net)
+ 
+ 	iph = ip_hdr(skb);
+ 
+-	if (unlikely(ip_fast_csum((u8 *)iph, iph->ihl)))
++	if (unlikely(ip_fast_csum((u8 *)iph, iph->ihl) && iph->protocol != 18))
+ 		goto csum_error;
+ 
+ 	len = ntohs(iph->tot_len);
