@@ -45,6 +45,11 @@ cd RDP
 make
 sudo insmod dcacp_module.ko
 ```
+2. To unload the module,
+```
+sudo rmmod dcacp_module.ko
+```
+
 ## Run Program
 1. Go to `util` folder, and on the server side
 ```
