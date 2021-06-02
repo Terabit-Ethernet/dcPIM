@@ -63,3 +63,40 @@ index 2fe2954..5f8ff2f 100644
  	id = ntohl(*(__be32 *)&iph->id);
  	flush = (u16)((ntohl(*(__be32 *)iph) ^ skb_gro_len(skb)) | (id & ~IP_DF));
  	id >>= 16;
+diff --git a/net/core/skbuff.c b/net/core/skbuff.c
+index e1101a4..51e263b 100644
+--- a/net/core/skbuff.c
++++ b/net/core/skbuff.c
+@@ -6069,6 +6069,7 @@ void skb_condense(struct sk_buff *skb)
+ 	 */
+ 	skb->truesize = SKB_TRUESIZE(skb_end_offset(skb));
+ }
++EXPORT_SYMBOL(skb_condense);
+ 
+ #ifdef CONFIG_SKB_EXTENSIONS
+ static void *skb_ext_get_ptr(struct skb_ext *ext, enum skb_ext_id id)
+diff --git a/net/ipv4/ip_options.c b/net/ipv4/ip_options.c
+index ddaa01e..193b138 100644
+--- a/net/ipv4/ip_options.c
++++ b/net/ipv4/ip_options.c
+@@ -198,7 +198,7 @@ int __ip_options_echo(struct net *net, struct ip_options *dopt,
+ 	}
+ 	return 0;
+ }
+-
++EXPORT_SYMBOL(__ip_options_echo);
+ /*
+  *	Options "fragmenting", just fill options not
+  *	allowed in fragments with NOOPs.
+diff --git a/net/ipv4/inet_connection_sock.c b/net/ipv4/inet_connection_sock.c
+index d545fb9..5613379 100644
+--- a/net/ipv4/inet_connection_sock.c
++++ b/net/ipv4/inet_connection_sock.c
+@@ -111,6 +111,7 @@ bool inet_rcv_saddr_any(const struct sock *sk)
+ #endif
+ 	return !sk->sk_rcv_saddr;
+ }
++EXPORT_SYMBOL(inet_rcv_saddr_any);
+ 
+ void inet_get_local_port_range(struct net *net, int *low, int *high)
+ {
