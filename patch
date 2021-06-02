@@ -45,7 +45,7 @@ index 2fe2954..5f8ff2f 100644
 -
 +	if(iph->tos & 0x1) {
 +		iph->protocol = 18;
-+		iph->tos &= ~(1UL);  
++		iph->tos &= ~(1UL);
 +	}
  	proto = iph->protocol;
  
