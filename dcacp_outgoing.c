@@ -658,6 +658,7 @@ int dcacp_write_timer_handler(struct sock *sk)
 			skb_queue_head(&sk->sk_write_queue, skb);
 			break;
 		}
+		/* To Do: grant_nxt might be somewhere in the middle of seq and end_seq; need to split skb to do the transmission */
 	}
 	return sent_bytes;
 
