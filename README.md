@@ -1,10 +1,9 @@
 # TEPS = Terabit nEtwork Packet Simulator
-==================================
 
 ## Organisation
 
 ### Core stuff is in `coresim/` 
----------------------------
+
 Normally these files shouldn't change. This directory includes implementations of the following:
 * Main event loop and related helper functions, global variables, main() function to determine which experiment to run: `main.cpp`
     * Note: deciding which experiment to run will eventually be moved to the `run/` directory, probably to `experiment.cpp`.
@@ -15,7 +14,7 @@ Normally these files shouldn't change. This directory includes implementations o
 * Random variables used in flow generation. Used as a library by the flow generation code: `random_variable.cpp`.
 
 ### Extensions are in `ext/`
------------------------
+
 This is where you implement your favorite protocol.
 * Generally extensions are created by subclassing one or more aspects of classes defined in `coresim/`.
 * Once an extension is defined, it should be added to `factory.cpp` so it can be run. 
@@ -25,7 +24,7 @@ This is where you implement your favorite protocol.
     * You should give your extension an identifier in `factory.h` so it can be uniquely identified in the config file.
 
 ### Stuff related to actually running the simulator is in `run/`
-------------------------------------------------------------
+
 * Experiment setup, running, and post-analysis: `experiment.cpp`
 * Flow generation models: `flow_generator.cpp`
 * Parsing of config file: `params.cpp`
@@ -33,7 +32,7 @@ This is where you implement your favorite protocol.
     * These can then be accessed with `params.<your_parameter>`
 
 ### Helper scripts to run experiments are in `py/`
----------------------------------------------
+
 This can be useful if:
 * You are running many experiments in parallel.
 * You want to easily generate configuration files.
@@ -41,7 +40,7 @@ This can be useful if:
 To compile, the Automake and Autoconf files are included: `configure.ac` and `Makefile.am`. The makefile will produce two targets: `simulator` and `simdebug`. 
 `simdebug` is equivalent to `simulator`, except compiler optimzations are turned off to make debugging easier.
 
-Authors
+## Authors
 -------
 * Qizhe Cai
 
