@@ -1,7 +1,9 @@
-YAPS = Yet Another Packet Simulator
+# TEPS = Terabit nEtwork Packet Simulator
 ==================================
 
-Core stuff is in `coresim/` 
+## Organisation
+
+### Core stuff is in `coresim/` 
 ---------------------------
 Normally these files shouldn't change. This directory includes implementations of the following:
 * Main event loop and related helper functions, global variables, main() function to determine which experiment to run: `main.cpp`
@@ -12,7 +14,7 @@ Normally these files shouldn't change. This directory includes implementations o
 * Flows and packets. This is also a basis for extension; default is TCP: `packet.cpp` and `flow.cpp`.
 * Random variables used in flow generation. Used as a library by the flow generation code: `random_variable.cpp`.
 
-Extensions are in `ext/`
+### Extensions are in `ext/`
 -----------------------
 This is where you implement your favorite protocol.
 * Generally extensions are created by subclassing one or more aspects of classes defined in `coresim/`.
@@ -22,7 +24,7 @@ This is where you implement your favorite protocol.
 * Which implementation to use from `factory.cpp` is determined by the config file, parsed by `run/params.cpp`.
     * You should give your extension an identifier in `factory.h` so it can be uniquely identified in the config file.
 
-Stuff related to actually running the simulator is in `run/`
+### Stuff related to actually running the simulator is in `run/`
 ------------------------------------------------------------
 * Experiment setup, running, and post-analysis: `experiment.cpp`
 * Flow generation models: `flow_generator.cpp`
@@ -30,7 +32,7 @@ Stuff related to actually running the simulator is in `run/`
     * Configuration parameters for your extension should be added to `params.h` and `params.cpp`.
     * These can then be accessed with `params.<your_parameter>`
 
-Helper scripts to run experiments are in `py/`
+### Helper scripts to run experiments are in `py/`
 ---------------------------------------------
 This can be useful if:
 * You are running many experiments in parallel.
@@ -41,5 +43,5 @@ To compile, the Automake and Autoconf files are included: `configure.ac` and `Ma
 
 Authors
 -------
-
+* Qizhe Cai
 
