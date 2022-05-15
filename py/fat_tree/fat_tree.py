@@ -151,7 +151,7 @@ bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 116
 topology: FatTree
-k: 16
+k: 12
 num_flow: 1000000
 flow_trace: ../CDF_{0}.txt
 cut_through: 0

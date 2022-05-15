@@ -1,7 +1,7 @@
 #!/bin/bash
 
 loads=(2 4 6 8)
-algos=(pfabric)
+algos=(pim)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()
 

@@ -278,7 +278,7 @@ num_host_types: 13
 
 runs = ['pim']
 workloads = ['aditya', 'dctcp', 'datamining', 'constant']
-loads = [0.80, 0.82, 0.84, 0.86, 0.88, 0.90]
+loads = [0.60, 0.62, 0.64, 0.66, 0.68, 0.70]
 for r in runs:
     for w in workloads:
         #  generate conf file

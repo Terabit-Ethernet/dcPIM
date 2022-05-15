@@ -1,9 +1,9 @@
-init_cwnd: 14
-max_cwnd: 17
-retx_timeout: 45e-06
+init_cwnd: 32
+max_cwnd: 35
+retx_timeout: 26e-06
 queue_size: 36864
 propagation_delay: 0.0000002
-bandwidth: 10000000000.0
+bandwidth: 100000000000.0
 topology: FatTree
 k: 16
 queue_type: 2
@@ -17,7 +17,7 @@ preemptive_queue: 0
 big_switch: 0
 host_type: 1
 traffic_imbalance: 0
-load: 0.6
+load: 0.5
 reauth_limit: 3
 magic_trans_slack: 1.1
 magic_delay_scheduling: 1
@@ -26,8 +26,8 @@ smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
 capability_resend_timeout: 9
-capability_initial: 7
-capability_window: 7
+capability_initial: 32
+capability_window: 35
 capability_window_timeout: 25
 ddc: 0
 ddc_cpu_ratio: 0.33
