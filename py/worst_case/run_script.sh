@@ -1,6 +1,6 @@
 #!/bin/bash
 
-algos=(phost ruf pfabric fastpass)
+algos=(pim)
 aids=()
 OUTPUT_FOLDER=../result/worst_case
 DATE=$1
@@ -12,7 +12,7 @@ do
 	algo=${algos[$i]}
 	    # echo conf_"$algo"_dctcp_$incast.txt
 	    # echo "$OUTPUT_FOLDER"/result_"$algo"_dctcp_"$incast".txt
-	../../simulator 1 conf_"$algo"_"$2".txt > "$OUTPUT_FOLDER/$DATE"/result_"$algo"_"$2".txt&
+	../../simulator 1 conf_"$algo"_"$TRACE".txt > "$OUTPUT_FOLDER/$DATE"/result_"$algo"_"$TRACE".txt&
 	 pids[${i}]=$!
 #	for pid in ${pids[*]}; 
 #	do
