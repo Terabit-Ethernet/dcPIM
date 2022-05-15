@@ -1,6 +1,6 @@
 # TEPS = Terabit nEtwork Packet Simulator
 
-## Organisation
+## Organization
 
 ### Core stuff is in `coresim/` 
 
@@ -39,6 +39,21 @@ This can be useful if:
 
 To compile, the Automake and Autoconf files are included: `configure.ac` and `Makefile.am`. The makefile will produce two targets: `simulator` and `simdebug`. 
 `simdebug` is equivalent to `simulator`, except compiler optimzations are turned off to make debugging easier.
+
+## SIGCOMM 2021 Artifact Evaluation
+
+### Compile the Simulator
+
+```
+aclocal
+automake --add-missing
+autoconf
+./configure 
+make
+```
+- Figure 3(a)-3(e) (Evaulation results for the default setup) (~6 minutes)
+   - Sender: `bash sender/single-flow.sh`
+   - Receiver: `bash receiver/single-flow.sh`
 
 ## Authors
 -------
