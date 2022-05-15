@@ -63,7 +63,7 @@ Datamining: 2-3 days
 
 1. Create a result folder inside `py/`: `mkdir py/result`
 
-2. Reproduce Figure 3(a)-3(e) (Evaulation results for the default setup)
+2. Reproduce Figure 3 (Evaulation results for the default setup)
 
    ```
    cd py/load_100Gbps/
@@ -77,8 +77,20 @@ Datamining: 2-3 days
    ```
    Eg. `./run_script.sh 5.15 imc10`, `./run_script.sh 5.15 websearch`, `./run_script.sh 5.15 datamining`
 
+3. Reproduce Figure 4 (Microscopic view into dcPIM performance)
+
+   ```
+   cd py/worst_case/
+   ```
+
+   To run each workload, 
+
+   ```
+   ./run_script.sh $DATE $WORSTCASE
+   ```
+   Eg. `./run_script.sh 5.15 worstcase1`, `./run_script.sh 5.15 worstcase2`, `./run_script.sh 5.15 worstcase3`
 
 ## Authors
--------
+
 * Qizhe Cai
 
