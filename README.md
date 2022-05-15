@@ -61,17 +61,21 @@ Web Search: 5-6 hours
 Datamining: 2-3 days
 ```
 
-- Figure 3(a)-3(e) (Evaulation results for the default setup)
+1. Create a result folder inside `py/`: `mkdir py/result`
 
-```
-cd py/load_100Gbps/
-python load.py
-```
-To run each workload, 
-```
-./run_script.sh $DATE $WORKLOAD
-```
-Eg. `./run_script.sh 5.15 imc10`, `./run_script.sh 5.15 websearch`, `./run_script.sh 5.15 datamining`
+2. Reproduce Figure 3(a)-3(e) (Evaulation results for the default setup)
+
+   ```
+   cd py/load_100Gbps/
+   python load.py
+   ```
+
+   To run each workload, 
+
+   ```
+   ./run_script.sh $DATE $WORKLOAD
+   ```
+   Eg. `./run_script.sh 5.15 imc10`, `./run_script.sh 5.15 websearch`, `./run_script.sh 5.15 datamining`
 
 
 ## Authors
