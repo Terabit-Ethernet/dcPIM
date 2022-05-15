@@ -6,13 +6,18 @@
 
 #include "pimhost.h"
 #include "pimflow.h"
-
+#include <fstream>
 #include "../run/params.h"
 
 extern double get_current_time();
 extern void add_to_event_queue(Event*);
 extern DCExpParams params;
 extern long long num_outstanding_packets;
+
+double pim_total_recvd = 0;
+double pim_total_recvd_last = 0;
+double pim_last_time = 1.0;
+std::ofstream pim_file;
 
 PimFlow::PimFlow(uint32_t id, double start_time, uint32_t size, Host *s, Host *d)
     : FountainFlow(id, start_time, size, s, d) {
@@ -231,6 +236,18 @@ void PimFlow::receive(Packet *p) {
         if(debug_flow(this->id)){
             std::cout << get_current_time() << " flow " << this->id << "receive data seq " << p->capa_data_seq << " seq number:" << p->capability_seq_num_in_data  << " total q delay: " << p->total_queuing_delay << std::endl;
         }
+        // for debugging purpose
+        pim_total_recvd += p->size;
+        if(params.pim_out_file != "" &&  get_current_time() - pim_last_time > 0.00002) {
+            if(!pim_file.is_open()) {
+                pim_file.open(params.pim_out_file);
+            }
+             pim_file << get_current_time() <<  " " << 
+                 (pim_total_recvd - pim_total_recvd_last)  / (get_current_time() - pim_last_time) / 1000000000 * 8 << " Gbps" << std::endl;
+             pim_total_recvd_last = pim_total_recvd;
+             pim_last_time = get_current_time();
+         }
+
         if(packets_received.count(p->capa_data_seq) == 0){
 
             packets_received.insert(p->capa_data_seq);
