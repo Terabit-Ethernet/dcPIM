@@ -135,7 +135,7 @@ Datamining: 2-3 days
    python pim_beta.py
    ./run_script.sh $DATE imc10
    ```
-   Eg.  `./run_script.sh $5.15 imc10`
+   Eg.  `./run_script.sh 5.15 imc10`
 ## Authors
 
 * Qizhe Cai
