@@ -53,7 +53,7 @@ make
 ```
 ###  Run Simulation Results
 
-Running different workloads takes different amount of time. Here are estimation of running time for each workload:
+Running different workloads takes different amount of time. Here is the estimation of running time for each workload:
 
 ```
 IMC10 (aditya):   15 mins
@@ -63,7 +63,7 @@ Datamining: 2-3 days
 
 1. Create a result folder inside `py/`: `mkdir py/result`
 
-2. Reproduce Figure 3 (Evaulation results for the default setup)
+2. Reproduce Figure 3 results (Evaulation results for the default setup)
 
    ```
    cd py/load_100Gbps/
@@ -77,7 +77,7 @@ Datamining: 2-3 days
    ```
    Eg. `./run_script.sh 5.15 imc10`, `./run_script.sh 5.15 websearch`, `./run_script.sh 5.15 datamining`
 
-3. Reproduce Figure 4 (Microscopic view into dcPIM performance)
+3. Reproduce Figure 4 results (Microscopic view into dcPIM performance)
 
    ```
    cd py/worst_case/
@@ -90,6 +90,28 @@ Datamining: 2-3 days
    ```
    Eg. `./run_script.sh 5.15 worstcase1`, `./run_script.sh 5.15 worstcase2`, `./run_script.sh 5.15 worstcase3`
 
+4. Reproduce Figure 5 results (Oversubscribed topology and Fat-Tree topology)
+
+   To run workloads on oversubscribed topology,
+   ```
+   cd py/oversubscribed/
+   python oversubscribe.py
+   python run.py
+   ```
+   run.py will run IMC10, Web Search and Datamining workloads one by one.
+   
+   To run workoloads on Fat-Tree topology,
+   ```
+   cd py/fat_tree/
+   python fat_tree.py
+   ```
+
+   To run each workload, 
+   ```
+   ./run_script.sh $DATE $WORSTCASE
+   ```
+   Eg. `./run_script.sh 5.15 imc10`, `./run_script.sh 5.15 websearch`, `./run_script.sh 5.15 datamining`
+   
 ## Authors
 
 * Qizhe Cai
