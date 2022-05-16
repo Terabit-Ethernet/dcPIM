@@ -47,17 +47,17 @@ num_host_types: 13
 '''
 
 runs = ["pim"]
-pim_k = [1, 2, 4, 6, 8, 10]
-rounds = [1, 3, 5, 7, 9, 11]
-loads = [6, 7, 8]
-workloads = ['aditya', 'dctcp', 'datamining', 'constant']
+pim_k = [1, 2, 4, 8]
+rounds = [1, 2, 3, 4, 5]
+loads = [0.54, 0.56, 0.72, 0.74, 0.76, 0.78, 0.80, 0.82, 0.84]
+workloads = ['imc10']
 #incasts = [1,143]
 for k in pim_k:
 	for r in rounds:
 		for l in loads:
 		    for w in workloads:
 		        #  generate conf file
-		        conf_str = conf_str_pim.format(w, k, r, l / 10.0)
+		        conf_str = conf_str_pim.format(w, k, r, l)
 		        confFile = "conf_{0}_{1}_{2}_{3}.txt".format(w, k, r, l)
 		        with open(confFile, 'w') as f:
 		            f.write(conf_str)

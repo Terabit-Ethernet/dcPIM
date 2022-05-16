@@ -3,15 +3,13 @@ import errno
 import sys
 import subprocess
 
-remote_load = [0.6, 0.8]
-
-runs = ['pfabric']
 runs = ['pim']
-workloads = ['aditya', 'dctcp', 'datamining']
+workloads = ['imc10']
 #precentage = [  0.10, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.40, 0.41, 0.42, 0.43, 0.44, 0.45, 0.46, 0.47, 0.48, 0.49, 0.50, 0.51, 0.52, 0.53, 0.54, 0.55, 0.56, 0.57, 0.58, 0.59, 0.60, 0.61, 0.62, 0.63, 0.64, 0.65, 0.66, 0.67, 0.68, 0.69, 0.70, 0.71, 0.72, 0.73, 0.74, 0.75, 0.76, 0.77, 0.78, 0.79, 0.80, 0.81, 0.82, 0.83, 0.84, 0.85, 0.86, 0.87, 0.88, 0.89]
-pim_k = [1, 2, 4, 6, 8, 10]
-rounds = [1, 3, 5, 7, 9, 11]
-loads = [6, 7, 8]
+pim_k = [1, 2, 4, 8]
+rounds = [1, 2, 3, 4, 5]
+loads = [[0.54, 0.74, 0.76, 0.74, 0.72], [0.56, 0.76, 0.80, 0.80, 0.78],
+[0.56, 0.78, 0.82, 0.82, 0.82], [0.56, 0.78, 0.84, 0.84, 0.84]]
 OUTPUT_FOLDER = "../result/pim_k_iterations"
 DATE = sys.argv[1]
 
@@ -64,18 +62,17 @@ def safe_open_w(path):
 #             p.wait()
 
 for w in workloads:
-    for l in loads:
-        for k in pim_k:
-            pros =  []
-            for r in rounds:
-                #  generate conf file
-                confFile = "conf_{0}_{1}_{2}_{3}.txt".format(w, k, r, l)
-                print confFile
-                resultFile = "{0}/{1}/result_{2}_{3}_{4}_{5}.txt".format(OUTPUT_FOLDER,DATE, w, k, r, l)
-                f = safe_open_w(resultFile)
-                p = subprocess.Popen(["../../simulator", "1", confFile],stdout=f)
-                pros.append(p)
-                f.close()
-            for p in pros:
-                p.wait()
+    for k in range(len(pim_k)):
+        pros =  []
+        for r in range(len(rounds)):
+            #  generate conf file
+            confFile = "conf_{0}_{1}_{2}_{3}.txt".format(w, pim_k[k], rounds[r], loads[k][r])
+            print confFile
+            resultFile = "{0}/{1}/result_{2}_{3}_{4}_{5}.txt".format(OUTPUT_FOLDER,DATE, w,  pim_k[k], rounds[r], loads[k][r])
+            f = safe_open_w(resultFile)
+            p = subprocess.Popen(["../../simulator", "1", confFile],stdout=f)
+            pros.append(p)
+            f.close()
+        # for p in pros:
+        #     p.wait()
 
