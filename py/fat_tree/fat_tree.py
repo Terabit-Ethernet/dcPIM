@@ -193,7 +193,7 @@ num_host_types: 13
 '''
 
 runs = ['pfabric', "pim"]
-workloads = ['aditya', 'dctcp', 'datamining', 'constant']
+workloads = ['imc10', 'websearch', 'datamining', 'constant']
 #incasts = [1,143]
 for r in runs:
     for w in workloads:
