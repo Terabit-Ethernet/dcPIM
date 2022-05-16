@@ -112,6 +112,24 @@ Datamining: 2-3 days
    ```
    Eg. `./run_script.sh 5.15 imc10`, `./run_script.sh 5.15 websearch`, `./run_script.sh 5.15 datamining`
    
+5. Reproduce Figure 6 results (dcPIM Sensitivity Analysis)
+
+   For 6a and 6b, the maximum sustained loads for each (r, k) are:
+   ```
+   r\k  1  2  4  8
+   1.0 54 56 56 56
+   2.0 74 76 78 78
+   3.0 76 80 82 84
+   4.0 74 80 82 84
+   5.0 72 78 82 84
+   ```
+   To get figure 6a and 6b, run:
+   ```
+   cd py/pim_k_iterations
+   python pim_k_iterations.py
+   python run.py
+   ```
+   
 ## Authors
 
 * Qizhe Cai
