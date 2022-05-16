@@ -129,7 +129,7 @@ void pim_pacer_send_data_pkt_handler(__rte_unused struct rte_timer *timer, void*
 		ipv4_hdr->type_of_service = get_tos(pim_token_hdr->priority);
 		ipv4_hdr->time_to_live = 64;
 		ipv4_hdr->fragment_offset = IP_DN_FRAGMENT_FLAG;
-		ipv4_hdr->next_proto_id = 6;
+		//ipv4_hdr->next_proto_id = 6;
 		ipv4_hdr->hdr_checksum = 0;
 		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 		// printf("ipv4_hdr->src_addr:%u\n", rte_be_to_cpu_32(ipv4_hdr->src_addr));
@@ -203,7 +203,7 @@ void pim_pacer_send_token_handler(__rte_unused struct rte_timer *timer, void* ar
 		ipv4_hdr->type_of_service = TOS_7;
 		ipv4_hdr->time_to_live = 64;
 		ipv4_hdr->fragment_offset = IP_DN_FRAGMENT_FLAG;
-		ipv4_hdr->next_proto_id = 6;
+		//ipv4_hdr->next_proto_id = 6;
 		ipv4_hdr->hdr_checksum = 0;
 		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 		// p->vlan_tci = TCI_7;

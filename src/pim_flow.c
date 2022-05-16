@@ -52,6 +52,8 @@ struct ether_addr* ether_addr, double start_time, int receiver_side) {
     pim_f->rd_ctrl_timeout_times = 0;
     rte_timer_init(&pim_f->rd_ctrl_timeout);
     rte_timer_init(&pim_f->finish_timeout);
+    rte_timer_init(&pim_f->rtx_flow_sync_timeout);
+    rte_timer_init(&pim_f->rtx_fin_timeout);
     pim_f->rd_ctrl_timeout_params = NULL;
     pim_f->finish_timeout_params = NULL;
     pim_f->token_count = 0;
@@ -96,10 +98,12 @@ bool pflow_get_finish(struct pim_flow* flow) {
 
 void pflow_set_finish_at_receiver(struct pim_flow* flow) {
     flow->finished_at_receiver = true;
+    flow->state = FINISH_WAIT;
 }
 void pflow_set_finish(struct pim_flow* flow) {
     flow->_f.finished = true;
     flow->_f.finish_time = rte_get_tsc_cycles();
+    flow->state = FINISH;
 }
 // void pim_relax_token_gap(pim_flow* f) {
 
@@ -196,7 +200,7 @@ struct rte_mbuf* pflow_get_token_pkt(struct pim_flow* flow, uint32_t data_seq, b
     return p;
 }
 
-struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow) {
+struct rte_mbuf* pflow_get_fin_pkt(struct pim_flow* flow) {
     struct rte_mbuf* p = NULL;
     p = rte_pktmbuf_alloc(pktmbuf_pool);
     if (flow == NULL) {
@@ -208,23 +212,23 @@ struct rte_mbuf* pflow_get_ack_pkt(struct pim_flow* flow) {
         rte_exit(EXIT_FAILURE, "fail");
     }
     uint16_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
-                sizeof(struct pim_hdr) + sizeof(struct pim_ack_hdr);
+                sizeof(struct pim_hdr) + sizeof(struct pim_fin_hdr);
     rte_pktmbuf_append(p, size);
     add_ether_hdr(p, &flow->_f.src_ether_addr);
     struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, 
                 sizeof(struct ether_hdr));
     struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
                 sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
-    struct pim_ack_hdr* pim_ack_hdr = rte_pktmbuf_mtod_offset(p, struct pim_ack_hdr*, 
+    struct pim_fin_hdr* pim_fin_hdr = rte_pktmbuf_mtod_offset(p, struct pim_fin_hdr*, 
                 sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
     ipv4_hdr->src_addr = rte_cpu_to_be_32(flow->_f.dst_addr);
     ipv4_hdr->dst_addr = rte_cpu_to_be_32(flow->_f.src_addr);
     ipv4_hdr->total_length = rte_cpu_to_be_16(size - sizeof(struct ether_hdr));
 
-    pim_hdr->type = PIM_ACK;
+    pim_hdr->type = PIM_FIN;
 
-    pim_ack_hdr->flow_id = flow->_f.id;
-    pim_ack_hdr->rd_ctrl_times = flow->rd_ctrl_timeout_times;
+    pim_fin_hdr->flow_id = flow->_f.id;
+    pim_fin_hdr->rd_ctrl_times = flow->rd_ctrl_timeout_times;
     // pim_ack_hdr->data_seq_no_acked = pim_data_hdr->data_seq_no;
     // pim_ack_hdr->seq_no = pim_data_hdr->seq_no;
 
@@ -254,7 +258,7 @@ void pflow_receive_data(struct pim_host* host, struct pim_pacer* pacer, struct p
     // if(this->next_seq_no < p->seq_no_acked)
     //     this->next_seq_no = p->seq_no_acked;
     struct rte_bitmap* bmp = f->_f.bmp;
-    if(f->finished_at_receiver) {
+    if(f->finished_at_receiver || f->state == FINISH_WAIT) {
         return;
     }
     if(rte_bitmap_get(bmp, pim_data_hdr->data_seq_no) == 0) {
@@ -279,15 +283,23 @@ void pflow_receive_data(struct pim_host* host, struct pim_pacer* pacer, struct p
             f->largest_token_seq_received = (int)pim_data_hdr->seq_no;
     }
     if (f->_f.received_count >= f->_f.size_in_pkt) {
-        struct rte_mbuf* p = pflow_get_ack_pkt(f);
+        struct rte_mbuf* p = pflow_get_fin_pkt(f);
         enqueue_ring(pacer->ctrl_q, p);
         // sending_ack(p->ranking_round);
         pflow_set_finish_at_receiver(f);
+        // set rtx timeout for pim ack
+        f->flow_fin_resent_timeout_params.host = host;
+        f->flow_fin_resent_timeout_params.flow = f;
+        f->flow_fin_resent_timeout_params.pacer = pacer;
+        f->flow_fin_resent_timeout_params.time = 2 * params.BDP * get_transmission_delay(1500);
+	rte_timer_reset(&f->rtx_fin_timeout, rte_get_timer_hz() * f->flow_fin_resent_timeout_params.time,
+            SINGLE, rte_lcore_id(), &pflow_rtx_fin_timeout_handler, (void *)&f->flow_fin_resent_timeout_params);
         // clean up memory and timer;
         if(!pflow_is_rd_ctrl_timeout_params_null(f)){
             pflow_set_rd_ctrl_timeout_params_null(f); 
         }
-        pflow_set_finish_timeout(host, f);
+        // this should be comment out
+        // pflow_set_finish_timeout(host, f);
     }
 }
 
@@ -315,6 +327,42 @@ void pflow_rd_ctrl_timeout_handler(__rte_unused struct rte_timer *timer, void* a
     
 }
 
+void pflow_rtx_flow_sync_timeout_handler(__rte_unused struct rte_timer *timer, void* arg) {
+    struct flow_sync_resent_timeout_params* timeout_params = (struct flow_sync_resent_timeout_params*) arg;
+    struct pim_flow* flow = timeout_params->flow;
+    struct pim_host *host = timeout_params->host;
+    struct pim_pacer *pacer = timeout_params->pacer;
+    if(debug_flow(flow->_f.id)){
+        printf("rtx flow sync timeout for flow flow%u\n", flow->_f.id);
+    }
+    if(flow->state != SYNC_SENT) {
+        return;
+    }
+    pim_send_flow_sync(pacer, host, flow); 
+    // reset timer 
+    rte_timer_reset(&flow->rtx_flow_sync_timeout, rte_get_timer_hz() * flow->flow_sync_resent_timeout_params.time,
+            SINGLE, rte_lcore_id(), &pflow_rtx_flow_sync_timeout_handler, (void *)&flow->flow_sync_resent_timeout_params);
+}
+
+void pflow_rtx_fin_timeout_handler(__rte_unused struct rte_timer *timer, void* arg) {
+    struct flow_fin_resent_timeout_params* timeout_params = (struct flow_fin_resent_timeout_params*) arg;
+    struct pim_flow* flow = timeout_params->flow;
+    struct pim_host *host = timeout_params->host;
+    struct pim_pacer *pacer = timeout_params->pacer;
+
+    if(debug_flow(flow->_f.id)){
+        printf("rtx flow sync timeout for flow flow%u\n", flow->_f.id);
+    }
+    if(flow->state != FINISH_WAIT) {
+        return;
+    }
+    struct rte_mbuf* p = pflow_get_fin_pkt(flow);
+    enqueue_ring(pacer->ctrl_q, p);
+            // reset timer 
+    rte_timer_reset(&flow->rtx_fin_timeout, rte_get_timer_hz() * flow->flow_fin_resent_timeout_params.time,
+            SINGLE, rte_lcore_id(), &pflow_rtx_fin_timeout_handler, (void *)&flow->flow_fin_resent_timeout_params);
+}
+
 void pflow_set_finish_timeout(struct pim_host* host, struct pim_flow* flow) {
     flow->finish_timeout_params = rte_zmalloc("finish timeout param", 
         sizeof(struct finish_timeout_params), 0);
@@ -324,6 +372,9 @@ void pflow_set_finish_timeout(struct pim_host* host, struct pim_flow* flow) {
     }
     // flow->_f.finish_time = rte_get_tsc_cycles();
     // flow->_f.finished = true;
+    // cancel rtx fin timer
+    rte_timer_stop(&flow->rtx_fin_timeout);
+    flow->state = FINISH;
     flow->finish_timeout_params->host = host;
     flow->finish_timeout_params->flow_id = flow->_f.id;
     int ret = rte_timer_reset(&flow->finish_timeout, rte_get_timer_hz() * 2 * get_rtt(params.propagation_delay, 3, 1500), SINGLE,
@@ -345,6 +396,7 @@ void pflow_finish_timeout_handler(__rte_unused struct rte_timer *timer, void* ar
     delete_table_entry(host->rx_flow_table, timeout_params->flow_id);
     rte_free(flow->_f.bmp);
     // rte_bitmap_free(flow->_f.bmp);
+    // flow->state = FINISH;
     if(flow->rd_ctrl_timeout_params == NULL) {
         rte_pktmbuf_free(flow->buf);
     }

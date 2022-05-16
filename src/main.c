@@ -105,6 +105,7 @@ char *cdf_file;
 static volatile bool force_quit;
 
 bool start_signal;
+
 #define TARGET_NUM 5000
 
 static unsigned char
@@ -130,7 +131,7 @@ static void host_main_loop(void) {
     uint64_t prev_tsc = 0, cur_tsc, diff_tsc;
 
 	qconf = &lcore_queue_conf[lcore_id];
-	bool print = false;
+	//bool print = false;
 	params.pim_iter_epoch = params.pim_beta * get_rtt(params.propagation_delay, 3, 40) + params.clock_bias;
 	params.pim_epoch = params.pim_iter_limit * params.pim_iter_epoch * (1 + params.pim_alpha);
 	printf("control packet rtt :%f\n", get_rtt(params.propagation_delay, 3, 40)* 1000000);
@@ -140,7 +141,7 @@ static void host_main_loop(void) {
 	uint64_t cycle_per_us = (uint64_t)(rte_get_timer_hz() / 1000000.0);
 	printf("cycle per us:%"PRIu64"\n", cycle_per_us);
 	// pim_init_epoch(&epoch, &host, &pacer);
-	// pim_receive_start(&epoch, &host, &pacer);
+	// pim_eceive_start(&epoch, &host, &pacer);
 
 	// pim_receive_start(&epoch, &host, &pacer);
 	// rte_timer_reset(&host.pim_send_token_timer, rte_get_timer_hz() * get_transmission_delay(1500) * params.batch_tokens,
@@ -150,7 +151,7 @@ static void host_main_loop(void) {
 	//  PERIODICAL, 1, &pim_start_new_epoch, (void *)(&epoch.pim_timer_params));
 	while(!force_quit) {
 		for (i = 0; i < qconf->n_rx_port; i++) {
-			if(i == 1)
+			if(i == 0)
 				continue;
 			portid = qconf->rx_port_list[i];
 
@@ -189,9 +190,9 @@ static void pacer_main_loop(void) {
 				rte_exit(EXIT_FAILURE, "deque ring\n");
 			}
 			struct ipv4_hdr* ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, sizeof(struct ether_hdr));
-    		struct pim_hdr *pim_hdr;
+    	                struct pim_hdr *pim_hdr;
 
-    		uint32_t offset = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr);
+    		        uint32_t offset = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr);
 
    		 	pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, offset);
 
@@ -204,18 +205,20 @@ static void pacer_main_loop(void) {
 			ipv4_hdr->version_ihl = (0x40 | 0x05);
 			ipv4_hdr->type_of_service = TOS_7;
 			ipv4_hdr->fragment_offset = IP_DN_FRAGMENT_FLAG;
-			ipv4_hdr->next_proto_id = 6;
+			//ipv4_hdr->next_proto_id = 6;
 			ipv4_hdr->time_to_live = 64;
 			ipv4_hdr->hdr_checksum = 0;
 			ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
-			// if(pim_hdr->type == PIM_RTS) {
+			//if(pim_hdr->type == PIM_RTS) {
 			// 	printf("send control packet type:%u\n", pim_hdr->type);
-			// }
+			//}
 			// p->vlan_tci = TCI_7;
 			// rte_vlan_insert(&p); 
 			// send packets; hard code the port;
 			// cycles[0] = rte_get_timer_cycles();
-
+		//	printf("dst:%u\n", dst_addr);
+	//		printf("port:%d\n", get_port_by_ip(dst_addr));
+			//rte_pktmbuf_dump(stdout, p, rte_pktmbuf_pkt_len(p));
 			int sent = rte_eth_tx_burst(get_port_by_ip(dst_addr) ,0, &p, 1);
 		   	while(sent != 1) {
 		   		sent = rte_eth_tx_burst(get_port_by_ip(dst_addr) ,0, &p, 1);
@@ -244,7 +247,7 @@ static void start_main_loop(void) {
 	// unsigned lcore_id;
 	rte_delay_us_block(2000000);
 	int ips[1] = {24};
-	int i = 0;
+	unsigned i = 0;
 	for (; i < params.num_hosts; i++) {
 		if(params.dst_ips[i] == params.ip){
 			continue;
@@ -264,14 +267,16 @@ static void start_main_loop(void) {
 	    ipv4_hdr->total_length = rte_cpu_to_be_16(size - sizeof(struct ether_hdr));
 		ipv4_hdr->version_ihl = (0x40 | 0x05);
 		ipv4_hdr->type_of_service = TOS_7;
+	        ipv4_hdr->next_proto_id = 6;
 		ipv4_hdr->time_to_live = 64;
 		ipv4_hdr->hdr_checksum = 0;
 		ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 	    pim_hdr->type = PIM_START;
-		rte_eth_tx_burst(get_port_by_ip(ips[i]) ,0, &p, 1);
+		//rte_pktmbuf_dump(stdout, p, rte_pktmbuf_pkt_len(p));
+	    	rte_eth_tx_burst(get_port_by_ip(ips[i]) ,0, &p, 1);
 		start = rte_get_timer_cycles();
 	}
-	pim_receive_start(&epoch, &host, &pacer, 3);
+	pim_receive_start(&epoch, &host, &pacer, 1);
 	// lcore_id = rte_lcore_id();
  //    uint64_t prev_tsc = 0, cur_tsc, diff_tsc;
  //    rte_timer_reset(&epoch.epoch_timer, 0,
@@ -580,7 +585,7 @@ main(int argc, char **argv)
 		rte_exit(EXIT_FAILURE, "No Ethernet ports - bye\n");
 
 	/*initialize lcore 1 as RX for ports 0 and 1*/
-	qconf = &lcore_queue_conf[3];
+	qconf = &lcore_queue_conf[RECEIVE_CORE];
 	// if(params.ip == 22) {
 	// 	qconf->rx_port_list[0] = 0;
 	// } else if (params.ip == 24) {
@@ -599,7 +604,7 @@ main(int argc, char **argv)
 		nb_lcores * MEMPOOL_CACHE_SIZE), 8192U);
 	pktmbuf_pool = rte_pktmbuf_pool_create("mbuf_pool", nb_mbufs,
 		MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
-		1);
+		0);
 	printf("RTE_MBUF_DEFAULT_BUF_SIZE:%lu\n", sizeof(struct pim_flow));
 	printf("nb_mbufs:%d\n", nb_mbufs);
 	printf("default timer cycles:%"PRIu64"\n", rte_get_timer_hz());
@@ -615,6 +620,8 @@ main(int argc, char **argv)
 		struct rte_eth_conf local_port_conf = port_conf;
 		struct rte_eth_dev_info dev_info;
 		
+		if(portid != 1)
+			continue;
 		/* init port*/
 		printf("Initializing port %u... ", portid);
 		fflush(stdout);
@@ -686,7 +693,7 @@ main(int argc, char **argv)
 	ret = 0;
 	init_config(&params);
 	printf("window timeout cycle:%"PRIu64"\n", params.token_window_timeout_cycle);
-	rte_eth_macaddr_get(0, &params.ether_addr);
+	rte_eth_macaddr_get(1, &params.ether_addr);
 	/* initialize flow rates and flow nums */
 	// for(int i = 0; i < NUM_FLOW_TYPES; i++) {
 	// 	flow_remainder[i] = 0;
@@ -697,34 +704,36 @@ main(int argc, char **argv)
 	if(mode == 1 || mode == 2) {
 		// allocate all data structure on socket 1(Numa node 1) because
 		// NIC is connected to node 1.
-	    pim_init_host(&host, 1);
-	    pim_init_pacer(&pacer, &host, 1);
+	    pim_init_host(&host, 0);
+	    pim_init_pacer(&pacer, &host, 0);
 	    pim_init_epoch(&epoch, &host, &pacer);
-		rte_eal_remote_launch(launch_host_lcore, NULL, 3);
-		rte_eal_remote_launch(launch_pacer_lcore, NULL, 5);
-	    rte_eal_remote_launch(launch_flowgen_lcore, NULL, 7);
-		// rte_eal_remote_launch(launch_start_lcore, NULL, 9);
+	    rte_eal_remote_launch(launch_host_lcore, NULL, RECEIVE_CORE);
+		rte_eal_remote_launch(launch_pacer_lcore, NULL, 2);
+	    rte_eal_remote_launch(launch_flowgen_lcore, NULL, 3);
+		// rte_eal_remote_launch(launch_start_lcore, NULL, 4);
 
 	}  
 	if(mode == 2){
-		rte_eal_remote_launch(launch_start_lcore, NULL, 9);
+		printf("launch start\n");
+		rte_eal_remote_launch(launch_start_lcore, NULL, 4);
 	}
 
 	while(!force_quit){
 		// print_stats();
-		rte_delay_us_block(100000);
+//		printf("in force quiit\n");
+		rte_delay_us_sleep(1000000);
 	}
 
+	if(rte_eal_wait_lcore(RECEIVE_CORE) < 0){
+	ret = -1;
+	}
+	if(rte_eal_wait_lcore(2) < 0){
+		ret = -1;
+	}
 	if(rte_eal_wait_lcore(3) < 0){
 		ret = -1;
 	}
-	if(rte_eal_wait_lcore(5) < 0){
-		ret = -1;
-	}
-	if(rte_eal_wait_lcore(7) < 0){
-		ret = -1;
-	}
-	if(rte_eal_wait_lcore(9) < 0){
+	if(rte_eal_wait_lcore(4) < 0){
 		ret = -1;
 	}
 	// print_stats();

@@ -43,7 +43,7 @@ double get_rtt(double propagation_delay, int layer, double bytes) {
 // 	return 0;
 // }
 uint32_t get_port_by_ip(uint32_t ip) {
-	return 0;
+	return 1;
 	if(params.ip == 20) {
 		if(ip == 22) {
 			return 1;

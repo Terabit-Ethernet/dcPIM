@@ -21,6 +21,8 @@
 #include "pim_flow.h"
 #include "pq.h"
 
+#define PIM_NUM_HOST 40
+#define RECEIVE_CORE 1
 struct pim_flow;
 extern bool start_signal;
 struct pim_rts {
@@ -52,12 +54,12 @@ struct pim_epoch {
 	bool prompt;
 	uint32_t match_src_addr;
 	uint32_t match_dst_addr;
-	struct pim_grant grants_q[16];
-	struct pim_rts rts_q[16];
+	struct pim_grant grants_q[PIM_NUM_HOST];
+	struct pim_rts rts_q[PIM_NUM_HOST];
 	uint32_t grant_size;
 	uint32_t rts_size;
-	bool grant_bmp[16];
-	bool rts_bmp[16];
+	bool grant_bmp[PIM_NUM_HOST];
+	bool rts_bmp[PIM_NUM_HOST];
 	struct pim_rts* min_rts;
 	struct pim_grant* min_grant;
 	struct rte_timer epoch_timer;
@@ -140,8 +142,12 @@ void pim_init_host(struct pim_host *host, uint32_t socket_id);
 void pim_rx_packets(struct pim_epoch* epoch, struct pim_host* host, struct pim_pacer* pacer,
 struct rte_mbuf* p);
 void pim_send_flow_sync(struct pim_pacer* pacer, struct pim_host* host, struct pim_flow* flow);
+void pim_cancel_rtx_flow_sync(struct pim_host *pim_host, uint32_t flow_id);
+void pim_send_flow_sync_ack(struct pim_pacer* pacer, struct ether_hdr* ether_hdr, struct ipv4_hdr* ipv4_hdr, struct pim_flow_sync_hdr *flow_sync_hdr);
 void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer, struct ether_hdr* ether_hdr,
 	struct ipv4_hdr* ipv4_hdr, struct pim_flow_sync_hdr* pim_flow_sync_hdr);
+void pim_send_flow_fin_ack(struct pim_pacer* pacer, struct ether_hdr* ether_hdr, 
+    struct ipv4_hdr* ipv4_hdr, struct pim_fin_hdr *pim_fin_hdr);
 // void pim_flow_finish_at_receiver(struct pim_receiver *receiver, struct pim_flow * f);
 void pim_iterate_temp_pkt_buf(struct pim_host* host, struct pim_pacer* pacer,
  uint32_t flow_id);

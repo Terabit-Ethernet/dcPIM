@@ -44,7 +44,7 @@ void pim_init_epoch(struct pim_epoch* pim_epoch, struct pim_host* pim_host, stru
         rte_timer_init(&pim_epoch->sender_iter_timers[i]);
         rte_timer_init(&pim_epoch->receiver_iter_timers[i]);
     }
-    for (i = 0; i < 16; i++) {
+    for (i = 0; i < PIM_NUM_HOST; i++) {
         pim_epoch->rts_bmp[i] = false;
         pim_epoch->grant_bmp[i] = false;
     }
@@ -72,9 +72,9 @@ void pim_init_host(struct pim_host* host, uint32_t socket_id) {
     host->finished_flow = 0;
     host->sent_bytes = 0;
     host->tx_flow_pool = create_mempool("tx_flow_pool", sizeof(struct pim_flow) + RTE_PKTMBUF_HEADROOM, 131072, socket_id);
-    host->tx_flow_table = create_hash_table("tx_flow_table", sizeof(uint32_t), 131072, 0, socket_id);
-    host->dst_minflow_table = create_hash_table("dst_minflow_table", sizeof(uint32_t), 16, 0, socket_id);
-    host->src_minflow_table = create_hash_table("src_minflow_table", sizeof(uint32_t), 16, 0, socket_id);
+    host->tx_flow_table = create_hash_table("tx_flow_table", sizeof(uint32_t), 131072, RTE_HASH_EXTRA_FLAGS_RW_CONCURRENCY_LF, socket_id);
+    host->dst_minflow_table = create_hash_table("dst_minflow_table", sizeof(uint32_t), 256, 0, socket_id);
+    host->src_minflow_table = create_hash_table("src_minflow_table", sizeof(uint32_t), 256, 0, socket_id);
     host->num_token_sent = 0;
     pq_init(&host->active_short_flows, pim_pflow_compare);
     rte_timer_init(&host->pim_send_token_timer);
@@ -110,12 +110,19 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
     }
 
     pflow_init(new_flow, flow_id, flow_size, params.ip, dst_addr, dst_ether, rte_get_tsc_cycles(), 0);
+    // set the state to be SYNC_SENT;
+    new_flow->state = SYNC_SENT;
+    // this part might need to change for thread safety
     insert_table_entry(host->tx_flow_table, new_flow->_f.id, new_flow);
     // send rts
     if(debug_flow(flow_id)) {
         printf("%"PRIu64" new flow arrives:%u; size: %u\n", rte_get_tsc_cycles(), flow_id, flow_size);
     }
     pim_send_flow_sync(pacer, host, new_flow);
+    // set rtx flow sync timer params
+    new_flow->flow_sync_resent_timeout_params.host = host;
+    new_flow->flow_sync_resent_timeout_params.flow = new_flow;
+    new_flow->flow_sync_resent_timeout_params.pacer = pacer;
     // push all tokens
     if(new_flow->_f.size_in_pkt <= params.small_flow_thre) {
         uint32_t i = 0; 
@@ -126,8 +133,12 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
             enqueue_ring(host->short_flow_token_q , p);
             // printf("push to short flow token q\n");
         }
-        // set timer for avoid PIM process for short flows
-        pflow_reset_rd_ctrl_timeout(host, new_flow, (new_flow->_f.size_in_pkt + params.BDP) * get_transmission_delay(1500));
+        // set rtx flow sync timer
+        new_flow->flow_sync_resent_timeout_params.time = (new_flow->_f.size_in_pkt +  params.BDP) * get_transmission_delay(1500);
+	int ret =rte_timer_reset(&new_flow->rtx_flow_sync_timeout, rte_get_timer_hz() * new_flow->flow_sync_resent_timeout_params.time,
+            SINGLE, RECEIVE_CORE, &pflow_rtx_flow_sync_timeout_handler, (void *)&new_flow->flow_sync_resent_timeout_params);
+	// set timer for avoid PIM process for short flows
+        //cpflow_reset_rd_ctrl_timeout(host, new_flow, (new_flow->_f.size_in_pkt + params.BDP) * get_transmission_delay(1500));
     } else {
         if(lookup_table_entry(host->dst_minflow_table, dst_addr) == NULL) {
             Pq* pq = rte_zmalloc("Prioirty Queue", sizeof(Pq), 0);
@@ -136,6 +147,11 @@ void pim_new_flow_comes(struct pim_host* host, struct pim_pacer* pacer, uint32_t
         }
         Pq* pq = lookup_table_entry(host->dst_minflow_table, dst_addr);
         pq_push(pq, new_flow);
+
+        // set rtx flow sync timer 
+        new_flow->flow_sync_resent_timeout_params.time =  params.BDP * get_transmission_delay(1500);
+        rte_timer_reset(&new_flow->rtx_flow_sync_timeout, rte_get_timer_hz() * new_flow->flow_sync_resent_timeout_params.time,
+            SINGLE, RECEIVE_CORE, &pflow_rtx_flow_sync_timeout_handler, (void *)&new_flow->flow_sync_resent_timeout_params);
     }
     // printf("finish\n");
 }
@@ -172,7 +188,9 @@ struct rte_mbuf* p) {
     if(pim_hdr->type == PIM_FLOW_SYNC) {
         struct pim_flow_sync_hdr *pim_flow_sync_hdr = rte_pktmbuf_mtod_offset(p, struct pim_flow_sync_hdr*, offset);
         pim_receive_flow_sync(host, pacer, ether_hdr, ipv4_hdr, pim_flow_sync_hdr);
-
+    } else if(pim_hdr->type == PIM_FLOW_SYNC_ACK) {
+        struct pim_flow_sync_ack_hdr *pim_flow_sync_ack_hdr = rte_pktmbuf_mtod_offset(p, struct pim_flow_sync_ack_hdr*, offset);
+        pim_cancel_rtx_flow_sync(host, pim_flow_sync_ack_hdr->flow_id);
     } else if(pim_hdr->type == PIM_RTS) {
         struct pim_rts_hdr *pim_rts_hdr = rte_pktmbuf_mtod_offset(p, struct pim_rts_hdr*, offset);
         pim_receive_rts(epoch, ether_hdr, ipv4_hdr, pim_rts_hdr);
@@ -187,13 +205,27 @@ struct rte_mbuf* p) {
         struct pim_grantr_hdr *pim_grantr_hdr = rte_pktmbuf_mtod_offset(p, struct pim_grantr_hdr*, offset);
         pim_receive_grantr(epoch, host, pim_grantr_hdr);
         // free p is the repsonbility of the sender
-    } else if (pim_hdr->type == PIM_ACK) {
-        struct pim_ack_hdr *pim_ack_hdr = rte_pktmbuf_mtod_offset(p, struct pim_ack_hdr*, offset);
-        struct pim_flow* flow = lookup_table_entry(host->tx_flow_table, pim_ack_hdr->flow_id);
-        flow->rd_ctrl_timeout_times = pim_ack_hdr->rd_ctrl_times;
-        pflow_set_finish(flow);
-        host->finished_flow += 1;
-    } else if (pim_hdr->type == PIM_TOKEN) {
+    } else if (pim_hdr->type == PIM_FIN) {
+        struct pim_fin_hdr *pim_fin_hdr = rte_pktmbuf_mtod_offset(p, struct pim_fin_hdr*, offset);
+        struct pim_flow* flow = lookup_table_entry(host->tx_flow_table, pim_fin_hdr->flow_id);
+        // send back fin ack
+        pim_send_flow_fin_ack(pacer, ether_hdr, ipv4_hdr, pim_fin_hdr);
+        if(flow != NULL && flow->state != FINISH) {
+            if(flow->state == SYNC_SENT) {
+                pim_cancel_rtx_flow_sync(host, flow->_f.id);
+            }
+            flow->rd_ctrl_timeout_times = pim_fin_hdr->rd_ctrl_times;
+            pflow_set_finish(flow);
+            host->finished_flow += 1;
+        }
+    } else if (pim_hdr->type == PIM_FIN_ACK) {
+        struct pim_fin_ack_hdr *pim_fin_ack_hdr = rte_pktmbuf_mtod_offset(p, struct pim_fin_ack_hdr*, offset);
+        struct pim_flow* flow = lookup_table_entry(host->rx_flow_table, pim_fin_ack_hdr->flow_id);
+        if(flow != NULL && flow->state != FINISH) {
+	    pflow_set_finish_timeout(host, flow);
+	}
+    } 
+      else if (pim_hdr->type == PIM_TOKEN) {
         struct pim_token_hdr *pim_token_hdr = rte_pktmbuf_mtod_offset(p, struct pim_token_hdr*, offset);
         pim_receive_token(host, pim_token_hdr, p);
         return;
@@ -390,7 +422,7 @@ void pim_receive_rts(struct pim_epoch* pim_epoch, struct ether_hdr* ether_hdr,
         // printf("current iter:%u\n",pim_epoch->iter);
         // printf("packet epoch:%u\n", pim_rts_hdr->epoch);
         // printf("packet iter:%u\n", pim_rts_hdr->iter);
-        int index = (rte_be_to_cpu_32(ipv4_hdr->src_addr) >> 24) - (params.dst_ips[0] >> 24);
+        int index = (rte_be_to_cpu_32(ipv4_hdr->src_addr) & 0xFF) - (params.dst_ips[0] & 0xFF);
         if(pim_epoch->rts_bmp[index] == false) {
             pim_epoch->rts_bmp[index] = true;
             struct pim_rts *pim_rts = &pim_epoch->rts_q[pim_epoch->rts_size];
@@ -443,7 +475,7 @@ void pim_receive_grant(struct pim_epoch* pim_epoch, struct ether_hdr* ether_hdr,
     if(pim_epoch->match_src_addr != 0) {
         return;
     }
-        int index = (rte_be_to_cpu_32(ipv4_hdr->src_addr) >> 24) - (params.dst_ips[0] >> 24);
+        int index = (rte_be_to_cpu_32(ipv4_hdr->src_addr) & 0xFF) - (params.dst_ips[0] & 0xFF);
         if(pim_epoch->grant_bmp[index] == false) {
             pim_epoch->grant_bmp[index] = true;
             struct pim_grant *pim_grant = &pim_epoch->grants_q[pim_epoch->grant_size];
@@ -452,8 +484,8 @@ void pim_receive_grant(struct pim_epoch* pim_epoch, struct ether_hdr* ether_hdr,
             pim_grant->prompt = pim_grant_hdr->prompt;
             ether_addr_copy(&ether_hdr->s_addr, &pim_grant->src_ether_addr);
             pim_epoch->grant_size++;
-            if(pim_epoch->grant_size > 16) {
-                printf("grant size > 16\n");
+            if(pim_epoch->grant_size > PIM_NUM_HOST) {
+                printf("grant size > 40\n");
                 rte_exit(EXIT_FAILURE , "grant size is larger than 16");
             }
             if(pim_epoch->min_grant == NULL || pim_epoch->min_grant->remaining_sz > pim_grant->remaining_sz) {
@@ -480,7 +512,7 @@ void pim_receive_start(struct pim_epoch* pim_epoch, struct pim_host* pim_host, s
     rte_timer_reset(&pim_epoch->epoch_timer, epoch_size,
     PERIODICAL, core_id, &pim_start_new_epoch, (void *)(&pim_epoch->pim_timer_params));
     uint32_t i = 0;
-    uint64_t start_cycle = rte_get_tsc_cycles();
+    //uint64_t start_cycle = rte_get_tsc_cycles();
     uint32_t half_epoch_time = ceil(params.pim_iter_epoch / 2 * 1000000);
     for(; i <= params.pim_iter_limit; i++) {
         rte_timer_reset(&pim_epoch->receiver_iter_timers[i], epoch_size, PERIODICAL,
@@ -500,18 +532,19 @@ void pim_receive_start(struct pim_epoch* pim_epoch, struct pim_host* pim_host, s
 void pim_receive_accept(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer, struct ether_hdr* ether_hdr,
  struct ipv4_hdr* ipv4_hdr, struct pim_accept_hdr* pim_accept_hdr) {
     // if(pim_epoch->epoch == pim_accept_hdr->epoch) {
-        if(pim_epoch->match_src_addr != 0) {
+        if(pim_epoch->match_dst_addr != 0) {
             struct rte_mbuf *p = pim_get_grantr_pkt(ether_hdr, ipv4_hdr, pim_epoch->iter, pim_epoch->epoch);
             //rte_eth_tx_burst(get_port_by_ip(rte_be_to_cpu_32(ipv4_hdr->src_addr)) ,0, &p, 1);
             enqueue_ring(pacer->ctrl_q, p);
         } else {
-            pim_epoch->match_src_addr = rte_be_to_cpu_32(ipv4_hdr->src_addr);
+            pim_epoch->match_dst_addr = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
         }
-        if(pim_epoch->iter > params.pim_iter_limit && host->cur_epoch == pim_epoch->epoch) {
-            host->cur_match_src_addr = pim_epoch->match_src_addr;
-            rte_timer_reset(&host->pim_send_token_timer, rte_get_timer_hz() * get_transmission_delay(1500) * params.batch_tokens,
-                 PERIODICAL, rte_lcore_id(), &pim_send_token_evt_handler, (void *)&pim_epoch->pim_timer_params);
-        }
+        //if(pim_epoch->iter > params.pim_iter_limit && host->cur_epoch == pim_epoch->epoch) {
+         //   host->cur_match_src_addr = pim_epoch->match_src_addr;
+          //  pim_send_token_evt_handler(&host->pim_send_token_timer, &pim_epoch->pim_timer_params);
+	  //  rte_timer_reset(&host->pim_send_token_timer, rte_get_timer_hz() * get_transmission_delay(1500) * params.batch_tokens,
+           //      PERIODICAL, rte_lcore_id(), &pim_send_token_evt_handler, (void *)&pim_epoch->pim_timer_params);
+        //}
     // }
 }
 void pim_handle_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct pim_pacer* pacer) {
@@ -538,7 +571,7 @@ void pim_handle_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, stru
     pim_epoch->min_rts = NULL;
     pim_epoch->rts_size = 0;
     int i = 0;
-    for(; i < 16; i++) {
+    for(; i < PIM_NUM_HOST; i++) {
         pim_epoch->rts_bmp[i] = false;
     }
 
@@ -574,14 +607,17 @@ void pim_handle_all_grant(struct pim_epoch* pim_epoch, struct pim_host* host, st
             }
         }
     }
-    if(grant != NULL && grant->prompt) {
+    if(grant != NULL && grant->prompt && host->cur_match_src_addr == 0) {
         host->cur_match_src_addr = pim_epoch->match_src_addr;
-        pim_epoch->prompt = true;
+        pim_send_token_evt_handler(&host->pim_send_token_timer, &pim_epoch->pim_timer_params);
+        rte_timer_reset(&host->pim_send_token_timer, rte_get_timer_hz() * get_transmission_delay(1500) * params.batch_tokens,
+                 PERIODICAL, rte_lcore_id(), &pim_send_token_evt_handler, (void *)&pim_epoch->pim_timer_params);
+    	pim_epoch->prompt = true;
     }
     pim_epoch->min_grant = NULL;
     pim_epoch->grant_size = 0;
     int i = 0;
-    for(; i < 16; i++) {
+    for(; i < PIM_NUM_HOST; i++) {
         pim_epoch->grant_bmp[i] = false;
     }
 }
@@ -594,7 +630,6 @@ void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct
     int32_t position = 0;
     uint32_t next = 0;
     Pq *pq;
-
     while(1) {
 
         position = rte_hash_iterate(host->src_minflow_table,(const void**) &src_addr, (void**)&pq, &next);
@@ -611,7 +646,7 @@ void pim_send_all_rts(struct pim_epoch* pim_epoch, struct pim_host* host, struct
         if(smallest_flow != NULL) {
             struct rte_mbuf *p = pim_get_rts_pkt(smallest_flow, pim_epoch->iter, pim_epoch->epoch);
             // rte_eth_tx_burst(get_port_by_ip(smallest_flow->_f.dst_addr) ,0, &p, 1);
-            enqueue_ring(pacer->ctrl_q, p);
+     	    enqueue_ring(pacer->ctrl_q, p);
         } 
     }
 }
@@ -665,10 +700,11 @@ void pim_schedule_receiver_iter_evt(__rte_unused struct rte_timer *timer, void* 
         pim_epoch->min_grant = NULL;
         // pim_epoch->rts_size = 0;
         pim_epoch->grant_size = 0;
+	pim_send_token_evt_handler(&pim_host->pim_send_token_timer, &pim_epoch->pim_timer_params);
         rte_timer_reset(&pim_host->pim_send_token_timer, rte_get_timer_hz() * get_transmission_delay(1500) * params.batch_tokens,
              PERIODICAL, rte_lcore_id(), &pim_send_token_evt_handler, (void *)&pim_epoch->pim_timer_params);
         int i = 0;
-        for(; i < 16; i++) {
+        for(; i < PIM_NUM_HOST; i++) {
             // pim_epoch->rts_bmp[i] = false;
             pim_epoch->grant_bmp[i] = false;
         }
@@ -740,10 +776,14 @@ void pim_start_new_epoch(__rte_unused struct rte_timer *timer, void* arg) {
 void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer, struct ether_hdr* ether_hdr,
     struct ipv4_hdr* ipv4_hdr, struct pim_flow_sync_hdr* pim_flow_sync_hdr) {
     struct pim_flow* exist_flow = lookup_table_entry(host->rx_flow_table, pim_flow_sync_hdr->flow_id);
+    // send back flow sync ack
+    pim_send_flow_sync_ack(pacer, ether_hdr, ipv4_hdr, pim_flow_sync_hdr);
+   // printf("receive rts:%d\n", pim_flow_sync_hdr->flow_id);
     if(exist_flow != NULL && exist_flow->_f.size_in_pkt > params.small_flow_thre) {
-        pflow_dump(exist_flow);
-        printf("long flow send twice RTS");
-        rte_exit(EXIT_FAILURE, "Twice RTS for long flow");
+        //pflow_dump(exist_flow);
+        //printf("long flow send twice RTS");
+        //rte_exit(EXIT_FAILURE, "Twice RTS for long flow");
+    	return;
     }
     if(exist_flow != NULL) {
         return;
@@ -753,7 +793,10 @@ void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer, struc
     struct pim_flow* new_flow = pflow_new(host->rx_flow_pool);
     pflow_init(new_flow, pim_flow_sync_hdr->flow_id, pim_flow_sync_hdr->flow_size, src_addr, dst_addr, &ether_hdr->s_addr, pim_flow_sync_hdr->start_time, 1);
     new_flow->flow_sync_received = true;
+    new_flow->state = SYNC_RECEIVE;
     // pim_flow_dump(new_flow);
+    
+    //printf("receive rts:%d\n", pim_flow_sync_hdr->flow_id);
     // insert new flow to the table entry
     insert_table_entry(host->rx_flow_table, new_flow->_f.id, new_flow);
     if(lookup_table_entry(host->src_minflow_table, src_addr) == NULL) {
@@ -777,6 +820,7 @@ void pim_receive_flow_sync(struct pim_host* host, struct pim_pacer* pacer, struc
         pq_push(pq, new_flow);
     }
 }
+
 
 void pim_receive_data(struct pim_host* host, struct pim_pacer* pacer,
  struct pim_data_hdr * pim_data_hdr, struct rte_mbuf* p) {
@@ -865,14 +909,83 @@ void pim_send_flow_sync(struct pim_pacer* pacer, struct pim_host* host, struct p
     pim_flow_sync_hdr->flow_size = flow->_f.size;
     pim_flow_sync_hdr->start_time = flow->_f.start_time;
     //push the packet
+   // printf("send flow sync:%d\n", flow->_f.id);
+    enqueue_ring(pacer->ctrl_q, p);
+}
+
+void pim_send_flow_sync_ack(struct pim_pacer* pacer, struct ether_hdr* ether_hdr, 
+    struct ipv4_hdr* ipv4_hdr, struct pim_flow_sync_hdr *flow_sync_hdr) {
+    struct rte_mbuf* p = NULL;
+    p = rte_pktmbuf_alloc(pktmbuf_pool);
+    uint16_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
+        sizeof(struct pim_hdr) + sizeof(struct pim_flow_sync_ack_hdr);
+    if(p == NULL) {    
+        rte_exit(EXIT_FAILURE, "%s: pkt buffer is FULL\n", __func__);
+    }
+    char* ret = rte_pktmbuf_append(p, size);
+    if(ret == NULL) {
+        rte_exit(EXIT_FAILURE, "%s: pkt buffer is FULL\n", __func__);
+    }
+    struct ipv4_hdr* sent_ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, 
+                sizeof(struct ether_hdr));
+    struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
+                sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
+    struct pim_flow_sync_ack_hdr* pim_flow_sync_ack_hdr = rte_pktmbuf_mtod_offset(p, struct pim_flow_sync_ack_hdr*, 
+                sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
+    add_ether_hdr(p, &ether_hdr->s_addr);
+    sent_ipv4_hdr->src_addr = ipv4_hdr->dst_addr;
+
+    sent_ipv4_hdr->dst_addr = ipv4_hdr->src_addr;
+
+    sent_ipv4_hdr->total_length = rte_cpu_to_be_16(size - sizeof(struct ether_hdr)); 
+
+    pim_hdr->type = PIM_FLOW_SYNC_ACK;
+    pim_flow_sync_ack_hdr->flow_id = flow_sync_hdr->flow_id;
+    // pim_flow_sync_hdr->flow_size = flow->_f.size;
+    // pim_flow_sync_hdr->start_time = flow->_f.start_time;
+    // //push the packet
 
     enqueue_ring(pacer->ctrl_q, p);
 }
 
+void pim_send_flow_fin_ack(struct pim_pacer* pacer, struct ether_hdr* ether_hdr, 
+    struct ipv4_hdr* ipv4_hdr, struct pim_fin_hdr *pim_fin_hdr) {
+    struct rte_mbuf* p = NULL;
+    p = rte_pktmbuf_alloc(pktmbuf_pool);
+    uint16_t size = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + 
+        sizeof(struct pim_hdr) + sizeof(struct pim_fin_ack_hdr);
+    if(p == NULL) {    
+        rte_exit(EXIT_FAILURE, "%s: pkt buffer is FULL\n", __func__);
+    }
+    char* ret = rte_pktmbuf_append(p, size);
+    if(ret == NULL) {
+        rte_exit(EXIT_FAILURE, "%s: pkt buffer is FULL\n", __func__);
+    }
+    struct ipv4_hdr* sent_ipv4_hdr = rte_pktmbuf_mtod_offset(p, struct ipv4_hdr*, 
+                sizeof(struct ether_hdr));
+    struct pim_hdr* pim_hdr = rte_pktmbuf_mtod_offset(p, struct pim_hdr*, 
+                sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr));
+    struct pim_fin_ack_hdr* pim_fin_ack_hdr = rte_pktmbuf_mtod_offset(p, struct pim_fin_ack_hdr*, 
+                sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct pim_hdr));
+    add_ether_hdr(p, &ether_hdr->s_addr);
+    sent_ipv4_hdr->src_addr = ipv4_hdr->dst_addr;
+
+    sent_ipv4_hdr->dst_addr = ipv4_hdr->src_addr;
+
+    sent_ipv4_hdr->total_length = rte_cpu_to_be_16(size - sizeof(struct ether_hdr)); 
+
+    pim_hdr->type = PIM_FIN_ACK;
+    pim_fin_ack_hdr->flow_id = pim_fin_hdr->flow_id;
+    // pim_flow_sync_hdr->flow_size = flow->_f.size;
+    // pim_flow_sync_hdr->start_time = flow->_f.start_time;
+    // //push the packet
+
+    enqueue_ring(pacer->ctrl_q, p);
+}
 void pim_send_token_evt_handler(__rte_unused struct rte_timer *timer, void* arg) {
     struct pim_timer_params* pim_timer_params = (struct pim_timer_params*)arg;
     struct pim_host* pim_host = pim_timer_params->pim_host;
-    struct pim_pacer* pim_pacer  = pim_timer_params->pim_pacer;
+    //struct pim_pacer* pim_pacer  = pim_timer_params->pim_pacer;
 
     int sent_token = 0;
     if(pim_host->cur_match_src_addr == 0) {
@@ -996,6 +1109,9 @@ struct pim_flow* get_smallest_unfinished_flow(Pq* pq) {
 void pim_receive_token(struct pim_host *pim_host, struct pim_token_hdr* pim_token_hdr, struct rte_mbuf* p) {
     uint32_t flow_id = pim_token_hdr->flow_id;
     struct pim_flow* f = lookup_table_entry(pim_host->tx_flow_table, flow_id);
+    if(f!= NULL && f->state == SYNC_SENT) {
+        pim_cancel_rtx_flow_sync(pim_host, flow_id);
+    }
     if(f == NULL || pflow_get_finish(f)) {
         rte_pktmbuf_free(p);
         return;
@@ -1006,5 +1122,15 @@ void pim_receive_token(struct pim_host *pim_host, struct pim_token_hdr* pim_toke
         enqueue_ring(pim_host->short_flow_token_q, p);
     } else {
         enqueue_ring(pim_host->long_flow_token_q, p);
+    }
+}
+
+void pim_cancel_rtx_flow_sync(struct pim_host *pim_host, uint32_t flow_id) {
+    // uint32_t flow_id = pim_flow_sync_ack_hdr->flow_id;
+    struct pim_flow* f = lookup_table_entry(pim_host->tx_flow_table, flow_id);
+    /* cancel flow sync rtx timeout */
+    if(f != NULL && f->state == SYNC_SENT){
+	rte_timer_stop(&f->rtx_flow_sync_timeout);
+        f->state = SYNC_ACK;
     }
 }
