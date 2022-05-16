@@ -129,7 +129,7 @@ Datamining: 2-3 days
    python pim_k_iterations.py
    python run.py
    ```
-   For get results for 6c, run:
+   To get results for 6c, run:
    ```
    cd py/pim_beta
    python pim_beta.py
