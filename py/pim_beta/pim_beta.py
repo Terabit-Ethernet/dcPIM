@@ -47,7 +47,7 @@ num_host_types: 13
 '''
 
 runs = ["pim"]
-workloads = ['aditya', 'dctcp', 'datamining', 'constant']
+workloads = ['imc10', 'websearch', 'datamining', 'constant']
 #incasts = [1,143]
 beta = [1.0, 1.1, 1.2, 1.3, 1.4, 1.5]
 for i in beta:

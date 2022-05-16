@@ -1,6 +1,6 @@
 #!/bin/bash
 
-iters=(0)
+iters=(0 1 2 3 4 5)
 algos=(pim)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()
@@ -18,7 +18,7 @@ do
 	    algo=${algos[$i]}
 	    # echo conf_"$algo"_dctcp_$load.txt
 	    # echo "$OUTPUT_FOLDER"/result_"$algo"_dctcp_"$load".txt
-	    ../../simulator 1 conf_"$2"_1."$iter".txt > "$OUTPUT_FOLDER/$DATE"/result_"$2"_1."$iter".txt&
+	    ../../simulator 1 conf_"$TRACE"_1."$iter".txt > "$OUTPUT_FOLDER/$DATE"/result_"$TRACE"_1."$iter".txt&
 	#	nohup ./batch_simulate_sflow.py -P $p -F ../../../data/ -t ${threshold[$index]} -i 10 -N 1000 -s 1 -l results/conext18/flows/percentage-${percentage[$index]}.log &
 	    pids[${index}]=$!
 	done
