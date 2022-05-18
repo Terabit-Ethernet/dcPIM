@@ -61,9 +61,9 @@ def safe_open_w(path):
 #         for p in pros:
 #             p.wait()
 
+pros =  []
 for w in workloads:
     for k in range(len(pim_k)):
-        pros =  []
         for r in range(len(rounds)):
             #  generate conf file
             confFile = "conf_{0}_{1}_{2}_{3}.txt".format(w, pim_k[k], rounds[r], loads[k][r])
@@ -73,6 +73,18 @@ for w in workloads:
             p = subprocess.Popen(["../../simulator", "1", confFile],stdout=f)
             pros.append(p)
             f.close()
-        # for p in pros:
-        #     p.wait()
+for p in pros:
+    p.wait()
 
+
+for w in workloads:
+    for k in range(len(pim_k)):
+        for r in range(len(rounds)):
+            #  generate conf file
+            confFile = "conf_{0}_{1}_{2}_{3}.txt".format(w, pim_k[k], rounds[r], 0.56)
+            print confFile
+            resultFile = "{0}/{1}/result_{2}_{3}_{4}_{5}.txt".format(OUTPUT_FOLDER,DATE, w,  pim_k[k], rounds[r], 0.56)
+            f = safe_open_w(resultFile)
+            p = subprocess.Popen(["../../simulator", "1", confFile],stdout=f)
+            pros.append(p)
+            f.close()

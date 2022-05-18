@@ -96,5 +96,5 @@ for r in runs:
                     p = subprocess.Popen(["../../simulator", "1", confFile],stdout=f)
                     pros.append(p)
                     f.close()
-        for p in pros:
-            p.wait()
+#        for p in pros:
+#            p.wait()

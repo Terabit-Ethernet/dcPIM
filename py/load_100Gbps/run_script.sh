@@ -1,6 +1,6 @@
 #!/bin/bash
 
-loads=(5 6 7 8 9)
+loads=(5 6 7 8 8.2 8.4 8.6 8.8)
 algos=(pim)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()
