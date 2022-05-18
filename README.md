@@ -123,19 +123,33 @@ Datamining: 2-3 days
    4.0 74 80 82 84
    5.0 72 78 82 84
    ```
-   To get results for figure 6a and 6b, run:
+   To get results for figure 6a and 6b (Max sustained load and mean slowdown for different (r, k)), run:
    ```
    cd py/pim_k_iterations
    python pim_k_iterations.py
    python run.py
    ```
-   To get results for 6c, run:
+   To get results for 6c (the effect of beta), run:
    ```
    cd py/pim_beta
    python pim_beta.py
    ./run_script.sh $DATE imc10
    ```
    Eg.  `./run_script.sh 5.15 imc10`
+   
+6. Reproduce Figure 8 results (Bursty workload)
+
+   ```
+   cd py/bursty_workload/
+   python bursty.py
+   ```
+
+   To run each workload, 
+
+   ```
+   ./run_script.sh $DATE $WORKLOAD
+   ```
+   Eg. `./run_script.sh 5.15 imc10`, `./run_script.sh 5.15 websearch`, `./run_script.sh 5.15 datamining`
 ## Authors
 
 * Qizhe Cai
