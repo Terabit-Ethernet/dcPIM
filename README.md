@@ -228,7 +228,24 @@ All parsing scripts are located at `py/analysis`. And the parsing results are lo
 
    
  4. Parse Figure 6 results (dcPIM Sensitivity Analysis)
-   
+ 
+    Parse results of maximum sustained load (r,k) and mean slowdown (r,k)
+    
+    ```
+    python parse_pim_k_iter_util.py 5.15
+    ```
+    
+    The files are located at `py/result/pim_k_iterations/pim_k_iteration_slowdown.dat` and `pim_k_iteration_util.dat`.
+    In the `pim_k_iteration_util.dat`, 1 means the dcPIM can sustain the load for a given (r,k).
+    
+    Parse results of sustained load & mean slowdown of beta,
+    
+    ```
+    python parse_pim_beta.py 5.15
+    ```
+    
+    The files are located at `py/result/pim_beta/pim_beta_slowdown.dat` and `pim_beta_util.dat`.
+
 ## Authors
 
 * Qizhe Cai
