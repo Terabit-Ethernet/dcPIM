@@ -56,7 +56,7 @@ make
 Running different workloads takes different amount of time. Here is the estimation of running time for each workload:
 
 ```
-IMC10 (aditya):   15 mins
+IMC10 (aditya):   20-30 mins
 Web Search: 5-6 hours
 Datamining: 2-3 days
 ```
@@ -68,53 +68,47 @@ Datamining: 2-3 days
    ```
    cd py/load_100Gbps/
    python load.py
+   ./run_script.sh 5.15 imc10
+   ./run_script.sh 5.15 websearch
+   ./run_script.sh 5.15 datamining
    ```
-
-   To run each workload, 
-
-   ```
-   ./run_script.sh $DATE $WORKLOAD
-   ```
-   Eg. `./run_script.sh 5.15 imc10`, `./run_script.sh 5.15 websearch`, `./run_script.sh 5.15 datamining`
+   The logs are stored in directory `py/result/load/5.15/`.
 
 3. Reproduce Figure 4 results (Microscopic view into dcPIM performance)
 
    ```
    cd py/worst_case/
+   ./run_script.sh 5.15 worstcase1
+   ./run_script.sh 5.15 worstcase2
+   ./run_script.sh 5.15 worstcase3
    ```
-
-   To run each workload, 
-
-   ```
-   ./run_script.sh $DATE $WORSTCASE
-   ```
-   Eg. `./run_script.sh 5.15 worstcase1`, `./run_script.sh 5.15 worstcase2`, `./run_script.sh 5.15 worstcase3`
+   The logs are stored in directory `py/result/worst_case/5.15/`.
 
 4. Reproduce Figure 5 results (Oversubscribed topology and Fat-Tree topology)
 
    To run workloads on oversubscribed topology,
+   
    ```
    cd py/oversubscribed/
    python oversubscribe.py
    python run.py
    ```
-   run.py will run IMC10, Web Search and Datamining workloads one by one.
-   
+   run.py will run IMC10, Web Search and Datamining workloads one by one. The logs are stored in directory `py/result/oversubscribe/5.15/`.
+
    To run workoloads on Fat-Tree topology,
    ```
    cd py/fat_tree/
    python fat_tree.py
+   ./run_script.sh 5.15 imc10
+   ./run_script.sh 5.15 websearch
+   ./run_script.sh 5.15 datamining
    ```
+   The logs are stored in directory `py/result/fat_tree/5.15/`.
 
-   To run each workload, 
-   ```
-   ./run_script.sh $DATE $WORSTCASE
-   ```
-   Eg. `./run_script.sh 5.15 imc10`, `./run_script.sh 5.15 websearch`, `./run_script.sh 5.15 datamining`
-   
 5. Reproduce Figure 6 results (dcPIM Sensitivity Analysis)
 
    For 6a and 6b, the maximum sustained loads for each (r, k) are:
+
    ```
    r\k  1  2  4  8
    1.0 54 56 56 56
@@ -123,33 +117,118 @@ Datamining: 2-3 days
    4.0 74 80 82 84
    5.0 72 78 82 84
    ```
+ 
    To get results for figure 6a and 6b (Max sustained load and mean slowdown for different (r, k)), run:
+ 
    ```
    cd py/pim_k_iterations
    python pim_k_iterations.py
    python run.py
    ```
+  
+   The logs are stored in directory `py/result/pim_k_iterations/5.15/`.
    To get results for 6c (the effect of beta), run:
+  
    ```
    cd py/pim_beta
    python pim_beta.py
-   ./run_script.sh $DATE imc10
+   ./run_script.sh 5.15 imc10
    ```
-   Eg.  `./run_script.sh 5.15 imc10`
-   
+  
+   The logs are stored in directory `py/result/pim_beta/5.15/`.
+
+
 6. Reproduce Figure 8 results (Bursty workload)
 
    ```
    cd py/bursty_workload/
    python bursty.py
+   ./run_script.sh 5.15 imc10
+   ./run_script.sh 5.15 websearch
+   ./run_script.sh 5.15 datamining
+   ```
+   
+   The logs are stored in directory `py/result/bursty/5.15/`.
+
+   
+### Parse simulation results
+
+All parsing scripts are located at `py/analysis`. And the parsing results are located at `py/result/path/to/result`.
+
+1. Parse Figure 3 results (Evaulation results for the default setup).
+
+   Parse results of network utilization and mean slowdown (Figure 3a and 3b).
+  
+   ```
+   python parse_load.py 5.15 imc10 100
+   python parse_load.py 5.15 websearch 100
+   python parse_load.py 5.15 datamining 100
+   ```
+   
+   The network utilization/slodown result is at: `py/result/load/$WORKLOAD_load_util.dat`and `py/result/load/$WORKLOAD_load_slowdown.dat`. The format of files are `<LOAD> <MEAN_SLOWDOWN_OR_UTIL>`. For Figure 3b, the default load is 0.6, corresponding to the second row in the `$WORKLOAD_load_slowdown.dat`. 
+   
+   Parse results of slowdown versus flow size(Figure 3c, 3d, 3e) with the IMC10 workload.
+   
+   ```
+   python parse_fct_oct_flowsize.py 5.15 all-to-all IMC10 100
+   python parse_fct_oct_flowsize.py 5.15 all-to-all websearch 100
+   python parse_fct_oct_flowsize.py 5.15 all-to-all datamining 100
+
+   ```
+   
+   The corresponding file is at `py/result/load/$WORKLOAD_load_slowdown.dat`. The format of the file is `<FLOW_SIZE> <MEAN_SLOWDOWN> <DIFF_BETWEEN_TAIL_AND_MEAN>`.
+   
+2. Parse Figure 4 results (Microscopic view into dcPIM performance)
+
+   The result of Figure 4a is located at `py/result/worst_case/pim_util_worstcase1.txt`. The format of file is  `<TIME> <Throughput>`. The network utilization is `THROUGHPUT / 1600`.
+   
+   Parse results for Figure 4b.
+   
+   ```
+   python parse_worstcast_slowdown.py 5.15 worstcase2
+   ```
+   
+   The file is located at `py/result/worst_case/worstcase2_slowdown.txt`.
+   
+   The result of Figure 4c is located at `py/result/worst_case/pim_util_worstcase3.txt`. The format of file is  `<TIME> <Throughput>`. The network utilization is `THROUGHPUT / 14400`. 
+   
+3. Parse Figure 5 results (Oversubscribed topology and Fat-Tree topology)
+
+   Parse results of mean slowdown in the oversubscribed topology (Figure 5a)
+   
+   ```
+   python parse_oversubscribe.py 5.15 oversubscribe 100
    ```
 
-   To run each workload, 
+   The file is located at `py/result/oversubscribed/oversubscribe_slowdown.dat`.
 
+   Parse results of slowdown versus flow size in oversubscribed topology with IMC10 workload (Figure 5b).
+   
    ```
-   ./run_script.sh $DATE $WORKLOAD
+   python parse_fct_oct_flowsize_os.py 5.15 all-to-all imc10 100
    ```
-   Eg. `./run_script.sh 5.15 imc10`, `./run_script.sh 5.15 websearch`, `./run_script.sh 5.15 datamining`
+   
+   The file is located at `py/result/oversubscribed/oversubscribe_imc10_100_slowdown_size.dat`.
+
+   Parse results of mean slowdown in the Fat-tree topology (Figure 5c)
+   
+   ```
+   python parse_fat_tree.py 5.15
+   ```
+
+   The file is located at `py/result/fat_tree/fat_tree_slowdown.dat`.
+   
+   Parse results of slowdown versus flow size in Fat-tree topology with IMC10 workload (Figure 5d).
+   
+   ```
+   python parse_fct_oct_flowsize_fat.py 5.15 all-to-all imc10 100
+   ```
+     
+   The file is located at `py/result/fat_tree/fat_tree_aditya_100_slowdown_size.dat`.
+
+   
+ 4. Parse Figure 6 results (dcPIM Sensitivity Analysis)
+   
 ## Authors
 
 * Qizhe Cai
