@@ -1,7 +1,7 @@
 #!/bin/bash
 
 loads=(5.0 6.0 7.0 8.0)
-algos=(phost)
+algos=(pim)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()
 
