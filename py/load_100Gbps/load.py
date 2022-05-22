@@ -46,8 +46,8 @@ num_host_types: 13
 conf_str_phost = '''init_cwnd: 2
 max_cwnd: 6
 retx_timeout: 9.50003e-06
-queue_size: 36864
-propagation_delay: 0.0000002
+queue_size: 500000
+propagation_delay: 0.00000065
 bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 112
@@ -68,10 +68,10 @@ use_flow_trace: 0
 smooth_cdf: 1
 burst_at_beginning: 0
 capability_timeout: 1.5
-capability_resend_timeout: 9
-capability_initial: 19
-capability_window: 19
-capability_window_timeout: 25
+capability_resend_timeout: 55
+capability_initial: 49
+capability_window: 49
+capability_window_timeout: 153
 ddc: 0
 ddc_cpu_ratio: 0.33
 ddc_mem_ratio: 0.33
@@ -277,7 +277,7 @@ num_host_types: 13
 
 
 #runs = ['pfabric', 'phost', 'fastpass', 'random', 'ruf', 'pim']
-runs = ['pim']
+runs = ['pim', 'phost']
 workloads = ['imc10', 'websearch', 'datamining', 'constant']
 loads = [0.5, 0.6, 0.7, 0.8, 0.82, 0.84, 0.86, 0.88]
 for r in runs:
