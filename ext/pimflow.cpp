@@ -237,19 +237,19 @@ void PimFlow::receive(Packet *p) {
             std::cout << get_current_time() << " flow " << this->id << "receive data seq " << p->capa_data_seq << " seq number:" << p->capability_seq_num_in_data  << " total q delay: " << p->total_queuing_delay << std::endl;
         }
         // for debugging purpose
-        pim_total_recvd += p->size;
-        if(params.pim_out_file != "" &&  get_current_time() - pim_last_time > 0.00002) {
-            if(!pim_file.is_open()) {
-                pim_file.open(params.pim_out_file);
-            }
-             pim_file << get_current_time() <<  " " << 
-                 (pim_total_recvd - pim_total_recvd_last)  / (get_current_time() - pim_last_time) / 1000000000 * 8 << " Gbps" << std::endl;
-             pim_total_recvd_last = pim_total_recvd;
-             pim_last_time = get_current_time();
-         }
+        // pim_total_recvd += p->size;
+        // if(params.pim_out_file != "" &&  get_current_time() - pim_last_time > 0.00002) {
+        //     if(!pim_file.is_open()) {
+        //         pim_file.open(params.pim_out_file);
+        //     }
+        //      pim_file << get_current_time() <<  " " << 
+        //          (pim_total_recvd - pim_total_recvd_last)  / (get_current_time() - pim_last_time) / 1000000000 * 8 << " Gbps" << std::endl;
+        //      pim_total_recvd_last = pim_total_recvd;
+        //      pim_last_time = get_current_time();
+        // }
 
         if(packets_received.count(p->capa_data_seq) == 0){
-
+            log_utilization(p->size);
             packets_received.insert(p->capa_data_seq);
             received_count++;
             while(received_until < size_in_pkt && packets_received.count(received_until) > 0)

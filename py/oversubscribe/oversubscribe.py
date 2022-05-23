@@ -49,8 +49,8 @@ num_host_types: 13
 conf_str_phost = '''init_cwnd: 2
 max_cwnd: 6
 retx_timeout: 9.50003e-06
-queue_size: 36864
-propagation_delay: 0.0000002
+queue_size: 500000
+propagation_delay: 0.00000065
 bandwidth: 100000000000.0
 queue_type: 2
 flow_type: 112
@@ -299,7 +299,7 @@ num_host_types: 13
 
 import math
 #runs = ['pfabric', 'phost', 'fastpass', 'ruf', 'pim']
-runs = ['pim']
+runs = ['phost', 'pim']
 workloads = ['imc10', 'websearch', 'datamining']
 #precentage = [  0.10, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.40, 0.41, 0.42, 0.43, 0.44, 0.45, 0.46, 0.47, 0.48, 0.49, 0.50, 0.51, 0.52, 0.53, 0.54, 0.55, 0.56, 0.57, 0.58, 0.59, 0.60, 0.61, 0.62, 0.63, 0.64, 0.65, 0.66, 0.67, 0.68, 0.69, 0.70, 0.71, 0.72, 0.73, 0.74, 0.75, 0.76, 0.77, 0.78, 0.79, 0.80, 0.81, 0.82, 0.83, 0.84, 0.85, 0.86, 0.87, 0.88, 0.89]
 over_subscription = [2]
@@ -347,8 +347,8 @@ for r in runs:
             for o in over_subscription:
                 os_ratio = 1.0 / o
                 first_time = False
-                propagation_delay = 0.0000002
-                access_bw = 10000000000.0
+                propagation_delay = 0.00000065
+                access_bw = 100000000000.0
                 core_bw = 4 * access_bw * os_ratio
                 rtt = (4 * propagation_delay + (1500 * 8 / access_bw +  1500 * 8 / core_bw) * 2) * 2
                 bdp = int(math.ceil(rtt * access_bw / 8 / 1500))

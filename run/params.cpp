@@ -38,7 +38,7 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
     params.fastpass_limit_conns = false;
 
     /* pim parameter */
-    params.pim_out_file = "";
+    params.util_file = "";
     while (std::getline(input, line)) {
         std::istringstream lineStream(line);
         if (line.empty()) {
@@ -52,6 +52,9 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         if(key == "topology") {
             lineStream >> params.topology;
         } 
+        else if (key == "util_file") {
+            lineStream >> params.util_file;
+        }
         else if (key == "num_hosts") {
             lineStream >> params.num_hosts; 
         }
@@ -254,9 +257,6 @@ void read_experiment_parameters(std::string conf_filename, uint32_t exp_type) {
         }
         else if (key == "pim_k") {
             lineStream >> params.pim_k;
-        }
-        else if (key == "pim_out_file") {
-            lineStream >> params.pim_out_file;
         }
         // -----------------
         else if (key == "ddc") {

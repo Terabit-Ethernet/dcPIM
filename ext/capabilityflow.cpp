@@ -132,6 +132,7 @@ void CapabilityFlow::receive(Packet *p)
             std::cout << get_current_time() << " flow " << this->id << "receive data seq " << p->capa_data_seq << " seq number:" << p->capability_seq_num_in_data  << " total q delay: " << p->total_queuing_delay << std::endl;
         }
         if(packets_received.count(p->capa_data_seq) == 0){
+            log_utilization(p->size);
             packets_received.insert(p->capa_data_seq);
             received_count++;
             while(received_until < size_in_pkt && packets_received.count(received_until) > 0)

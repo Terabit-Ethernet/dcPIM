@@ -8,6 +8,7 @@ queue_type: 2
 flow_type: 112
 num_flow: 1000000
 flow_trace: worstcase1.dat
+util_file: ../result/worst_case/phost_util_worstcase1.txt
 cut_through: 0
 mean_flow_size: 0
 load_balancing: 0

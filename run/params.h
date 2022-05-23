@@ -7,7 +7,8 @@
 class DCExpParams {
     public:
         std::string param_str;
-        
+        std::string util_file;
+
         std::string topology;
         // for fat tree topology;
         int k;
@@ -135,7 +136,6 @@ class DCExpParams {
         double pim_resend_timeout;
         int pim_low_priority;
         int pim_link_pkts;
-	std::string pim_out_file;
         double get_full_pkt_tran_delay(uint32_t size_in_byte = 1500)
         {
             return size_in_byte * 8 / this->bandwidth;

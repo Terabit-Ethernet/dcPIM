@@ -19,6 +19,7 @@ extern DCExpParams params;
 extern uint32_t total_finished_flows;
 extern Topology *topology;
 
+// uint64_t total_recvd = 0;
 void PIM_Vlink::schedule_token_proc_evt(double time, bool is_timeout)
 {
     assert(this->token_send_evt == NULL);

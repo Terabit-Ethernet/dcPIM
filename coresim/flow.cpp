@@ -281,3 +281,21 @@ double Flow::get_avg_queuing_delay_in_us()
     return total_queuing_time/received_count * 1000000;
 }
 
+void Flow::log_utilization(int pkt_size) {
+    static double total_recvd = 0;
+    static double total_recvd_last = 0;
+    static double last_time = 1.0;
+    static std::ofstream util_file;
+
+    total_recvd += pkt_size;
+    if(params.util_file != "" &&  get_current_time() - last_time > 0.00002) {
+        if(!util_file.is_open()) {
+            util_file.open(params.util_file);
+        }
+        util_file << get_current_time() <<  " " << 
+            (total_recvd - total_recvd_last)  / (get_current_time() - last_time) / 1000000000 * 8 << " Gbps" << std::endl;
+        total_recvd_last = total_recvd;
+        last_time = get_current_time();
+    }
+
+}
