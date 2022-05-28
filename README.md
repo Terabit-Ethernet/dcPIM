@@ -2,6 +2,7 @@
 
 ## Setup
 
+If you are running **SIGCOMM artifact evaluation**, you can skip the Setup section and directly jump into SIGCOMM 2022 Artifact Evaluation section.
 ### Install DPDK
 
 1. Download the dpdk 18.11.10.
@@ -41,7 +42,7 @@ Then
 sudo ./run.sh $num_server
 ```
 
-`$num_server` is the number of servers in the testbed.
+`$num_server` is the number of servers in the testbed. The script will get IP addresses of all servers and their ethernet address also enable hugepages and compile the program.
 
 ## Run experiments
 
@@ -58,11 +59,25 @@ The workloads that provided in this repo are imc10, websearch and datamining.
 
 ## SIGCOMM 2022 Artifact Evaluation
 
+### Configure Cloudlab Machines
 We conduct our experiment using the [m510](http://docs.cloudlab.us/hardware.html#%28part._cloudlab-utah%29) machines available at CloudLab.
+The attachment of the artifact evaluation(hotcrp) contains the cloudlab account info and private/public key pair and its passcode.
+1. Login the [Cloudlab](https://www.cloudlab.us).  
+2. Follow the [guide](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent#adding-your-ssh-key-to-the-ssh-agent) to add the public/private key pair into your machine by .
+4. Find the [dcpim_chassis](https://www.cloudlab.us/p/ba9b05f3790cb9f88e84a10f480fb3193dd4d56c) profile in the Project Files and instantiate the profile to start the experiments.
 
-1. Create the cloudlab [account](https://www.cloudlab.us/signup.php) and join existing project and the project name is dcpim.
-2. Start the experiments using the [profile](https://www.cloudlab.us/p/688e66f95e2d89e11bd066a597588450beb87dc6).  
-3. 
+### Run experiments
+
+We provide oneshot script for running the experiment (32 server testbeds):
+```
+./run_32.sh
+```
+To run 8-server and 16-server experiments, simply run `./run_8.sh` or `./run_16.sh`.
+
+The parsed result is in `result/websearch_32_slowdown_size.dat`. The format of files:
+```
+SIZE_OF_FLOWS MEAN_SLOWDOWN TAIL_SLOWDOWN-MEANSLOWDOWN 
+```
 
 ## Cornell Clusters
 
