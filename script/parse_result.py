@@ -229,7 +229,7 @@ def main():
     num_nodes = int(sys.argv[1])
     trace = str(sys.argv[2])
     stats = read_files(num_nodes, trace)
-    output_file(stats,  "../result/{0}/{1}_{2}_slowdown_size.dat".format(num_nodes,trace, num_nodes))
+    output_file(stats,  "../result/{0}_{1}_slowdown_size.dat".format(trace, num_nodes))
     # tcp_output = read_files(tcp_date, num_nodes, trace)
     # write_cdf_slowdown(pim_output, "parse_cdf_pim_{}.dat".format(trace), "parse_cdf_pim_{}_99.dat".format(trace))
     # write_cdf_slowdown(tcp_output, "parse_cdf_tcp_{}.dat".format(trace), "parse_cdf_tcp_{}_99.dat".format(trace))

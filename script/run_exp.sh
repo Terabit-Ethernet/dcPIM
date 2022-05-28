@@ -1,5 +1,4 @@
-eval `ssh-agent`
-ssh-add
+#!/bin/bash
 ssh_array=(
 ms1301
 ms1302
@@ -34,29 +33,21 @@ ms1330
 ms1331
 ms1332)
 
-# set up the server
-# for addr in  "${ssh_array[@]}";
-# 	do 
-# 		echo addr;
-# 		ssh -o StrictHostKeyChecking=no -p 22 caiqizhe@$addr.utah.cloudlab.us "cd pipeline-pim; ./run.sh 16" &
-# 	done
-
-
 workload=$1
 num_hosts=$2
 # run experiment
 for addr in  "${ssh_array[@]: 1 : $num_hosts}";
 	do 
-	 	ssh -o StrictHostKeyChecking=no -p 22 caiqizhe@$addr.utah.cloudlab.us "sudo killall pim; cd pipeline-pim;sudo ./build/pim -- send CDF_$workload.txt > result_$workload.txt" &
+	 	ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 -p 22 artifact@$addr.utah.cloudlab.us "sudo killall pim; cd pipeline-pim;sudo ./build/pim -- send CDF_$workload.txt > result_$workload.txt" &
 	done
 
 sleep 20
 
-ssh -o StrictHostKeyChecking=no -p 22 caiqizhe@ms1301.utah.cloudlab.us "sudo killall pim; cd pipeline-pim;sudo ./build/pim -- start CDF_$workload.txt > result_$workload.txt" &
+ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 -p 22 artifact@ms1301.utah.cloudlab.us "sudo killall pim; cd pipeline-pim;sudo ./build/pim -- start CDF_$workload.txt > result_$workload.txt" &
 
 sleep 120
 
 for addr in  "${ssh_array[@]}";
 	do 
-	 	ssh -o StrictHostKeyChecking=no -p 22 caiqizhe@$addr.utah.cloudlab.us "sudo killall pim" &
+	 	ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 -p 22 artifact@$addr.utah.cloudlab.us "sudo killall pim" &
 	done
