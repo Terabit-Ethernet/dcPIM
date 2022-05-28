@@ -29,7 +29,7 @@ rm dpdk-18.11.10.tar.xz
  ```
  make -j
  ```
-### Configure IP address and enable hugepages
+### Configure IP address, enable hugepages and compile the program
 Change the dpdk src directory in run.sh to `/path/to/dpdk` in your setup.
 
 ```
