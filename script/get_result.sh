@@ -1,5 +1,4 @@
-eval `ssh-agent`
-ssh-add
+#!/bin/bash
 ssh_array=(
 ms1301
 ms1302
@@ -35,13 +34,6 @@ ms1331
 ms1332
 )
 
-# set up the server
-# for addr in  "${ssh_array[@]}";
-# 	do 
-# 		echo addr;
-# 		ssh -o StrictHostKeyChecking=no -p 22 caiqizhe@$addr.utah.cloudlab.us "cd /usr/local/src/pipeline-pim; /usr/local/src/pipeline-pim/run.sh 16" &
-# 	done
-
 num_hosts=$1
 mkdir ../result
 mkdir ../result/"$num_hosts"
@@ -50,20 +42,6 @@ i=0
 # run experiment
 for addr in  "${ssh_array[@]: 0: $num_hosts}";
 	do 
-	 	scp -r caiqizhe@$addr.utah.cloudlab.us:~/pipeline-pim/result_imc10.txt ../result/"$num_hosts"/result_imc10_$i.txt
-	 	scp -r caiqizhe@$addr.utah.cloudlab.us:~/pipeline-pim/result_websearch.txt ../result/"$num_hosts"/result_websearch_$i.txt
-	 	scp -r caiqizhe@$addr.utah.cloudlab.us:~/pipeline-pim/result_datamining.txt ../result/"$num_hosts"/result_datamining_$i.txt
-	 	# scp -r caiqizhe@$addr.utah.cloudlab.us:~/tcp_baseline/result_"$workload"_"$i" result/result_"$workload"_$i.txt
-
+	 	scp  -i ~/.ssh/id_ed25519 -r artifact@$addr.utah.cloudlab.us:~/pipeline-pim/result_websearch.txt ../result/"$num_hosts"/result_websearch_$i.txt
 		i=$((i+1))
 	done
-
-# sleep 3
-
-# ssh -o StrictHostKeyChecking=no -p 22 caiqizhe@ms0817.utah.cloudlab.us "sudo killall pim; cd /usr/local/src/pipeline-pim;sudo ./build/pim -- send CDF_aditya.txt > result_aditya.txt" &
-
-
-# for addr in  "${ssh_array[@]}";
-# 	do 
-# 	 	ssh -o StrictHostKeyChecking=no -p 22 caiqizhe@$addr.utah.cloudlab.us "sudo killall pim" &
-# 	done
