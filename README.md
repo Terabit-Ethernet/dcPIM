@@ -19,7 +19,7 @@ This section covers how to compile the simulator.
 This section provides the detailed instructions to reproduce all individual results of dcPIM presented in our SIGCOMM 2022 paper.
 
 
-## Compile the Simulator and make the result folder
+## 2. Compile the Simulator
 ```
 aclocal
 automake --add-missing
@@ -29,7 +29,7 @@ make
 mkdir py/result
 ```
 
-## SIGCOMM 2021 Artifact Evaluation
+## 3. SIGCOMM 2021 Artifact Evaluation
 
 ###  Run Simulation Results
 
