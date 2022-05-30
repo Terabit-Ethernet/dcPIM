@@ -15,7 +15,7 @@ Through the following three sections, we provide getting started instructions to
 
    - **Compile Simulator (2 compute-mins):**  
 This section covers how to compile the simulator.
-   - **[SIGCOMM 2022 Artifact Evaluation](#SIGCOMM-2022-Artifact-Evaluation) (6 days):**  
+   - **SIGCOMM 2022 Artifact Evaluation (6 days):**  
 This section provides the detailed instructions to reproduce all individual results of dcPIM presented in our SIGCOMM 2022 paper.
 
 
