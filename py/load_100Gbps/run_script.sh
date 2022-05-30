@@ -22,9 +22,9 @@ do
 	#	nohup ./batch_simulate_sflow.py -P $p -F ../../../data/ -t ${threshold[$index]} -i 10 -N 1000 -s 1 -l results/conext18/flows/percentage-${percentage[$index]}.log &
 	    pids[${index}]=$!
 	done
-	for pid in ${pids[*]}; 
-	do
-    	  wait $pid
-        done
+#	for pid in ${pids[*]}; 
+#	do
+#    	  wait $pid
+#        done
     pids=()
 done

@@ -8,6 +8,7 @@ queue_type: 2
 flow_type: 116
 num_flow: 1000000
 flow_trace: worstcase1.dat
+util_file: ../result/worst_case/pim_util_worstcase1.txt
 cut_through: 0
 mean_flow_size: 0
 load_balancing: 0
@@ -26,7 +27,6 @@ pim_iter_limit: 4
 pim_beta: 1.3
 pim_alpha: 1
 pim_k: 4
-pim_out_file: ../result/worst_case/pim_util_worstcase1.txt
 token_initial: 1
 token_timeout: 8
 token_resend_timeout: 1
