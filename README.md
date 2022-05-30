@@ -1,111 +1,80 @@
-# TEPS = Terabit nEtwork Packet Simulator
+# dcPIM Simulator
 
-## Organization
+Datacenter Parallel Iterative Matching (dcPIM) is a transport design that realizes the classical Parallel Iterative Matching (PIM) protocol from switch scheduling literature on datacenter networks without using any specialized hardware. Our key technical result is an extension of PIM’s theoretical analysis to the datacenter context. dcPIM design builds upon insights gained from this analysis, by extending PIM to overcome the unique challenges introduced by datacenter environments (much larger scales and round trip times). Using theoretical analysis and evaluation, we show that dcPIM maintains near-optimal latency of state-of-the-art data center transport designs, sustains 6 − 10% higher loads on evaluated workloads, and guarantees near-optimal network utilization.
 
-### Core stuff is in `coresim/` 
+## 1. Overview
+### Repository overview
+The simulator is built upon pHost simulator.
+- `coresim/` includes the main event loop and the default class of events, topology, queues, flows and packets.
+- `ext/` includes protocols, including dcPIM, pHost, pFabric and Fastpass.
+- `run/` includes experiment setup, flow generation and parameteres read/write.
+- `py/` includes scripts for running SIGCOMM 2022 artifact evaluation.
 
-Normally these files shouldn't change. This directory includes implementations of the following:
-* Main event loop and related helper functions, global variables, main() function to determine which experiment to run: `main.cpp`
-    * Note: deciding which experiment to run will eventually be moved to the `run/` directory, probably to `experiment.cpp`.
-* Core event implementations (`Event`, `FlowArrivalEvent`, `FlowFinishedEvent`, etc): `event.cpp`.
-* Representation of the topology: `node.cpp`, `topology.cpp`
-* Queueing behavior. This is a basis for extension; the default implementation is FIFO-dropTail: `queue.cpp`.
-* Flows and packets. This is also a basis for extension; default is TCP: `packet.cpp` and `flow.cpp`.
-* Random variables used in flow generation. Used as a library by the flow generation code: `random_variable.cpp`.
+### Getting Started Guide
+Through the following three sections, we provide getting started instructions to install NetChannel and to run experiments.
 
-### Extensions are in `ext/`
+   - **Compile Simulator (2 compute-mins):**  
+This section covers how to compile the simulator.
+   - **[SIGCOMM 2022 Artifact Evaluation](#SIGCOMM-2022-Artifact-Evaluation) (6 days):**  
+This section provides the detailed instructions to reproduce all individual results of dcPIM presented in our SIGCOMM 2022 paper.
 
-This is where you implement your favorite protocol.
-* Generally extensions are created by subclassing one or more aspects of classes defined in `coresim/`.
-* Once an extension is defined, it should be added to `factory.cpp` so it can be run. 
-    * Currently, `factory.cpp` supports changing the flow, queue, and host-scheduling implementations.
-* Methods in `coresim/` call the `get_...` methods in `factory.cpp` to initialize the simulation with the correct implementation.
-* Which implementation to use from `factory.cpp` is determined by the config file, parsed by `run/params.cpp`.
-    * You should give your extension an identifier in `factory.h` so it can be uniquely identified in the config file.
 
-### Stuff related to actually running the simulator is in `run/`
-
-* Experiment setup, running, and post-analysis: `experiment.cpp`
-* Flow generation models: `flow_generator.cpp`
-* Parsing of config file: `params.cpp`
-    * Configuration parameters for your extension should be added to `params.h` and `params.cpp`.
-    * These can then be accessed with `params.<your_parameter>`
-
-### Helper scripts to run experiments are in `py/`
-
-This can be useful if:
-* You are running many experiments in parallel.
-* You want to easily generate configuration files.
-
-To compile, the Automake and Autoconf files are included: `configure.ac` and `Makefile.am`. The makefile will produce two targets: `simulator` and `simdebug`. 
-`simdebug` is equivalent to `simulator`, except compiler optimzations are turned off to make debugging easier.
-
-## SIGCOMM 2021 Artifact Evaluation
-
-### Compile the Simulator
-
+## Compile the Simulator and make the result folder
 ```
 aclocal
 automake --add-missing
 autoconf
 ./configure 
 make
+mkdir py/result
 ```
+
+## SIGCOMM 2021 Artifact Evaluation
+
 ###  Run Simulation Results
 
 Running different workloads takes different amount of time. Here is the estimation of running time for each workload:
-
 ```
 IMC10 (aditya):   20-30 mins
 Web Search: 5-6 hours
 Datamining: 2-3 days
 ```
+After running scripts, simulators will be run in background.
 
-1. Create a result folder inside `py/`: `mkdir py/result`
-
-2. Reproduce Figure 3 results (Evaulation results for the default setup)
+1. Reproduce Figure 3 results (Evaulation results for the default setup)
 
    ```
    cd py/load_100Gbps/
-   python load.py
-   ./run_script.sh 5.15 imc10
-   ./run_script.sh 5.15 websearch
-   ./run_script.sh 5.15 datamining
+   ./run.sh
    ```
    The logs are stored in directory `py/result/load/5.15/`.
 
-3. Reproduce Figure 4 results (Microscopic view into dcPIM performance)
+2. Reproduce Figure 4 results (Microscopic view into dcPIM performance)
 
    ```
    cd py/worst_case/
-   ./run_script.sh 5.15 worstcase1
-   ./run_script.sh 5.15 worstcase2
-   ./run_script.sh 5.15 worstcase3
+   ./run.sh
    ```
    The logs are stored in directory `py/result/worst_case/5.15/`.
 
-4. Reproduce Figure 5 results (Oversubscribed topology and Fat-Tree topology)
+3. Reproduce Figure 5 results (Oversubscribed topology and Fat-Tree topology)
 
    To run workloads on oversubscribed topology,
    
    ```
-   cd py/oversubscribed/
-   python oversubscribe.py
-   python run.py
+   cd py/oversubscribe/
+   ./run.sh
    ```
    run.py will run IMC10, Web Search and Datamining workloads one by one. The logs are stored in directory `py/result/oversubscribe/5.15/`.
 
    To run workoloads on Fat-Tree topology,
    ```
    cd py/fat_tree/
-   python fat_tree.py
-   ./run_script.sh 5.15 imc10
-   ./run_script.sh 5.15 websearch
-   ./run_script.sh 5.15 datamining
+   ./run.sh
    ```
    The logs are stored in directory `py/result/fat_tree/5.15/`.
 
-5. Reproduce Figure 6 results (dcPIM Sensitivity Analysis)
+4. Reproduce Figure 6 results (dcPIM Sensitivity Analysis)
 
    For 6a and 6b, the maximum sustained loads for each (r, k) are:
 
@@ -122,8 +91,7 @@ Datamining: 2-3 days
  
    ```
    cd py/pim_k_iterations
-   python pim_k_iterations.py
-   python run.py
+   ./run.sh
    ```
   
    The logs are stored in directory `py/result/pim_k_iterations/5.15/`.
@@ -131,21 +99,17 @@ Datamining: 2-3 days
   
    ```
    cd py/pim_beta
-   python pim_beta.py
-   ./run_script.sh 5.15 imc10
+   ./run.sh
    ```
   
    The logs are stored in directory `py/result/pim_beta/5.15/`.
 
 
-6. Reproduce Figure 8 results (Bursty workload)
+5. Reproduce Figure 8 results (Bursty workload)
 
    ```
    cd py/bursty_workload/
-   python bursty.py
-   ./run_script.sh 5.15 imc10
-   ./run_script.sh 5.15 websearch
-   ./run_script.sh 5.15 datamining
+   ./run.sh
    ```
    
    The logs are stored in directory `py/result/bursty/5.15/`.
@@ -247,7 +211,7 @@ All parsing scripts are located at `py/analysis`. And the parsing results are lo
     The files are located at `py/result/pim_beta/pim_beta_slowdown.dat` and `pim_beta_util.dat`.
  5. Parse Figure 8 Appendix results (Bursty Workload)    
     ```
-    python parse_bursty_load.py 5.16 imc10 100
+    python parse_bursty_load.py 5.15 imc10 100
     ```
     
 
