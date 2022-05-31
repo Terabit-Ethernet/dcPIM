@@ -8,7 +8,8 @@ import json
 # algos = ["homa_aeolus", "ndp","hpcc", "pim"]
 #algos = ["pfabric", "homa", "pim"]
 algos=["pim"]
-loads = [5.0, 6.0, 7.0, 8.0, 8,2, 8.4, 8.6, 8.8]
+loads = [6.0]
+workloads = ["imc10", "websearch", "datamining"]
 # input_file1 = sys.argv[1]
 # output_file = sys.argv[2]
 
@@ -109,9 +110,9 @@ def read_file(filename):
 def output_file(output, filename):
     workload = ""
     file = open(filename, "w+")
-    for i in loads:
+    for i in workloads:
         string = ""
-        string += str(float(i) / 10)
+        string += str(i)
         for j in algos:
             string += " " + str(output[j][i])
         string += "\n"
@@ -166,7 +167,7 @@ def get_99_fct_oct_ratio(output):
 #         output = json.load(json_file)
 #     return output
 
-def read_outputs(direc, trace):
+def read_outputs(direc):
     input_prefix = direc + "/result_"
     util = {}
     fct_oct_ratio = {}
@@ -182,40 +183,41 @@ def read_outputs(direc, trace):
             n_ratio[i][j] = 0
     for i in algos:
         for j in loads:
-            if i == "ndp":
-                output = read_ndp_files(trace)
-                util[i][j] = output[trace][str(j)]['util']
-                fct_oct_ratio[i][j] = output[trace][str(j)]["mean"]
-                n_ratio[i][j] = output[trace][str(j)]["99"]
-            elif i == "hpcc":
-                output = read_hpcc_files(trace)
-                util[i][j] = output[trace][str(j)]['util']
-                fct_oct_ratio[i][j] = output[trace][str(j)]["mean"]
-                n_ratio[i][j] = output[trace][str(j)]["99"]
-            elif i == "homa_limit":
-                output = read_homa_files("limit")
-                load = "{:.1f}".format(float(j) / 10)
-                util[i][j] = output[trace][load]['util']
-                fct_oct_ratio[i][j] = output[trace][load]["mean"]
-                n_ratio[i][j] = output[trace][load]["99"]
-            elif i == "homa_unlimit":
-                output = read_homa_files("unlimit")
-                load = "{:.1f}".format(float(j) / 10)
-                util[i][j] = output[trace][load]['util']
-                fct_oct_ratio[i][j] = output[trace][load]["mean"]
-                n_ratio[i][j] = output[trace][load]["99"]
-            elif i == "homa_aeolus":
-                output = read_homa_aeolus_files("500")
-                load = "{:.1f}".format(float(j) / 10)
-                util[i][j] = output[trace][load]['util']
-                fct_oct_ratio[i][j] = output[trace][load]["mean"]
-                n_ratio[i][j] = output[trace][load]["99"]
-            else:
-                file = input_prefix  + str(i) +  "_" + trace + "_" + str(j) +".txt"
-                output, total_sent_packets, total_pkt, finish_time, start_time = read_file(file)
-                util[i][j] = total_sent_packets  / float(total_pkt)
-                fct_oct_ratio[i][j] = get_mean_fct_oct_ratio(output)
-                n_ratio[i][j] = get_99_fct_oct_ratio(output)
+            for trace in workloads:
+                if i == "ndp":
+                    output = read_ndp_files(trace)
+                    util[i][j] = output[trace][str(j)]['util']
+                    fct_oct_ratio[i][j] = output[trace][str(j)]["mean"]
+                    n_ratio[i][j] = output[trace][str(j)]["99"]
+                elif i == "hpcc":
+                    output = read_hpcc_files(trace)
+                    util[i][j] = output[trace][str(j)]['util']
+                    fct_oct_ratio[i][j] = output[trace][str(j)]["mean"]
+                    n_ratio[i][j] = output[trace][str(j)]["99"]
+                elif i == "homa_limit":
+                    output = read_homa_files("limit")
+                    load = "{:.1f}".format(float(j) / 10)
+                    util[i][j] = output[trace][load]['util']
+                    fct_oct_ratio[i][j] = output[trace][load]["mean"]
+                    n_ratio[i][j] = output[trace][load]["99"]
+                elif i == "homa_unlimit":
+                    output = read_homa_files("unlimit")
+                    load = "{:.1f}".format(float(j) / 10)
+                    util[i][j] = output[trace][load]['util']
+                    fct_oct_ratio[i][j] = output[trace][load]["mean"]
+                    n_ratio[i][j] = output[trace][load]["99"]
+                elif i == "homa_aeolus":
+                    output = read_homa_aeolus_files("500")
+                    load = "{:.1f}".format(float(j) / 10)
+                    util[i][j] = output[trace][load]['util']
+                    fct_oct_ratio[i][j] = output[trace][load]["mean"]
+                    n_ratio[i][j] = output[trace][load]["99"]
+                else:
+                    file = input_prefix  + str(i) +  "_" + trace + "_" + str(j) +".txt"
+                    output, total_sent_packets, total_pkt, finish_time, start_time = read_file(file)
+                    util[i][trace] = total_sent_packets  / float(total_pkt)
+                    fct_oct_ratio[i][trace] = get_mean_fct_oct_ratio(output)
+                    n_ratio[i][trace] = get_99_fct_oct_ratio(output)
             # if i == "ranking":
             #     total, num_elements = get_mean_fct_oct_ratio_by_size(output, 6)
             #     stats[j]['median'] = [ np.median(total[k]) for k in range(len(total))]
@@ -225,11 +227,11 @@ def read_outputs(direc, trace):
 def main():
     global bandwidth
     date = str(sys.argv[1])
-    trace = str(sys.argv[2])
-    bandwidth = int(sys.argv[3])
-    util, fct_oct_ratio,n_ratio =  read_outputs("../result/load/" + date, trace)
-    output_file(util, "../result/load/{}_load_util.dat".format( trace))
-    output_file(fct_oct_ratio, "../result/load/{}_load_slowdown.dat".format(trace))
-    output_file(n_ratio, "../result/load/{}_load_99_slowdown.dat".format(trace))
+    # trace = str(sys.argv[2])
+    bandwidth = int(sys.argv[2])
+    util, fct_oct_ratio,n_ratio =  read_outputs("../result/load/" + date)
+    # output_file(util, "../result/load/{}_load_util.dat".format( trace))
+    output_file(fct_oct_ratio, "../result/load/mean_slowdown.dat")
+    # output_file(n_ratio, "../result/load/{}_load_99_slowdown.dat".format(trace))
 main()
 

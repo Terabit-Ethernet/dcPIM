@@ -218,7 +218,7 @@ def read_outputs(direc, workload, trace):
             stats[i]['mean'] = output[workload]["0.6"]['mean_flow_size']
             stats[i]['std'] = output[workload]["0.6"]["std"]
         else:
-            file = input_prefix  + i +  "_" + trace + "_6.txt"
+            file = input_prefix  + i +  "_" + trace + "_6.0.txt"
             output, total_sent_packets, finish_time, start_time = read_file(file)
             total, num_elements = get_mean_fct_oct_ratio(output, 6)
             stats[i]['mean'] = [ np.mean(total[j]) for j in range(len(total))]

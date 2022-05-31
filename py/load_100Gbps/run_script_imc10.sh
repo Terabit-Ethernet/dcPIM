@@ -1,6 +1,6 @@
 #!/bin/bash
 
-loads=(6.0)
+loads=(5.0 6.0 7.0 8.0 8.2 8.4 8.6 8.8)
 algos=(pim)
 calc(){ awk "BEGIN { print "$*" }"; }
 pids=()
@@ -22,9 +22,9 @@ do
 	#	nohup ./batch_simulate_sflow.py -P $p -F ../../../data/ -t ${threshold[$index]} -i 10 -N 1000 -s 1 -l results/conext18/flows/percentage-${percentage[$index]}.log &
 	    pids[${index}]=$!
 	done
-#	for pid in ${pids[*]}; 
-#	do
-#    	  wait $pid
-#        done
+	for pid in ${pids[*]}; 
+	do
+    	  wait $pid
+        done
     pids=()
 done
