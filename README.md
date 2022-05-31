@@ -57,8 +57,7 @@ Several tips for running experiments:
 
    ```
    cd py/worst_case/
-   
-   
+   ./run.sh
    ```
    The logs are stored in directory `py/result/worst_case/5.15/`.
 
