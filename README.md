@@ -35,13 +35,17 @@ mkdir py/result
 
 Running different workloads takes different amount of time. Here is the estimation of running time for each workload:
 ```
-IMC10 (aditya):   20-30 mins
-Web Search: 5-6 hours
-Datamining: 2-3 days
+IMC10 (aditya):   ~20 mins
+Web Search: 4 hours
+Datamining: ~17 hours
 ```
 After running scripts, simulators will be run in background.
+Several tips for running experiments:
+ First, making sure the total number of simulator processes <= total number of CPU cores. 
+ Second, running too many datamining experiments in parallel may use too much memory.
+ For example, if the server has 12GB memory, we recommend having at most 8 datamining experiments.
 
-1. Reproduce Figure 3 results (Evaulation results for the default setup)
+1. Reproduce Figure 3 results (Evaulation results for the default setup) (Running time: ~17 hours)
 
    ```
    cd py/load_100Gbps/
@@ -49,15 +53,16 @@ After running scripts, simulators will be run in background.
    ```
    The logs are stored in directory `py/result/load/5.15/`.
 
-2. Reproduce Figure 4 results (Microscopic view into dcPIM performance)
+2. Reproduce Figure 4 results (Microscopic view into dcPIM performance) (Running time: ~30 mins)
 
    ```
    cd py/worst_case/
-   ./run.sh
+   
+   
    ```
    The logs are stored in directory `py/result/worst_case/5.15/`.
 
-3. Reproduce Figure 5 results (Oversubscribed topology and Fat-Tree topology)
+3. Reproduce Figure 5 results (Oversubscribed topology and Fat-Tree topology) (Running time: 17 hours + 31 hours)
 
    To run workloads on oversubscribed topology,
    
@@ -74,7 +79,7 @@ After running scripts, simulators will be run in background.
    ```
    The logs are stored in directory `py/result/fat_tree/5.15/`.
 
-4. Reproduce Figure 6 results (dcPIM Sensitivity Analysis)
+4. Reproduce Figure 6 results (dcPIM Sensitivity Analysis) (running time: 1 hours)
 
    For 6a and 6b, the maximum sustained loads for each (r, k) are:
 
@@ -105,7 +110,7 @@ After running scripts, simulators will be run in background.
    The logs are stored in directory `py/result/pim_beta/5.15/`.
 
 
-5. Reproduce Figure 8 results (Bursty workload)
+5. Reproduce Figure 8 results (Bursty workload) (running time: ~17 hours)
 
    ```
    cd py/bursty_workload/
@@ -119,22 +124,24 @@ After running scripts, simulators will be run in background.
 
 All parsing scripts are located at `py/analysis`. And the parsing results are located at `py/result/path/to/result`.
 
+   ```
+   cd py/analysis
+   ```
 1. Parse Figure 3 results (Evaulation results for the default setup).
 
    Parse results of network utilization and mean slowdown (Figure 3a and 3b).
   
    ```
    python parse_load.py 5.15 imc10 100
-   python parse_load.py 5.15 websearch 100
-   python parse_load.py 5.15 datamining 100
+   python parse_slowdown.py 5.15 100
    ```
    
-   The network utilization/slodown result is at: `py/result/load/$WORKLOAD_load_util.dat`and `py/result/load/$WORKLOAD_load_slowdown.dat`. The format of files are `<LOAD> <MEAN_SLOWDOWN_OR_UTIL>`. For Figure 3b, the default load is 0.6, corresponding to the second row in the `$WORKLOAD_load_slowdown.dat`. 
+   For Figure 3a, the result is at: `py/result/load/imc10_load_util.dat`. The format of files are `<LOAD> <UTIL>`. For Figure 3b, the results are located at `py/result/load/mean_slowdown.dat`; the mean slowdown when the load is 0.6, is corresponding to the second row in the `$WORKLOAD_load_slowdown.dat`. 
    
    Parse results of slowdown versus flow size(Figure 3c, 3d, 3e) with the IMC10 workload.
    
    ```
-   python parse_fct_oct_flowsize.py 5.15 all-to-all IMC10 100
+   python parse_fct_oct_flowsize.py 5.15 all-to-all imc10 100
    python parse_fct_oct_flowsize.py 5.15 all-to-all websearch 100
    python parse_fct_oct_flowsize.py 5.15 all-to-all datamining 100
 
