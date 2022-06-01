@@ -219,7 +219,6 @@ def read_outputs(direc, workload, trace):
             total, num_elements = get_mean_fct_oct_ratio(output, 6)
             stats[i]['mean'] = [ np.mean(total[j]) for j in range(len(total))]
             stats[i]['std'] =  [ np.percentile(total[j], 99) - np.mean(total[j]) for j in range(len(total))]
-            print stats
     return stats, num_elements
 
 def main():

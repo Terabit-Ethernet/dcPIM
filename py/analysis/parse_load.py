@@ -8,7 +8,7 @@ import json
 # algos = ["homa_aeolus", "ndp","hpcc", "pim"]
 #algos = ["pfabric", "homa", "pim"]
 algos=["pim"]
-loads = [5.0, 6.0, 7.0, 8.0, 8,2, 8.4, 8.6, 8.8]
+loads = [5.0, 6.0, 7.0, 8.0, 8.2, 8.4, 8.6, 8.8]
 # input_file1 = sys.argv[1]
 # output_file = sys.argv[2]
 
