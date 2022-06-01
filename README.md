@@ -175,7 +175,7 @@ All parsing scripts are located at `py/analysis`. And the parsing results are lo
    Parse results of slowdown versus flow size in oversubscribed topology with IMC10 workload (Figure 5b).
    
    ```
-   python parse_fct_oct_flowsize_os.py 5.15 all-to-all imc10 100
+   python parse_fct_oct_flowsize_os.py 5.15 oversubscribe imc10 100
    ```
    
    The file is located at `py/result/oversubscribed/oversubscribe_imc10_100_slowdown_size.dat`.
@@ -191,7 +191,7 @@ All parsing scripts are located at `py/analysis`. And the parsing results are lo
    Parse results of slowdown versus flow size in Fat-tree topology with IMC10 workload (Figure 5d).
    
    ```
-   python parse_fct_oct_flowsize_fat.py 5.15 all-to-all imc10 100
+   python parse_fct_oct_flowsize_fat.py 5.15 fat_tree imc10 100
    ```
      
    The file is located at `py/result/fat_tree/fat_tree_aditya_100_slowdown_size.dat`.
