@@ -149,18 +149,13 @@ All parsing scripts are located at `py/analysis`. And the parsing results are lo
    The corresponding file is at `py/result/load/$WORKLOAD_load_slowdown.dat`. The format of the file is `<FLOW_SIZE> <MEAN_SLOWDOWN> <DIFF_BETWEEN_TAIL_AND_MEAN>`.
    
 2. Parse Figure 4 results (Microscopic view into dcPIM performance)
-
-   The result of Figure 4a is located at `py/result/worst_case/pim_util_worstcase1.txt`. The format of file is  `<TIME> <Throughput>`. The network utilization is `THROUGHPUT / 1600`.
-   
-   Parse results for Figure 4b.
    
    ```
-   python parse_worstcast_slowdown.py 5.15 worstcase2
+   python parse_worstcase1_util.py 
+   python parse_worstcase_slowdown.py 5.15 worstcase2
+   python parse_worstcase3_util.py 
    ```
-   
-   The file is located at `py/result/worst_case/worstcase2_slowdown.txt`.
-   
-   The result of Figure 4c is located at `py/result/worst_case/pim_util_worstcase3.txt`. The format of file is  `<TIME> <Throughput>`. The network utilization is `THROUGHPUT / 14400`. 
+    The result of Figure 4a is located at `py/result/worst_case/pim_util_worstcase1_result.txt`, Figure 4b is located at `py/result/worst_case/worstcase2_slowdown.txt` and Figure 4c is located `py/result/worst_case/pim_util_worstcase3.txt`.
    
 3. Parse Figure 5 results (Oversubscribed topology and Fat-Tree topology)
 
