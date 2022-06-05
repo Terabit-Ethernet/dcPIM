@@ -66,6 +66,13 @@ public:
     virtual void make_flows();
 };
 
+class PoissonLocalFlowGenerator : public FlowGenerator {
+public:
+    PoissonLocalFlowGenerator(uint32_t num_flows, Topology *topo, std::string filename, int local);
+    virtual void make_flows();
+    int local;
+};
+
 class PoissonFlowBytesGenerator : public FlowGenerator {
 public:
     PoissonFlowBytesGenerator(uint32_t num_flows, Topology *topo, std::string filename);

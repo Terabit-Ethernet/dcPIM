@@ -31,8 +31,13 @@ Host::Host(uint32_t id, double rate, uint32_t queue_type, uint32_t host_type) : 
 // TODO FIX superclass constructor
 Switch::Switch(uint32_t id, uint32_t switch_type) : Node(id, SWITCH) {
     this->switch_type = switch_type;
+    this->record_time = 0;
+    this->total_bytes_in_switch = 0;
+    this->max_bytes_in_switch = 0;
 }
 
+
+// Leaf Spine Switches
 CoreSwitch::CoreSwitch(uint32_t id, uint32_t nq, double rate, uint32_t type) : Switch(id, CORE_SWITCH) {
     for (uint32_t i = 0; i < nq; i++) {
         queues.push_back(Factory::get_queue(i, rate, params.queue_size, type, 0, 2));
@@ -48,10 +53,21 @@ AggSwitch::AggSwitch(
         double r2, 
         uint32_t type
         ) : Switch(id, AGG_SWITCH) {
+    this->queue_to_arbiter = NULL;
     for (uint32_t i = 0; i < nq1; i++) {
         queues.push_back(Factory::get_queue(i, r1, params.queue_size, type, 0, 3));
     }
     for (uint32_t i = 0; i < nq2; i++) {
         queues.push_back(Factory::get_queue(i, r2, params.queue_size, type, 0, 1));
+    }
+}
+
+
+// Fat Tree Switches
+FatTreeSwitch::FatTreeSwitch(uint32_t id, uint32_t nq, double rate, uint32_t queue_type, uint32_t switch_type) : Switch(id, switch_type) {
+    this->queue_to_arbiter = NULL;
+    for (uint32_t i = 0; i < nq; i++) {
+        // ddc = 0, the queue location doesn't matter.
+        queues.push_back(Factory::get_queue(i, rate, params.queue_size, queue_type, 0, 2));
     }
 }

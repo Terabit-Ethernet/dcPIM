@@ -19,19 +19,21 @@
 #define FASTPASS_RTS 9
 #define FASTPASS_SCHEDULE 10
 
-// RANKING
-#define RANKING_RTS 11
-#define RANKING_LISTSRCS 12
-#define RANKING_NRTS 13
-#define RANKING_GOSRC 14
-#define RANKING_TOKEN 15
+// RUF
+#define RUF_RTS 11
+#define RUF_LISTSRCS 12
+#define RUF_NRTS 13
+#define RUF_GOSRC 14
+#define RUF_TOKEN 15
 
 // PIM
 #define PIM_GRANTS_PACKET 16
 #define PIM_ACK 17
 #define GRANTSR_PACKET 18
-#define PIM_RTS_PACKET 19
+#define PIM_REQ_PACKET 19
 #define ACCEPT_PACKET 20
+#define FLOW_RTS 21
+#define PIM_TOKEN 22
 
 class FastpassEpochSchedule;
 
@@ -58,8 +60,7 @@ class Packet {
         double last_enque_time;
 
         int capa_data_seq;
-        // round of ranking
-        int ranking_round;
+        int hop;
 };
 
 class PlainAck : public Packet {
@@ -112,34 +113,48 @@ class CTS : public Packet{
 };
 
 // For Multi-Round algorithm (PIM)
-class PIMRTS : public Packet{
+class FlowRTS : public Packet
+{
     public:
-        PIMRTS(Flow *flow, Host *src, Host *dst, int iter, int epoch);
+        FlowRTS(Flow *flow, Host *src, Host *dst, int size_in_pkt);
+        int size_in_pkt;
+};
+
+class PIMREQ : public Packet{
+    public:
+        PIMREQ(Flow *flow, Host *src, Host *dst, int iter, int epoch, int remaining, int total_links);
         int iter;
         int epoch;
+        int remaining_sz;
+        int total_links;
 };
 
 class GrantsR : public Packet{
     public:
-        GrantsR(Flow *flow, Host *src, Host *dst, int iter, int epoch);
+        GrantsR(Flow *flow, Host *src, Host *dst, int iter, int epoch, int total_links);
         int iter;
         int epoch;
+        int total_links;
 };
 
 class AcceptPkt : public Packet{
     public:
-        AcceptPkt(Flow *flow, Host *src, Host *dst, bool accept, int iter, int epoch);
-        bool accept;
+        AcceptPkt(Flow *flow, Host *src, Host *dst, int iter, int epoch, int total_links);
         int iter;
         int epoch;
+        int total_links;
+        int prompt_links;
 };
 
 class PIMGrants : public Packet{
     public:
-        PIMGrants(Flow *flow, Host *src, Host *dst, int iter, int epoch, bool prompt);
+        PIMGrants(Flow *flow, Host *src, Host *dst, int iter, int epoch, int remaining_sz, int total_links, bool prompt);
         int iter;
         int epoch;
-        bool prompt;
+        int remaining_sz;
+        int total_links;
+        int prompt_links;
+        // bool prompt;
 };
 
 class PIMAck : public Packet {
@@ -148,6 +163,16 @@ class PIMAck : public Packet {
         uint32_t data_seq_no_acked;
 };
 
+class PIMToken : public Packet
+{
+    public:
+        PIMToken(Flow *flow, Host *src, Host *dst, double ttl, int remaining, int token_seq_num, int data_seq_num, int priority);
+        double ttl;
+        int remaining_sz;
+        int token_seq_num;
+        int data_seq_num;
+        int priority;
+};
 
 class CapabilityPkt : public Packet{
     public:
@@ -179,47 +204,50 @@ class FastpassSchedulePkt : public Packet
         FastpassSchedulePkt(Flow *flow, Host *src, Host *dst, FastpassEpochSchedule* schd);
         FastpassEpochSchedule* schedule;
 };
-// Ranking Algorithm
-class RankingRTS : public Packet
+// Ruf Algorithm
+class RufRTS : public Packet
 {
     public:
-        RankingRTS(Flow *flow, Host *src, Host *dst, int size_in_pkt);
+        RufRTS(Flow *flow, Host *src, Host *dst, int size_in_pkt);
         int size_in_pkt;
 };
 
-class RankingListSrcs : public Packet
+class RufListSrcs : public Packet
 {
     public:
-        RankingListSrcs(Flow *flow, Host *src, Host *dst, Host* rts_dst, std::list<uint32_t> listSrcs);
-        ~RankingListSrcs();
+        RufListSrcs(Flow *flow, Host *src, Host *dst, Host* rts_dst, std::list<uint32_t> listSrcs);
+        ~RufListSrcs();
         std::list<uint32_t> listSrcs;
+        std::list<uint32_t> flowSizes;
         Host* rts_dst;
         bool has_nrts;
         int nrts_src_id;
         int nrts_dst_id;
+        int round;
 };
 
-class RankingNRTS : public Packet
+class RufNRTS : public Packet
 {
     public:
-        RankingNRTS(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t dst_id);
+        RufNRTS(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t dst_id);
         uint32_t src_id;
         uint32_t dst_id;
 
 };
 
-class RankingGoSrc : public Packet
+class RufGoSrc : public Packet
 {
     public:
-        RankingGoSrc(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t max_tokens);
+        RufGoSrc(Flow *flow, Host *src, Host *dst, uint32_t src_id, uint32_t max_tokens, int round);
         uint32_t src_id;
         uint32_t max_tokens;
+        int round;
 };
 
-class RankingToken : public Packet
+class RufToken : public Packet
 {
     public:
-        RankingToken(Flow *flow, Host *src, Host *dst, double ttl, int remaining, int token_seq_num, int data_seq_num);
+        RufToken(Flow *flow, Host *src, Host *dst, double ttl, int remaining, int token_seq_num, int data_seq_num);
         double ttl;
         int remaining_sz;
         int token_seq_num;

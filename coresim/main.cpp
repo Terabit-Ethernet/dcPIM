@@ -12,12 +12,15 @@
 #include "node.h"
 #include "event.h"
 #include "topology.h"
+#include "fatTreeTopology.h"
 #include "queue.h"
 #include "random_variable.h"
 
 #include "../ext/factory.h"
 //#include "../ext/fastpasshost.h"
-#include "../ext/rankinghost.h"
+#include "../ext/rufhost.h"
+#include "../ext/rufTopology.h"
+
 #include "../run/params.h"
 
 using namespace std;
@@ -28,13 +31,13 @@ std::priority_queue<Event*, std::vector<Event*>, EventComparator> event_queue;
 std::deque<Flow*> flows_to_schedule;
 std::deque<Event*> flow_arrivals;
 
-uint32_t num_outstanding_packets = 0;
-uint32_t max_outstanding_packets = 0;
-uint32_t num_outstanding_packets_at_50 = 0;
-uint32_t num_outstanding_packets_at_100 = 0;
-uint32_t arrival_packets_at_50 = 0;
-uint32_t arrival_packets_at_100 = 0;
-uint32_t arrival_packets_count = 0;
+long long num_outstanding_packets = 0;
+long long max_outstanding_packets = 0;
+long long num_outstanding_packets_at_50 = 0;
+long long num_outstanding_packets_at_100 = 0;
+long long arrival_packets_at_50 = 0;
+long long arrival_packets_at_100 = 0;
+long long arrival_packets_count = 0;
 uint32_t total_finished_flows = 0;
 uint32_t duplicated_packets_received = 0;
 
@@ -78,12 +81,17 @@ double get_current_time() {
 void run_scenario() {
     // Flow Arrivals create new flow arrivals
     // Add the first flow arrival
+    double next_time = 1.0;
+    double max = 0;
     if (flow_arrivals.size() > 0) {
         add_to_event_queue(flow_arrivals.front());
         flow_arrivals.pop_front();
     }
     int last_evt_type = -1;
     int same_evt_count = 0;
+    if(params.debug_queue) {
+        add_to_event_queue(new RecordQueueEvent(1.0, params.debug_queue_interval));
+    }
     while (event_queue.size() > 0) {
         Event *ev = event_queue.top();
         event_queue.pop();
@@ -110,11 +118,47 @@ void run_scenario() {
         }
         if(params.print_max_min_fairness && get_current_time() > 1.2) {
             for(int i = 0; i < topology->hosts.size(); i++) {
-                ((RankingHost*)topology->hosts[i])->print_max_min_fairness();
+                ((RufHost*)topology->hosts[i])->print_max_min_fairness();
             }
             assert(false);
         }
+
+        // if(params.debug_controller_queue) {
+        //     if(current_time > next_time) {
+        //         next_time = current_time + 0.000002;
+        //         Queue* queue = NULL;
+        //         if(params.topology == "FatTree") {
+        //             queue = dynamic_cast<FatTreeTopology*>(topology)->edge_switches[0]->queue_to_arbiter;
+        //         } else {
+        //             RufTopology* t = dynamic_cast<RufTopology*>(topology);
+        //             RufAggSwitch* agg_switch = (RufAggSwitch*)(t->agg_switches[0]);
+        //             queue = agg_switch->queue_to_arbiter;
+        //         }
+
+        //         // if(queue->bytes_in_queue  > 3000 && max == queue->bytes_in_queue) {
+        //                 std::cout << get_current_time() << " " << queue->bytes_in_queue << "\n";
+        //                 // for(int i = 0; i < queue->packets.size(); i++) {
+        //                 //     std::cout << queue->packets[i]->src->id << " " <<
+        //                 //      dynamic_cast<RufListSrcs*> (queue->packets[i])->listSrcs.size() << std::endl;
+        //                 // }
+        //         // }
+        //     }
+        // }
+        // if(1) {
+        //     if(current_time > next_time) {
+        //         next_time = current_time + 0.000002;
+        //         double sent_bytes = (double) (arrival_packets_count - num_outstanding_packets) * 1500;
+        //         double ideal_bytes = params.num_hosts * double (params.bandwidth) / 8 * (current_time - 1.0);
+        //         std::cout << get_current_time() - 1.0
+        //          << " " << sent_bytes / ideal_bytes << std::endl;
+        //     }
+        //     if(current_time > 1.05) {
+        //         assert(false);
+        //     }
+        // }
         delete ev;
+        if (total_finished_flows >= params.num_flows_to_run)
+            return;
     }
 }
 

@@ -12,8 +12,8 @@ extern double get_current_time();
 extern void add_to_event_queue(Event *);
 extern int get_event_queue_size();
 extern DCExpParams params;
-extern uint32_t num_outstanding_packets;
-extern uint32_t max_outstanding_packets;
+extern long long num_outstanding_packets;
+extern long long max_outstanding_packets;
 extern uint32_t duplicated_packets_received;
 
 Flow::Flow(uint32_t id, double start_time, uint32_t size, Host *s, Host *d) {
@@ -193,7 +193,7 @@ void Flow::receive_data_pkt(Packet* p) {
     total_queuing_time += p->total_queuing_delay;
 
     if (received.count(p->seq_no) == 0) {
-        received[p->seq_no] = true;
+        received.insert(p->seq_no);
         if(num_outstanding_packets >= ((p->size - hdr_size) / (mss)))
             num_outstanding_packets -= ((p->size - hdr_size) / (mss));
         else
@@ -281,3 +281,21 @@ double Flow::get_avg_queuing_delay_in_us()
     return total_queuing_time/received_count * 1000000;
 }
 
+void Flow::log_utilization(int pkt_size) {
+    static double total_recvd = 0;
+    static double total_recvd_last = 0;
+    static double last_time = 1.0;
+    static std::ofstream util_file;
+
+    total_recvd += pkt_size;
+    if(params.util_file != "" &&  get_current_time() - last_time > 0.00002) {
+        if(!util_file.is_open()) {
+            util_file.open(params.util_file);
+        }
+        util_file << get_current_time() <<  " " << 
+            (total_recvd - total_recvd_last)  / (get_current_time() - last_time) / 1000000000 * 8 << " Gbps" << std::endl;
+        total_recvd_last = total_recvd;
+        last_time = get_current_time();
+    }
+
+}

@@ -32,7 +32,12 @@ public:
         v = _Sequence();
         best_index = -1;
     }
-
+    CustomPriorityQueue(const _Compare& compartor)
+    {
+        comp = compartor;
+        v = _Sequence();
+        best_index = -1;
+    }
     bool empty() const
     {
         return v.empty();
@@ -62,7 +67,8 @@ public:
     {
         assert(v.size() > 0);
         _Tp best = *v.begin();
-        for(int i = 0; i < v.size(); i++)
+        best_index = 0;
+        for(unsigned int i = 0; i < v.size(); i++)
         {
             if(!comp(v[i],best)){
                 best = v[i];

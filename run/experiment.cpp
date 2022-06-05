@@ -16,14 +16,16 @@
 #include "../coresim/node.h"
 #include "../coresim/event.h"
 #include "../coresim/topology.h"
+#include "../coresim/fatTreeTopology.h"
+#include "../coresim/leafSpineTopology.h"
 #include "../coresim/queue.h"
 #include "../coresim/random_variable.h"
 
 #include "../ext/factory.h"
 #include "../ext/fountainflow.h"
 #include "../ext/capabilityflow.h"
-#include "../ext/fastpassTopology.h"
-#include "../ext/rankingTopology.h"
+// #include "../ext/fastpassTopology.h"
+// #include "../ext/rufTopology.h"
 #include "../ext/pimhost.h"
 
 #include "flow_generator.h"
@@ -38,18 +40,18 @@ extern std::priority_queue<Event*, std::vector<Event*>, EventComparator> event_q
 extern std::deque<Flow*> flows_to_schedule;
 extern std::deque<Event*> flow_arrivals;
 
-extern uint32_t num_outstanding_packets;
-extern uint32_t max_outstanding_packets;
+extern long long num_outstanding_packets;
+extern long long max_outstanding_packets;
 extern DCExpParams params;
 extern void add_to_event_queue(Event*);
 extern void read_experiment_parameters(std::string conf_filename, uint32_t exp_type);
 extern void read_flows_to_schedule(std::string filename, uint32_t num_lines, Topology *topo);
 extern uint32_t duplicated_packets_received;
 
-extern uint32_t num_outstanding_packets_at_50;
-extern uint32_t num_outstanding_packets_at_100;
-extern uint32_t arrival_packets_at_50;
-extern uint32_t arrival_packets_at_100;
+extern long long num_outstanding_packets_at_50;
+extern long long num_outstanding_packets_at_100;
+extern long long arrival_packets_at_50;
+extern long long arrival_packets_at_100;
 
 extern double start_time;
 extern double get_current_time();
@@ -158,24 +160,30 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
         std::cout << "Usage: <exe> exp_type conf_file" << std::endl;
         return;
     }
-
+    int local_endhost = 0;
     std::string conf_filename(argv[2]);
-    read_experiment_parameters(conf_filename, exp_type);
-    params.num_hosts = 144;
-    params.num_agg_switches = 9;
-    params.num_core_switches = 4;
-    
-    if (params.flow_type == FASTPASS_FLOW) {
-        topology = new FastpassTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
-    } 
-    else if (params.flow_type == RANKING_FLOW) {
-        topology = new RankingTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
-    }
-    else if (params.big_switch) {
-        topology = new BigSwitchTopology(params.num_hosts, params.bandwidth, params.queue_type);
-    } 
-    else {
-        topology = new PFabricTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
+    read_experiment_parameters(conf_filename, exp_type);    
+    if(params.topology == "FatTree") {
+        params.num_hosts =  params.k * params.k * params.k / 4;
+        topology = new FatTreeTopology(params.k, params.bandwidth, params.queue_type);
+        local_endhost = params.k * params.k / 2;
+    } else {
+        // params.num_hosts = 144;
+        params.num_agg_switches = 9;
+        params.num_core_switches = 4;
+        local_endhost = params.num_hosts / params.num_agg_switches;
+        // if (params.flow_type == FASTPASS_FLOW) {
+        //     topology = new FastpassTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
+        // } 
+        // else if (params.flow_type == RUF_FLOW) {
+        //     topology = new RufTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
+        // }
+        // if (params.big_switch) {
+        //     topology = new BigSwitchTopology(params.num_hosts, params.bandwidth, params.queue_type);
+        // } 
+        // else {
+            topology = new LeafSpineTopology(params.num_hosts, params.num_agg_switches, params.num_core_switches, params.bandwidth, params.queue_type);
+//        }
     }
 
     uint32_t num_flows = params.num_flows_to_run;
@@ -184,8 +192,16 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
     // Make the camparision apple to apple;
     srand(0);
     if (params.use_flow_trace) {
-        fg = new FlowReader(num_flows, topology, params.cdf_or_flow_trace);
-        fg->make_flows();
+        if(params.cdf_or_flow_trace != "") {
+            fg = new FlowReader(num_flows, topology, params.cdf_or_flow_trace);
+            fg->make_flows();
+        }
+        if(params.incast_trace != "") {
+            fg = new FlowReader(num_flows, topology, params.incast_trace);
+            fg->make_flows();
+        }
+        params.num_flows_to_run = flows_to_schedule.size();
+
     }
     else if (params.interarrival_cdf != "none") {
         fg = new CustomCDFFlowGenerator(num_flows, topology, params.cdf_or_flow_trace, params.interarrival_cdf);
@@ -215,6 +231,10 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
     }
     else if (params.bytes_mode) {
         fg = new PoissonFlowBytesGenerator(num_flows, topology, params.cdf_or_flow_trace);
+        fg->make_flows();
+    }
+    else if (params.local_load != -1) {
+        fg = new PoissonLocalFlowGenerator(num_flows, topology, params.cdf_or_flow_trace, local_endhost);
         fg->make_flows();
     }
     else if (params.traffic_imbalance < 0.01) {
@@ -258,10 +278,10 @@ void run_experiment(int argc, char **argv, uint32_t exp_type) {
     //add_to_event_queue(new LoggingEvent((flows_sorted.front())->start_time));
 
     if (params.flow_type == FASTPASS_FLOW) {
-        dynamic_cast<FastpassTopology*>(topology)->arbiter->start_arbiter();
+        dynamic_cast<FastpassArbiter*>(topology->arbiter)->start_arbiter();
     }
-    if (params.flow_type == RANKING_FLOW) {
-        dynamic_cast<RankingTopology*>(topology)->arbiter->start_arbiter();
+    if (params.flow_type == RUF_FLOW) {
+        dynamic_cast<RufArbiter*>(topology->arbiter)->start_arbiter();
     }
     if(params.flow_type == PIM_FLOW) {
         for(int i = 0; i < params.num_hosts; i++) {

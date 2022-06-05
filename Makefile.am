@@ -12,6 +12,8 @@ simulator_SOURCES = 				 		 	 \
 					coresim/topology.cpp 		 \
 					coresim/flow.cpp 			 \
 					coresim/random_variable.cpp  \
+					coresim/fatTreeTopology.cpp  \
+					coresim/leafSpineTopology.cpp \
 					ext/factory.cpp 		 	 \
 					ext/pfabricqueue.cpp         \
 					ext/pfabricflow.cpp          \
@@ -24,9 +26,9 @@ simulator_SOURCES = 				 		 	 \
 					ext/fastpassflow.cpp 	   	 \
 					ext/fastpasshost.cpp 	   	 \
 					ext/fastpassTopology.cpp	 \
-					ext/rankinghost.cpp	         \
-					ext/rankingflow.cpp	         \
-					ext/rankingTopology.cpp      \
+					ext/rufhost.cpp	         \
+					ext/rufflow.cpp	         \
+					ext/rufTopology.cpp      \
 					ext/pimflow.cpp               \
 					ext/pimhost.cpp		     \
 					ext/tcpflow.cpp				 \

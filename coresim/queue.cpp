@@ -18,7 +18,7 @@ extern DCExpParams params;
 uint32_t Queue::instance_count = 0;
 
 /* Queues */
-Queue::Queue(uint32_t id, double rate, uint32_t limit_bytes, int location) {
+Queue::Queue(uint32_t id, double rate, int limit_bytes, int location) {
     this->id = id;
     this->unique_id = Queue::instance_count++;
     this->rate = rate; // in bps
@@ -29,6 +29,9 @@ Queue::Queue(uint32_t id, double rate, uint32_t limit_bytes, int location) {
     //this->packet_propagation_event = NULL;
     this->location = location;
 
+    this->max_bytes_in_queue = 0;
+    this->total_bytes_in_queue = 0;
+    this->record_time = 0;
     if (params.ddc != 0) {
         if (location == 0) {
             this->propagation_delay = 10e-9;
@@ -62,7 +65,7 @@ void Queue::set_src_dst(Node *src, Node *dst) {
 void Queue::enque(Packet *packet) {
     p_arrivals += 1;
     b_arrivals += packet->size;
-    if (bytes_in_queue + packet->size <= limit_bytes) {
+    if (bytes_in_queue + packet->size <= limit_bytes && limit_bytes != -1) {
         packets.push_back(packet);
         bytes_in_queue += packet->size;
     } else {
@@ -85,7 +88,7 @@ Packet *Queue::deque() {
 
 void Queue::drop(Packet *packet) {
     packet->flow->pkt_drop++;
-    if(packet->seq_no < packet->flow->size){
+    if(packet->seq_no <= packet->flow->size){
         packet->flow->data_pkt_drop++;
     }
     if(packet->type == ACK_PACKET)
@@ -94,11 +97,23 @@ void Queue::drop(Packet *packet) {
     if (location != 0 && packet->type == NORMAL_PACKET) {
         dead_packets += 1;
     }
-    // if(packet->type == RANKING_LISTSRCS) {
-    //     std::cout << get_current_time() << " listSRC pkt drop. flow:" << packet->flow->id << " packet size:" << packet->size
-    //         << " type:" << packet->type << " seq:" << packet->seq_no << " src:" << packet->src->id << " num of packets in queue: " << packets.size()
-    //         << " at queue id:" << this->id << " loc:" << this->location << "\n";
-    // }
+    if(packet->type == RUF_LISTSRCS) {
+        std::cout << get_current_time() << " listSRC pkt drop. flow:" << packet->flow->id << " packet size:" << packet->size
+            << " type:" << packet->type << " seq:" << packet->seq_no << " src:" << packet->src->id << " num of packets in queue: " << packets.size()
+            << " at queue id:" << this->id << " loc:" << this->location << "\n";
+    }
+    else if(packet->type == RUF_GOSRC) {
+        std::cout << get_current_time() << " gosrc pkt drop. flow:" << packet->flow->id << " packet size:" << packet->size
+            << " type:" << packet->type << " seq:" << packet->seq_no << " src:" << packet->src->id << " num of packets in queue: " << packets.size()
+            << " at queue id:" << this->id << " loc:" << this->location << "\n";
+    }
+    else if (packet->type == FASTPASS_SCHEDULE) {
+        // std::cout << get_current_time() << " fastpass pkt drop. flow:" << packet->flow->id << " packet size:" << packet->size
+        //     << " type:" << packet->type << " seq:" << packet->seq_no << " src:" << packet->src->id << " num of packets in queue: " << packets.size()
+        //     << " at queue id:" << this->id << " loc:" << this->location << std::endl;
+        // assert(false);
+        delete ((FastpassSchedulePkt*)packet)->schedule;
+    }
     if(debug_flow(packet->flow->id))
         std::cout << get_current_time() << " pkt drop. flow:" << packet->flow->id
             << " type:" << packet->type << " seq:" << packet->seq_no

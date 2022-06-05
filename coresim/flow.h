@@ -1,7 +1,7 @@
 #ifndef FLOW_H
 #define FLOW_H
 
-#include <unordered_map>
+#include <set>
 #include "node.h"
 
 class Packet;
@@ -33,6 +33,8 @@ class Flow {
         virtual void increase_cwnd();
         virtual double get_avg_queuing_delay_in_us();
 
+        void log_utilization(int pkt_size);
+
         uint32_t id;
         double start_time;
         double finish_time;
@@ -54,7 +56,7 @@ class Flow {
         //  std::unordered_map<uint32_t, Packet *> packets;
 
         // Receiver variables
-        std::unordered_map<uint32_t, bool> received;
+        std::set<uint32_t> received;
         uint32_t received_bytes;
         uint32_t recv_till;
         uint32_t max_seq_no_recv;

@@ -48,6 +48,78 @@ void FlowGenerator::make_flows() {
     current_time = 0;
 }
 
+PoissonLocalFlowGenerator::PoissonLocalFlowGenerator(uint32_t num_flows, Topology *topo, std::string filename, int local) : FlowGenerator(num_flows, topo, filename) {
+    this->local = local;
+};
+    
+void PoissonLocalFlowGenerator::make_flows() {
+    EmpiricalRandomVariable *nv_bytes;
+    if (params.smooth_cdf)
+        nv_bytes = new EmpiricalRandomVariable(filename);
+    else
+        nv_bytes = new CDFRandomVariable(filename);
+
+    params.mean_flow_size = nv_bytes->mean_flow_size;
+    //std::cout << "Lambda: " << lambda_per_host << std::endl;
+
+    double lambda_local = params.bandwidth * params.local_load / (params.mean_flow_size * 8.0 / 1460 * 1500);
+    double lambda_non_local = params.bandwidth * params.os_ratio * params.remote_load / (params.mean_flow_size * 8.0 / 1460 * 1500);
+    double lambda_per_host_non_local = lambda_non_local / (topo->hosts.size() - local);
+    double lambda_per_host_local = lambda_local / (local - 1);
+    ExponentialRandomVariable *nv_intarr_local, *nv_intarr_non_local;
+    if (params.burst_at_beginning) {
+        nv_intarr_local = new ExponentialRandomVariable(0.0000001);
+        nv_intarr_non_local = new ExponentialRandomVariable(0.0000001);
+
+    }
+    else {
+        nv_intarr_local = new ExponentialRandomVariable(1.0 / lambda_per_host_local);
+        nv_intarr_non_local = new ExponentialRandomVariable(1.0 / lambda_per_host_non_local);
+
+    }
+
+    //* [expr ($link_rate*$load*1000000000)/($meanFlowSize*8.0/1460*1500)]
+    for (uint32_t i = 0; i < topo->hosts.size(); i++) {
+        for (uint32_t j = 0; j < topo->hosts.size(); j++) {
+            if (i != j && i / local == j / local) {
+                double first_flow_time = 1.0 + nv_intarr_local->value();
+                add_to_event_queue(
+                    new FlowCreationForInitializationEvent(
+                        first_flow_time,
+                        topo->hosts[i], 
+                        topo->hosts[j],
+                        nv_bytes, 
+                        nv_intarr_local
+                    )
+                );
+            } else if (i != j && i / local != j / local) {
+                double first_flow_time = 1.0 + nv_intarr_non_local->value();
+                add_to_event_queue(
+                    new FlowCreationForInitializationEvent(
+                        first_flow_time,
+                        topo->hosts[i], 
+                        topo->hosts[j],
+                        nv_bytes, 
+                        nv_intarr_non_local
+                    )
+                );
+            }
+        }
+    }
+
+    while (event_queue.size() > 0) {
+        Event *ev = event_queue.top();
+        event_queue.pop();
+        current_time = ev->time;
+        if (flows_to_schedule.size() < num_flows) {
+            ev->process_event();
+        }
+        delete ev;
+    }
+    current_time = 0;
+}
+
+
 PoissonFlowGenerator::PoissonFlowGenerator(uint32_t num_flows, Topology *topo, std::string filename) : FlowGenerator(num_flows, topo, filename) {};
     
 void PoissonFlowGenerator::make_flows() {
@@ -58,7 +130,6 @@ void PoissonFlowGenerator::make_flows() {
         nv_bytes = new CDFRandomVariable(filename);
 
     params.mean_flow_size = nv_bytes->mean_flow_size;
-
     double lambda = params.bandwidth * params.load / (params.mean_flow_size * 8.0 / 1460 * 1500);
     double lambda_per_host = lambda / (topo->hosts.size() - 1);
     //std::cout << "Lambda: " << lambda_per_host << std::endl;
@@ -163,12 +234,12 @@ void FlowReader::make_flows() {
         size = (uint32_t) (params.mss * size);
         assert(size > 0);
 
-        std::cout << "Flow " << id << " " << start_time << " " << size << " " << s << " " << d << "\n";
+        // std::cout << "Flow " << id << " " << start_time << " " << size << " " << s << " " << d << "\n";
         flows_to_schedule.push_back(
             Factory::get_flow(id, start_time, size, topo->hosts[s], topo->hosts[d], params.flow_type)
         );
     }
-    params.num_flows_to_run = flows_to_schedule.size();
+    // params.num_flows_to_run = flows_to_schedule.size();
     input.close();
 }
 
@@ -445,68 +516,22 @@ IncastTM::IncastTM(uint32_t num_flows, Topology *topo, std::string filename, uin
     this->incast = incast;
 }
 
-// void IncastTM::make_flows() {
-//     srand(time(0));
-//     EmpiricalRandomVariable *nv_bytes;
-//     if (params.smooth_cdf)
-//         nv_bytes = new EmpiricalRandomVariable(filename);
-//     else
-//         nv_bytes = new CDFRandomVariable(filename);
-//     auto nv_intarr = new ExponentialRandomVariable(1);
-//     int i = 0;
-//     int j = 0;
-//     std::set<uint32_t> target_srcs;
-
-//     while (1) { // orig. "j != i"
-//         j = rand() % topo->hosts.size();
-//         if (j == i) {
-//             continue; 
-//         }
-//         if (target_srcs.find(j) == target_srcs.end() && target_srcs.size() < this->incast) {
-//             target_srcs.insert(j);
-//         } else if(target_srcs.size() == this->incast){
-//             break;
-//         }
-//     }
-//     for (auto k = target_srcs.begin(); k != target_srcs.end(); k++) {
-//         double first_flow_time = 1.0;
-//         assert(i != *k);
-//         add_to_event_queue(
-//             new FlowCreationForInitializationEvent(
-//                 first_flow_time,
-//                 topo->hosts[*k],
-//                 topo->hosts[i], 
-//                 nv_bytes, 
-//                 nv_intarr
-//             )
-//         );
-//     }
-//     while (event_queue.size() > 0) {
-//         Event *ev = event_queue.top();
-//         event_queue.pop();
-//         current_time = ev->time;
-//         if (flows_to_schedule.size() < num_flows) {
-//             ev->process_event();
-//         }
-//         delete ev;
-//     }
-// }
 void IncastTM::make_flows() {
-    EmpiricalRandomVariable *nv_bytes;
-    if (params.smooth_cdf)
-        nv_bytes = new EmpiricalRandomVariable(filename);
-    else
-        nv_bytes = new CDFRandomVariable(filename);
+    //srand(NULL);
+    // 100 MB
+    double data = 100 * 1024 * 1024;
+    // EmpiricalRandomVariable *nv_bytes;
+    // if (params.smooth_cdf)
+    //     nv_bytes = new EmpiricalRandomVariable(filename);
+    // else
+    //     nv_bytes = new CDFRandomVariable(filename);
+    EmpiricalRandomVariable *nv_bytes = new ConstantVariable(int(data / this->incast / 1460.0));
 
-    params.mean_flow_size = nv_bytes->mean_flow_size;
-    double lambda = params.bandwidth * params.load / (params.mean_flow_size * 8.0 / 1460 * 1500);
-    //std::cout << "Lambda: " << lambda << std::endl;
-    double lambda_per_host = lambda / this->incast;
-    auto *nv_intarr = new ExponentialRandomVariable(1.0 / lambda_per_host);
-    assert(this->incast <= topo->hosts.size());
-    uint32_t i = 0;
-    uint32_t j = i;
+    auto nv_intarr = new ExponentialRandomVariable(1);
+    int i = 0;
+    int j = 0;
     std::set<uint32_t> target_srcs;
+
     while (1) { // orig. "j != i"
         j = rand() % topo->hosts.size();
         if (j == i) {
@@ -519,7 +544,7 @@ void IncastTM::make_flows() {
         }
     }
     for (auto k = target_srcs.begin(); k != target_srcs.end(); k++) {
-        double first_flow_time = 1.0 + nv_intarr->value();
+        double first_flow_time = 1.0;
         assert(i != *k);
         add_to_event_queue(
             new FlowCreationForInitializationEvent(
@@ -531,7 +556,6 @@ void IncastTM::make_flows() {
             )
         );
     }
-    
     while (event_queue.size() > 0) {
         Event *ev = event_queue.top();
         event_queue.pop();
@@ -541,8 +565,59 @@ void IncastTM::make_flows() {
         }
         delete ev;
     }
-    current_time = 0;
 }
+// void IncastTM::make_flows() {
+//     EmpiricalRandomVariable *nv_bytes;
+//     if (params.smooth_cdf)
+//         nv_bytes = new EmpiricalRandomVariable(filename);
+//     else
+//         nv_bytes = new CDFRandomVariable(filename);
+
+//     params.mean_flow_size = nv_bytes->mean_flow_size;
+//     double lambda = params.bandwidth * params.load / (params.mean_flow_size * 8.0 / 1460 * 1500);
+//     //std::cout << "Lambda: " << lambda << std::endl;
+//     double lambda_per_host = lambda / this->incast;
+//     auto *nv_intarr = new ExponentialRandomVariable(1.0 / lambda_per_host);
+//     assert(this->incast <= topo->hosts.size());
+//     uint32_t i = 0;
+//     uint32_t j = i;
+//     std::set<uint32_t> target_srcs;
+//     while (1) { // orig. "j != i"
+//         j = rand() % topo->hosts.size();
+//         if (j == i) {
+//             continue; 
+//         }
+//         if (target_srcs.find(j) == target_srcs.end() && target_srcs.size() < this->incast) {
+//             target_srcs.insert(j);
+//         } else if(target_srcs.size() == this->incast){
+//             break;
+//         }
+//     }
+//     for (auto k = target_srcs.begin(); k != target_srcs.end(); k++) {
+//         double first_flow_time = 1.0 + nv_intarr->value();
+//         assert(i != *k);
+//         add_to_event_queue(
+//             new FlowCreationForInitializationEvent(
+//                 first_flow_time,
+//                 topo->hosts[*k],
+//                 topo->hosts[i], 
+//                 nv_bytes, 
+//                 nv_intarr
+//             )
+//         );
+//     }
+    
+//     while (event_queue.size() > 0) {
+//         Event *ev = event_queue.top();
+//         event_queue.pop();
+//         current_time = ev->time;
+//         if (flows_to_schedule.size() < num_flows) {
+//             ev->process_event();
+//         }
+//         delete ev;
+//     }
+//     current_time = 0;
+// }
 
 WorstcaseTM::WorstcaseTM(uint32_t num_flows, Topology *topo, std::string filename) : FlowGenerator(num_flows, topo, filename) {
 }
@@ -554,10 +629,10 @@ void WorstcaseTM::make_flows() {
     //* [expr ($link_rate*$load*1000000000)/($meanFlowSize*8.0/1460*1500)]
     for (uint32_t i = 0; i < topo->hosts.size(); i++) {
         int mean_flow_size = 0;
-        mean_flow_size = ((params.BDP)* (i + 2) + 1) * 1460;
+        mean_flow_size = (7 * (i + 2) + 1) * 1460;
         EmpiricalRandomVariable *nv_bytes = new ConstantVariable(mean_flow_size / 1460.0);
         double lambda = params.bandwidth * params.load / (mean_flow_size * 8.0 / 1460 * 1500);
-        double lambda_per_host = lambda / (topo->hosts.size() - 1);
+        double lambda_per_host = lambda / topo->hosts.size();
  
         ExponentialRandomVariable *nv_intarr = new ExponentialRandomVariable(1.0 / lambda_per_host);
         for (uint32_t j = 0; j < topo->hosts.size(); j++) {

@@ -24,14 +24,14 @@ extern DCExpParams params;
 extern std::deque<Event*> flow_arrivals;
 extern std::deque<Flow*> flows_to_schedule;
 
-extern uint32_t num_outstanding_packets;
-extern uint32_t max_outstanding_packets;
+extern long long num_outstanding_packets;
+extern long long max_outstanding_packets;
 
-extern uint32_t num_outstanding_packets_at_50;
-extern uint32_t num_outstanding_packets_at_100;
-extern uint32_t arrival_packets_at_50;
-extern uint32_t arrival_packets_at_100;
-extern uint32_t arrival_packets_count;
+extern long long num_outstanding_packets_at_50;
+extern long long num_outstanding_packets_at_100;
+extern long long arrival_packets_at_50;
+extern long long arrival_packets_at_100;
+extern long long arrival_packets_count;
 extern uint32_t total_finished_flows;
 
 extern uint32_t backlog3;
@@ -93,9 +93,16 @@ void FlowCreationForInitializationEvent::process_event() {
         }
         size = (uint32_t) nvVal * 1460;
     }
+    Host* new_dst = dst;
+    while(new_dst == NULL) {
+        new_dst =  topology->hosts[rand()% topology->hosts.size()];
+        if (new_dst->id == src->id) {
+            new_dst = NULL;
+        }
+    }
 
     if (size != 0) {
-        flows_to_schedule.push_back(Factory::get_flow(id, time, size, src, dst, params.flow_type));
+        flows_to_schedule.push_back(Factory::get_flow(id, time, size, src, new_dst, params.flow_type));
     }
 
     double tnext = time + nv_intarr->value();
@@ -163,7 +170,10 @@ void FlowArrivalEvent::process_event() {
         }
         std::cout << "## " << current_time << " NumPacketOutstanding " << num_outstanding_packets
             << " NumUnfinishedFlows " << num_unfinished_flows << " StartedFlows " << flow_arrival_count
-            << " StartedPkts " << arrival_packets_count << "\n";
+            << " StartedPkts " << arrival_packets_count << std::endl;
+        if(params.debug_queue) {
+            topology->print_queue_length();
+        }
     }
 }
 
@@ -305,10 +315,6 @@ void FlowFinishedEvent::process_event() {
     if (slowdown < 1.0 && slowdown > 0.9999) {
         slowdown = 1.0;
     }
-    if (slowdown < 1.0) {
-        std::cout << "bad slowdown " << 1e6 * flow->flow_completion_time << " " << topology->get_oracle_fct(flow) << " " << slowdown << "\n";
-    }
-    assert(slowdown >= 1.0);
 
     if (print_flow_result()) {
         std::cout << std::setprecision(4) << std::fixed ;
@@ -325,9 +331,13 @@ void FlowFinishedEvent::process_event() {
             << flow->total_pkt_sent << "/" << (flow->size/flow->mss) << "//" << flow->received_count << " "
             << flow->data_pkt_drop << "/" << flow->ack_pkt_drop << "/" << flow->pkt_drop << " "
             << 1000000 * (flow->first_byte_send_time - flow->start_time) << " "
-            << "\n";
+            << std::endl;
         std::cout << std::setprecision(9) << std::fixed;
     }
+    if (slowdown < 1.0) {
+        std::cout << "bad slowdown " << "flow size:" << flow->size_in_pkt << " " << 1e6 * flow->flow_completion_time << " " << topology->get_oracle_fct(flow) << " " << slowdown << std::endl;
+    }
+    assert(slowdown >= 1.0);
 }
 
 
@@ -364,3 +374,27 @@ void RetxTimeoutEvent::process_event() {
     flow->handle_timeout();
 }
 
+/* Record Queue Event */
+RecordQueueEvent::RecordQueueEvent(double time, double interval)
+    : Event(RECORD_QUEUEING, time) {
+        this->interval = interval;
+    }
+
+RecordQueueEvent::~RecordQueueEvent() {
+}
+
+void RecordQueueEvent::process_event() {
+    for(int i = 0; i < topology->num_hosts; i++) {
+        topology->hosts[i]->queue->record();
+    }
+    for(int i = 0; i < topology->switches.size(); i++) {
+        topology->switches[i]->record();
+        for (int j = 0; j < topology->switches[i]->queues.size(); j++) {
+            topology->switches[i]->queues[j]->record();
+        }
+    }
+    if (total_finished_flows >= params.num_flows_to_run)
+        return;
+    add_to_event_queue(new RecordQueueEvent(get_current_time() + params.debug_queue_interval, params.debug_queue_interval));
+
+}

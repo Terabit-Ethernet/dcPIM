@@ -28,7 +28,7 @@
 #define FLOW_PROCESSING 7
 #define FLOW_CREATION_EVENT 8
 #define LOGGING 9
-
+#define RECORD_QUEUEING 25
 class Event {
     public:
         Event(uint32_t type, double time);
@@ -156,6 +156,14 @@ class RetxTimeoutEvent : public Event {
         ~RetxTimeoutEvent();
         void process_event();
         Flow *flow;
+};
+
+class RecordQueueEvent : public Event {
+    public:
+        RecordQueueEvent(double time, double interval);
+        ~RecordQueueEvent();
+        void process_event();
+        double interval;
 };
 
 #endif /* defined(EVENT_H) */
