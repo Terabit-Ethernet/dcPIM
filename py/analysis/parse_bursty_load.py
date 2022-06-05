@@ -110,7 +110,6 @@ def read_file(filename):
                     s_time = start_time / 1000000.0
                 if reach_check_point < 10:
                     output.append([flowId, size, start_time, end_time, fct, orct, ratio])
-    print (len(output))
     return output, total_sent_packets, total_pkt, finish_time, s_time
 
 def output_file(output, filename):
