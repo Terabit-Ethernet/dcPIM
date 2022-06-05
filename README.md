@@ -109,10 +109,15 @@ Several tips for running experiments:
    The logs are stored in directory `py/result/pim_beta/5.15/`.
 
 
-5. Reproduce Figure 8 results (Bursty workload) (running time: ~17 hours)
+5. Reproduce Figure 8 results (Bursty workload) (running time: ~30 mins)
 
    ```
    cd py/bursty_workload/
+   git clone https://github.com/Terabit-Ethernet/workload_generator.git
+   cd workload_generator
+   ./run_script.sh imc10
+   cd ../
+   mv workload_generator/result/bursty_workload/pim/ trace/
    ./run.sh
    ```
    
