@@ -17,7 +17,7 @@ Through the following three sections, we provide getting started instructions to
 This section covers how to compile the simulator.
    - **SIGCOMM 2022 Artifact Evaluation (6 days):**  
 This section provides the detailed instructions to reproduce all individual results of dcPIM presented in our SIGCOMM 2022 paper.
-
+The first subsection describes how to get simulation results and the second subsection describes how to parse each result.
 
 ## 2. Compile the Simulator
 ```
@@ -214,7 +214,8 @@ All parsing scripts are located at `py/analysis`. And the parsing results are lo
     ```
     python parse_bursty_load.py 5.15 imc10 100
     ```
-    
+    The files are located at `py/result/bursty/imc10_bursty_load_util.dat`, `imc10_bursty_load_slowdown.dat` and `imc10_bursty_load_99_slowdown.dat`.
+
 
 ## Authors
 
