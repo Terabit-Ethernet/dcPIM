@@ -42,6 +42,6 @@ i=0
 # run experiment
 for addr in  "${ssh_array[@]: 0: $num_hosts}";
 	do 
-	 	scp  -i ~/.ssh/id_ed25519 -r artifact@$addr.utah.cloudlab.us:~/pipeline-pim/result_websearch.txt ../result/"$num_hosts"/result_websearch_$i.txt
+	 	scp  -i ~/.ssh/id_ed25519 -r artifact@$addr.utah.cloudlab.us:~/dcPIM/implementation/result_websearch.txt ../result/"$num_hosts"/result_websearch_$i.txt
 		i=$((i+1))
 	done
