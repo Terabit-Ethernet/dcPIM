@@ -1,0 +1,22 @@
+#define MY_ID 22
+#define PORT_0 20
+#define PORT_1 24
+
+#define RRCC_MTU 1500
+
+#define NUM_FLOW_TYPES 12
+
+int node_flow_types[] = {0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0};
+char flow_path0[] = {24,0};
+char flow_path1[] = {22,0};
+char flow_path2[] = {24,22,0};
+char flow_path3[] = {22,24,0};
+char flow_path4[] = {20,0};
+char flow_path5[] = {24,0};
+char flow_path6[] = {20,24,0};
+char flow_path7[] = {24,20,0};
+char flow_path8[] = {22,0};
+char flow_path9[] = {20,0};
+char flow_path10[] = {22,20,0};
+char flow_path11[] = {20,22,0};
+char *flow_paths[] = {flow_path0, flow_path1, flow_path2, flow_path3, flow_path4, flow_path5, flow_path6, flow_path7, flow_path8, flow_path9, flow_path10, flow_path11};
