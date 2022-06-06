@@ -37,12 +37,12 @@ ms1332)
 # set up the server
 for addr in  "${ssh_array[@]}";
 	do 
-		ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 -p 22 artifact@$addr.utah.cloudlab.us "git clone https://qizhe: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@github.com/qizhe/pipeline-pim.git; cd ~/pipeline-pim;git checkout cloudlab; git checkout -b cloudlab origin/cloudlab;git pull;"
+		ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 -p 22 artifact@$addr.utah.cloudlab.us "git clone https://qizhe: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@github.com/Terabit-Ethernet/dcPIM.git; cd ~/dcPIM/implementation;"
 	done
 
 for addr in  "${ssh_array[@]}";
 	do 
-		ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 -p 22 artifact@$addr.utah.cloudlab.us "cd pipeline-pim; chmod +x run.sh;bash ./run.sh $num_host" &
+		ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 -p 22 artifact@$addr.utah.cloudlab.us "cd ~/dcPIM/implementation; chmod +x run.sh;bash ./run.sh $num_host" &
 	done
 
 sleep 240
