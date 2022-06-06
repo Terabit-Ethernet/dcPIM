@@ -64,7 +64,7 @@ We conduct our experiment using the [m510](http://docs.cloudlab.us/hardware.html
 The attachment in the Hotcrp contains the cloudlab account info and private/public key pairs and the passcode.
 1. Login the [Cloudlab](https://www.cloudlab.us).  
 2. Follow the [guide](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent#adding-your-ssh-key-to-the-ssh-agent) to add the public/private key pair into your machine.
-4. Find the [dcpim_chassis](https://www.cloudlab.us/p/ba9b05f3790cb9f88e84a10f480fb3193dd4d56c) profile in the Project Profiles and instantiate the profile to start the experiments.
+4. Find the [dcpim_chassis](https://www.cloudlab.us/p/ba9b05f3790cb9f88e84a10f480fb3193dd4d56c) profile in the Project Profiles and instantiate the profile (using chassis 13) to start the experiments.
 
 ### Run experiments
 
