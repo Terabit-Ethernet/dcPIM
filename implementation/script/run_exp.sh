@@ -47,7 +47,7 @@ ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 -p 22 artifact@ms1301.utah.
 
 sleep 120
 
-for addr in  "${ssh_array[@]: 1 : $num_hosts}";
+for addr in  "${ssh_array[@]: 0 : $num_hosts}";
 	do 
 	 	ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 -p 22 artifact@$addr.utah.cloudlab.us "sudo killall pim" &
 	done
