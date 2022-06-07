@@ -11,4 +11,4 @@ and guarantees near-optimal network utilization.
 - `implementation/` includes the DPDK implementation of dcPIM.
 - `simulator/` includes the simulator of dcPIM.
 
-README in each sub repository contains instructions for running implementation/simulation and reproducing our SIGCOMM results. 
+README in each sub repository contains instructions for running implementation/simulation experiments and reproducing our SIGCOMM results. 
