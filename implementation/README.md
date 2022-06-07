@@ -79,6 +79,8 @@ The parsed result is in `result/websearch_32_slowdown_size.dat`. The format of f
 SIZE_OF_FLOWS MEAN_SLOWDOWN TAIL_SLOWDOWN-MEANSLOWDOWN 
 ```
 
+Running the experiments at first time may take extra ~16 mins for cloning repository. When running the script second time, please ignore the warning/error due to cloning repositiory again. The experiment itself may take ~10 mins.
+
 ## Cornell Clusters
 
 If you are using Cornell clusters, you need to do following changes:
