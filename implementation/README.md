@@ -72,7 +72,7 @@ Clone the repo into your local machine,
 
 ```
 git clone https://github.com/Terabit-Ethernet/dcPIM.git
-cd implementation
+cd dcPIM/implementation
 ```
 
 We provide oneshot script for running the experiment (32 server testbeds) which sending commands from your local machine to all remote servers:
