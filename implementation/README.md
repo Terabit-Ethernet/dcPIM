@@ -68,8 +68,16 @@ The attachment in the Hotcrp contains the cloudlab account info and private/publ
 
 ### Run experiments
 
-We provide oneshot script for running the experiment (32 server testbeds):
+Clone the repo into your local machine,
+
 ```
+git clone https://github.com/Terabit-Ethernet/dcPIM.git
+cd implementation
+```
+
+We provide oneshot script for running the experiment (32 server testbeds) which sending commands from your local machine to all remote servers:
+```
+cd script/
 ./run_32.sh
 ```
 To run 8-server and 16-server experiments, simply run `./run_8.sh` or `./run_16.sh`.
