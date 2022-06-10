@@ -79,7 +79,7 @@ Copy the keys into .ssh repo and add keys.
 ```
 cp id_ed25519 ~/.ssh/id_ed25519
 cp id_ed25519.pub ~/.ssh/id_ed25519.pub
-ssh-add -K ~/.ssh/
+ssh-add -K ~/.ssh/id_ed25519
 ```
 
 Follow the [guide](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent#adding-your-ssh-key-to-the-ssh-agent) to add the public/private key pair into your machine.
