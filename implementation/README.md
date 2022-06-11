@@ -96,6 +96,10 @@ SIZE_OF_FLOWS MEAN_SLOWDOWN TAIL_SLOWDOWN-MEANSLOWDOWN
 
 Running the experiments at first time may take extra ~16 mins for cloning repository. When running the script second time, please ignore the warning/error due to cloning repositiory again. The experiment itself may take ~10 mins.
 
+
+### Getting Baseline Results (Optional)
+In case, you are interested in getting results of baseline(eg. TCP and DCTCP). You can use this [repo](https://github.com/qizhe/tcp_baseline) and follow README to reproduce results.
+
 ## Cornell Clusters
 
 If you are using Cornell clusters, you need to do following changes:
