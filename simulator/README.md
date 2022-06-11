@@ -220,7 +220,10 @@ All parsing scripts are located at `py/analysis`. And the parsing results are lo
     The files are located at `py/result/bursty/imc10_bursty_load_util.dat`, `imc10_bursty_load_slowdown.dat` and `imc10_bursty_load_99_slowdown.dat`.
 
 ### Getting Baseline Results(Optional)
-In case 
+In case you are interested in getting baseline results shown in the paper, we provide repos for each protocol including [NDP](https://github.com/qizhe/NDP) and [HPCC](https://github.com/qizhe/High-Precision-Congestion-Control) except Homa with Aeolus since the repo is not public. The instructions are in the READMEs of repos.
+
+
+
 ## Authors
 
 * Qizhe Cai
