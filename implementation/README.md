@@ -82,8 +82,6 @@ cp id_ed25519.pub ~/.ssh/id_ed25519.pub
 ssh-add -K ~/.ssh/id_ed25519
 ```
 
-Follow the [guide](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent#adding-your-ssh-key-to-the-ssh-agent) to add the public/private key pair into your machine.
-
 We provide oneshot script for running the experiment (32 server testbeds) which sending commands from your local machine to all remote servers:
 ```
 cd script/
