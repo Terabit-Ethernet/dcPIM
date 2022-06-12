@@ -118,8 +118,9 @@ def read_file(filename):
                     output.append([flowId, size, start_time, end_time, fct, orct, ratio])
     return output, total_sent_packets, total_pkt, finish_time, s_time
 
-def output_file(output, filename):
+def output_file(output, filename, format_str):
     file = open(filename, "w+")
+    file.write(format_str)
     for i in range(len(pim_k)):
         string = ""
         string += str(float(pim_k[i]))
@@ -238,9 +239,9 @@ def read_slowdown_outputs(direc):
 def main():
     date = str(sys.argv[1])
     util, fct_oct_ratio, stats =  read_util_outputs("../result/pim_k_iterations/" + date)
-    output_file(util, "../result/pim_k_iterations/pim_k_iteration_util.dat")
+    output_file(util, "../result/pim_k_iterations/pim_k_iteration_util.dat", "k/r   1   2   3   4   5\n")
     util, fct_oct_ratio, stats =  read_slowdown_outputs("../result/pim_k_iterations/" + date)
-    output_file(fct_oct_ratio, "../result/pim_k_iterations/pim_k_iteration_slowdown.dat")
+    output_file(fct_oct_ratio, "../result/pim_k_iterations/pim_k_iteration_slowdown.dat", "k/r   1   2   3   4   5\n")
 
     # output_file(fct_oct_ratio, "../result/pim_k_iterations/pim_k_iteration_slowdown.dat")
 main()

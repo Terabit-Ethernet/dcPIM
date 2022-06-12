@@ -107,9 +107,10 @@ def read_file(filename):
                     output.append([flowId, size, start_time, end_time, fct, orct])
     return output, total_sent_packets,total_packets, finish_time, s_time
 
-def output_file(output, filename):
+def output_file(output, filename, format_str):
     workload = ""
     file = open(filename, "w+")
+    file.write(format_str)
     for i in traces:
         string = ""
         if i == "imc10":
@@ -174,14 +175,12 @@ def read_outputs(direc):
                 fct_oct_ratio[k][i] = output[k]["6"]['mean']
                 fct_oct_ratio_99[k][i] = output[k]["6"]['99']
             elif i == "homa":
-                print k
                 output = read_homa_files(k)
                 load = "{:.1f}".format(float(6) / 10)
                 util[k][i] = output[k][load]["0.6"]['util']
                 fct_oct_ratio[k][i] = output[k][load]["0.6"]["mean"]
                 fct_oct_ratio_99[k][i] = output[k][load]["0.6"]["99"]
             elif i == "homa_aeolus":
-                print k
                 output = read_homa_aeolus_files(k)
                 load = "{:.1f}".format(float(6) / 10)
                 util[k][i] = output[k][load]['util']
@@ -202,7 +201,7 @@ def main():
     # draw_graph(util, trace + " Utilization")
     # draw_graph(fct_oct_ratio, trace + " Slowdown")
     # output_file(util, "../result/fat_tree/fat_tree_util.dat")
-    output_file(fct_oct_ratio, "../result/fat_tree/fat_tree_slowdown.dat")
+    output_file(fct_oct_ratio, "../result/fat_tree/fat_tree_slowdown.dat", "<WORKLOAD> <SLOWDOWN>\n")
     # output_file(fct_oct_ratio_99, "../result/fat_tree/fat_tree_99_slowdown.dat")
 
 main()

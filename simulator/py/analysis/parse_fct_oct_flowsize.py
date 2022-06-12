@@ -102,8 +102,8 @@ def read_file(filename):
                 fct = float(params[6]) / 1000000.0
                 orct = get_oracle_fct(src, dst, size)
                 ratio = fct / orct
-                if ratio < 1.0:
-                    print line, orct
+                # if ratio < 1.0:
+                #     print line, orct
                 assert(fct > orct)
                 if flowId == 0:
                     s_time = start_time / 1000000.0

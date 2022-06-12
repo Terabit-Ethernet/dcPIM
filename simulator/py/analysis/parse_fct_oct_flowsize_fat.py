@@ -85,8 +85,8 @@ def read_file(filename):
                 fct = float(params[6]) / 1000000.0
                 orct = get_oracle_fct(src, dst, size, 100 * 1e9)
                 ratio = fct / orct
-                if ratio < 1.0:
-                    print line, orct
+                # if ratio < 1.0:
+                #     print line, orct
                 assert(fct > orct)
                 if flowId == 0:
                     s_time = start_time / 1000000.0
@@ -126,9 +126,10 @@ def get_mean_fct_oct_ratio(output, segments):
             num_elements[5] += 1
     return total, num_elements
 
-def output_file(output, filename):
+def output_file(output, filename, format_str):
     workload = ""
     file = open(filename, "w+")
+    file.write(format_str)
     x = ['<1BDP', '<2BDP', '<4BDP','<8BDP', '<16BDP', "infi"]
     for i in range(len(x)):
         string = ""
@@ -194,7 +195,6 @@ def read_outputs(direc, workload, trace):
             stats[i]['std'] = output[workload]["0.6"]["std"]
         elif i == "homa_aeolus":
             output = read_homa_aeolus_files()
-            print output
             stats[i]['mean'] = output[trace]["0.6"]['mean_flow_size']
             stats[i]['std'] = output[trace]["0.6"]["std"]
         elif i == "homa_unlimit":
@@ -226,5 +226,5 @@ def main():
     stats, num_elements =  read_outputs("../result/" + workload + "/" + date, workload, trace)
     # draw_graph(average, "FCT_OCT_Ratio" + "_" + workload + "_" + alg)
     # draw_graph(stats, num_elements, workload + " FCT_OCT_ratio")
-    output_file(stats, "../result/{0}/{1}_{2}_{3}_slowdown_size.dat".format(workload, workload, trace, int(bandwidth)))
+    output_file(stats, "../result/{0}/{1}_{2}_{3}_slowdown_size.dat".format(workload, workload, trace, int(bandwidth)), "<FLOW_SIZE> <MEAN_SLOWDOWN> <DIFF_BETWEEN_TAIL_AND_MEAN>\n")
 main()

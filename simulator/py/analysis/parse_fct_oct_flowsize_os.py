@@ -96,8 +96,8 @@ def read_file(filename):
                 fct = float(params[6]) / 1000000.0
                 orct = get_oracle_fct(src, dst, size)
                 ratio = fct / orct
-                if ratio < 1.0:
-                    print line, orct
+                # if ratio < 1.0:
+                #     print line, orct
                 assert(fct > orct)
                 if flowId == 0:
                     s_time = start_time / 1000000.0
@@ -137,9 +137,10 @@ def get_mean_fct_oct_ratio(output, segments):
             num_elements[5] += 1
     return total, num_elements
 
-def output_file(output, filename):
+def output_file(output, filename, format_str):
     workload = ""
     file = open(filename, "w+")
+    file.write(format_str)
     x = ['<1BDP', '<2BDP', '<4BDP','<8BDP', '<16BDP', "infi"]
     for i in range(len(x)):
         string = ""
@@ -167,7 +168,6 @@ def read_hpcc_files(trace, direc = "../../result/hpcc/"):
 def read_homa_limit_files(direc = "../../result/homa/"):
     file = direc + "result_homa_limit_load_{}.txt".format(int(bandwidth))
     output = {}
-    print file
     with open(file) as json_file:
         output = json.load(json_file)
     return output
@@ -175,7 +175,6 @@ def read_homa_limit_files(direc = "../../result/homa/"):
 def read_homa_aeolus_files(direc = "../../result/homa_aeolus/"):
     file = direc + "result_homa_500_load_{}.txt".format(int(bandwidth))
     output = {}
-    print file
     with open(file) as json_file:
         output = json.load(json_file)
     return output
@@ -238,5 +237,5 @@ def main():
     stats, num_elements =  read_outputs("../result/" + workload + "/" + date, workload, trace)
     # draw_graph(average, "FCT_OCT_Ratio" + "_" + workload + "_" + alg)
     # draw_graph(stats, num_elements, workload + " FCT_OCT_ratio")
-    output_file(stats, "../result/{0}/{1}_{2}_{3}_slowdown_size.dat".format(workload, workload, trace, int(bandwidth)))
+    output_file(stats, "../result/{0}/{1}_{2}_{3}_slowdown_size.dat".format(workload, workload, trace, int(bandwidth)), "<FLOW_SIZE> <MEAN_SLOWDOWN> <DIFF_BETWEEN_TAIL_AND_MEAN>\n")
 main()

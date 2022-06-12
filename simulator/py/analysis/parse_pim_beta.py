@@ -115,8 +115,9 @@ def read_file(filename):
                     output.append([flowId, size, start_time, end_time, fct, orct, ratio])
     return output, total_sent_packets, total_pkt, finish_time, s_time
 
-def output_file(output, filename):
+def output_file(output, filename, format_str):
     file = open(filename, "w+")
+    file.write(format_str)
     for i in betas:
         string = ""
         string += str(float(i))
@@ -205,6 +206,6 @@ def main():
     # draw_graph(util, trace + " Max Token Utilization")
     # draw_graph(fct_oct_ratio,  trace + " Max Token FCT_OCT_ratio")
     # draw_bar_graph(stats, num_elements, trace + " bar chart for Slowdown")
-    output_file(util, "../result/pim_beta/pim_beta_util.dat")
-    output_file(fct_oct_ratio, "../result/pim_beta/pim_beta_slowdown.dat")
+    output_file(util, "../result/pim_beta/pim_beta_util.dat", "<BETA> <UTIL>\n")
+    output_file(fct_oct_ratio, "../result/pim_beta/pim_beta_slowdown.dat", "<BETA> <SLOWDOWN>\n")
 main()

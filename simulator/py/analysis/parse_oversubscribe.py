@@ -110,9 +110,10 @@ def read_file(filename):
                     output.append([flowId, size, start_time, end_time, fct, orct])
     return output, total_sent_packets, total_packets, total_pkt_drop * 1.0 / total_pkt_sent
 
-def output_file(output, filename):
+def output_file(output, filename, format_str):
     workload = ""
     file = open(filename, "w+")
+    file.write(format_str)
     for i in traces:
         string = ""
         if i == "imc10":
@@ -212,7 +213,7 @@ def main():
     # draw_graph(fct_oct_ratio, trace + " Slowdown")
     # print util, fct_oct_ratio, fct_oct_ratio_99, drop_rates
     # output_file(util, "../result/{0}_util.dat".format(trace))
-    output_file(fct_oct_ratio, "../result/{0}/{0}_slowdown.dat".format(trace))
+    output_file(fct_oct_ratio, "../result/{0}/{0}_slowdown.dat".format(trace), "<WORKLOAD> <SLOWDOWN>\n")
     # output_file(fct_oct_ratio_99, "../gnuplot/data/{0}_99_slowdown.dat".format(trace))
     # output_file(drop_rates, "../gnuplot/data/{0}_drop_rate.dat".format(trace))
 
