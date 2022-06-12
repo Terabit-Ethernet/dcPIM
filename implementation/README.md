@@ -89,7 +89,7 @@ cd script/
 ```
 To run 8-server and 16-server experiments, simply run `./run_8.sh` or `./run_16.sh`.
 
-The parsed result is in `result/websearch_32_slowdown_size.dat`. The format of files:
+The parsed result is in `implementation/result/websearch_32_slowdown_size.dat`. The format of files:
 ```
 SIZE_OF_FLOWS MEAN_SLOWDOWN TAIL_SLOWDOWN-MEANSLOWDOWN 
 ```
