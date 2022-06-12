@@ -159,7 +159,7 @@ All parsing scripts are located at `py/analysis`. And the parsing results are lo
    cat ../result/load/all-to-all_datamining_load_slowdown_size.dat
    ```
    
-   The corresponding files are `py/result/load/all-to-all_$WORKLOAD_load_slowdown_size.dat`. The format of the file is `<FLOW_SIZE> <MEAN_SLOWDOWN> <DIFF_BETWEEN_TAIL_AND_MEAN>`.
+   The format of the file is `<FLOW_SIZE> <MEAN_SLOWDOWN> <DIFF_BETWEEN_TAIL_AND_MEAN>`.
    
 2. Parse Figure 4 results (Microscopic view into dcPIM performance)
    
