@@ -143,9 +143,10 @@ def get_mean_fct_oct_ratio(output, segments):
             num_elements[5] += 1
     return total, num_elements
 
-def output_file(output, filename):
+def output_file(output, filename, format_str):
     workload = ""
     file = open(filename, "w+")
+    file.write(format_str)
     x = ['<1BDP', '<2BDP', '<4BDP','<8BDP', '<16BDP', "infi"]
     for i in range(len(x)):
         string = ""
@@ -242,5 +243,5 @@ def main():
     stats, num_elements =  read_outputs("../result/load/" + date, workload, trace)
     # draw_graph(average, "FCT_OCT_Ratio" + "_" + workload + "_" + alg)
     # draw_graph(stats, num_elements, workload + " FCT_OCT_ratio")
-    output_file(stats, "../result/load/{0}_{1}_{2}_slowdown_size.dat".format(workload, trace, int(bandwidth)))
+    output_file(stats, "../result/load/{0}_{1}_{2}_slowdown_size.dat".format(workload, trace, int(bandwidth)), "<FLOW_SIZE> <MEAN_SLOWDOWN> <DIFF_BETWEEN_TAIL_AND_MEAN>\n")
 main()
