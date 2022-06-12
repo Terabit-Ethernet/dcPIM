@@ -40,9 +40,10 @@ def read_file(filename):
             output.append([params[0], float(params[1]) / 14400,])
     return output
 
-def output_file(output, filename):
+def output_file(output, filename, format_str):
     workload = ""
     file = open(filename, "w+")
+    file.write(format_str)
     i = 0
     for line in output:
         string = ""
@@ -59,7 +60,7 @@ def main():
     # draw_graph(fct_oct_ratio, trace + " Slowdown")
     # print util, fct_oct_ratio, fct_oct_ratio_99
     # output_file(util, "../gnuplot/data/{0}_util.dat".format(trace))
-    output_file(output, "../result/worst_case/pim_util_worstcase3_result.txt")
+    output_file(output, "../result/worst_case/pim_util_worstcase3_result.txt", "<TIME> <UTILIZATION>\n")
     # output_file(fct_oct_ratio_99, "../gnuplot/data/{0}_99_slowdown.dat".format(trace))
 
 main()

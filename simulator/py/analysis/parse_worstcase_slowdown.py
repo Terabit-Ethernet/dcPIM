@@ -167,9 +167,10 @@ def read_file(filename):
                 output.append([flowId, size, start_time, end_time, fct, orct])
     return output, total_sent_packets,total_packets, finish_time, s_time
 
-def output_file(output, output_99, filename):
+def output_file(output, output_99, filename, format_str):
     workload = ""
     file = open(filename, "w+")
+    file.write(format_str)
     for i in traces:
         string = "\"Mean Slowdown\""
         for j in algos:
@@ -295,7 +296,7 @@ def main():
     # draw_graph(fct_oct_ratio, trace + " Slowdown")
     # print util, fct_oct_ratio, fct_oct_ratio_99
     # output_file(util, "../gnuplot/data/{0}_util.dat".format(trace))
-    output_file(fct_oct_ratio,fct_oct_ratio_99, "../result/worst_case/{0}_slowdown.txt".format(trace))
+    output_file(fct_oct_ratio,fct_oct_ratio_99, "../result/worst_case/{0}_slowdown.txt".format(trace), "<ATTRIBUTE> <VALUE>\n")
     # output_file(fct_oct_ratio_99, "../gnuplot/data/{0}_99_slowdown.dat".format(trace))
 
 main()
