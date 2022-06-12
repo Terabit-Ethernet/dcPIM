@@ -238,8 +238,8 @@ All parsing scripts are located at `py/analysis`. And the parsing results are lo
     ```
     python parse_bursty_load.py 5.15 imc10 100
     cat ../result/bursty/imc10_bursty_load_util.dat
-    cat ../imc10_bursty_load_slowdown.dat
-    cat ../imc10_bursty_load_99_slowdown.dat
+    cat ../result/bursty/imc10_bursty_load_slowdown.dat
+    cat ../result/bursty/imc10_bursty_load_99_slowdown.dat
     ```
     The results are at `py/result/bursty/imc10_bursty_load_util.dat`, `imc10_bursty_load_slowdown.dat` and `imc10_bursty_load_99_slowdown.dat`.
 
