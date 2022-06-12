@@ -179,7 +179,7 @@ All parsing scripts are located at `py/analysis`. And the parsing results are lo
    
    ```
    python parse_oversubscribe.py 5.15 oversubscribe 100
-   cat ../result/oversubscribed/oversubscribe_slowdown.dat
+   cat ../result/oversubscribe/oversubscribe_slowdown.dat
    ```
 
    The results are at `py/result/oversubscribed/oversubscribe_slowdown.dat`.
@@ -188,7 +188,7 @@ All parsing scripts are located at `py/analysis`. And the parsing results are lo
    
    ```
    python parse_fct_oct_flowsize_os.py 5.15 oversubscribe imc10 100
-   cat ../result/oversubscribed/oversubscribe_imc10_100_slowdown_size.dat
+   cat ../result/oversubscribe/oversubscribe_imc10_100_slowdown_size.dat
    ```
    
    The results are at `py/result/oversubscribed/oversubscribe_imc10_100_slowdown_size.dat`.
@@ -206,7 +206,7 @@ All parsing scripts are located at `py/analysis`. And the parsing results are lo
    
    ```
    python parse_fct_oct_flowsize_fat.py 5.15 fat_tree imc10 100
-   cat ../result/fat_tree/fat_tree_aditya_100_slowdown_size.dat
+   cat ../result/fat_tree/fat_tree_imc10_100_slowdown_size.dat
    ```
      
    The results are at `py/result/fat_tree/fat_tree_aditya_100_slowdown_size.dat`.
