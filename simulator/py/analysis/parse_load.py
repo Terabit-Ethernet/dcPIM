@@ -106,9 +106,10 @@ def read_file(filename):
                     output.append([flowId, size, start_time, end_time, fct, orct, ratio])
     return output, total_sent_packets, total_pkt, finish_time, s_time
 
-def output_file(output, filename):
+def output_file(output, filename, format_str):
     workload = ""
     file = open(filename, "w+")
+    file.write(format_str)
     for i in loads:
         string = ""
         string += str(float(i) / 10)
@@ -228,8 +229,8 @@ def main():
     trace = str(sys.argv[2])
     bandwidth = int(sys.argv[3])
     util, fct_oct_ratio,n_ratio =  read_outputs("../result/load/" + date, trace)
-    output_file(util, "../result/load/{}_load_util.dat".format( trace))
-    output_file(fct_oct_ratio, "../result/load/{}_load_slowdown.dat".format(trace))
-    output_file(n_ratio, "../result/load/{}_load_99_slowdown.dat".format(trace))
+    output_file(util, "../result/load/{}_load_util.dat".format( trace), "<LOAD>     <UTIL>")
+    output_file(fct_oct_ratio, "../result/load/{}_load_slowdown.dat".format(trace), "<LOAD>     <SLOWDOWN>")
+    output_file(n_ratio, "../result/load/{}_load_99_slowdown.dat".format(trace), "<LOAD>     <SLOWDOWN>")
 main()
 
