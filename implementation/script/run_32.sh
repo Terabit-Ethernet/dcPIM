@@ -1,4 +1,4 @@
-.#!/bin/bash
+#!/bin/bash
 
 ./run_config.sh 32
 ./run_exp.sh websearch 32
