@@ -20,7 +20,7 @@ load = 0.8
 # output_file = sys.argv[2]
 pim_k = [1, 2, 4, 8]
 rounds = [1, 2, 3, 4, 5]
-loads = [[0.54, 0.74, 0.76, 0.74, 0.72], [0.56, 0.76, 0.80, 0.80, 0.78],
+loads = [[0.54, 0.72, 0.76, 0.74, 0.72], [0.56, 0.76, 0.80, 0.80, 0.78],
 [0.56, 0.78, 0.82, 0.82, 0.82], [0.56, 0.78, 0.84, 0.84, 0.84]]
 
 ID = 0
@@ -198,10 +198,10 @@ def read_util_outputs(direc):
             for k in range(len(rounds)):
                 file = input_prefix + str(i) + "_" + str(pim_k[j]) + "_" + str(rounds[k]) + "_" + str(loads[j][k]) + ".txt"
                 output, total_sent_packets, total_pkt, finish_time, start_time = read_file(file)
-                if total_sent_packets  / float(total_pkt) > 0.98:
+                if total_sent_packets  / float(total_pkt) > 0.975:
                     util[i][j][k] = 1
                 else:
-                    util[i][j][k] = 0
+                    util[i][j][k] = total_sent_packets  / float(total_pkt)
                 fct_oct_ratio[i][j][k] = get_mean_fct_oct_ratio(output)
                 # total, num_elements = get_mean_fct_oct_ratio_by_size(output, 6)
                 # stats[j]['median'] = [ np.median(total[i]) for i in range(len(total))]
