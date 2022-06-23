@@ -64,9 +64,9 @@ public:
     void send_grantsr(int iter, int epoch, int total_links);
     int remaining_pkts();
     int token_gap();
-    void relax_token_gap();
+    void relax_token_gap(int window);
     int get_next_token_seq_num();
-    void send_token_pkt(int priority);
+    void send_token_pkt(int priority, int epoch);
     void receive_short_flow();
     void sending_ack();
     void sending_rts();

@@ -801,7 +801,9 @@ void PimHost::receive_token(PIMToken* pkt) {
     //     t->timeout = fto->back().timeout + get_full_pkt_tran_delay(1500) - pkt->ttl;
     // }
     // token is never expired
-    t->timeout = get_current_time() + pkt->ttl;
+    // if(pkt->ttl < get_current_time())
+    //     std::cout << "expire " << pkt->ttl << " " << get_current_time() << " " << pkt->total_queuing_delay << std::endl;
+    t->timeout = pkt->ttl;
     t->seq_num = pkt->token_seq_num;
     t->data_seq_num = pkt->data_seq_num;
     t->priority = pkt->priority;
@@ -937,14 +939,13 @@ void PIM_Vlink::send_token() {
                 f->redundancy_ctrl_timeout = -1;
                 f->token_goal += f->remaining_pkts();
             }
-
-            if(f->token_gap() > params.token_window)
+            if(f->token_gap() > params.token_window / params.pim_k * this->total_links)
             {
                 if(get_current_time() >= f->latest_token_sent_time + params.token_window_timeout) {
                     if(debug_host(this->id)) {
                         std::cout << get_current_time() << " host " << this->id << " relax token gap for flow " << f->id << std::endl;
                     }
-                    f->relax_token_gap();
+                    f->relax_token_gap(params.token_window / params.pim_k * this->total_links);
                 }
                 else{
                     if(f->latest_token_sent_time + params.token_window_timeout < closet_timeout)
@@ -957,13 +958,13 @@ void PIM_Vlink::send_token() {
                 }
 
             }
-            if(f->token_gap() <= params.token_window)
+            if(f->token_gap() <= double(params.token_window) / params.pim_k * this->total_links)
             {
                 if(debug_host(id)) {
                         std::cout << get_current_time() << " sending tokens for flow " << f->id << std::endl;   
                 }
                 auto next_data_seq = f->get_next_token_seq_num();
-                f->send_token_pkt(this->priority);
+                f->send_token_pkt(this->priority, this->host->cur_epoch);
                 token_sent = true;
                 // this->token_hist.push_back(this->recv_flow->id);
                 if(next_data_seq >= f->get_next_token_seq_num()) {
