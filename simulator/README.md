@@ -234,7 +234,8 @@ All parsing scripts are located at `py/analysis`. And the parsing results are lo
     ```
     
     The results are at `py/result/pim_beta/pim_beta_slowdown.dat` and `pim_beta_util.dat`.
- 5. Parse Figure 8 Appendix results (Bursty Workload)    
+   **Note: we fixed the bug in the parsing script so the slowdown value now should ~1.5 when beta is larger than 1.0.** 
+5. Parse Figure 8 Appendix results (Bursty Workload)    
     ```
     python parse_bursty_load.py 5.15 imc10 100
     cat ../result/bursty/imc10_bursty_load_util.dat
