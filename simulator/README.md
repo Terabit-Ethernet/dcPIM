@@ -169,7 +169,7 @@ All parsing scripts are located at `py/analysis`. And the parsing results are lo
    python parse_worstcase_slowdown.py 5.15 worstcase2
    cat ../result/worst_case/worstcase2_slowdown.txt
    python parse_worstcase3_util.py 
-   cat ../result/worst_case/pim_util_worstcase3.txt
+   cat ../result/worst_case/pim_util_worstcase3_result.txt
    ```
     The result of Figure 4a is located at `py/result/worst_case/pim_util_worstcase1_result.txt`, Figure 4b is located at `py/result/worst_case/worstcase2_slowdown.txt` and Figure 4c is located `py/result/worst_case/pim_util_worstcase3.txt`.
    
@@ -223,6 +223,17 @@ All parsing scripts are located at `py/analysis`. And the parsing results are lo
     ```
     
     The results are at `py/result/pim_k_iterations/pim_k_iteration_slowdown.dat` and `pim_k_iteration_util.dat`.
+  
+     For 6a and 6b, the maximum sustained loads for each (r, k) are:
+
+      ```
+      r\k  1  2  4  8
+      1.0 54 56 56 56
+      2.0 74 76 78 78
+      3.0 76 80 82 84
+      4.0 74 80 82 84
+      5.0 72 78 82 84
+      ```
     In the `pim_k_iteration_util.dat`, 1 means the dcPIM can sustain the load for a given (r,k).
     
     Parse results of sustained load & mean slowdown of beta,
