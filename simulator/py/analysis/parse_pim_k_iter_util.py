@@ -20,7 +20,7 @@ load = 0.8
 # output_file = sys.argv[2]
 pim_k = [1, 2, 4, 8]
 rounds = [1, 2, 3, 4, 5]
-loads = [[0.54, 0.74, 0.76, 0.74, 0.72], [0.56, 0.76, 0.80, 0.80, 0.78],
+loads = [[0.54, 0.72, 0.76, 0.74, 0.72], [0.56, 0.76, 0.80, 0.80, 0.78],
 [0.56, 0.78, 0.82, 0.82, 0.82], [0.56, 0.78, 0.84, 0.84, 0.84]]
 
 ID = 0
@@ -193,20 +193,10 @@ def read_util_outputs(direc):
                 util[i][j][k] = {}
                 fct_oct_ratio[i][j][k] = {}
             # stats[j] = {}
-    for i in workloads:
-        for j in range(len(pim_k)):
-            for k in range(len(rounds)):
-                file = input_prefix + str(i) + "_" + str(pim_k[j]) + "_" + str(rounds[k]) + "_" + str(loads[j][k]) + ".txt"
-                output, total_sent_packets, total_pkt, finish_time, start_time = read_file(file)
-                if total_sent_packets  / float(total_pkt) > 0.98:
-                    util[i][j][k] = 1
-                else:
-                    util[i][j][k] = 0
-                fct_oct_ratio[i][j][k] = get_mean_fct_oct_ratio(output)
                 # total, num_elements = get_mean_fct_oct_ratio_by_size(output, 6)
                 # stats[j]['median'] = [ np.median(total[i]) for i in range(len(total))]
                 # stats[j]['std'] =  [ np.std(total[i]) for i in range(len(total))]
-    return util, fct_oct_ratio, stats
+    return fct_oct_ratio, stats
 
 def read_slowdown_outputs(direc):
     input_prefix = direc + "/result_"
@@ -215,32 +205,29 @@ def read_slowdown_outputs(direc):
     stats = {}
 
     for i in workloads:
-        util[i] = {}
         fct_oct_ratio[i] = {}
         for j in range(len(pim_k)):
-            util[i][j] = {}
             fct_oct_ratio[i][j] = {}
             for k in range(len(rounds)):
-                util[i][j][k] = {}
                 fct_oct_ratio[i][j][k] = {}
             # stats[j] = {}
     for i in workloads:
         for j in range(len(pim_k)):
             for k in range(len(rounds)):
-                file = input_prefix + str(i) + "_" + str(pim_k[j]) + "_" + str(rounds[k]) + "_" + str(0.56) + ".txt"
+                file = input_prefix + str(i) + "_" + str(pim_k[j]) + "_" + str(rounds[k]) + "_" + str(0.54) + ".txt"
                 output, total_sent_packets, total_pkt, finish_time, start_time = read_file(file)
-                fct_oct_ratio[i][j][k] = get_mean_fct_oct_ratio(output)
+                fct_oct_ratio[i][j][k] = get_99_fct_oct_ratio(output)
                 # total, num_elements = get_mean_fct_oct_ratio_by_size(output, 6)
                 # stats[j]['median'] = [ np.median(total[i]) for i in range(len(total))]
                 # stats[j]['std'] =  [ np.std(total[i]) for i in range(len(total))]
-    return util, fct_oct_ratio, stats
+    return  fct_oct_ratio, stats
 
 
 def main():
     date = str(sys.argv[1])
-    util, fct_oct_ratio, stats =  read_util_outputs("../result/pim_k_iterations/" + date)
-    output_file(util, "../result/pim_k_iterations/pim_k_iteration_util.dat", "k/r   1   2   3   4   5\n")
-    util, fct_oct_ratio, stats =  read_slowdown_outputs("../result/pim_k_iterations/" + date)
+#    util, fct_oct_ratio, stats =  read_util_outputs("../result/pim_k_iterations/" + date)
+#    output_file(util, "../result/pim_k_iterations/pim_k_iteration_util.dat", "k/r   1   2   3   4   5\n")
+    fct_oct_ratio, stats =  read_slowdown_outputs("../result/pim_k_iterations/" + date)
     output_file(fct_oct_ratio, "../result/pim_k_iterations/pim_k_iteration_slowdown.dat", "k/r   1   2   3   4   5\n")
 
     # output_file(fct_oct_ratio, "../result/pim_k_iterations/pim_k_iteration_slowdown.dat")

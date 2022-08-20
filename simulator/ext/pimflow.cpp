@@ -18,6 +18,8 @@ double pim_total_recvd = 0;
 double pim_total_recvd_last = 0;
 double pim_last_time = 1.0;
 std::ofstream pim_file;
+extern Topology *topology;
+
 
 PimFlow::PimFlow(uint32_t id, double start_time, uint32_t size, Host *s, Host *d)
     : FountainFlow(id, start_time, size, s, d) {
@@ -280,7 +282,9 @@ void PimFlow::receive(Packet *p) {
             if(debug_flow(this->id))
                 std::cout << get_current_time() << " flow " << this->id << " send ACK" << std::endl;
         } else {
-            // check token_gap is reduced
+            // check token_gap is reduced; techincally, 
+            // we should not use token_window but use more precise term; 
+            /// but it will double check when we acutally send tokens
             if (this->token_gap() <= params.token_window) {
                 PimHost * dst = (PimHost*)this->dst;
                 // sending token process should be restarted if the timeout event happens
@@ -361,10 +365,10 @@ int PimFlow::token_gap(){
     return this->token_count - this->largest_token_seq_received - 1;
 }
 
-void PimFlow::relax_token_gap()
+void PimFlow::relax_token_gap(int window)
 {
     assert(this->token_count - this->largest_token_seq_received >= 0);
-    this->largest_token_seq_received = this->token_count - params.token_window;
+    this->largest_token_seq_received = this->token_count - window;
 }
 
 void PimFlow::clear_token(){
@@ -447,14 +451,16 @@ int PimFlow::get_next_token_seq_num()
     assert(false);
 }
 
-void PimFlow::send_token_pkt(int priority){
+void PimFlow::send_token_pkt(int priority, int epoch){
     int data_seq_num = this->get_next_token_seq_num();
+    double token_timeout = 1.0 + (epoch + 1) * (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit) + (params.pim_iter_epoch * params.pim_iter_limit) 
+        + topology->get_control_pkt_rtt(params.num_hosts - 1) / 2 + params.get_full_pkt_tran_delay() * (params.pim_k);
     if(debug_flow(this->id)) {
         std::cout << get_current_time() << " flow " << this->id << " send token " << this->token_count << "data seq number:" << data_seq_num << "\n";
     } 
     last_token_data_seq_num_sent = data_seq_num;
-
-    auto cp = new PIMToken(this, this->dst, this->src, params.token_timeout, this->remaining_pkts(), this->token_count, data_seq_num, priority);
+    /* timeout value will be: (epoch+1) * data_transmission phase (params.pim_epoch - params.pim_iter_epoch * params.pim_iter_limit) + matching phase (params.pim_iter_epoch * params.pim_iter_limit) + 1/2 cRTT */
+    auto cp = new PIMToken(this, this->dst, this->src, token_timeout, this->remaining_pkts(), this->token_count, data_seq_num, priority);
     this->token_count++;
     this->token_packet_sent_count++;
     this->latest_token_sent_time = get_current_time();
