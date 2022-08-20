@@ -214,39 +214,15 @@ All parsing scripts are located at `py/analysis`. And the parsing results are lo
    
  4. Parse Figure 6 results (dcPIM Sensitivity Analysis)
  
-    Parse results of maximum sustained load (r,k) and mean slowdown (r,k)
+    Parse results of mean slowdown (r,k)
     
     ```
     python parse_pim_k_iter_util.py 5.15
     cat ../result/pim_k_iterations/pim_k_iteration_slowdown.dat
-    cat ../result/pim_k_iterations/pim_k_iteration_util.dat
     ```
-    
-    The results are at `py/result/pim_k_iterations/pim_k_iteration_slowdown.dat` and `pim_k_iteration_util.dat`.
   
-     For 6a and 6b, the maximum sustained loads for each (r, k) are:
-
-      ```
-      r\k  1  2  4  8
-      1.0 54 56 56 56
-      2.0 74 76 78 78
-      3.0 76 80 82 84
-      4.0 74 80 82 84
-      5.0 72 78 82 84
-      ```
-    In the `pim_k_iteration_util.dat`, 1 means the dcPIM can sustain the load for a given (r,k).
-    
-    Parse results of sustained load & mean slowdown of beta,
-    
-    ```
-    python parse_pim_beta.py 5.15
-    cat ../result/pim_beta/pim_beta_slowdown.dat
-    cat ../result/pim_beta/pim_beta_util.dat
-    ```
-    
-    The results are at `py/result/pim_beta/pim_beta_slowdown.dat` and `pim_beta_util.dat`.
-   **Note: we fixed the bug in the parsing script so the slowdown value now should be ~1.5 when beta is larger than 1.0.** 
-5. Parse Figure 8 Appendix results (Bursty Workload)    
+    The results are at `py/result/pim_k_iterations/pim_k_iteration_slowdown.dat`.
+  5. Parse Figure 8 Appendix results (Bursty Workload)    
     ```
     python parse_bursty_load.py 5.15 imc10 100
     cat ../result/bursty/imc10_bursty_load_util.dat
