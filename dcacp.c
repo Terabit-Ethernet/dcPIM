@@ -147,11 +147,11 @@ void dcacp_write_queue_purge(struct sock *sk)
 		dcacp_wmem_free_skb(sk, skb);
 	}
 	dcacp_rtx_queue_purge(sk);
-	skb = sk->sk_tx_skb_cache;
-	if (skb) {
-		__kfree_skb(skb);
-		sk->sk_tx_skb_cache = NULL;
-	}
+	// skb = sk->sk_tx_skb_cache;
+	// if (skb) {
+	// 	__kfree_skb(skb);
+	// 	sk->sk_tx_skb_cache = NULL;
+	// }
 	// sk_mem_reclaim(sk);
 }
 
@@ -340,53 +340,53 @@ int dcacp_sendpage(struct sock *sk, struct page *page, int offset,
 }
 
 /* fully reclaim rmem/fwd memory allocated for skb */
-static void dcacp_rmem_release(struct sock *sk, int size, int partial,
-			     bool rx_queue_lock_held)
-{
-	struct dcacp_sock *up = dcacp_sk(sk);
-	struct sk_buff_head *sk_queue;
-	int amt;
+// static void dcacp_rmem_release(struct sock *sk, int size, int partial,
+// 			     bool rx_queue_lock_held)
+// {
+// 	struct dcacp_sock *up = dcacp_sk(sk);
+// 	struct sk_buff_head *sk_queue;
+// 	int amt;
 
-	if (likely(partial)) {
-		up->forward_deficit += size;
-		size = up->forward_deficit;
-		if (size < (sk->sk_rcvbuf >> 2) &&
-		    !skb_queue_empty(&up->reader_queue))
-			return;
-	} else {
-		size += up->forward_deficit;
-	}
-	up->forward_deficit = 0;
+// 	if (likely(partial)) {
+// 		up->forward_deficit += size;
+// 		size = up->forward_deficit;
+// 		if (size < (sk->sk_rcvbuf >> 2) &&
+// 		    !skb_queue_empty(&up->reader_queue))
+// 			return;
+// 	} else {
+// 		size += up->forward_deficit;
+// 	}
+// 	up->forward_deficit = 0;
 
-	/* acquire the sk_receive_queue for fwd allocated memory scheduling,
-	 * if the called don't held it already
-	 */
-	sk_queue = &sk->sk_receive_queue;
-	if (!rx_queue_lock_held)
-		spin_lock(&sk_queue->lock);
+// 	/* acquire the sk_receive_queue for fwd allocated memory scheduling,
+// 	 * if the called don't held it already
+// 	 */
+// 	sk_queue = &sk->sk_receive_queue;
+// 	if (!rx_queue_lock_held)
+// 		spin_lock(&sk_queue->lock);
 
 
-	sk->sk_forward_alloc += size;
-	amt = (sk->sk_forward_alloc - partial) & ~(SK_MEM_QUANTUM - 1);
-	sk->sk_forward_alloc -= amt;
+// 	sk->sk_forward_alloc += size;
+// 	amt = (sk->sk_forward_alloc - partial) & ~(PAGE_SIZE - 1);
+// 	sk->sk_forward_alloc -= amt;
 
-	if (amt)
-		__sk_mem_reduce_allocated(sk, amt >> SK_MEM_QUANTUM_SHIFT);
+// 	if (amt)
+// 		__sk_mem_reduce_allocated(sk, amt >> PAGE_SHIFT);
 
-	atomic_sub(size, &sk->sk_rmem_alloc);
+// 	atomic_sub(size, &sk->sk_rmem_alloc);
 
-	/* this can save us from acquiring the rx queue lock on next receive */
-	skb_queue_splice_tail_init(sk_queue, &up->reader_queue);
+// 	/* this can save us from acquiring the rx queue lock on next receive */
+// 	skb_queue_splice_tail_init(sk_queue, &up->reader_queue);
 
-	if (!rx_queue_lock_held)
-		spin_unlock(&sk_queue->lock);
-}
+// 	if (!rx_queue_lock_held)
+// 		spin_unlock(&sk_queue->lock);
+// }
 
 void dcacp_destruct_sock(struct sock *sk)
 {
 
 	/* reclaim completely the forward allocated memory */
-	unsigned int total = 0;
+	// unsigned int total = 0;
 	// struct sk_buff *skb;
 	// struct udp_hslot* hslot = udp_hashslot(sk->sk_prot->h.udp_table, sock_net(sk),
 	// 				     dcacp_sk(sk)->dcacp_port_hash);
@@ -398,7 +398,9 @@ void dcacp_destruct_sock(struct sock *sk)
 	// 	kfree_skb(skb);
 	// }
 
-	dcacp_rmem_release(sk, total, 0, true);
+	// dcacp_rmem_release(sk, total, 0, true);
+	/* need to confirm whether we need to reclaim */
+	sk_mem_reclaim(sk);
 	inet_sock_destruct(sk);
 }
 EXPORT_SYMBOL_GPL(dcacp_destruct_sock);
@@ -446,8 +448,7 @@ int dcacp_init_sock(struct sock *sk)
 
 	WRITE_ONCE(sk->sk_sndbuf, dcacp_params.wmem_default);
 	WRITE_ONCE(sk->sk_rcvbuf, dcacp_params.rmem_default);
-	kfree_skb(sk->sk_tx_skb_cache);
-	sk->sk_tx_skb_cache = NULL;
+	// sk->sk_tx_skb_cache = NULL;
 	/* reuse tcp rtx queue*/
 	sk->tcp_rtx_queue = RB_ROOT;
 	dsk->out_of_order_queue = RB_ROOT;
@@ -484,7 +485,7 @@ void dcacp_try_send_ack(struct sock *sk, int copied) {
 
 bool dcacp_try_send_token(struct sock *sk) {
 	if(test_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
-		struct dcacp_sock *dsk = dcacp_sk(sk);
+		// struct dcacp_sock *dsk = dcacp_sk(sk);
 		// int grant_len = min_t(int, len, dsk->receiver.max_gso_data);
 		// int available_space = dcacp_space(sk);
 		// if(grant_len > available_space || grant_len < )
@@ -508,7 +509,7 @@ bool dcacp_try_send_token(struct sock *sk) {
  * 	return it, otherwise we block.
  */
 
-int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
+int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 		int flags, int *addr_len)
 {
 
@@ -539,14 +540,14 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 
 	if (sk_can_busy_loop(sk) && skb_queue_empty_lockless(&sk->sk_receive_queue) &&
 	    (sk->sk_state == DCACP_RECEIVER))
-		sk_busy_loop(sk, nonblock);
+		sk_busy_loop(sk, flags & MSG_DONTWAIT);
 
 	lock_sock(sk);
 	err = -ENOTCONN;
 
 
 	// cmsg_flags = tp->recvmsg_inq ? 1 : 0;
-	timeo = sock_rcvtimeo(sk, nonblock);
+	timeo = sock_rcvtimeo(sk, flags & MSG_DONTWAIT);
 
 	if (sk->sk_state != DCACP_RECEIVER)
 		goto out;
@@ -809,14 +810,14 @@ out:
 // 	goto out;
 }
 
-int dcacp_pre_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
-{
-	if (addr_len < sizeof(struct sockaddr_in))
- 		return -EINVAL;
+// int dcacp_pre_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
+// {
+// 	if (addr_len < sizeof(struct sockaddr_in))
+//  		return -EINVAL;
 
- 	return BPF_CGROUP_RUN_PROG_INET4_CONNECT_LOCK(sk, uaddr);
-}
-EXPORT_SYMBOL(dcacp_pre_connect);
+//  	return BPF_CGROUP_RUN_PROG_INET4_CONNECT_LOCK(sk, uaddr);
+// }
+// EXPORT_SYMBOL(dcacp_pre_connect);
 
 int dcacp_disconnect(struct sock *sk, int flags)
 {
@@ -846,51 +847,51 @@ int dcacp_disconnect(struct sock *sk, int flags)
 }
 EXPORT_SYMBOL(dcacp_disconnect);
 
-int dcacp_v4_early_demux(struct sk_buff *skb)
-{
-	// struct net *net = dev_net(skb->dev);
-	// struct in_device *in_dev = NULL;
-	const struct iphdr *iph;
-	const struct dcacphdr *uh;
-	struct sock *sk = NULL;
-	// struct dst_entry *dst;
-	// int dif = skb->dev->ifindex;
-	int sdif = inet_sdif(skb);
-	// int ours;
+// int dcacp_v4_early_demux(struct sk_buff *skb)
+// {
+// 	// struct net *net = dev_net(skb->dev);
+// 	// struct in_device *in_dev = NULL;
+// 	const struct iphdr *iph;
+// 	const struct dcacphdr *uh;
+// 	struct sock *sk = NULL;
+// 	// struct dst_entry *dst;
+// 	// int dif = skb->dev->ifindex;
+// 	int sdif = inet_sdif(skb);
+// 	// int ours;
 
-	/* validate the packet */
-	// printk("early demux");
-	if(skb->pkt_type != PACKET_HOST) {
-		return 0;
-	}
-	if (!pskb_may_pull(skb, skb_transport_offset(skb) + sizeof(struct dcacphdr)))
-		return 0;
+// 	/* validate the packet */
+// 	// printk("early demux");
+// 	if(skb->pkt_type != PACKET_HOST) {
+// 		return 0;
+// 	}
+// 	if (!pskb_may_pull(skb, skb_transport_offset(skb) + sizeof(struct dcacphdr)))
+// 		return 0;
 
-	iph = ip_hdr(skb);
-	uh = dcacp_hdr(skb);
+// 	iph = ip_hdr(skb);
+// 	uh = dcacp_hdr(skb);
 
-    // if (th->doff < sizeof(struct tcphdr) / 4)
-    //             return 0;
-    sk = __dcacp_lookup_established(dev_net(skb->dev), &dcacp_hashinfo,
-                                   iph->saddr, uh->source,
-                                   iph->daddr, ntohs(uh->dest),
-                                   skb->skb_iif, sdif);
+//     // if (th->doff < sizeof(struct tcphdr) / 4)
+//     //             return 0;
+//     sk = __dcacp_lookup_established(dev_net(skb->dev), &dcacp_hashinfo,
+//                                    iph->saddr, uh->source,
+//                                    iph->daddr, ntohs(uh->dest),
+//                                    skb->skb_iif, sdif);
 
-    if (sk) {
-            skb->sk = sk;
-            skb->destructor = sock_edemux;
-            if (sk_fullsock(sk)) {
-                    struct dst_entry *dst = READ_ONCE(sk->sk_rx_dst);
+//     if (sk) {
+//             skb->sk = sk;
+//             skb->destructor = sock_edemux;
+//             if (sk_fullsock(sk)) {
+//                     struct dst_entry *dst = READ_ONCE(sk->sk_rx_dst);
 
-                    if (dst)
-                            dst = dst_check(dst, 0);
-                    if (dst &&
-                        inet_sk(sk)->rx_dst_ifindex == skb->skb_iif)
-                            skb_dst_set_noref(skb, dst);
-            }
-    }
-	return 0;
-}
+//                     if (dst)
+//                             dst = dst_check(dst, 0);
+//                     if (dst &&
+//                         inet_sk(sk)->rx_dst_ifindex == skb->skb_iif)
+//                             skb_dst_set_noref(skb, dst);
+//             }
+//     }
+// 	return 0;
+// }
 
 
 int dcacp_rcv(struct sk_buff *skb)
@@ -980,7 +981,7 @@ void dcacp_destroy_sock(struct sock *sk)
 
 
 int dcacp_setsockopt(struct sock *sk, int level, int optname,
-		   char __user *optval, unsigned int optlen)
+		   sockptr_t optval, unsigned int optlen)
 {
 	printk(KERN_WARNING "unimplemented setsockopt invoked on DCACP socket:"
 			" level %d, optname %d, optlen %d\n",
@@ -1074,35 +1075,26 @@ int dcacp_abort(struct sock *sk, int err)
 }
 EXPORT_SYMBOL_GPL(dcacp_abort);
 
-u32 dcacp_flow_hashrnd(void)
-{
-	static u32 hashrnd __read_mostly;
 
-	net_get_random_once(&hashrnd, sizeof(hashrnd));
+// static void __dcacp_sysctl_init(struct net *net)
+// {
+// 	net->ipv4.sysctl_udp_rmem_min = SK_MEM_QUANTUM;
+// 	net->ipv4.sysctl_udp_wmem_min = SK_MEM_QUANTUM;
 
-	return hashrnd;
-}
-EXPORT_SYMBOL(dcacp_flow_hashrnd);
+// #ifdef CONFIG_NET_L3_MASTER_DEV
+// 	net->ipv4.sysctl_udp_l3mdev_accept = 0;
+// #endif
+// }
 
-static void __dcacp_sysctl_init(struct net *net)
-{
-	net->ipv4.sysctl_udp_rmem_min = SK_MEM_QUANTUM;
-	net->ipv4.sysctl_udp_wmem_min = SK_MEM_QUANTUM;
+// static int __net_init dcacp_sysctl_init(struct net *net)
+// {
+// 	__dcacp_sysctl_init(net);
+// 	return 0;
+// }
 
-#ifdef CONFIG_NET_L3_MASTER_DEV
-	net->ipv4.sysctl_udp_l3mdev_accept = 0;
-#endif
-}
-
-static int __net_init dcacp_sysctl_init(struct net *net)
-{
-	__dcacp_sysctl_init(net);
-	return 0;
-}
-
-static struct pernet_operations __net_initdata dcacp_sysctl_ops = {
-	.init	= dcacp_sysctl_init,
-};
+// static struct pernet_operations __net_initdata dcacp_sysctl_ops = {
+// 	.init	= dcacp_sysctl_init,
+// };
 
 void __init dcacp_init(void)
 {
@@ -1119,7 +1111,7 @@ void __init dcacp_init(void)
 	sysctl_dcacp_mem[1] = limit;
 	sysctl_dcacp_mem[2] = sysctl_dcacp_mem[0] * 2;
 
-	__dcacp_sysctl_init(&init_net);
+	// __dcacp_sysctl_init(&init_net);
 	/* 16 spinlocks per cpu */
 	// dcacp_busylocks_log = ilog2(nr_cpu_ids) + 4;
 	// dcacp_busylocks = kmalloc(sizeof(spinlock_t) << dcacp_busylocks_log,
@@ -1128,8 +1120,8 @@ void __init dcacp_init(void)
 	// 	panic("DCACP: failed to alloc dcacp_busylocks\n");
 	// for (i = 0; i < (1U << dcacp_busylocks_log); i++)
 	// 	spin_lock_init(dcacp_busylocks + i);
-	if (register_pernet_subsys(&dcacp_sysctl_ops)) 
-		panic("DCACP: failed to init sysctl parameters.\n");
+	// if (register_pernet_subsys(&dcacp_sysctl_ops)) 
+	// 	panic("DCACP: failed to init sysctl parameters.\n");
 
 	printk("DCACP init complete\n");
 

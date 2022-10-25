@@ -77,7 +77,7 @@ struct proto dcacp_prot = {
     .name           = "DCACP",
     .owner          = THIS_MODULE,
     .close          = dcacp_lib_close,
-    .pre_connect    = dcacp_pre_connect,
+    .pre_connect    = NULL,
     .connect        = dcacp_v4_connect,
     .disconnect     = dcacp_disconnect,
     .accept         = dcacp_sk_accept,
@@ -91,8 +91,8 @@ struct proto dcacp_prot = {
     .sendpage       = dcacp_sendpage,
     .backlog_rcv    = dcacp_v4_do_rcv,
     .release_cb     = dcacp_release_cb,
-    .hash           = dcacp_hash,
-    .unhash         = dcacp_unhash,
+    .hash           = inet_hash,
+    .unhash         = inet_unhash,
     // .rehash         = dcacp_v4_rehash,
     .get_port       = dcacp_sk_get_port,
     .memory_allocated   = &dcacp_memory_allocated,
@@ -104,10 +104,6 @@ struct proto dcacp_prot = {
     .h.hashinfo     = &dcacp_hashinfo,
     // .h.udp_table        = &dcacp_table,
     .max_header     = DCACP_HEADER_MAX_SIZE,
-// #ifdef CONFIG_COMPAT
-//     .compat_setsockopt  = compat_dcacp_setsockopt,
-//     .compat_getsockopt  = compat_dcacp_getsockopt,
-// #endif
     .diag_destroy       = dcacp_abort,
 };
 // EXPORT_SYMBOL(dcacp_prot);
@@ -126,12 +122,9 @@ struct inet_protosw dcacp_protosw = {
  * early_demux can change based on sysctl.
  */
 static struct net_protocol dcacp_protocol = {
-        .early_demux =  dcacp_v4_early_demux,
-        .early_demux_handler =  dcacp_v4_early_demux,
         .handler =      dcacp_rcv,
         .err_handler =  dcacp_err,
         .no_policy =    1,
-        .netns_ok =     1,
 };
 
 /* Used to configure sysctl access to Homa configuration parameters.*/

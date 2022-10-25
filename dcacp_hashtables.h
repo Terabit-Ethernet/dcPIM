@@ -231,7 +231,7 @@ void inet_bind_hash(struct sock *sk, struct inet_bind_bucket *tb,
 /* Caller must disable local BH processing. */
 int __dcacp_inherit_port(const struct sock *sk, struct sock *child);
 
-void dcacp_put_port(struct sock *sk);
+// void inet_put_port(struct sock *sk);
 
 void dcacp_hashtable_init(struct inet_hashinfo* hashinfo, unsigned long thash_entries);
 void dcacp_hashtable_destroy(struct inet_hashinfo* hashinfo);
@@ -242,7 +242,7 @@ void dcacp_hashtable_destroy(struct inet_hashinfo* hashinfo);
 // 			 unsigned long high_limit);
 // int inet_hashinfo2_init_mod(struct inet_hashinfo *h);
 
-bool inet_ehash_insert(struct sock *sk, struct sock *osk);
+// bool inet_ehash_insert(struct sock *sk, struct sock *osk);
 bool dcacp_ehash_nolisten(struct sock *sk, struct sock *osk);
 int __inet_hash(struct sock *sk, struct sock *osk);
 int dcacp_hash(struct sock *sk);
@@ -317,81 +317,81 @@ static inline struct sock *dcacp_lookup_listener(struct net *net,
 /* Sockets in TCP_CLOSE state are _always_ taken out of the hash, so we need
  * not check it for lookups anymore, thanks Alexey. -DaveM
  */
-struct sock *__dcacp_lookup_established(struct net *net,
-				       struct inet_hashinfo *hashinfo,
-				       const __be32 saddr, const __be16 sport,
-				       const __be32 daddr, const u16 hnum,
-				       const int dif, const int sdif);
+// struct sock *__dcacp_lookup_established(struct net *net,
+// 				       struct inet_hashinfo *hashinfo,
+// 				       const __be32 saddr, const __be16 sport,
+// 				       const __be32 daddr, const u16 hnum,
+// 				       const int dif, const int sdif);
 
-static inline struct sock *
-	dcacp_lookup_established(struct net *net, struct inet_hashinfo *hashinfo,
-				const __be32 saddr, const __be16 sport,
-				const __be32 daddr, const __be16 dport,
-				const int dif)
-{
-	return __dcacp_lookup_established(net, hashinfo, saddr, sport, daddr,
-					 ntohs(dport), dif, 0);
-}
+// static inline struct sock *
+// 	dcacp_lookup_established(struct net *net, struct inet_hashinfo *hashinfo,
+// 				const __be32 saddr, const __be16 sport,
+// 				const __be32 daddr, const __be16 dport,
+// 				const int dif)
+// {
+// 	return __dcacp_lookup_established(net, hashinfo, saddr, sport, daddr,
+// 					 ntohs(dport), dif, 0);
+// }
 
-static inline struct sock *__dcacp_lookup(struct net *net,
-					 struct inet_hashinfo *hashinfo,
-					 struct sk_buff *skb, int doff,
-					 const __be32 saddr, const __be16 sport,
-					 const __be32 daddr, const __be16 dport,
-					 const int dif, const int sdif,
-					 bool *refcounted)
-{
-	u16 hnum = ntohs(dport);
-	struct sock *sk;
+// static inline struct sock *__dcacp_lookup(struct net *net,
+// 					 struct inet_hashinfo *hashinfo,
+// 					 struct sk_buff *skb, int doff,
+// 					 const __be32 saddr, const __be16 sport,
+// 					 const __be32 daddr, const __be16 dport,
+// 					 const int dif, const int sdif,
+// 					 bool *refcounted)
+// {
+// 	u16 hnum = ntohs(dport);
+// 	struct sock *sk;
 
-	sk = __dcacp_lookup_established(net, hashinfo, saddr, sport,
-				       daddr, hnum, dif, sdif);
-	*refcounted = true;
-	if (sk)
-		return sk;
-	*refcounted = false;
-	return __dcacp_lookup_listener(net, hashinfo, skb, doff, saddr,
-				      sport, daddr, hnum, dif, sdif);
-}
+// 	sk = __dcacp_lookup_established(net, hashinfo, saddr, sport,
+// 				       daddr, hnum, dif, sdif);
+// 	*refcounted = true;
+// 	if (sk)
+// 		return sk;
+// 	*refcounted = false;
+// 	return __dcacp_lookup_listener(net, hashinfo, skb, doff, saddr,
+// 				      sport, daddr, hnum, dif, sdif);
+// }
 
-static inline struct sock *dcacp_lookup(struct net *net,
-				       struct inet_hashinfo *hashinfo,
-				       struct sk_buff *skb, int doff,
-				       const __be32 saddr, const __be16 sport,
-				       const __be32 daddr, const __be16 dport,
-				       const int dif)
-{
-	struct sock *sk;
-	bool refcounted;
+// static inline struct sock *dcacp_lookup(struct net *net,
+// 				       struct inet_hashinfo *hashinfo,
+// 				       struct sk_buff *skb, int doff,
+// 				       const __be32 saddr, const __be16 sport,
+// 				       const __be32 daddr, const __be16 dport,
+// 				       const int dif)
+// {
+// 	struct sock *sk;
+// 	bool refcounted;
 
-	sk = __dcacp_lookup(net, hashinfo, skb, doff, saddr, sport, daddr,
-			   dport, dif, 0, &refcounted);
+// 	sk = __dcacp_lookup(net, hashinfo, skb, doff, saddr, sport, daddr,
+// 			   dport, dif, 0, &refcounted);
 
-	if (sk && !refcounted && !refcount_inc_not_zero(&sk->sk_refcnt))
-		sk = NULL;
-	return sk;
-}
+// 	if (sk && !refcounted && !refcount_inc_not_zero(&sk->sk_refcnt))
+// 		sk = NULL;
+// 	return sk;
+// }
 
-static inline struct sock *__dcacp_lookup_skb(struct inet_hashinfo *hashinfo,
-					     struct sk_buff *skb,
-					     int doff,
-					     const __be16 sport,
-					     const __be16 dport,
-					     const int sdif,
-					     bool *refcounted)
-{
-	struct sock *sk = skb_steal_sock(skb);
-	const struct iphdr *iph = ip_hdr(skb);
+// static inline struct sock *__dcacp_lookup_skb(struct inet_hashinfo *hashinfo,
+// 					     struct sk_buff *skb,
+// 					     int doff,
+// 					     const __be16 sport,
+// 					     const __be16 dport,
+// 					     const int sdif,
+// 					     bool *refcounted)
+// {
+// 	struct sock *sk = skb_steal_sock(skb);
+// 	const struct iphdr *iph = ip_hdr(skb);
 
-	*refcounted = true;
-	if (sk)
-		return sk;
+// 	*refcounted = true;
+// 	if (sk)
+// 		return sk;
 
-	return __dcacp_lookup(dev_net(skb_dst(skb)->dev), hashinfo, skb,
-			     doff, iph->saddr, sport,
-			     iph->daddr, dport, inet_iif(skb), sdif,
-			     refcounted);
-}
+// 	return __dcacp_lookup(dev_net(skb_dst(skb)->dev), hashinfo, skb,
+// 			     doff, iph->saddr, sport,
+// 			     iph->daddr, dport, inet_iif(skb), sdif,
+// 			     refcounted);
+// }
 
 // u32 inet6_ehashfn(const struct net *net,
 // 		  const struct in6_addr *laddr, const u16 lport,
@@ -413,8 +413,8 @@ static inline struct sock *__dcacp_lookup_skb(struct inet_hashinfo *hashinfo,
 // #endif
 // }
 
-int __dcacp_hash_connect(struct sock *sk, u32 port_offset,
-			int (*check_established)(struct sock *, __u16));
+// int __dcacp_hash_connect(struct sock *sk, u32 port_offset,
+// 			int (*check_established)(struct sock *, __u16));
 
-int dcacp_hash_connect(struct sock *sk);
+// int dcacp_hash_connect(struct sock *sk);
 #endif /* _DCACP_HASHTABLES_H */

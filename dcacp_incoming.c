@@ -566,7 +566,7 @@ static void dcacp_check_flow_finished_at_receiver(struct dcacp_sock *dsk) {
 		/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
 		if (dcacp_sk(sk)->icsk_bind_hash) {
 			printk("put port\n");
-			dcacp_put_port(sk);
+			inet_put_port(sk);
 		} else {
 			printk("userlook and SOCK_BINDPORT_LOCK:%d\n", !(sk->sk_userlocks & SOCK_BINDPORT_LOCK));
 			printk("cannot put port\n");
@@ -881,7 +881,7 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 	fh =  dcacp_flow_sync_hdr(skb);
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
-	sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&fh->common), fh->common.source,
+	sk = __inet_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&fh->common), fh->common.source,
             fh->common.dest, sdif, &refcounted);
 		// sk = __dcacp4_lib_lookup_skb(skb, fh->common.source, fh->common.dest, &dcacp_table);
 	// }
@@ -943,7 +943,7 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
 		return 0;
 	}
 	th = dcacp_token_hdr(skb);
-	sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&th->common), th->common.source,
+	sk = __inet_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&th->common), th->common.source,
             th->common.dest, sdif, &refcounted);
 	if(sk) {
  		dsk = dcacp_sk(sk);
@@ -1008,7 +1008,7 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb) {
 	ah = dcacp_ack_hdr(skb);
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
-	sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&ah->common), ah->common.source,
+	sk = __inet_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&ah->common), ah->common.source,
             ah->common.dest, sdif, &refcounted);
     // }
 
@@ -1053,7 +1053,7 @@ int dcacp_handle_fin_pkt(struct sk_buff *skb) {
 	dh = dcacp_hdr(skb);
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
-	sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(dh), dh->source,
+	sk = __inet_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(dh), dh->source,
             dh->dest, sdif, &refcounted);
     // }
 	if(sk) {
@@ -1205,7 +1205,7 @@ bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check)
 {
 		struct dcacp_sock *dsk = dcacp_sk(sk);
         u32 limit = READ_ONCE(sk->sk_rcvbuf) + READ_ONCE(sk->sk_sndbuf);
-        skb_condense(skb);
+        // skb_condense(skb);
 
         /* Only socket owner can try to collapse/prune rx queues
          * to reduce memory overhead, so add a little headroom here.
@@ -1254,7 +1254,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	dh =  dcacp_data_hdr(skb);
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
-	sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&dh->common), dh->common.source,
+	sk = __inet_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&dh->common), dh->common.source,
             dh->common.dest, sdif, &refcounted);
     if(!sk)
     	goto drop;

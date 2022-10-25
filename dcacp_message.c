@@ -100,19 +100,6 @@ struct sk_buff *dcacp_stream_alloc_skb(struct sock *sk, int size, gfp_t gfp,
 				    bool force_schedule)
 {
 	struct sk_buff *skb;
-
-	if (likely(!size)) {
-		skb = sk->sk_tx_skb_cache;
-		if (skb) {
-			skb->truesize = SKB_TRUESIZE(skb_end_offset(skb));
-			sk->sk_tx_skb_cache = NULL;
-			pskb_trim(skb, 0);
-			// INIT_LIST_HEAD(&skb->tcp_tsorted_anchor);
-			skb_shinfo(skb)->tx_flags = 0;
-			memset(DCACP_SKB_CB(skb), 0, sizeof(struct dcacp_skb_cb));
-			return skb;
-		}
-	}
 	/* The DCACP header must be at least 32-bit aligned.  */
 	size = ALIGN(size, 4);
 
@@ -356,10 +343,10 @@ int dcacp_fill_packets(struct sock *sk,
 		}
 		if (skb->truesize > sk_stream_wspace(sk) || 
 			(max_gso_data > bytes_left && bytes_left + sent_len + dsk->sender.write_seq != dsk->total_length)) {
-			if(!sk->sk_tx_skb_cache)
-				sk->sk_tx_skb_cache = skb;
-			else
-				kfree_skb(skb);
+			// if(!sk->sk_tx_skb_cache)
+			// 	sk->sk_tx_skb_cache = skb;
+			// else
+			kfree_skb(skb);
 			break;
 		}
 

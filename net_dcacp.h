@@ -24,6 +24,7 @@
 #include <net/sock.h>
 #include <net/snmp.h>
 #include <net/ip.h>
+#include <net/gro.h>
 #include <linux/ipv6.h>
 #include <linux/seq_file.h>
 #include <linux/poll.h>
@@ -188,7 +189,6 @@ static inline void dcacp_rtx_queue_unlink(struct sk_buff *skb, struct sock *sk)
 
 static inline void dcacp_wmem_free_skb(struct sock *sk, struct sk_buff *skb)
 {
-	sock_set_flag(sk, SOCK_QUEUE_SHRUNK);
 	sk_wmem_queued_add(sk, -skb->truesize);
 	// sk_mem_uncharge(sk, skb->truesize);
 	__kfree_skb(skb);
@@ -452,31 +452,11 @@ static inline void dcacp_lib_close(struct sock *sk, long timeout)
 // 	return htons((((u64) hash * (max - min)) >> 32) + min);
 // }
 
-/*
- * Save and compile IPv4 options, return a pointer to it
- */
 
-static inline struct ip_options_rcu *dcacp_v4_save_options(struct net *net,
-							 struct sk_buff *skb)
-{
-	const struct ip_options *opt = &DCACP_SKB_CB(skb)->header.h4.opt;
-	struct ip_options_rcu *dopt = NULL;
-	if (opt->optlen) {
-		int opt_size = sizeof(*dopt) + opt->optlen;
-
-		dopt = kmalloc(opt_size, GFP_ATOMIC);
-		if (dopt && __ip_options_echo(net, &dopt->opt, skb, opt)) {
-			kfree(dopt);
-			dopt = NULL;
-		}
-	}
-	return dopt;
-}
-
-static inline int dcacp_rqueue_get(struct sock *sk)
-{
-	return sk_rmem_alloc_get(sk) - READ_ONCE(dcacp_sk(sk)->forward_deficit);
-}
+// static inline int dcacp_rqueue_get(struct sock *sk)
+// {
+// 	return sk_rmem_alloc_get(sk) - READ_ONCE(dcacp_sk(sk)->forward_deficit);
+// }
 
 static inline bool dcacp_sk_bound_dev_eq(struct net *net, int bound_dev_if,
 				       int dif, int sdif)

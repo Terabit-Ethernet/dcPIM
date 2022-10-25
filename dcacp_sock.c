@@ -19,6 +19,7 @@
 #include <net/route.h>
 #include <net/tcp_states.h>
 #include <net/xfrm.h>
+#include <net/flow.h>
 // #include <net/tcp.h>
 #include <net/sock_reuseport.h>
 #include <net/addrconf.h>
@@ -27,6 +28,13 @@
 #include "dcacp_impl.h"
 #include "dcacp_hashtables.h"
 
+struct inet_timewait_death_row dcacp_death_row = {
+	.tw_refcount = REFCOUNT_INIT(1),
+	.sysctl_max_tw_buckets = NR_FILE * 2,
+	.hashinfo	= &dcacp_hashinfo,
+};
+
+EXPORT_SYMBOL_GPL(dcacp_death_row);
 
 static void set_max_grant_batch(struct dst_entry *dst, struct dcacp_sock* dsk) {
 	int bufs_per_gso, mtu, max_pkt_data, gso_size, max_gso_data;
@@ -146,7 +154,7 @@ void dcacp_set_state(struct sock* sk, int state) {
 		/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
 		if (dcacp_sk(sk)->icsk_bind_hash) {
 			printk("put port\n");
-			dcacp_put_port(sk);
+			inet_put_port(sk);
 		} else {
 			printk("userlook and SOCK_BINDPORT_LOCK:%d\n", !(sk->sk_userlocks & SOCK_BINDPORT_LOCK));
 			printk("cannot put port\n");
@@ -498,8 +506,7 @@ int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	orig_sport = inet->inet_sport;
 	orig_dport = usin->sin_port;
 	fl4 = &inet->cork.fl.u.ip4;
-	rt = ip_route_connect(fl4, nexthop, inet->inet_saddr,
-			      RT_CONN_FLAGS(sk), sk->sk_bound_dev_if,
+	rt = ip_route_connect(fl4, nexthop, inet->inet_saddr, sk->sk_bound_dev_if,
 			      IPPROTO_DCACP,
 			      orig_sport, orig_dport, sk);
 	if (IS_ERR(rt)) {
@@ -547,7 +554,7 @@ int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	 */
 	dcacp_set_state(sk, DCACP_SENDER);
 	// source port is decided by bind; if not, set in hash_connect
-	err = dcacp_hash_connect(sk);
+	err = inet_hash_connect(&dcacp_death_row, sk);
 	if (err)
 		goto failure;
 
@@ -566,8 +573,10 @@ int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	sk_setup_caps(sk, &rt->dst);
 	/* set dst */
 	if (dst_hold_safe(&rt->dst)) {
-		sk->sk_rx_dst = &rt->dst;
-		inet_sk(sk)->rx_dst_ifindex = rt->rt_iif;
+		// sk->sk_rx_dst = &rt->dst;
+		// inet_sk(sk)->rx_dst_ifindex = rt->rt_iif;
+		rcu_assign_pointer(sk->sk_rx_dst, &rt->dst);
+		sk->sk_rx_dst_ifindex = rt->rt_iif;
 	}
 	rt = NULL;
 
@@ -890,7 +899,7 @@ struct sock *dcacp_sk_reqsk_queue_add(struct sock *sk,
 		/* If it has not 0 inet_sk(sk)->inet_num, it must be bound */
 		WARN_ON(inet_sk(sk)->inet_num && !inet_csk(sk)->icsk_bind_hash);
 		/* Remove from the bind table */
-		dcacp_put_port(child);
+		inet_put_port(child);
 		/* Remove step may change latter */
 		dcacp_sk_prepare_forced_close(child);
 		sock_put(child);
@@ -925,7 +934,7 @@ static void dcacp_v4_init_req(struct request_sock *req,
 		ireq->no_srccheck = inet_sk(sk_listener)->transparent;
 		/* Note: tcp_v6_init_req() might override ir_iif for link locals */
 		ireq->ir_iif = inet_request_bound_dev_if(sk_listener, skb);
-        RCU_INIT_POINTER(ireq->ireq_opt, dcacp_v4_save_options(net, skb));
+        // RCU_INIT_POINTER(ireq->ireq_opt, dcacp_v4_save_options(net, skb));
 		refcount_set(&req->rsk_refcnt, 1);
 }
 
@@ -1012,7 +1021,7 @@ struct dst_entry *dcacp_sk_route_child_sock(const struct sock *sk,
 			   ireq->ir_loc_addr, ireq->ir_rmt_port,
 			   htons(ireq->ir_num), sk->sk_uid);
 
-	security_req_classify_flow(req, flowi4_to_flowi(fl4));
+	security_req_classify_flow(req, flowi4_to_flowi_common(fl4));
 	rt = ip_route_output_flow(net, fl4, sk);
 
 	if (IS_ERR(rt))
@@ -1034,11 +1043,10 @@ void inet_sk_rx_dst_set(struct sock *sk, const struct sk_buff *skb)
 	struct dst_entry *dst = skb_dst(skb);
 
 	if (dst && dst_hold_safe(dst)) {
-		sk->sk_rx_dst = dst;
-		inet_sk(sk)->rx_dst_ifindex = skb->skb_iif;
+		rcu_assign_pointer(sk->sk_rx_dst, dst);
+		sk->sk_rx_dst_ifindex = skb->skb_iif;
 	}
 }
-
 /*
  * Receive flow sync pkt: create new socket and push this to the accept queue
  */
@@ -1100,7 +1108,7 @@ struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
 		/* Unlike TCP, req_sock will not be inserted in the ehash table initially.*/
 
 	    dcacp_set_state(newsk, DCACP_RECEIVER);
-		dcacp_ehash_nolisten(newsk, NULL);
+		inet_ehash_nolisten(newsk, NULL, NULL);
     	sock_rps_save_rxhash(newsk, skb);
     } 
 	return newsk;

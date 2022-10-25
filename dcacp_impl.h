@@ -155,17 +155,11 @@ int dcacp_v4_get_port(struct sock *sk, unsigned short snum);
 void dcacp_v4_rehash(struct sock *sk);
 
 int dcacp_setsockopt(struct sock *sk, int level, int optname,
-		   char __user *optval, unsigned int optlen);
+		   sockptr_t optval, unsigned int optlen);
 int dcacp_getsockopt(struct sock *sk, int level, int optname,
 		   char __user *optval, int __user *optlen);
 
-#ifdef CONFIG_COMPAT
-int compat_dcacp_setsockopt(struct sock *sk, int level, int optname,
-			  char __user *optval, unsigned int optlen);
-int compat_dcacp_getsockopt(struct sock *sk, int level, int optname,
-			  char __user *optval, int __user *optlen);
-#endif
-int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int noblock,
+int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 		int flags, int *addr_len);
 int dcacp_sendpage(struct sock *sk, struct page *page, int offset, size_t size,
 		 int flags);
