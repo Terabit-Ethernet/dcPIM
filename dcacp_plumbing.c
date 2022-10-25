@@ -15,6 +15,8 @@ MODULE_VERSION("0.01");
 
 #include "net_dcacp.h"
 
+DEFINE_PER_CPU(int, dcacp_memory_per_cpu_fw_alloc);
+EXPORT_PER_CPU_SYMBOL_GPL(dcacp_memory_per_cpu_fw_alloc);
 
 /* True means that the DCACP module is in the process of unloading itself,
  * so everyone should clean up.
@@ -96,6 +98,7 @@ struct proto dcacp_prot = {
     // .rehash         = dcacp_v4_rehash,
     .get_port       = dcacp_sk_get_port,
     .memory_allocated   = &dcacp_memory_allocated,
+    .per_cpu_fw_alloc	= &dcacp_memory_per_cpu_fw_alloc,
     .sysctl_mem     = sysctl_dcacp_mem,
     .sysctl_wmem = &sysctl_dcacp_wmem_min,
     .sysctl_rmem = &sysctl_dcacp_rmem_min,
