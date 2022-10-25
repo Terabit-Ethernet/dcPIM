@@ -168,14 +168,15 @@ void dcacp_hashtable_init(struct inet_hashinfo* hashinfo, unsigned long thash_en
                 spin_lock_init(&hashinfo->bhash[i].lock);
                 INIT_HLIST_HEAD(&hashinfo->bhash[i].chain);
         }
+	/* TO DO: Add memory error handling logic */
 }
 
 void dcacp_hashtable_destroy(struct inet_hashinfo* hashinfo) {
 	vfree(hashinfo->bhash);
 	kvfree(hashinfo->ehash_locks);
 	kmem_cache_destroy(hashinfo->bind_bucket_cachep);
-	vfree(hashinfo->lhash2);
 	vfree(hashinfo->ehash);
+	inet_hashinfo2_free_mod(&dcacp_hashinfo);
 	printk("hash table destroy finish\n");
 }
 /*
@@ -194,7 +195,7 @@ void inet_bind_hash(struct sock *sk, struct inet_bind_bucket *tb,
 {
 	inet_sk(sk)->inet_num = snum;
 	sk_add_bind_node(sk, &tb->owners);
-	dcacp_sk(sk)->icsk_bind_hash = tb;
+	inet_csk(sk)->icsk_bind_hash = tb;
 }
 
 /*
@@ -236,7 +237,7 @@ int __dcacp_inherit_port(const struct sock *sk, struct sock *child)
 	int l3mdev;
 
 	spin_lock(&head->lock);
-	tb = dcacp_sk(sk)->icsk_bind_hash;
+	tb = inet_csk(sk)->icsk_bind_hash;
 	if (unlikely(!tb)) {
 		spin_unlock(&head->lock);
 		return -ENOENT;

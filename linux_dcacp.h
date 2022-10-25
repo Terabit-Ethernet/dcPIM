@@ -43,7 +43,9 @@ enum {
 	/* Sender and receiver state are easier to debug.*/
 	DCACP_RECEIVER = 1,
 	DCACP_SENDER,
-	DCACP_LISTEN,
+	/* to match TCP_LISTEN */
+	DCACP_LISTEN = TCP_LISTEN,
+	DCACP_CLOSE = TCP_CLOSE,
 	/* use TCP_CLOSE because of inet_bind use TCP_CLOSE to
 	 check whether the port should be assigned TCP CLOSE = 7;*/ 
 	// RCP_CLOSE,
@@ -384,15 +386,15 @@ struct dcacp_sack_block {
 };
 
 struct dcacp_sock {
-	/* inet_sock has to be the first member */
-	struct inet_sock inet;
+	/* inet_connection_sock has to be the first member of dcacp_sock */
+	struct inet_connection_sock	dccps_inet_connection;
 #define dcacp_port_hash		inet.sk.__sk_common.skc_u16hashes[0]
 #define dcacp_portaddr_hash	inet.sk.__sk_common.skc_u16hashes[1]
 #define dcacp_portaddr_node	inet.sk.__sk_common.skc_portaddr_node
 
-	struct inet_bind_bucket	  *icsk_bind_hash;
-	struct hlist_node         icsk_listen_portaddr_node;
-	struct request_sock_queue icsk_accept_queue;
+	// struct inet_bind_bucket	  *icsk_bind_hash;
+	// struct hlist_node         icsk_listen_portaddr_node;
+	// struct request_sock_queue icsk_accept_queue;
 
 	int		 pending;	/* Any pending frames ? */
 	unsigned int	 corkflag;	/* Cork is required */

@@ -28,12 +28,12 @@ struct inet_bind_bucket;
 
 static inline int dcacp_sk_reqsk_queue_len(const struct sock *sk)
 {
-	return reqsk_queue_len(&dcacp_sk(sk)->icsk_accept_queue);
+	return reqsk_queue_len(&inet_csk(sk)->icsk_accept_queue);
 }
 
 static inline int dcacp_sk_reqsk_queue_young(const struct sock *sk)
 {
-	return reqsk_queue_len_young(&dcacp_sk(sk)->icsk_accept_queue);
+	return reqsk_queue_len_young(&inet_csk(sk)->icsk_accept_queue);
 }
 
 static inline int dcacp_sk_reqsk_queue_is_full(const struct sock *sk)

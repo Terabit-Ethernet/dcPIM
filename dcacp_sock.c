@@ -152,7 +152,7 @@ void dcacp_set_state(struct sock* sk, int state) {
 
 		sk->sk_prot->unhash(sk);
 		/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
-		if (dcacp_sk(sk)->icsk_bind_hash) {
+		if (inet_csk(sk)->icsk_bind_hash) {
 			printk("put port\n");
 			inet_put_port(sk);
 		} else {
@@ -456,9 +456,9 @@ success:
 			tb->fastreuseport = 0;
 		}
 	}
-	if (!dcacp_sk(sk)->icsk_bind_hash)
+	if (!inet_csk(sk)->icsk_bind_hash)
 		inet_bind_hash(sk, tb, port);
-	WARN_ON(dcacp_sk(sk)->icsk_bind_hash != tb);
+	WARN_ON(inet_csk(sk)->icsk_bind_hash != tb);
 	ret = 0;
 
 fail_unlock:
@@ -633,7 +633,7 @@ int dcacp_listen_start(struct sock *sk, int backlog)
 	struct inet_sock *inet = inet_sk(sk);
 	int err = -EADDRINUSE;
 
-	reqsk_queue_alloc(&dsk->icsk_accept_queue);
+	reqsk_queue_alloc(&inet_csk(sk)->icsk_accept_queue);
 
 	sk->sk_ack_backlog = 0;
 	// inet_csk_delack_init(sk);
@@ -739,12 +739,12 @@ static int dcacp_sk_wait_for_connect(struct sock *sk, long timeo)
 		prepare_to_wait_exclusive(sk_sleep(sk), &wait,
 					  TASK_INTERRUPTIBLE);
 		release_sock(sk);
-		if (reqsk_queue_empty(&dsk->icsk_accept_queue))
+		if (reqsk_queue_empty(&inet_csk(sk)->icsk_accept_queue))
 			timeo = schedule_timeout(timeo);
 		sched_annotate_sleep();
 		lock_sock(sk);
 		err = 0;
-		if (!reqsk_queue_empty(&dsk->icsk_accept_queue))
+		if (!reqsk_queue_empty(&inet_csk(sk)->icsk_accept_queue))
 			break;
 		err = -EINVAL;
 		if (sk->sk_state != DCACP_LISTEN)
@@ -766,7 +766,7 @@ static int dcacp_sk_wait_for_connect(struct sock *sk, long timeo)
 struct sock *dcacp_sk_accept(struct sock *sk, int flags, int *err, bool kern)
 {
 	struct dcacp_sock *dsk = dcacp_sk(sk);
-	struct request_sock_queue *queue = &dsk->icsk_accept_queue;
+	struct request_sock_queue *queue = &inet_csk(sk)->icsk_accept_queue;
 	struct request_sock *req;
 	struct sock *newsk;
 	int error;
@@ -886,7 +886,7 @@ struct sock *dcacp_sk_reqsk_queue_add(struct sock *sk,
 				      struct request_sock *req,
 				      struct sock *child)
 {
-	struct request_sock_queue *queue = &dcacp_sk(sk)->icsk_accept_queue;
+	struct request_sock_queue *queue = &inet_csk(sk)->icsk_accept_queue;
 
 	spin_lock(&queue->rskq_lock);
 	if (unlikely(sk->sk_state != DCACP_LISTEN)) {
@@ -956,7 +956,7 @@ struct sock *dcacp_sk_clone_lock(const struct sock *sk,
 	if (newsk) {
 		struct dcacp_sock *dsk = dcacp_sk(newsk);
 
-		dsk->icsk_bind_hash = NULL;
+		// dsk->icsk_bind_hash = NULL;
 
 		inet_sk(newsk)->inet_dport = inet_rsk(req)->ir_rmt_port;
 		inet_sk(newsk)->inet_num = inet_rsk(req)->ir_num;
@@ -969,7 +969,7 @@ struct sock *dcacp_sk_clone_lock(const struct sock *sk,
 
 		newsk->sk_mark = inet_rsk(req)->ir_mark;
 		/* Deinitialize accept_queue to trap illegal accesses. */
-		memset(&dsk->icsk_accept_queue, 0, sizeof(dsk->icsk_accept_queue));
+		memset(&inet_csk(sk)->icsk_accept_queue, 0, sizeof(inet_csk(sk)->icsk_accept_queue));
 
 	}
 	return newsk;

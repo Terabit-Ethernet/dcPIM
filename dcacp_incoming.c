@@ -564,7 +564,7 @@ static void dcacp_check_flow_finished_at_receiver(struct dcacp_sock *dsk) {
 		atomic_sub(atomic_read(&dsk->receiver.in_flight_bytes), &entry->remaining_tokens);
 		sk->sk_prot->unhash(sk);
 		/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
-		if (dcacp_sk(sk)->icsk_bind_hash) {
+		if (inet_csk(sk)->icsk_bind_hash) {
 			printk("put port\n");
 			inet_put_port(sk);
 		} else {
