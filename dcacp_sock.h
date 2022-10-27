@@ -20,36 +20,8 @@
 #include <net/inet_sock.h>
 #include <net/request_sock.h>
 
-/* Cancel timers, when they are not required. */
-#undef INET_CSK_CLEAR_TIMERS
-
-struct inet_bind_bucket;
-
-
-static inline int dcacp_sk_reqsk_queue_len(const struct sock *sk)
-{
-	return reqsk_queue_len(&inet_csk(sk)->icsk_accept_queue);
-}
-
-static inline int dcacp_sk_reqsk_queue_young(const struct sock *sk)
-{
-	return reqsk_queue_len_young(&inet_csk(sk)->icsk_accept_queue);
-}
-
-static inline int dcacp_sk_reqsk_queue_is_full(const struct sock *sk)
-{
-	return dcacp_sk_reqsk_queue_len(sk) >= sk->sk_max_ack_backlog;
-}
-
-static inline struct dcacp_request_sock *dcacp_rsk(const struct request_sock *req)
-{
-	return (struct dcacp_request_sock *)req;
-}
-
-
 // struct sock *inet_csk_accept(struct sock *sk, int flags, int *err, bool kern);
 void dcacp_set_state(struct sock* sk, int state);
-int dcacp_sk_get_port(struct sock *sk, unsigned short snum);
 
 /* sender side sys call: connect */
 int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len);
@@ -57,7 +29,6 @@ int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len);
 /* receiver side sys call: listen and accept */
 int dcacp_listen_start(struct sock *sk, int backlog);
 int dcacp_listen(struct socket *sock, int backlog);
-struct sock *dcacp_sk_accept(struct sock *sk, int flags, int *err, bool kern);
 
 void dcacp_sk_prepare_forced_close(struct sock *sk);
 
