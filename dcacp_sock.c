@@ -146,7 +146,7 @@ void dcacp_set_state(struct sock* sk, int state) {
 		break;
 	case DCACP_SENDER:
 		break;
-	case TCP_CLOSE:
+	case DCACP_CLOSE:
 		// if (oldstate == TCP_CLOSE_WAIT || oldstate == TCP_ESTABLISHED)
 		// 	TCP_INC_STATS(sock_net(sk), TCP_MIB_ESTABRESETS);
 
@@ -487,7 +487,7 @@ int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
       (uint32_t)usin->sin_zero[1] << 16 |
       (uint32_t)usin->sin_zero[2] << 8  |
       (uint32_t)usin->sin_zero[3];	
-    WARN_ON(sk->sk_state != TCP_CLOSE);
+    WARN_ON(sk->sk_state != DCACP_CLOSE);
     if (addr_len < sizeof(struct sockaddr_in))
 		return -EINVAL;
 
@@ -618,7 +618,7 @@ failure:
 	 * This unhashes the socket and releases the local port,
 	 * if necessary.
 	 */
-	dcacp_set_state(sk, TCP_CLOSE);
+	dcacp_set_state(sk, DCACP_CLOSE);
 	ip_rt_put(rt);
 	sk->sk_route_caps = 0;
 	inet->inet_dport = 0;
@@ -654,7 +654,7 @@ int dcacp_listen_start(struct sock *sk, int backlog)
 			return 0;
 	}
 
-	inet_sk_set_state(sk, TCP_CLOSE);
+	inet_sk_set_state(sk, DCACP_CLOSE);
 	return err;
 }
 EXPORT_SYMBOL_GPL(dcacp_listen_start);
@@ -676,7 +676,7 @@ int dcacp_listen(struct socket *sock, int backlog)
 		goto out;
 
 	old_state = sk->sk_state;
-	if (!((1 << old_state) & (TCPF_CLOSE | DCACPF_LISTEN)))
+	if (!((1 << old_state) & (DCACPF_CLOSE | DCACPF_LISTEN)))
 		goto out;
 
 	WRITE_ONCE(sk->sk_max_ack_backlog, backlog);
@@ -891,7 +891,7 @@ struct sock *dcacp_sk_reqsk_queue_add(struct sock *sk,
 	spin_lock(&queue->rskq_lock);
 	if (unlikely(sk->sk_state != DCACP_LISTEN)) {
 		// inet_child_forget(sk, req, child);
-		WARN_ON(sk->sk_state != TCP_CLOSE);
+		WARN_ON(sk->sk_state != DCACP_CLOSE);
 		WARN_ON(!sock_flag(sk, SOCK_DEAD));
 
 		/* It cannot be in hash table! */
@@ -1138,7 +1138,7 @@ put_and_exit:
 	sock_put(newsk);
 	// inet_csk_prepare_forced_close(newsk);
 	// tcp_done(newsk);
-	// dcacp_set_state(newsk, TCP_CLOSE);
+	// dcacp_set_state(newsk, DCACP_CLOSE);
 	goto exit;
 }
 EXPORT_SYMBOL(dcacp_create_con_sock);

@@ -1062,7 +1062,7 @@ int dcacp_handle_fin_pkt(struct sk_buff *skb) {
 		if (!sock_owned_by_user(sk)) {
 			// printk("reach here:%d", __LINE__);
 
-	        dcacp_set_state(sk, TCP_CLOSE);
+	        dcacp_set_state(sk, DCACP_CLOSE);
 	        dcacp_write_queue_purge(sk);
 	        sk->sk_data_ready(sk);
 	        kfree_skb(skb);
@@ -1414,7 +1414,7 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 	} else if (dh->type == FIN) {
 		// printk("reach here:%d", __LINE__);
 
-        dcacp_set_state(sk, TCP_CLOSE);
+        dcacp_set_state(sk, DCACP_CLOSE);
         dcacp_write_queue_purge(sk);
 		// atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 		sk->sk_data_ready(sk);

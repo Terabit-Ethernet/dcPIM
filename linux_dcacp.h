@@ -56,6 +56,7 @@ enum {
 	DCACPF_SENDER = (1 << DCACP_SENDER),
 	DCACPF_RECEIVER = (1 << DCACP_RECEIVER),
 	DCACPF_LISTEN	 = (1 << DCACP_LISTEN),
+	DCACPF_CLOSE = (1 << DCACP_CLOSE),
 };
 
 enum dcacpcsq_enum {

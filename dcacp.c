@@ -176,12 +176,12 @@ int sk_wait_ack(struct sock *sk, long *timeo)
 	int rc = 0;
 	add_wait_queue(sk_sleep(sk), &wait);
 	while(1) {
-		if(sk->sk_state == TCP_CLOSE)
+		if(sk->sk_state == DCACP_CLOSE)
 			break;
 		if (signal_pending(current))
 			break;
 		sk_set_bit(SOCKWQ_ASYNC_WAITDATA, sk);
-		rc = sk_wait_event(sk, timeo, sk->sk_state == TCP_CLOSE, &wait);
+		rc = sk_wait_event(sk, timeo, sk->sk_state == DCACP_CLOSE, &wait);
 		sk_clear_bit(SOCKWQ_ASYNC_WAITDATA, sk);
 	}
 	remove_wait_queue(sk_sleep(sk), &wait);
@@ -408,7 +408,8 @@ EXPORT_SYMBOL_GPL(dcacp_destruct_sock);
 int dcacp_init_sock(struct sock *sk)
 {
 	struct dcacp_sock* dsk = dcacp_sk(sk);
-	// dcacp_set_state(sk, TCP_CLOSE);
+	// dcacp_set_state(sk, DCACP_CLOSE);
+	inet_sk_state_store(sk, DCACP_CLOSE);
 	skb_queue_head_init(&dcacp_sk(sk)->reader_queue);
 	dsk->core_id = raw_smp_processor_id();
 	printk("init sock\n");
@@ -633,7 +634,7 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 
 		if (copied) {
 			if (sk->sk_err ||
-			    sk->sk_state == TCP_CLOSE ||
+			    sk->sk_state == DCACP_CLOSE ||
 			    (sk->sk_shutdown & RCV_SHUTDOWN) ||
 			    !timeo ||
 			    signal_pending(current))
@@ -650,7 +651,7 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 			if (sk->sk_shutdown & RCV_SHUTDOWN)
 				break;
 
-			if (sk->sk_state == TCP_CLOSE) {
+			if (sk->sk_state == DCACP_CLOSE) {
 				/* This occurs when user tries to read
 				 * from never connected socket.
 				 */
@@ -780,7 +781,7 @@ found_ok_skb:
 	dcacp_try_send_token(sk);
 	if (dsk->receiver.copied_seq == dsk->total_length) {
 		printk("call tcp close in the recv msg\n");
-		dcacp_set_state(sk, TCP_CLOSE);
+		dcacp_set_state(sk, DCACP_CLOSE);
 	} else {
 		// dcacp_try_send_token(sk);
 	}
@@ -826,7 +827,7 @@ int dcacp_disconnect(struct sock *sk, int flags)
  	 *	1003.1g - break association.
  	 */
 
- 	sk->sk_state = TCP_CLOSE;
+ 	sk->sk_state = DCACP_CLOSE;
  	inet->inet_daddr = 0;
  	inet->inet_dport = 0;
  	sock_rps_reset_rxhash(sk);
@@ -953,7 +954,7 @@ void dcacp_destroy_sock(struct sock *sk)
 		dcacp_xmit_control(construct_fin_pkt(sk), sk, inet->inet_dport); 
 	}
 	printk("reach here:%d", __LINE__);
-	dcacp_set_state(sk, TCP_CLOSE);
+	dcacp_set_state(sk, DCACP_CLOSE);
 	// dcacp_flush_pending_frames(sk);
 	dcacp_write_queue_purge(sk);
 	dcacp_read_queue_purge(sk);
