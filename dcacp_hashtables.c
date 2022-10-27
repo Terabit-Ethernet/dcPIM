@@ -60,25 +60,25 @@
  * Allocate and initialize a new local port bind bucket.
  * The bindhash mutex for snum's hash chain must be held here.
  */
-struct inet_bind_bucket *inet_bind_bucket_create(struct kmem_cache *cachep,
-						 struct net *net,
-						 struct inet_bind_hashbucket *head,
-						 const unsigned short snum,
-						 int l3mdev)
-{
-	struct inet_bind_bucket *tb = kmem_cache_alloc(cachep, GFP_ATOMIC);
+// struct inet_bind_bucket *inet_bind_bucket_create(struct kmem_cache *cachep,
+// 						 struct net *net,
+// 						 struct inet_bind_hashbucket *head,
+// 						 const unsigned short snum,
+// 						 int l3mdev)
+// {
+// 	struct inet_bind_bucket *tb = kmem_cache_alloc(cachep, GFP_ATOMIC);
 
-	if (tb) {
-		write_pnet(&tb->ib_net, net);
-		tb->l3mdev    = l3mdev;
-		tb->port      = snum;
-		tb->fastreuse = 0;
-		tb->fastreuseport = 0;
-		INIT_HLIST_HEAD(&tb->owners);
-		hlist_add_head(&tb->node, &head->chain);
-	}
-	return tb;
-}
+// 	if (tb) {
+// 		write_pnet(&tb->ib_net, net);
+// 		tb->l3mdev    = l3mdev;
+// 		tb->port      = snum;
+// 		tb->fastreuse = 0;
+// 		tb->fastreuseport = 0;
+// 		INIT_HLIST_HEAD(&tb->owners);
+// 		hlist_add_head(&tb->node, &head->chain);
+// 	}
+// 	return tb;
+// }
 
 void* allocate_hash_table(const char *tablename,
 				     unsigned long bucketsize,
@@ -190,13 +190,13 @@ void dcacp_hashtable_destroy(struct inet_hashinfo* hashinfo) {
 // 	}
 // }
 
-void inet_bind_hash(struct sock *sk, struct inet_bind_bucket *tb,
-		    const unsigned short snum)
-{
-	inet_sk(sk)->inet_num = snum;
-	sk_add_bind_node(sk, &tb->owners);
-	inet_csk(sk)->icsk_bind_hash = tb;
-}
+// void inet_bind_hash(struct sock *sk, struct inet_bind_bucket *tb,
+// 		    const unsigned short snum)
+// {
+// 	inet_sk(sk)->inet_num = snum;
+// 	sk_add_bind_node(sk, &tb->owners);
+// 	inet_csk(sk)->icsk_bind_hash = tb;
+// }
 
 /*
  * Get rid of any references to a local port held by the given sock.
@@ -226,51 +226,51 @@ void inet_bind_hash(struct sock *sk, struct inet_bind_bucket *tb,
 // }
 // EXPORT_SYMBOL(inet_put_port);
 
-int __dcacp_inherit_port(const struct sock *sk, struct sock *child)
-{
-	struct inet_hashinfo *table = sk->sk_prot->h.hashinfo;
-	unsigned short port = inet_sk(child)->inet_num;
-	const int bhash = inet_bhashfn(sock_net(sk), port,
-			table->bhash_size);
-	struct inet_bind_hashbucket *head = &table->bhash[bhash];
-	struct inet_bind_bucket *tb;
-	int l3mdev;
+// int __dcacp_inherit_port(const struct sock *sk, struct sock *child)
+// {
+// 	struct inet_hashinfo *table = sk->sk_prot->h.hashinfo;
+// 	unsigned short port = inet_sk(child)->inet_num;
+// 	const int bhash = inet_bhashfn(sock_net(sk), port,
+// 			table->bhash_size);
+// 	struct inet_bind_hashbucket *head = &table->bhash[bhash];
+// 	struct inet_bind_bucket *tb;
+// 	int l3mdev;
 
-	spin_lock(&head->lock);
-	tb = inet_csk(sk)->icsk_bind_hash;
-	if (unlikely(!tb)) {
-		spin_unlock(&head->lock);
-		return -ENOENT;
-	}
-	if (tb->port != port) {
-		l3mdev = inet_sk_bound_l3mdev(sk);
+// 	spin_lock(&head->lock);
+// 	tb = inet_csk(sk)->icsk_bind_hash;
+// 	if (unlikely(!tb)) {
+// 		spin_unlock(&head->lock);
+// 		return -ENOENT;
+// 	}
+// 	if (tb->port != port) {
+// 		l3mdev = inet_sk_bound_l3mdev(sk);
 
-		/* NOTE: using tproxy and redirecting skbs to a proxy
-		 * on a different listener port breaks the assumption
-		 * that the listener socket's icsk_bind_hash is the same
-		 * as that of the child socket. We have to look up or
-		 * create a new bind bucket for the child here. */
-		inet_bind_bucket_for_each(tb, &head->chain) {
-			if (net_eq(ib_net(tb), sock_net(sk)) &&
-			    tb->l3mdev == l3mdev && tb->port == port)
-				break;
-		}
-		if (!tb) {
-			tb = inet_bind_bucket_create(table->bind_bucket_cachep,
-						     sock_net(sk), head, port,
-						     l3mdev);
-			if (!tb) {
-				spin_unlock(&head->lock);
-				return -ENOMEM;
-			}
-		}
-	}
-	inet_bind_hash(child, tb, port);
-	spin_unlock(&head->lock);
+// 		/* NOTE: using tproxy and redirecting skbs to a proxy
+// 		 * on a different listener port breaks the assumption
+// 		 * that the listener socket's icsk_bind_hash is the same
+// 		 * as that of the child socket. We have to look up or
+// 		 * create a new bind bucket for the child here. */
+// 		inet_bind_bucket_for_each(tb, &head->chain) {
+// 			if (net_eq(ib_net(tb), sock_net(sk)) &&
+// 			    tb->l3mdev == l3mdev && tb->port == port)
+// 				break;
+// 		}
+// 		if (!tb) {
+// 			tb = inet_bind_bucket_create(table->bind_bucket_cachep,
+// 						     sock_net(sk), head, port,
+// 						     l3mdev);
+// 			if (!tb) {
+// 				spin_unlock(&head->lock);
+// 				return -ENOMEM;
+// 			}
+// 		}
+// 	}
+// 	inet_bind_hash(child, tb, port);
+// 	spin_unlock(&head->lock);
 
-	return 0;
-}
-EXPORT_SYMBOL_GPL(__dcacp_inherit_port);
+// 	return 0;
+// }
+// EXPORT_SYMBOL_GPL(__dcacp_inherit_port);
 
 // static struct inet_listen_hashbucket *
 // inet_lhash2_bucket_sk(struct inet_hashinfo *h, struct sock *sk)

@@ -408,7 +408,7 @@ EXPORT_SYMBOL_GPL(dcacp_destruct_sock);
 int dcacp_init_sock(struct sock *sk)
 {
 	struct dcacp_sock* dsk = dcacp_sk(sk);
-	dcacp_set_state(sk, TCP_CLOSE);
+	// dcacp_set_state(sk, TCP_CLOSE);
 	skb_queue_head_init(&dcacp_sk(sk)->reader_queue);
 	dsk->core_id = raw_smp_processor_id();
 	printk("init sock\n");
@@ -904,7 +904,7 @@ int dcacp_rcv(struct sk_buff *skb)
 		goto drop;		/* No space for header. */
 	dh = dcacp_hdr(skb);
 	// printk("dh == NULL?: %d\n", dh == NULL);
-	// printk("receive pkt: %d\n", dh->type);
+	printk("receive pkt: %d\n", dh->type);
 	// printk("end ref \n");
 	if(dh->type == DATA) {
 		return dcacp_handle_data_pkt(skb);

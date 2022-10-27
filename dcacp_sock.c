@@ -68,67 +68,67 @@ void reqsk_queue_alloc(struct request_sock_queue *queue)
 }
 
 
-#if IS_ENABLED(CONFIG_IPV6)
-/* match_wildcard == true:  IPV6_ADDR_ANY equals to any IPv6 addresses if IPv6
- *                          only, and any IPv4 addresses if not IPv6 only
- * match_wildcard == false: addresses must be exactly the same, i.e.
- *                          IPV6_ADDR_ANY only equals to IPV6_ADDR_ANY,
- *                          and 0.0.0.0 equals to 0.0.0.0 only
- */
-static bool ipv6_rcv_saddr_equal(const struct in6_addr *sk1_rcv_saddr6,
-				 const struct in6_addr *sk2_rcv_saddr6,
-				 __be32 sk1_rcv_saddr, __be32 sk2_rcv_saddr,
-				 bool sk1_ipv6only, bool sk2_ipv6only,
-				 bool match_wildcard)
-{
-	int addr_type = ipv6_addr_type(sk1_rcv_saddr6);
-	int addr_type2 = sk2_rcv_saddr6 ? ipv6_addr_type(sk2_rcv_saddr6) : IPV6_ADDR_MAPPED;
+// #if IS_ENABLED(CONFIG_IPV6)
+// /* match_wildcard == true:  IPV6_ADDR_ANY equals to any IPv6 addresses if IPv6
+//  *                          only, and any IPv4 addresses if not IPv6 only
+//  * match_wildcard == false: addresses must be exactly the same, i.e.
+//  *                          IPV6_ADDR_ANY only equals to IPV6_ADDR_ANY,
+//  *                          and 0.0.0.0 equals to 0.0.0.0 only
+//  */
+// static bool ipv6_rcv_saddr_equal(const struct in6_addr *sk1_rcv_saddr6,
+// 				 const struct in6_addr *sk2_rcv_saddr6,
+// 				 __be32 sk1_rcv_saddr, __be32 sk2_rcv_saddr,
+// 				 bool sk1_ipv6only, bool sk2_ipv6only,
+// 				 bool match_wildcard)
+// {
+// 	int addr_type = ipv6_addr_type(sk1_rcv_saddr6);
+// 	int addr_type2 = sk2_rcv_saddr6 ? ipv6_addr_type(sk2_rcv_saddr6) : IPV6_ADDR_MAPPED;
 
-	/* if both are mapped, treat as IPv4 */
-	if (addr_type == IPV6_ADDR_MAPPED && addr_type2 == IPV6_ADDR_MAPPED) {
-		if (!sk2_ipv6only) {
-			if (sk1_rcv_saddr == sk2_rcv_saddr)
-				return true;
-			if (!sk1_rcv_saddr || !sk2_rcv_saddr)
-				return match_wildcard;
-		}
-		return false;
-	}
+// 	/* if both are mapped, treat as IPv4 */
+// 	if (addr_type == IPV6_ADDR_MAPPED && addr_type2 == IPV6_ADDR_MAPPED) {
+// 		if (!sk2_ipv6only) {
+// 			if (sk1_rcv_saddr == sk2_rcv_saddr)
+// 				return true;
+// 			if (!sk1_rcv_saddr || !sk2_rcv_saddr)
+// 				return match_wildcard;
+// 		}
+// 		return false;
+// 	}
 
-	if (addr_type == IPV6_ADDR_ANY && addr_type2 == IPV6_ADDR_ANY)
-		return true;
+// 	if (addr_type == IPV6_ADDR_ANY && addr_type2 == IPV6_ADDR_ANY)
+// 		return true;
 
-	if (addr_type2 == IPV6_ADDR_ANY && match_wildcard &&
-	    !(sk2_ipv6only && addr_type == IPV6_ADDR_MAPPED))
-		return true;
+// 	if (addr_type2 == IPV6_ADDR_ANY && match_wildcard &&
+// 	    !(sk2_ipv6only && addr_type == IPV6_ADDR_MAPPED))
+// 		return true;
 
-	if (addr_type == IPV6_ADDR_ANY && match_wildcard &&
-	    !(sk1_ipv6only && addr_type2 == IPV6_ADDR_MAPPED))
-		return true;
+// 	if (addr_type == IPV6_ADDR_ANY && match_wildcard &&
+// 	    !(sk1_ipv6only && addr_type2 == IPV6_ADDR_MAPPED))
+// 		return true;
 
-	if (sk2_rcv_saddr6 &&
-	    ipv6_addr_equal(sk1_rcv_saddr6, sk2_rcv_saddr6))
-		return true;
+// 	if (sk2_rcv_saddr6 &&
+// 	    ipv6_addr_equal(sk1_rcv_saddr6, sk2_rcv_saddr6))
+// 		return true;
 
-	return false;
-}
-#endif
+// 	return false;
+// }
+// #endif
 
 /* match_wildcard == true:  0.0.0.0 equals to any IPv4 addresses
  * match_wildcard == false: addresses must be exactly the same, i.e.
  *                          0.0.0.0 only equals to 0.0.0.0
  */
-static bool ipv4_rcv_saddr_equal(__be32 sk1_rcv_saddr, __be32 sk2_rcv_saddr,
-				 bool sk2_ipv6only, bool match_wildcard)
-{
-	if (!sk2_ipv6only) {
-		if (sk1_rcv_saddr == sk2_rcv_saddr)
-			return true;
-		if (!sk1_rcv_saddr || !sk2_rcv_saddr)
-			return match_wildcard;
-	}
-	return false;
-}
+// static bool ipv4_rcv_saddr_equal(__be32 sk1_rcv_saddr, __be32 sk2_rcv_saddr,
+// 				 bool sk2_ipv6only, bool match_wildcard)
+// {
+// 	if (!sk2_ipv6only) {
+// 		if (sk1_rcv_saddr == sk2_rcv_saddr)
+// 			return true;
+// 		if (!sk1_rcv_saddr || !sk2_rcv_saddr)
+// 			return match_wildcard;
+// 	}
+// 	return false;
+// }
 
 void inet_sk_state_store(struct sock *sk, int newstate)
 {
@@ -153,7 +153,7 @@ void dcacp_set_state(struct sock* sk, int state) {
 		sk->sk_prot->unhash(sk);
 		/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
 		if (inet_csk(sk)->icsk_bind_hash) {
-			printk("put port\n");
+			printk("call put port\n");
 			inet_put_port(sk);
 		} else {
 			printk("userlook and SOCK_BINDPORT_LOCK:%d\n", !(sk->sk_userlocks & SOCK_BINDPORT_LOCK));
@@ -208,265 +208,265 @@ void dcacp_set_state(struct sock* sk, int state) {
 // }
 // EXPORT_SYMBOL(inet_get_local_port_range);
 
-static int dcacp_sk_bind_conflict(const struct sock *sk,
-				  const struct inet_bind_bucket *tb,
-				  bool relax, bool reuseport_ok)
-{
-	struct sock *sk2;
-	bool reuse = sk->sk_reuse;
-	bool reuseport = !!sk->sk_reuseport && reuseport_ok;
-	// kuid_t uid = sock_i_uid((struct sock *)sk);
+// static int dcacp_sk_bind_conflict(const struct sock *sk,
+// 				  const struct inet_bind_bucket *tb,
+// 				  bool relax, bool reuseport_ok)
+// {
+// 	struct sock *sk2;
+// 	bool reuse = sk->sk_reuse;
+// 	bool reuseport = !!sk->sk_reuseport && reuseport_ok;
+// 	// kuid_t uid = sock_i_uid((struct sock *)sk);
 
-	/*
-	 * Unlike other sk lookup places we do not check
-	 * for sk_net here, since _all_ the socks listed
-	 * in tb->owners list belong to the same net - the
-	 * one this bucket belongs to.
-	 */
-	sk_for_each_bound(sk2, &tb->owners) {
-		if (sk != sk2 &&
-		    (!sk->sk_bound_dev_if ||
-		     !sk2->sk_bound_dev_if ||
-		     sk->sk_bound_dev_if == sk2->sk_bound_dev_if)) {
-			if ((!reuse || !sk2->sk_reuse ||
-			    sk2->sk_state == DCACP_LISTEN) &&
-			    (!reuseport || !sk2->sk_reuseport ||
-			     rcu_access_pointer(sk->sk_reuseport_cb))) {
-				if (inet_rcv_saddr_equal(sk, sk2, true))
-					break;
-			}
-			if (!relax && reuse && sk2->sk_reuse &&
-			    sk2->sk_state != DCACP_LISTEN) {
-				if (inet_rcv_saddr_equal(sk, sk2, true))
-					break;
-			}
-		}
+// 	/*
+// 	 * Unlike other sk lookup places we do not check
+// 	 * for sk_net here, since _all_ the socks listed
+// 	 * in tb->owners list belong to the same net - the
+// 	 * one this bucket belongs to.
+// 	 */
+// 	sk_for_each_bound(sk2, &tb->owners) {
+// 		if (sk != sk2 &&
+// 		    (!sk->sk_bound_dev_if ||
+// 		     !sk2->sk_bound_dev_if ||
+// 		     sk->sk_bound_dev_if == sk2->sk_bound_dev_if)) {
+// 			if ((!reuse || !sk2->sk_reuse ||
+// 			    sk2->sk_state == DCACP_LISTEN) &&
+// 			    (!reuseport || !sk2->sk_reuseport ||
+// 			     rcu_access_pointer(sk->sk_reuseport_cb))) {
+// 				if (inet_rcv_saddr_equal(sk, sk2, true))
+// 					break;
+// 			}
+// 			if (!relax && reuse && sk2->sk_reuse &&
+// 			    sk2->sk_state != DCACP_LISTEN) {
+// 				if (inet_rcv_saddr_equal(sk, sk2, true))
+// 					break;
+// 			}
+// 		}
 
-	}
+// 	}
 
-	return sk2 != NULL;
-}
+// 	return sk2 != NULL;
+// }
 
 /*
  * Find an open port number for the socket.  Returns with the
  * inet_bind_hashbucket lock held.
  */
-static struct inet_bind_hashbucket *
-dcacp_sk_find_open_port(struct sock *sk, struct inet_bind_bucket **tb_ret, int *port_ret)
-{
-	struct inet_hashinfo *hinfo = sk->sk_prot->h.hashinfo;
-	int port = 0;
-	struct inet_bind_hashbucket *head;
-	struct net *net = sock_net(sk);
-	int i, low, high, attempt_half;
-	struct inet_bind_bucket *tb;
-	u32 remaining, offset;
-	int l3mdev;
+// static struct inet_bind_hashbucket *
+// dcacp_sk_find_open_port(struct sock *sk, struct inet_bind_bucket **tb_ret, int *port_ret)
+// {
+// 	struct inet_hashinfo *hinfo = sk->sk_prot->h.hashinfo;
+// 	int port = 0;
+// 	struct inet_bind_hashbucket *head;
+// 	struct net *net = sock_net(sk);
+// 	int i, low, high, attempt_half;
+// 	struct inet_bind_bucket *tb;
+// 	u32 remaining, offset;
+// 	int l3mdev;
 
-	l3mdev = inet_sk_bound_l3mdev(sk);
-	attempt_half = (sk->sk_reuse == SK_CAN_REUSE) ? 1 : 0;
-other_half_scan:
-	inet_get_local_port_range(net, &low, &high);
-	high++; /* [32768, 60999] -> [32768, 61000[ */
-	if (high - low < 4)
-		attempt_half = 0;
-	if (attempt_half) {
-		int half = low + (((high - low) >> 2) << 1);
+// 	l3mdev = inet_sk_bound_l3mdev(sk);
+// 	attempt_half = (sk->sk_reuse == SK_CAN_REUSE) ? 1 : 0;
+// other_half_scan:
+// 	inet_get_local_port_range(net, &low, &high);
+// 	high++; /* [32768, 60999] -> [32768, 61000[ */
+// 	if (high - low < 4)
+// 		attempt_half = 0;
+// 	if (attempt_half) {
+// 		int half = low + (((high - low) >> 2) << 1);
 
-		if (attempt_half == 1)
-			high = half;
-		else
-			low = half;
-	}
-	remaining = high - low;
-	if (likely(remaining > 1))
-		remaining &= ~1U;
+// 		if (attempt_half == 1)
+// 			high = half;
+// 		else
+// 			low = half;
+// 	}
+// 	remaining = high - low;
+// 	if (likely(remaining > 1))
+// 		remaining &= ~1U;
 
-	offset = prandom_u32() % remaining;
-	/* __inet_hash_connect() favors ports having @low parity
-	 * We do the opposite to not pollute connect() users.
-	 */
-	offset |= 1U;
+// 	offset = prandom_u32() % remaining;
+// 	/* __inet_hash_connect() favors ports having @low parity
+// 	 * We do the opposite to not pollute connect() users.
+// 	 */
+// 	offset |= 1U;
 
-other_parity_scan:
-	port = low + offset;
-	for (i = 0; i < remaining; i += 2, port += 2) {
-		if (unlikely(port >= high))
-			port -= remaining;
-		if (inet_is_local_reserved_port(net, port))
-			continue;
-		head = &hinfo->bhash[inet_bhashfn(net, port,
-						  hinfo->bhash_size)];
-		spin_lock_bh(&head->lock);
-		inet_bind_bucket_for_each(tb, &head->chain)
-			if (net_eq(ib_net(tb), net) && tb->l3mdev == l3mdev &&
-			    tb->port == port) {
-				if (!dcacp_sk_bind_conflict(sk, tb, false, false))
-					goto success;
-				goto next_port;
-			}
-		tb = NULL;
-		goto success;
-next_port:
+// other_parity_scan:
+// 	port = low + offset;
+// 	for (i = 0; i < remaining; i += 2, port += 2) {
+// 		if (unlikely(port >= high))
+// 			port -= remaining;
+// 		if (inet_is_local_reserved_port(net, port))
+// 			continue;
+// 		head = &hinfo->bhash[inet_bhashfn(net, port,
+// 						  hinfo->bhash_size)];
+// 		spin_lock_bh(&head->lock);
+// 		inet_bind_bucket_for_each(tb, &head->chain)
+// 			if (net_eq(ib_net(tb), net) && tb->l3mdev == l3mdev &&
+// 			    tb->port == port) {
+// 				if (!dcacp_sk_bind_conflict(sk, tb, false, false))
+// 					goto success;
+// 				goto next_port;
+// 			}
+// 		tb = NULL;
+// 		goto success;
+// next_port:
 
-		spin_unlock_bh(&head->lock);
-		cond_resched();
-	}
+// 		spin_unlock_bh(&head->lock);
+// 		cond_resched();
+// 	}
 
-	offset--;
-	if (!(offset & 1))
-		goto other_parity_scan;
+// 	offset--;
+// 	if (!(offset & 1))
+// 		goto other_parity_scan;
 
-	if (attempt_half == 1) {
-		/* OK we now try the upper half of the range */
-		attempt_half = 2;
-		goto other_half_scan;
-	}
-	return NULL;
-success:
-	*port_ret = port;
-	*tb_ret = tb;
-	return head;
-}
+// 	if (attempt_half == 1) {
+// 		/* OK we now try the upper half of the range */
+// 		attempt_half = 2;
+// 		goto other_half_scan;
+// 	}
+// 	return NULL;
+// success:
+// 	*port_ret = port;
+// 	*tb_ret = tb;
+// 	return head;
+// }
 
-static inline int sk_reuseport_match(struct inet_bind_bucket *tb,
-				     struct sock *sk)
-{
-	kuid_t uid = sock_i_uid(sk);
+// static inline int sk_reuseport_match(struct inet_bind_bucket *tb,
+// 				     struct sock *sk)
+// {
+// 	kuid_t uid = sock_i_uid(sk);
 
-	if (tb->fastreuseport <= 0)
-		return 0;
-	if (!sk->sk_reuseport)
-		return 0;
-	if (rcu_access_pointer(sk->sk_reuseport_cb))
-		return 0;
-	if (!uid_eq(tb->fastuid, uid))
-		return 0;
-	/* We only need to check the rcv_saddr if this tb was once marked
-	 * without fastreuseport and then was reset, as we can only know that
-	 * the fast_*rcv_saddr doesn't have any conflicts with the socks on the
-	 * owners list.
-	 */
-	if (tb->fastreuseport == FASTREUSEPORT_ANY)
-		return 1;
-#if IS_ENABLED(CONFIG_IPV6)
-	if (tb->fast_sk_family == AF_INET6)
-		return ipv6_rcv_saddr_equal(&tb->fast_v6_rcv_saddr,
-					    inet6_rcv_saddr(sk),
-					    tb->fast_rcv_saddr,
-					    sk->sk_rcv_saddr,
-					    tb->fast_ipv6_only,
-					    ipv6_only_sock(sk), true);
-#endif
-	return ipv4_rcv_saddr_equal(tb->fast_rcv_saddr, sk->sk_rcv_saddr,
-				    ipv6_only_sock(sk), true);
-}
+// 	if (tb->fastreuseport <= 0)
+// 		return 0;
+// 	if (!sk->sk_reuseport)
+// 		return 0;
+// 	if (rcu_access_pointer(sk->sk_reuseport_cb))
+// 		return 0;
+// 	if (!uid_eq(tb->fastuid, uid))
+// 		return 0;
+// 	/* We only need to check the rcv_saddr if this tb was once marked
+// 	 * without fastreuseport and then was reset, as we can only know that
+// 	 * the fast_*rcv_saddr doesn't have any conflicts with the socks on the
+// 	 * owners list.
+// 	 */
+// 	if (tb->fastreuseport == FASTREUSEPORT_ANY)
+// 		return 1;
+// #if IS_ENABLED(CONFIG_IPV6)
+// 	if (tb->fast_sk_family == AF_INET6)
+// 		return ipv6_rcv_saddr_equal(&tb->fast_v6_rcv_saddr,
+// 					    inet6_rcv_saddr(sk),
+// 					    tb->fast_rcv_saddr,
+// 					    sk->sk_rcv_saddr,
+// 					    tb->fast_ipv6_only,
+// 					    ipv6_only_sock(sk), true);
+// #endif
+// 	return ipv4_rcv_saddr_equal(tb->fast_rcv_saddr, sk->sk_rcv_saddr,
+// 				    ipv6_only_sock(sk), true);
+// }
 
 /* Obtain a reference to a local port for the given sock,
  * if snum is zero it means select any available local port.
  * We try to allocate an odd port (and leave even ports for connect())
  */
-int dcacp_sk_get_port(struct sock *sk, unsigned short snum)
-{
-	bool reuse = sk->sk_reuse && sk->sk_state != DCACP_LISTEN;
-	struct inet_hashinfo *hinfo = sk->sk_prot->h.hashinfo;
-	int ret = 1, port = snum;
-	struct inet_bind_hashbucket *head;
-	struct net *net = sock_net(sk);
-	struct inet_bind_bucket *tb = NULL;
-	kuid_t uid = sock_i_uid(sk);
-	int l3mdev;
-	l3mdev = inet_sk_bound_l3mdev(sk);
-	if (!port) {
-		head = dcacp_sk_find_open_port(sk, &tb, &port);
-		if (!head)
-			return ret;
-		if (!tb)
-			goto tb_not_found;
-		goto success;
-	}
-	head = &hinfo->bhash[inet_bhashfn(net, port,
-					  hinfo->bhash_size)];
+// int dcacp_sk_get_port(struct sock *sk, unsigned short snum)
+// {
+// 	bool reuse = sk->sk_reuse && sk->sk_state != DCACP_LISTEN;
+// 	struct inet_hashinfo *hinfo = sk->sk_prot->h.hashinfo;
+// 	int ret = 1, port = snum;
+// 	struct inet_bind_hashbucket *head;
+// 	struct net *net = sock_net(sk);
+// 	struct inet_bind_bucket *tb = NULL;
+// 	kuid_t uid = sock_i_uid(sk);
+// 	int l3mdev;
+// 	l3mdev = inet_sk_bound_l3mdev(sk);
+// 	if (!port) {
+// 		head = dcacp_sk_find_open_port(sk, &tb, &port);
+// 		if (!head)
+// 			return ret;
+// 		if (!tb)
+// 			goto tb_not_found;
+// 		goto success;
+// 	}
+// 	head = &hinfo->bhash[inet_bhashfn(net, port,
+// 					  hinfo->bhash_size)];
 
-	spin_lock_bh(&head->lock);
-	inet_bind_bucket_for_each(tb, &head->chain)
-		if (net_eq(ib_net(tb), net) && tb->l3mdev == l3mdev &&
-		    tb->port == port)
-			goto tb_found;
-tb_not_found:
-	tb = inet_bind_bucket_create(hinfo->bind_bucket_cachep,
-				     net, head, port, l3mdev);
+// 	spin_lock_bh(&head->lock);
+// 	inet_bind_bucket_for_each(tb, &head->chain)
+// 		if (net_eq(ib_net(tb), net) && tb->l3mdev == l3mdev &&
+// 		    tb->port == port)
+// 			goto tb_found;
+// tb_not_found:
+// 	tb = inet_bind_bucket_create(hinfo->bind_bucket_cachep,
+// 				     net, head, port, l3mdev);
 
-	if (!tb)
-		goto fail_unlock;
-tb_found:
-	if (!hlist_empty(&tb->owners)) {
-		if (sk->sk_reuse == SK_FORCE_REUSE)
-			goto success;
+// 	if (!tb)
+// 		goto fail_unlock;
+// tb_found:
+// 	if (!hlist_empty(&tb->owners)) {
+// 		if (sk->sk_reuse == SK_FORCE_REUSE)
+// 			goto success;
 
-		if ((tb->fastreuse > 0 && reuse) ||
-		    sk_reuseport_match(tb, sk))
-			goto success;
+// 		if ((tb->fastreuse > 0 && reuse) ||
+// 		    sk_reuseport_match(tb, sk))
+// 			goto success;
 
-		if (dcacp_sk_bind_conflict(sk, tb, true, true))
-			goto fail_unlock;
+// 		if (dcacp_sk_bind_conflict(sk, tb, true, true))
+// 			goto fail_unlock;
 
-	}
-success:
-	if (hlist_empty(&tb->owners)) {
-		tb->fastreuse = reuse;
-		if (sk->sk_reuseport) {
-			tb->fastreuseport = FASTREUSEPORT_ANY;
-			tb->fastuid = uid;
-			tb->fast_rcv_saddr = sk->sk_rcv_saddr;
-			tb->fast_ipv6_only = ipv6_only_sock(sk);
-			tb->fast_sk_family = sk->sk_family;
-#if IS_ENABLED(CONFIG_IPV6)
-			tb->fast_v6_rcv_saddr = sk->sk_v6_rcv_saddr;
-#endif
-		} else {
-			tb->fastreuseport = 0;
-		}
-	} else {
-		if (!reuse)
-			tb->fastreuse = 0;
-		if (sk->sk_reuseport) {
-			/* We didn't match or we don't have fastreuseport set on
-			 * the tb, but we have sk_reuseport set on this socket
-			 * and we know that there are no bind conflicts with
-			 * this socket in this tb, so reset our tb's reuseport
-			 * settings so that any subsequent sockets that match
-			 * our current socket will be put on the fast path.
-			 *
-			 * If we reset we need to set FASTREUSEPORT_STRICT so we
-			 * do extra checking for all subsequent sk_reuseport
-			 * socks.
-			 */
-			if (!sk_reuseport_match(tb, sk)) {
-				tb->fastreuseport = FASTREUSEPORT_STRICT;
-				tb->fastuid = uid;
-				tb->fast_rcv_saddr = sk->sk_rcv_saddr;
-				tb->fast_ipv6_only = ipv6_only_sock(sk);
-				tb->fast_sk_family = sk->sk_family;
-#if IS_ENABLED(CONFIG_IPV6)
-				tb->fast_v6_rcv_saddr = sk->sk_v6_rcv_saddr;
-#endif
-			}
-		} else {
-			tb->fastreuseport = 0;
-		}
-	}
-	if (!inet_csk(sk)->icsk_bind_hash)
-		inet_bind_hash(sk, tb, port);
-	WARN_ON(inet_csk(sk)->icsk_bind_hash != tb);
-	ret = 0;
+// 	}
+// success:
+// 	if (hlist_empty(&tb->owners)) {
+// 		tb->fastreuse = reuse;
+// 		if (sk->sk_reuseport) {
+// 			tb->fastreuseport = FASTREUSEPORT_ANY;
+// 			tb->fastuid = uid;
+// 			tb->fast_rcv_saddr = sk->sk_rcv_saddr;
+// 			tb->fast_ipv6_only = ipv6_only_sock(sk);
+// 			tb->fast_sk_family = sk->sk_family;
+// #if IS_ENABLED(CONFIG_IPV6)
+// 			tb->fast_v6_rcv_saddr = sk->sk_v6_rcv_saddr;
+// #endif
+// 		} else {
+// 			tb->fastreuseport = 0;
+// 		}
+// 	} else {
+// 		if (!reuse)
+// 			tb->fastreuse = 0;
+// 		if (sk->sk_reuseport) {
+// 			/* We didn't match or we don't have fastreuseport set on
+// 			 * the tb, but we have sk_reuseport set on this socket
+// 			 * and we know that there are no bind conflicts with
+// 			 * this socket in this tb, so reset our tb's reuseport
+// 			 * settings so that any subsequent sockets that match
+// 			 * our current socket will be put on the fast path.
+// 			 *
+// 			 * If we reset we need to set FASTREUSEPORT_STRICT so we
+// 			 * do extra checking for all subsequent sk_reuseport
+// 			 * socks.
+// 			 */
+// 			if (!sk_reuseport_match(tb, sk)) {
+// 				tb->fastreuseport = FASTREUSEPORT_STRICT;
+// 				tb->fastuid = uid;
+// 				tb->fast_rcv_saddr = sk->sk_rcv_saddr;
+// 				tb->fast_ipv6_only = ipv6_only_sock(sk);
+// 				tb->fast_sk_family = sk->sk_family;
+// #if IS_ENABLED(CONFIG_IPV6)
+// 				tb->fast_v6_rcv_saddr = sk->sk_v6_rcv_saddr;
+// #endif
+// 			}
+// 		} else {
+// 			tb->fastreuseport = 0;
+// 		}
+// 	}
+// 	if (!inet_csk(sk)->icsk_bind_hash)
+// 		inet_bind_hash(sk, tb, port);
+// 	WARN_ON(inet_csk(sk)->icsk_bind_hash != tb);
+// 	ret = 0;
 
-fail_unlock:
+// fail_unlock:
 
-	spin_unlock_bh(&head->lock);
-	return ret;
-}
-EXPORT_SYMBOL_GPL(dcacp_sk_get_port);
+// 	spin_unlock_bh(&head->lock);
+// 	return ret;
+// }
+// EXPORT_SYMBOL_GPL(dcacp_sk_get_port);
 
 /* This will initiate an outgoing connection. */
 int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
@@ -955,7 +955,8 @@ struct sock *dcacp_sk_clone_lock(const struct sock *sk,
 
 	if (newsk) {
 		struct dcacp_sock *dsk = dcacp_sk(newsk);
-
+		struct inet_connection_sock *newicsk = inet_csk(newsk);
+		newicsk->icsk_bind_hash = NULL;
 		// dsk->icsk_bind_hash = NULL;
 
 		inet_sk(newsk)->inet_dport = inet_rsk(req)->ir_rmt_port;
@@ -968,8 +969,15 @@ struct sock *dcacp_sk_clone_lock(const struct sock *sk,
 		inet_sk(newsk)->mc_list = NULL;
 
 		newsk->sk_mark = inet_rsk(req)->ir_mark;
+		atomic64_set(&newsk->sk_cookie,
+			     atomic64_read(&inet_rsk(req)->ir_cookie));
+		newicsk->icsk_retransmits = 0;
+		newicsk->icsk_backoff	  = 0;
+		newicsk->icsk_probes_out  = 0;
+		newicsk->icsk_probes_tstamp = 0;
+
 		/* Deinitialize accept_queue to trap illegal accesses. */
-		memset(&inet_csk(sk)->icsk_accept_queue, 0, sizeof(inet_csk(sk)->icsk_accept_queue));
+		memset(&newicsk->icsk_accept_queue, 0, sizeof(newicsk->icsk_accept_queue));
 
 	}
 	return newsk;
@@ -1061,6 +1069,7 @@ struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
 	struct dcacp_sock *dsk;
 	struct ip_options_rcu *inet_opt;
 	struct dcacp_flow_sync_hdr *fhdr = dcacp_flow_sync_hdr(skb);
+	bool state;
 	if (sk_acceptq_is_full(sk))
 		goto exit_overflow;
 
@@ -1099,7 +1108,7 @@ struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
 	sk_setup_caps(newsk, dst);
 
 	/* add new socket to binding table */
-	if (__dcacp_inherit_port(sk, newsk) < 0)
+	if (__inet_inherit_port(sk, newsk) < 0)
 		goto put_and_exit;
 
 	/* add socket to request queue */
@@ -1108,7 +1117,7 @@ struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
 		/* Unlike TCP, req_sock will not be inserted in the ehash table initially.*/
 
 	    dcacp_set_state(newsk, DCACP_RECEIVER);
-		inet_ehash_nolisten(newsk, NULL, NULL);
+		state = inet_ehash_nolisten(newsk, NULL, NULL);
     	sock_rps_save_rxhash(newsk, skb);
     } 
 	return newsk;
@@ -1124,6 +1133,7 @@ exit:
 	return NULL;
 put_and_exit:
 	// newinet->inet_opt = NULL;
+	printk("put and exit");
 	dcacp_sk_prepare_forced_close(newsk);
 	sock_put(newsk);
 	// inet_csk_prepare_forced_close(newsk);
