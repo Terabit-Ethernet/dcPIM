@@ -508,7 +508,7 @@ void dcacp_xmit_token(struct dcacp_epoch *epoch) {
 		inet = inet_sk(sk);
 		dcacp_pq_pop(&epoch->flow_q);
  		bh_lock_sock(sk);
- 		if(sk->sk_state == DCACP_RECEIVER) {
+ 		if(sk->sk_state == DCACP_ESTABLISHED) {
  			dsk->receiver.prev_grant_bytes = 0;
 	 		if (!sock_owned_by_user(sk)) {
 	 			int grant_bytes = calc_grant_bytes(sk);

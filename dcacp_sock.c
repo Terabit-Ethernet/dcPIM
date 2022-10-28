@@ -77,11 +77,7 @@ void inet_sk_state_store(struct sock *sk, int newstate)
 void dcacp_set_state(struct sock* sk, int state) {
 	
 	switch (state) {
-	case DCACP_RECEIVER:
-		// if (oldstate != DCACP_ESTABLISHED)
-			// TCP_INC_STATS(sock_net(sk), TCP_MIB_CURRESTAB);
-		break;
-	case DCACP_SENDER:
+	case DCACP_ESTABLISHED:
 		break;
 	case DCACP_CLOSE:
 		// if (oldstate == TCP_CLOSE_WAIT || oldstate == TCP_ESTABLISHED)
@@ -189,7 +185,7 @@ int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	 * lock select source port, enter ourselves into the hash tables and
 	 * complete initialization after this.
 	 */
-	dcacp_set_state(sk, DCACP_SENDER);
+	dcacp_set_state(sk, DCACP_ESTABLISHED);
 	// source port is decided by bind; if not, set in hash_connect
 	err = inet_hash_connect(&dcacp_death_row, sk);
 	if (err)
@@ -581,7 +577,7 @@ struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
     if(newsk) {
 		/* Unlike TCP, req_sock will not be inserted in the ehash table initially.*/
 
-	    dcacp_set_state(newsk, DCACP_RECEIVER);
+	    dcacp_set_state(newsk, DCACP_ESTABLISHED);
 		state = inet_ehash_nolisten(newsk, NULL, NULL);
     	sock_rps_save_rxhash(newsk, skb);
     } 

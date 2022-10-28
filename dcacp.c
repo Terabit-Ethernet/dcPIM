@@ -200,7 +200,7 @@ int dcacp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	int flags;
 
 	flags = msg->msg_flags;
-	if (sk->sk_state != DCACP_SENDER) {
+	if (sk->sk_state != DCACP_ESTABLISHED) {
 		return -ENOTCONN;
 	}
 
@@ -540,7 +540,7 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 	// printk("target bytes:%d\n", target);
 
 	if (sk_can_busy_loop(sk) && skb_queue_empty_lockless(&sk->sk_receive_queue) &&
-	    (sk->sk_state == DCACP_RECEIVER))
+	    (sk->sk_state == DCACP_ESTABLISHED))
 		sk_busy_loop(sk, flags & MSG_DONTWAIT);
 
 	lock_sock(sk);
@@ -550,7 +550,7 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 	// cmsg_flags = tp->recvmsg_inq ? 1 : 0;
 	timeo = sock_rcvtimeo(sk, flags & MSG_DONTWAIT);
 
-	if (sk->sk_state != DCACP_RECEIVER)
+	if (sk->sk_state != DCACP_ESTABLISHED)
 		goto out;
 	/* Urgent data needs to be handled specially. */
 	// if (flags & MSG_OOB)
@@ -949,7 +949,7 @@ void dcacp_destroy_sock(struct sock *sk)
 	hrtimer_cancel(&up->receiver.flow_wait_timer);
 	test_and_clear_bit(DCACP_WAIT_DEFERRED, &sk->sk_tsq_flags);
 	up->receiver.flow_finish_wait = false;
-	if(sk->sk_state == DCACP_SENDER || sk->sk_state == DCACP_RECEIVER) {
+	if(sk->sk_state == DCACP_ESTABLISHED) {
 		printk("send ack pkt\n");
 		dcacp_xmit_control(construct_fin_pkt(sk), sk, inet->inet_dport); 
 	}

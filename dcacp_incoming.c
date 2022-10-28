@@ -1275,7 +1275,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	// printk("dport:%d\n", ntohs(inet_sk(sk)->inet_dport));
 	// printk("skb seq:%u\n", DCACP_SKB_CB(skb)->seq);
 	// printk("skb address:%p\n", skb);
-	if(sk && sk->sk_state == DCACP_RECEIVER) {
+	if(sk && sk->sk_state == DCACP_ESTABLISHED) {
 		dsk = dcacp_sk(sk);
 		iph = ip_hdr(skb);
  		bh_lock_sock(sk);
@@ -1305,7 +1305,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	}
 	
 
-	if (!dh->free_token && sk &&  sk->sk_state == DCACP_RECEIVER) {
+	if (!dh->free_token && sk &&  sk->sk_state == DCACP_ESTABLISHED) {
 		dsk = dcacp_sk(sk);
 		int remaining_tokens = 0;
 		struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];

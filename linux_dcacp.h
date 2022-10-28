@@ -41,8 +41,7 @@ enum {
 enum {
 	/* The initial state is TCP_CLOSE */
 	/* Sender and receiver state are easier to debug.*/
-	DCACP_RECEIVER = 1,
-	DCACP_SENDER,
+	DCACP_ESTABLISHED = TCP_ESTABLISHED,
 	/* to match TCP_LISTEN */
 	DCACP_LISTEN = TCP_LISTEN,
 	DCACP_CLOSE = TCP_CLOSE,
@@ -53,8 +52,7 @@ enum {
 
 enum {
 	// DCACPF_NEW = (1 << DCACP_NEW),
-	DCACPF_SENDER = (1 << DCACP_SENDER),
-	DCACPF_RECEIVER = (1 << DCACP_RECEIVER),
+	DCACPF_ESTABLISHED = (1 << DCACP_ESTABLISHED),
 	DCACPF_LISTEN	 = (1 << DCACP_LISTEN),
 	DCACPF_CLOSE = (1 << DCACP_CLOSE),
 };
