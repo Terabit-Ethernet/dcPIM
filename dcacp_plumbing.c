@@ -193,24 +193,26 @@ void dcacp_params_init(struct dcacp_params* params) {
     params->clean_match_sock = 0;
     params->match_socket_port = 3000;
     params->bandwidth = 100;
-    params->control_pkt_rtt = 50;
+    params->control_pkt_rtt = 20;
     params->rtt = 50;
     params->bdp  = params->rtt * params->bandwidth / 8 * 1000;
     // params->bdp = 500000;
     // params->gso_size = 1500;
     // matchiing parameters
-    params->alpha = 2;
-    params->beta = 5;
-    params->min_iter = 1;
-    params->num_iters = 5;
-    params->iter_size = params->beta * params->control_pkt_rtt * 1000;
-    params->epoch_size = params->num_iters * params->iter_size * params->alpha;
+    params->alpha = 1;
+    params->beta = 13; // beta / 10 is the real beta.
+    params->fct_round = 1;
+    params->num_rounds = 4;
+    params->round_length = params->beta * params->control_pkt_rtt * 1000 / 10; // in ns
+    params->epoch_length = params->num_rounds * params->round_length * params->alpha;
     params->rmem_default = 3289600;
     params->wmem_default = 3289600;
     params->short_flow_size = params->bdp;
     params->control_pkt_bdp = params->control_pkt_rtt * params->bandwidth * 1000 / 8;
     params->data_budget = 1000000;
     printk("params->control_pkt_bdp:%d\n", params->control_pkt_bdp);
+    printk("params->round_length:%d\n", params->round_length);
+    printk("params->epoch_length:%d\n", params->epoch_length);
 }
 /**
  * dcacp_dointvec() - This function is a wrapper around proc_dointvec. It is
@@ -320,7 +322,7 @@ static int __init dcacp_load(void) {
                     status);
                 goto out_cleanup;
         }
-        // dcacp_epoch_init(&dcacp_epoch);
+        dcacp_epoch_init(&dcacp_epoch);
         /* initialize rcv_core table and xmit_core table */
         status = rcv_core_table_init(&rcv_core_tab);
         if(status != 0) {
@@ -371,7 +373,7 @@ out_cleanup:
         // proc_remove(metrics_dir_entry);
         if (dcacpv4_offload_end() != 0)
             printk(KERN_ERR "DCACP couldn't stop offloads\n");
-        // dcacp_epoch_destroy(&dcacp_epoch);
+        dcacp_epoch_destroy(&dcacp_epoch);
         rcv_core_table_destory(&rcv_core_tab);
         xmit_core_table_destory(&xmit_core_tab);
         unregister_net_sysctl_table(dcacp_ctl_header);
@@ -413,7 +415,7 @@ static void __exit dcacp_unload(void) {
         if (dcacpv4_offload_end() != 0)
             printk(KERN_ERR "DCACP couldn't stop offloads\n");
         printk("start to unload\n");
-        // dcacp_epoch_destroy(&dcacp_epoch);
+        dcacp_epoch_destroy(&dcacp_epoch);
         unregister_net_sysctl_table(dcacp_ctl_header);
         printk("unregister sysctl table\n");
         rcv_core_table_destory(&rcv_core_tab);

@@ -1,8 +1,86 @@
 #include "dcacp_impl.h"
-
 // static void recevier_iter_event_handler(struct work_struct *work);
 // static void sender_iter_event_handler(struct work_struct *work);
 // __u64 js, je;
+
+static void recevier_matching_handler(struct work_struct *work) {
+	struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, receiver_matching_work);
+	// je = ktime_get_ns();
+	printk("receiver matching handler: round, iter: %llu %d", epoch->epoch, epoch->round);
+	// spin_lock_bh(&epoch->lock);
+ 	// if(dcacp_epoch.epoch % 100 == 0 && dcacp_epoch.iter == 1) {
+ 	// 	printk("iter:%u time diff:%llu \n", iter, je - js);
+ 	// }
+	if(epoch->round == 0) {
+	//	dcacp_handle_all_accepts(&dcacp_match_table, epoch); 
+	}
+	// dcacp_handle_all_rts(&dcacp_match_table, epoch);
+	// spin_unlock_bh(&epoch->lock);
+}
+
+static void sender_matching_handler(struct work_struct *work) {
+	struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, sender_matching_work);
+	// spin_lock_bh(&epoch->lock);
+	printk("sender matching handler: round, iter: %llu %d", epoch->epoch, epoch->round);
+
+	if(epoch->round > 0) {
+		// dcacp_handle_all_grants(&dcacp_match_table, epoch);
+	}
+	// advance rounds
+	epoch->round += 1;
+	if(epoch->round > dcacp_params.num_rounds) {
+		epoch->cur_match_src_addr = epoch->match_src_addr;
+		epoch->cur_match_dst_addr = epoch->match_dst_addr;
+		epoch->cur_epoch = epoch->epoch;
+		epoch->round = 0;
+		epoch->epoch += 1;
+		// dcacp_epoch->min_grant = NULL;
+		// dcacp_epoch->grant_size = 0;
+		// list_for_each_entry_safe(grant, temp, &epoch->grants_q, list_link) {
+		// 	kfree(grant);
+		// }
+	} 
+	// dcacp_send_all_rts(&dcacp_match_table, epoch);
+	// spin_unlock_bh(&epoch->lock);
+}
+
+/* Token */
+enum hrtimer_restart dcacp_token_xmit_event(struct hrtimer *timer) {
+	// struct dcacp_grant* grant, temp;
+	struct dcacp_epoch *epoch = container_of(timer, struct dcacp_epoch, token_xmit_timer);
+
+	// printk("token timer handler is called 1\n");
+	spin_lock(&epoch->lock);
+	/* reset the remaining tokens to zero */
+	// atomic_set(&epoch->remaining_tokens, 0);	
+	dcacp_xmit_token(epoch);
+	spin_unlock(&epoch->lock);
+
+ 	// queue_work(dcacp_epoch.wq, &dcacp_epoch.token_xmit_struct);
+	return HRTIMER_NORESTART;
+
+}
+
+enum hrtimer_restart dcacp_sender_round_timer_handler(struct hrtimer *timer) {
+	// struct dcacp_grant* grant, temp;
+	struct dcacp_epoch *epoch = container_of(timer, struct dcacp_epoch, sender_round_timer);
+	/* ToDo: add record mechansim for missing timers */
+	hrtimer_forward_now(timer, ns_to_ktime(epoch->round_length));
+	queue_work_on(epoch->cpu, epoch->wq, &epoch->sender_matching_work);
+ 	// queue_work(dcacp_epoch.wq, &dcacp_epoch.token_xmit_struct);
+	return HRTIMER_RESTART;
+}
+
+enum hrtimer_restart dcacp_receiver_round_timer_handler(struct hrtimer *timer) {
+	// struct dcacp_grant* grant, temp;
+	struct dcacp_epoch *epoch = container_of(timer, struct dcacp_epoch, receiver_round_timer);
+	/* ToDo: add record mechansim for missing timers */
+	hrtimer_forward_now(timer, ns_to_ktime(epoch->round_length));
+	queue_work_on(epoch->cpu, epoch->wq, &epoch->receiver_matching_work);
+ 	// queue_work(dcacp_epoch.wq, &dcacp_epoch.token_xmit_struct);
+	return HRTIMER_RESTART;
+}
+
 void dcacp_match_entry_init(struct dcacp_match_entry* entry, __be32 addr, 
  bool(*comp)(const struct list_head*, const struct list_head*)) {
 	spin_lock_init(&entry->lock);
@@ -126,10 +204,12 @@ void dcacp_mattab_delete_match_entry(struct dcacp_match_tab *table, struct dcacp
 
 void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 	int ret;
+	ktime_t now;
+	s64 time;
 	// struct inet_sock *inet;
 	// struct dcacp_peer* peer;
 	epoch->epoch = 0;
-	epoch->iter = 0;
+	epoch->round = 0;
 	epoch->prompt = false;
 	epoch->match_src_addr = 0;
 	epoch->match_dst_addr = 0;
@@ -139,6 +219,8 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 	epoch->rts_size = 0;
 	epoch->min_rts = NULL;
 	epoch->min_grant = NULL;
+	epoch->epoch_length = dcacp_params.epoch_length;
+	epoch->round_length = dcacp_params.round_length;
 	// struct rte_timer epoch_timer;
 	// struct rte_timer sender_iter_timers[10];
 	// struct rte_timer receiver_iter_timers[10];
@@ -149,14 +231,15 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 	epoch->cur_epoch = 0;
 	epoch->cur_match_src_addr = 0;
 	epoch->cur_match_dst_addr = 0;
-	ret = sock_create(AF_INET, SOCK_DGRAM, IPPROTO_DCACP, &epoch->sock);
+	epoch->cpu = 0;
+	// ret = sock_create(AF_INET, SOCK_DGRAM, IPPROTO_DCACP, &epoch->sock);
 	// inet = inet_sk(epoch->sock->sk);
 	// peer =  dcacp_peer_find(&dcacp_peers_table, 167772169, inet);
 
-	if(ret) {
-		printk("fail to create socket\n");
-		return;
-	}
+	// if(ret) {
+	// 	printk("fail to create socket\n");
+	// 	return;
+	// }
 	spin_lock_init(&epoch->lock);
 	/* token xmit timer*/
 	atomic_set(&epoch->remaining_tokens, 0);
@@ -172,26 +255,33 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 
 	epoch->wq = alloc_workqueue("epoch_wq",
 			WQ_MEM_RECLAIM | WQ_HIGHPRI, 0);
-	// INIT_WORK(&epoch->sender_iter_struct, sender_iter_event_handler);
-	// INIT_WORK(&epoch->receiver_iter_struct, recevier_iter_event_handler);
-	hrtimer_init(&epoch->epoch_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
-	hrtimer_init(&epoch->sender_iter_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
-	hrtimer_init(&epoch->receiver_iter_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
-	// hrtimer_start(&epoch->epoch_timer, ktime_set(0, 5000000), HRTIMER_MODE_ABS);
+	INIT_WORK(&epoch->sender_matching_work, sender_matching_handler);
+	INIT_WORK(&epoch->receiver_matching_work, recevier_matching_handler);
+	// hrtimer_init(&epoch->epoch_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
+	hrtimer_init(&epoch->sender_round_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
+	hrtimer_init(&epoch->receiver_round_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
+	epoch->sender_round_timer.function = &dcacp_sender_round_timer_handler;
+	epoch->receiver_round_timer.function = &dcacp_receiver_round_timer_handler;
+	now = hrtimer_cb_get_time(&epoch->sender_round_timer);
+	/* schedule at 100 epoch away */
+	time = (ktime_to_ns(now) / epoch->epoch_length + 100) * epoch->epoch_length;
+	hrtimer_start(&epoch->sender_round_timer, ktime_set(0, time), HRTIMER_MODE_ABS);
+	hrtimer_start(&epoch->receiver_round_timer, ktime_set(0, time + epoch->round_length / 2), HRTIMER_MODE_ABS);
+
 	// epoch->epoch_timer.function = &dcacp_new_epoch;
 }
 
 void dcacp_epoch_destroy(struct dcacp_epoch *epoch) {
 	struct dcacp_rts *rts, *temp;
 	struct dcacp_grant *grant, *temp2;
-	struct socket *sk;
-	hrtimer_cancel(&epoch->epoch_timer);
-	hrtimer_cancel(&epoch->sender_iter_timer);
-	hrtimer_cancel(&epoch->receiver_iter_timer);
+	// struct socket *sk;
+	// hrtimer_cancel(&epoch->epoch_timer);
+	hrtimer_cancel(&epoch->sender_round_timer);
+	hrtimer_cancel(&epoch->receiver_round_timer);
 	flush_workqueue(epoch->wq);
 	destroy_workqueue(epoch->wq);
 	spin_lock_bh(&epoch->lock);
-	sk = epoch->sock;
+	// sk = epoch->sock;
 	epoch->sock = NULL;
 	list_for_each_entry_safe(rts, temp, &epoch->rts_q, list_link) {
 		kfree(rts);
@@ -201,7 +291,7 @@ void dcacp_epoch_destroy(struct dcacp_epoch *epoch) {
 	}
 	spin_unlock_bh(&epoch->lock);
 	/* dcacp_destroy_sock needs to hold the epoch lock */
-    sock_release(sk);
+    // sock_release(sk);
 
 }
 // void dcacp_send_all_rts (struct dcacp_match_tab *table, struct dcacp_epoch* epoch) {
@@ -279,7 +369,7 @@ void dcacp_epoch_destroy(struct dcacp_epoch *epoch) {
 // 	// spin_lock_bh(&epoch->lock);
 // 	uint32_t iter = READ_ONCE(epoch->iter);
 // 	if(epoch->match_dst_addr == 0  && epoch->rts_size > 0) {
-// 		if (dcacp_params.min_iter >= iter) {
+// 		if (dcacp_params.fct_iter >= iter) {
 // 			dcacp_xmit_control(construct_grant_pkt(epoch->sock->sk, 
 // 				iter, epoch->epoch, epoch->min_rts->remaining_sz, epoch->cur_match_dst_addr == 0), 
 // 				epoch->min_rts->peer, epoch->sock->sk, dcacp_params.match_socket_port);	
@@ -348,7 +438,7 @@ void dcacp_epoch_destroy(struct dcacp_epoch *epoch) {
 // 	// spin_lock_bh(&epoch->lock);
 // 	uint32_t iter = READ_ONCE(epoch->iter);
 // 	if(epoch->match_src_addr == 0 && epoch->grant_size > 0) {
-// 		if (dcacp_params.min_iter >= iter) {
+// 		if (dcacp_params.fct_iter >= iter) {
 // 			// printk("send accept pkt:%d\n", __LINE__);
 // 			dcacp_xmit_control(construct_accept_pkt(epoch->sock->sk, 
 // 				iter, epoch->epoch), 
@@ -406,50 +496,8 @@ void dcacp_epoch_destroy(struct dcacp_epoch *epoch) {
 // 	return 0;
 // }
 
-// static void recevier_iter_event_handler(struct work_struct *work) {
-// 	struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, receiver_iter_struct);
-// 	uint32_t iter;
-// 	spin_lock_bh(&epoch->lock);
 
-// 	iter = READ_ONCE(epoch->iter);
-// 	if(iter > 0) {
-// 		dcacp_handle_all_grants(&dcacp_match_table, epoch);
-// 	}
-// 	// advance iteration
-// 	iter += 1;
-// 	WRITE_ONCE(epoch->iter, iter);
-// 	if(iter > dcacp_params.num_iters) {
-// 		epoch->cur_match_src_addr = epoch->match_src_addr;
-// 		epoch->cur_match_dst_addr = epoch->match_dst_addr;
-// 		epoch->cur_epoch = epoch->epoch;
-// 		// dcacp_epoch->min_grant = NULL;
-// 		// dcacp_epoch->grant_size = 0;
-// 		// list_for_each_entry_safe(grant, temp, &epoch->grants_q, list_link) {
-// 		// 	kfree(grant);
-// 		// }
-// 		spin_unlock_bh(&epoch->lock);
-// 		return;
-// 	} 
-// 	dcacp_send_all_rts(&dcacp_match_table, epoch);
-// 	spin_unlock_bh(&epoch->lock);
-// }
 
-/* Token */
-enum hrtimer_restart dcacp_token_xmit_event(struct hrtimer *timer) {
-	// struct dcacp_grant* grant, temp;
-	struct dcacp_epoch *epoch = container_of(timer, struct dcacp_epoch, token_xmit_timer);
-
-	// printk("token timer handler is called 1\n");
-	spin_lock(&epoch->lock);
-	/* reset the remaining tokens to zero */
-	// atomic_set(&epoch->remaining_tokens, 0);	
-	dcacp_xmit_token(epoch);
-	spin_unlock(&epoch->lock);
-
- 	// queue_work(dcacp_epoch.wq, &dcacp_epoch.token_xmit_struct);
-	return HRTIMER_NORESTART;
-
-}
 /* Assume hold socket lock 
  * Return 0 if flow should be pushed_back;
  * Return 1 if RMEM is unavailable.
@@ -576,23 +624,6 @@ void dcacp_xmit_token_handler(struct work_struct *work) {
 	// struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, token_xmit_struct);
 }
 
-
-
-// static void sender_iter_event_handler(struct work_struct *work) {
-// 	struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, sender_iter_struct);
-// 	uint32_t iter;
-// 	// je = ktime_get_ns();
-
-// 	spin_lock_bh(&epoch->lock);
-// 	iter = READ_ONCE(epoch->iter);
-//  	// if(dcacp_epoch.epoch % 100 == 0 && dcacp_epoch.iter == 1) {
-//  	// 	printk("iter:%u time diff:%llu \n", iter, je - js);
-//  	// }
-// 	if(iter <= dcacp_params.num_iters) {
-// 		dcacp_handle_all_rts(&dcacp_match_table, epoch);
-// 	}
-// 	spin_unlock_bh(&epoch->lock);
-// }
 // enum hrtimer_restart receiver_iter_event(struct hrtimer *timer) {
 // 	// struct dcacp_grant* grant, temp;
 //  	uint32_t iter;

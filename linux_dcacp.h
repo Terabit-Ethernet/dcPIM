@@ -81,7 +81,7 @@ enum dcacpcsq_flags {
 
 struct dcacp_params {
 	int clean_match_sock;
-	int min_iter;
+	int fct_round;
 	int match_socket_port;
 	int bandwidth;
 	// in microsecond
@@ -94,9 +94,9 @@ struct dcacp_params {
 	// matching related parameters
 	int alpha;
 	int beta;
-	int num_iters;
-	int epoch_size;
-	int iter_size;
+	int num_rounds;
+	int epoch_length;
+	int round_length;
 
 	int rmem_default;
 	int wmem_default;
@@ -213,7 +213,10 @@ struct xmit_core_table {
 struct dcacp_epoch {
 
 	uint64_t epoch;
-	uint32_t iter;
+	uint32_t round;
+	uint32_t cpu;
+	int epoch_length;
+	int round_length;
 	bool prompt;
 	__be32 match_src_addr;
 	__be32 match_dst_addr;
@@ -245,12 +248,12 @@ struct dcacp_epoch {
 	// thread for running Matching logic
 	// struct task_struct thread;
 	struct hrtimer epoch_timer;
-	struct hrtimer sender_iter_timer;
-	struct hrtimer receiver_iter_timer;
+	struct hrtimer sender_round_timer;
+	struct hrtimer receiver_round_timer;
 	struct socket *sock;
 	struct workqueue_struct *wq;
-	struct work_struct sender_iter_struct;
-	struct work_struct receiver_iter_struct;
+	struct work_struct sender_matching_work;
+	struct work_struct receiver_matching_work;
 
 };
 
