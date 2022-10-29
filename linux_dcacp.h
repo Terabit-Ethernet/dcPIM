@@ -254,6 +254,8 @@ struct dcacp_epoch {
 	struct workqueue_struct *wq;
 	struct work_struct sender_matching_work;
 	struct work_struct receiver_matching_work;
+	struct work_struct epoch_work;
+
 
 };
 

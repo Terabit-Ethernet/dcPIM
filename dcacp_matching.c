@@ -6,7 +6,6 @@
 static void recevier_matching_handler(struct work_struct *work) {
 	struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, receiver_matching_work);
 	// je = ktime_get_ns();
-	printk("receiver matching handler: round, iter: %llu %d", epoch->epoch, epoch->round);
 	// spin_lock_bh(&epoch->lock);
  	// if(dcacp_epoch.epoch % 100 == 0 && dcacp_epoch.iter == 1) {
  	// 	printk("iter:%u time diff:%llu \n", iter, je - js);
@@ -18,17 +17,31 @@ static void recevier_matching_handler(struct work_struct *work) {
 	// spin_unlock_bh(&epoch->lock);
 }
 
+static void epoch_start_handler(struct work_struct *work) {
+	struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, epoch_work);
+	ktime_t now;
+	s64 time;
+	now = hrtimer_cb_get_time(&epoch->sender_round_timer);
+	/* schedule at 100 epoch away */
+	time = (ktime_to_ns(now) / epoch->epoch_length + 100) * epoch->epoch_length;
+	hrtimer_start(&epoch->sender_round_timer, ktime_set(0, time), HRTIMER_MODE_ABS);
+	hrtimer_start(&epoch->receiver_round_timer, ktime_set(0, time + epoch->round_length / 2), HRTIMER_MODE_ABS);
+	// je = ktime_get_ns();
+	// spin_lock_bh(&epoch->lock);
+ 	// if(dcacp_epoch.epoch % 100 == 0 && dcacp_epoch.iter == 1) {
+ 	// 	printk("iter:%u time diff:%llu \n", iter, je - js);
+ 	// }
+}
+
 static void sender_matching_handler(struct work_struct *work) {
 	struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, sender_matching_work);
 	// spin_lock_bh(&epoch->lock);
-	printk("sender matching handler: round, iter: %llu %d", epoch->epoch, epoch->round);
-
 	if(epoch->round > 0) {
 		// dcacp_handle_all_grants(&dcacp_match_table, epoch);
 	}
 	// advance rounds
 	epoch->round += 1;
-	if(epoch->round > dcacp_params.num_rounds) {
+	if(epoch->round >= dcacp_params.num_rounds) {
 		epoch->cur_match_src_addr = epoch->match_src_addr;
 		epoch->cur_match_dst_addr = epoch->match_dst_addr;
 		epoch->cur_epoch = epoch->epoch;
@@ -64,8 +77,19 @@ enum hrtimer_restart dcacp_token_xmit_event(struct hrtimer *timer) {
 enum hrtimer_restart dcacp_sender_round_timer_handler(struct hrtimer *timer) {
 	// struct dcacp_grant* grant, temp;
 	struct dcacp_epoch *epoch = container_of(timer, struct dcacp_epoch, sender_round_timer);
+	int forward_time = 0;
 	/* ToDo: add record mechansim for missing timers */
-	hrtimer_forward_now(timer, ns_to_ktime(epoch->round_length));
+	forward_time = hrtimer_forward_now(timer, ns_to_ktime(epoch->round_length));
+	if(forward_time > 1) {
+		epoch->round += forward_time - 1;
+		if(epoch->round >= dcacp_params.num_rounds) {
+			epoch->epoch += epoch->round / dcacp_params.num_rounds;
+			epoch->round = epoch->round %  dcacp_params.num_rounds;
+		}
+	}
+	// if(epoch->epoch == 0 && epoch->round == 0 && hrtimer_get_expires_tv64(timer) % epoch->epoch_length != 0) {
+	// 	return 	HRTIMER_RESTART;
+	// }
 	queue_work_on(epoch->cpu, epoch->wq, &epoch->sender_matching_work);
  	// queue_work(dcacp_epoch.wq, &dcacp_epoch.token_xmit_struct);
 	return HRTIMER_RESTART;
@@ -253,21 +277,19 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 	dcacp_pq_init(&epoch->flow_q, flow_compare);
 
 
+
+
 	epoch->wq = alloc_workqueue("epoch_wq",
 			WQ_MEM_RECLAIM | WQ_HIGHPRI, 0);
 	INIT_WORK(&epoch->sender_matching_work, sender_matching_handler);
 	INIT_WORK(&epoch->receiver_matching_work, recevier_matching_handler);
+	INIT_WORK(&epoch->epoch_work, epoch_start_handler);
 	// hrtimer_init(&epoch->epoch_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
 	hrtimer_init(&epoch->sender_round_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
 	hrtimer_init(&epoch->receiver_round_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
 	epoch->sender_round_timer.function = &dcacp_sender_round_timer_handler;
 	epoch->receiver_round_timer.function = &dcacp_receiver_round_timer_handler;
-	now = hrtimer_cb_get_time(&epoch->sender_round_timer);
-	/* schedule at 100 epoch away */
-	time = (ktime_to_ns(now) / epoch->epoch_length + 100) * epoch->epoch_length;
-	hrtimer_start(&epoch->sender_round_timer, ktime_set(0, time), HRTIMER_MODE_ABS);
-	hrtimer_start(&epoch->receiver_round_timer, ktime_set(0, time + epoch->round_length / 2), HRTIMER_MODE_ABS);
-
+	queue_work_on(epoch->cpu, epoch->wq, &epoch->epoch_work);
 	// epoch->epoch_timer.function = &dcacp_new_epoch;
 }
 
