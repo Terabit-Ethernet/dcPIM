@@ -652,7 +652,7 @@ int dcacp_write_timer_handler(struct sock *sk)
 		dcacp_retransmit(sk);
 	}
 	while((skb = skb_dequeue(&sk->sk_write_queue)) != NULL) {
-		if (DCACP_SKB_CB(skb)->end_seq <= dsk->sender.token_seq) {
+		if (dsk->sender.token_seq - DCACP_SKB_CB(skb)->end_seq <= sk->sk_sndbuf) {
 			dcacp_xmit_data(skb, dsk, false);
 			sent_bytes += DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq;
 		} else {
@@ -690,9 +690,12 @@ int dcacp_token_timer_defer_handler(struct sock *sk) {
 	if(token_bytes < dsk->receiver.token_batch)
 		return 0;
 	token_bytes = dcacp_xmit_token(dsk, token_bytes);
-	hrtimer_start(&dsk->receiver.token_pace_timer,
-		ns_to_ktime(token_bytes * 8 / matched_bw), HRTIMER_MODE_REL_PINNED_SOFT);
-	sock_hold(sk);
+	if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
+		hrtimer_start(&dsk->receiver.token_pace_timer,
+			ns_to_ktime(token_bytes * 8 / matched_bw), HRTIMER_MODE_REL_PINNED_SOFT);
+		sock_hold(sk);
+		printk("start timer at delay\n");
+	}
 	return token_bytes;
 }
 
@@ -712,17 +715,20 @@ enum hrtimer_restart dcacp_xmit_token_handler(struct hrtimer *timer) {
 		if(token_bytes >= dsk->receiver.token_batch) {
 			dcacp_xmit_token(dsk, token_bytes);
 			hrtimer_forward_now(timer, ns_to_ktime(token_bytes * 8 / matched_bw));
+			printk("forward timer\n");
 			bh_unlock_sock(sk);
 			/* still need to sock_hold */
 			return HRTIMER_RESTART;
 		}	
 	} else {
 		/* delegate our work to dcacp_release_cb() */
+		printk("delay transfer");
 		if (!test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags))
 			sock_hold(sk);
 	}
 	bh_unlock_sock(sk);
 put_sock:
+	printk("call sock put\n");
 	sock_put(sk);
 	return HRTIMER_NORESTART;
 }

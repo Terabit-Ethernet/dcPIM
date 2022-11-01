@@ -737,8 +737,10 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 		if(child) {
 			dsk = dcacp_sk(child);
 			/* this line needed to change later */
-			hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
-			sock_hold(sk);	
+			if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
+				hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
+				sock_hold(child);	
+			}
 			// if(dsk->total_length >= dcacp_params.short_flow_size) {
 			// 	rcv_handle_new_flow(dsk);
 			// } else {
@@ -808,10 +810,13 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
 		// /* start doing transmission (this part may move to different places later)*/
 	    if(!sock_owned_by_user(sk)) {
 	    	sock_rps_save_rxhash(sk, skb);
-			dsk->sender.snd_una = th->rcv_nxt > dsk->sender.snd_una ? th->rcv_nxt: dsk->sender.snd_una;
-			dsk->sender.token_seq = th->token_nxt;
+			if(th->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
+				dsk->sender.snd_una = th->rcv_nxt;
+			if(th->token_nxt - dsk->sender.token_seq <= sk->sk_sndbuf)
+				dsk->sender.token_seq = th->token_nxt;
 			dcacp_write_timer_handler(sk);
 	 		dcacp_clean_rtx_queue(sk);
+			kfree_skb(skb);
 	    } else {
 			dcacp_add_backlog(sk, skb, true);
 	 		// test_and_set_bit(DCACP_CLEAN_TIMER_DEFERRED, &sk->sk_tsq_flags);
@@ -869,8 +874,10 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb) {
  		bh_lock_sock(sk);
 		dsk = dcacp_sk(sk);
 		if (!sock_owned_by_user(sk)) {
-			dsk->sender.snd_una = ah->rcv_nxt > dsk->sender.snd_una ? ah->rcv_nxt: dsk->sender.snd_una;
-	 		dcacp_clean_rtx_queue(sk);
+			if(ah->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
+				dsk->sender.snd_una = ah->rcv_nxt;
+			dcacp_clean_rtx_queue(sk);
+			kfree_skb(skb);
         } else {
 			dcacp_add_backlog(sk, skb, true);
 	    }
@@ -878,13 +885,13 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb) {
 	   
 
 		// printk("socket address: %p LINE:%d\n", dsk,  __LINE__);
-
-	} 
+	} else {
+		kfree_skb(skb);
+	}
 
     if (refcounted) {
         sock_put(sk);
     }
- 	kfree_skb(skb);
 
 	return 0;
 }
@@ -1150,6 +1157,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
         	// printk("add to backlog\n");
             if (dcacp_add_backlog(sk, skb, true)) {
             	discard = true;
+				goto discard_skb;
                 // goto discard_and_relse;
             }
         }
@@ -1194,11 +1202,12 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	// 	}
 
 	// } 
-
+discard_skb:
 	if (discard) {
 	    printk("seq num:%u\n", DCACP_SKB_CB(skb)->seq);
 	    printk("discard packet:%d\n", __LINE__);
 		sk_drops_add(sk, skb);
+		kfree_skb(skb);
 	}
 
     if (refcounted) {
@@ -1275,14 +1284,17 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 		sk->sk_data_ready(sk);
 	} else if (dh->type == ACK) {
 		struct dcacp_ack_hdr *ah = dcacp_ack_hdr(skb);
-		dsk->sender.snd_una = ah->rcv_nxt > dsk->sender.snd_una ? ah->rcv_nxt: dsk->sender.snd_una;
+		if(ah->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
+			dsk->sender.snd_una = ah->rcv_nxt;
 		dcacp_clean_rtx_queue(sk);
 	}
 	else if (dh->type == TOKEN) {
 		/* clean rtx queue */
 		struct dcacp_token_hdr *th = dcacp_token_hdr(skb);
-		dsk->sender.snd_una = th->rcv_nxt > dsk->sender.snd_una ? th->rcv_nxt: dsk->sender.snd_una;
-		dsk->sender.token_seq = th->token_nxt;
+		if(th->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
+			dsk->sender.snd_una = th->rcv_nxt;
+		if(th->token_nxt - dsk->sender.token_seq <= sk->sk_sndbuf)
+			dsk->sender.token_seq = th->token_nxt;
 		dcacp_write_timer_handler(sk);
 		dcacp_clean_rtx_queue(sk);
 	 	/* add sack info */
