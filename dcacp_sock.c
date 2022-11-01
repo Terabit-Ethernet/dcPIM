@@ -37,22 +37,22 @@ struct inet_timewait_death_row dcacp_death_row = {
 EXPORT_SYMBOL_GPL(dcacp_death_row);
 
 static void set_max_grant_batch(struct dst_entry *dst, struct dcacp_sock* dsk) {
-	int bufs_per_gso, mtu, max_pkt_data, gso_size, max_gso_data;
-	int num_gso_per_bdp;
-	mtu = dst_mtu(dst);
-	gso_size = dst->dev->gso_max_size;
-	/* we assume BDP is larger than max_gso_data for now */
-	// if (gso_size > dcacp_params.bdp)
-	// 	gso_size = dcacp_params.bdp;
-	// if (gso_size > dcacp_params.gso_size)
-	// 	gso_size = dcacp_params.gso_size;
-	bufs_per_gso = gso_size / mtu;
-	max_pkt_data = mtu - sizeof(struct iphdr) - sizeof(struct dcacp_data_hdr);
-	max_gso_data = bufs_per_gso * max_pkt_data;
+	// int bufs_per_gso, mtu, max_pkt_data, gso_size, max_gso_data;
+	// // int num_gso_per_bdp;
+	// mtu = dst_mtu(dst);
+	// gso_size = dst->dev->gso_max_size;
+	// /* we assume BDP is larger than max_gso_data for now */
+	// // if (gso_size > dcacp_params.bdp)
+	// // 	gso_size = dcacp_params.bdp;
+	// // if (gso_size > dcacp_params.gso_size)
+	// // 	gso_size = dcacp_params.gso_size;
+	// bufs_per_gso = gso_size / mtu;
+	// max_pkt_data = mtu - sizeof(struct iphdr) - sizeof(struct dcacp_data_hdr);
+	// max_gso_data = bufs_per_gso * max_pkt_data;
 	// gso_size = bufs_per_gso * mtu;
-	num_gso_per_bdp = DIV_ROUND_UP(dcacp_params.bdp, max_gso_data);
-	dsk->receiver.max_gso_data = max_gso_data;
-	dsk->receiver.max_grant_batch = num_gso_per_bdp * max_gso_data;
+	// num_gso_per_bdp = DIV_ROUND_UP(dcacp_params.bdp, max_gso_data);
+	// dsk->receiver.max_gso_data = max_gso_data;
+	// dsk->receiver.max_grant_batch = num_gso_per_bdp * max_gso_data;
 }
 
 void reqsk_queue_alloc(struct request_sock_queue *queue)

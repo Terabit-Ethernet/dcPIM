@@ -60,14 +60,14 @@ static void sender_matching_handler(struct work_struct *work) {
 /* Token */
 enum hrtimer_restart dcacp_token_xmit_event(struct hrtimer *timer) {
 	// struct dcacp_grant* grant, temp;
-	struct dcacp_epoch *epoch = container_of(timer, struct dcacp_epoch, token_xmit_timer);
+	// struct dcacp_epoch *epoch = container_of(timer, struct dcacp_epoch, token_xmit_timer);
 
-	// printk("token timer handler is called 1\n");
-	spin_lock(&epoch->lock);
-	/* reset the remaining tokens to zero */
-	// atomic_set(&epoch->remaining_tokens, 0);	
-	dcacp_xmit_token(epoch);
-	spin_unlock(&epoch->lock);
+	// // printk("token timer handler is called 1\n");
+	// spin_lock(&epoch->lock);
+	// /* reset the remaining tokens to zero */
+	// // atomic_set(&epoch->remaining_tokens, 0);	
+	// dcacp_xmit_token(epoch);
+	// spin_unlock(&epoch->lock);
 
  	// queue_work(dcacp_epoch.wq, &dcacp_epoch.token_xmit_struct);
 	return HRTIMER_NORESTART;
@@ -269,8 +269,8 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 	atomic_set(&epoch->remaining_tokens, 0);
 	// atomic_set(&epoch->pending_flows, 0);
 
-	hrtimer_init(&epoch->token_xmit_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
-	epoch->token_xmit_timer.function = &dcacp_token_xmit_event;
+	// hrtimer_init(&epoch->token_xmit_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
+	// epoch->token_xmit_timer.function = &dcacp_token_xmit_event;
 
 	// INIT_WORK(&epoch->token_xmit_struct, dcacp_xmit_token_handler);
 	/* pHost Queue */
@@ -558,80 +558,80 @@ int rtx_bytes_count(struct dcacp_sock* dsk, __u32 prev_grant_nxt) {
  // ktime_t start2,end2;
  // __u64 num_tokens = 0;
  // ktime_t total_time = 0;
-void dcacp_xmit_token(struct dcacp_epoch *epoch) {
-	struct list_head *match_link;
-	struct sock *sk;
-	struct dcacp_sock *dsk;
-	struct inet_sock *inet;
-		// start2 = ktime_get();
-	// printk("dcacp xmit token\n");
-	while(!dcacp_pq_empty(&epoch->flow_q)) {
-		bool not_push_bk = false;
-		if(atomic_read(&dcacp_epoch.remaining_tokens) >= dcacp_params.control_pkt_bdp / 2 
-			&& atomic_read(&dcacp_epoch.remaining_tokens) != 0) {
-			// WARN_ON(true);
-			return;
-		}
-		match_link = dcacp_pq_peek(&epoch->flow_q);
-		dsk =  list_entry(match_link, struct dcacp_sock, match_link);
-		sk = (struct sock*)dsk;
-		inet = inet_sk(sk);
-		dcacp_pq_pop(&epoch->flow_q);
- 		bh_lock_sock(sk);
- 		if(sk->sk_state == DCACP_ESTABLISHED) {
- 			dsk->receiver.prev_grant_bytes = 0;
-	 		if (!sock_owned_by_user(sk)) {
-	 			int grant_bytes = calc_grant_bytes(sk);
-	 			// printk("grant bytes:%d\n", grant_bytes);
-	 			not_push_bk = xmit_batch_token(sk, grant_bytes, true);
-		 		if(grant_bytes == dsk->receiver.max_grant_batch) {
-					dsk->prev_grant_nxt = dsk->grant_nxt;
-					dsk->grant_nxt = dsk->new_grant_nxt;
-		  			if (!not_push_bk){
-		  				dcacp_pq_push(&epoch->flow_q, &dsk->match_link);
-		  			}
-		 		}
-		 		else {
-	 				// xmit_batch_token(sk, grant_bytes, true);
-					// atomic_add(dsk->receiver.grant_batch, &dcacp_epoch.remaining_tokens);
-					// printk("set timer deferred 1\n");
-	 				test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
-		 		}
+// void dcacp_xmit_token(struct dcacp_epoch *epoch) {
+// 	struct list_head *match_link;
+// 	struct sock *sk;
+// 	struct dcacp_sock *dsk;
+// 	struct inet_sock *inet;
+// 		// start2 = ktime_get();
+// 	// printk("dcacp xmit token\n");
+// 	while(!dcacp_pq_empty(&epoch->flow_q)) {
+// 		bool not_push_bk = false;
+// 		if(atomic_read(&dcacp_epoch.remaining_tokens) >= dcacp_params.control_pkt_bdp / 2 
+// 			&& atomic_read(&dcacp_epoch.remaining_tokens) != 0) {
+// 			// WARN_ON(true);
+// 			return;
+// 		}
+// 		match_link = dcacp_pq_peek(&epoch->flow_q);
+// 		dsk =  list_entry(match_link, struct dcacp_sock, match_link);
+// 		sk = (struct sock*)dsk;
+// 		inet = inet_sk(sk);
+// 		dcacp_pq_pop(&epoch->flow_q);
+//  		bh_lock_sock(sk);
+//  		if(sk->sk_state == DCACP_ESTABLISHED) {
+//  			dsk->receiver.prev_grant_bytes = 0;
+// 	 		if (!sock_owned_by_user(sk)) {
+// 	 			int grant_bytes = calc_grant_bytes(sk);
+// 	 			// printk("grant bytes:%d\n", grant_bytes);
+// 	 			not_push_bk = xmit_batch_token(sk, grant_bytes, true);
+// 		 		if(grant_bytes == dsk->receiver.max_grant_batch) {
+// 					dsk->prev_grant_nxt = dsk->grant_nxt;
+// 					dsk->grant_nxt = dsk->new_grant_nxt;
+// 		  			if (!not_push_bk){
+// 		  				dcacp_pq_push(&epoch->flow_q, &dsk->match_link);
+// 		  			}
+// 		 		}
+// 		 		else {
+// 	 				// xmit_batch_token(sk, grant_bytes, true);
+// 					// atomic_add(dsk->receiver.grant_batch, &dcacp_epoch.remaining_tokens);
+// 					// printk("set timer deferred 1\n");
+// 	 				test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+// 		 		}
 
-	 		// 	if (grant_bytes < dsk->receiver.grant_batch) {
-				// 	printk("RMEM_LIMIT\n");
-			 //    	test_and_set_bit(DCACP_RMEM_CHECK_DEFERRED, &sk->sk_tsq_flags);
-			 //    	goto unlock;
-				// } else {
+// 	 		// 	if (grant_bytes < dsk->receiver.grant_batch) {
+// 				// 	printk("RMEM_LIMIT\n");
+// 			 //    	test_and_set_bit(DCACP_RMEM_CHECK_DEFERRED, &sk->sk_tsq_flags);
+// 			 //    	goto unlock;
+// 				// } else {
 					
-				// }
-	 		} else {
-	 			// printk("delay \n");
-	 			int grant_bytes = calc_grant_bytes(sk);
-	 			if (!grant_bytes)
-	 				 xmit_batch_token(sk, grant_bytes, false);
-	 			// printk("delay bytes:%d\n", grant_bytes);
-	 			// atomic_add(dsk->receiver.grant_batch, &epoch->remaining_tokens);
-	 			// atomic_add(dsk=>receiver.);
-	 			/* pre-assign the largest number of tokens; will be deleted later */
-				// atomic_add(dsk->receiver.grant_batch, &dcacp_epoch.remaining_tokens);
-				// printk("set timer deferred\n");
-	 			test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
-	 		}
- 		} else {
- 			goto unlock;
- 		}
+// 				// }
+// 	 		} else {
+// 	 			// printk("delay \n");
+// 	 			int grant_bytes = calc_grant_bytes(sk);
+// 	 			if (!grant_bytes)
+// 	 				 xmit_batch_token(sk, grant_bytes, false);
+// 	 			// printk("delay bytes:%d\n", grant_bytes);
+// 	 			// atomic_add(dsk->receiver.grant_batch, &epoch->remaining_tokens);
+// 	 			// atomic_add(dsk=>receiver.);
+// 	 			/* pre-assign the largest number of tokens; will be deleted later */
+// 				// atomic_add(dsk->receiver.grant_batch, &dcacp_epoch.remaining_tokens);
+// 				// printk("set timer deferred\n");
+// 	 			test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+// 	 		}
+//  		} else {
+//  			goto unlock;
+//  		}
 
-		bh_unlock_sock(sk);
-		break;
-unlock:
-        bh_unlock_sock(sk);
-	}
-	if (!dcacp_pq_empty(&epoch->flow_q)) {
-		// printk("timer expire time:%d\n", dcacp_params.rtt * 10 * 1000);
-		// hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0, dcacp_params.rtt * 10 * 1000), HRTIMER_MODE_REL);
-		// dcacp_epoch.token_xmit_timer.function = &dcacp_token_xmit_event;
-	}
+// 		bh_unlock_sock(sk);
+// 		break;
+// unlock:
+//         bh_unlock_sock(sk);
+// 	}
+// 	if (!dcacp_pq_empty(&epoch->flow_q)) {
+// 		// printk("timer expire time:%d\n", dcacp_params.rtt * 10 * 1000);
+// 		// hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0, dcacp_params.rtt * 10 * 1000), HRTIMER_MODE_REL);
+// 		// dcacp_epoch.token_xmit_timer.function = &dcacp_token_xmit_event;
+// 	}
 	// end2 = ktime_get();
 	// total_time = ktime_add(total_time, ktime_sub(end2, start2));
 	// num_tokens += 1;
@@ -640,11 +640,11 @@ unlock:
 	// 	printk("transmission time:%llu\n", ktime_to_us(total_time) / 1000);
 	// 	total_time = ktime_set(0, 0);
 	// }
-}
+// }
 
-void dcacp_xmit_token_handler(struct work_struct *work) {
+// void dcacp_xmit_token_handler(struct work_struct *work) {
 	// struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, token_xmit_struct);
-}
+// }
 
 // enum hrtimer_restart receiver_iter_event(struct hrtimer *timer) {
 // 	// struct dcacp_grant* grant, temp;

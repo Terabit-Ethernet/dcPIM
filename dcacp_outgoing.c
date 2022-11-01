@@ -113,14 +113,15 @@ void dcacp_release_cb(struct sock *sk)
 	}
 	if (flags & DCACPF_TOKEN_TIMER_DEFERRED) {
 		dcacp_token_timer_defer_handler(sk);
-		// __sock_put(sk);
+		__sock_put(sk);
 	}
-	if (flags & DCACPF_RTX_DEFERRED) {
-		dcacp_write_timer_handler(sk);
-	}
-	if (flags & DCACPF_WAIT_DEFERRED) {
-		dcacp_flow_wait_handler(sk);
-	}
+	// if (flags & DCACPF_RTX_DEFERRED) {
+	// 	dcacp_write_timer_handler(sk);
+	// }
+	// if (flags & DCACPF_WAIT_DEFERRED) {
+	// 	dcacp_flow_wait_handler(sk);
+	// }
+
 	// if (flags & TCPF_MTU_REDUCED_DEFERRED) {
 	// 	inet_csk(sk)->icsk_af_ops->mtu_reduced(sk);
 	// 	__sock_put(sk);
@@ -177,7 +178,7 @@ struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id,
 }
 
 struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
-	 __u32 prev_grant_nxt, __u32 grant_nxt, bool handle_rtx) {
+	 __u32 prev_token_nxt, __u32 token_nxt, bool handle_rtx) {
 	// int extra_bytes = 0;
 	struct dcacp_sock *dsk = dcacp_sk(sk);
 	struct sk_buff* skb = __construct_control_skb(sk, DCACP_HEADER_MAX_SIZE
@@ -196,22 +197,22 @@ struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
 	dh->type = TOKEN;
 	fh->priority = priority;
 	fh->rcv_nxt = dsk->receiver.rcv_nxt;
-	fh->grant_nxt = grant_nxt;
+	fh->token_nxt = token_nxt;
 	fh->num_sacks = 0;
 	// printk("TOKEN: new grant next:%u\n", fh->grant_nxt);
 	// printk("prev_grant_nxt:%u\n", prev_grant_nxt);
 	// printk("new rcv_nxt:%u\n", dsk->receiver.rcv_nxt);
 	// printk("copied seq:%u\n", dsk->receiver.copied_seq);
-	if(handle_rtx && dsk->receiver.rcv_nxt < prev_grant_nxt) {
+	if(handle_rtx && dsk->receiver.rcv_nxt < prev_token_nxt) {
 		printk("rcv_nxt:%u\n", dsk->receiver.rcv_nxt);
 		while(i < dsk->num_sacks) {
 			__u32 start_seq = dsk->selective_acks[i].start_seq;
 			__u32 end_seq = dsk->selective_acks[i].end_seq;
 
-			if(start_seq > prev_grant_nxt)
+			if(start_seq > prev_token_nxt)
 				goto next;
-			if(end_seq > prev_grant_nxt) {
-				end_seq = prev_grant_nxt;
+			if(end_seq > prev_token_nxt) {
+				end_seq = prev_token_nxt;
 				manual_end_point = false;
 			}
 
@@ -227,9 +228,9 @@ struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
 		}
 		if(manual_end_point) {
 			sack = (struct dcacp_sack_block_wire*) skb_put(skb, sizeof(struct dcacp_sack_block_wire));
-			sack->start_seq = htonl(prev_grant_nxt);
-			sack->end_seq = htonl(prev_grant_nxt);
-			printk("sack start seq:%u\n", prev_grant_nxt);
+			sack->start_seq = htonl(prev_token_nxt);
+			sack->end_seq = htonl(prev_token_nxt);
+			printk("sack start seq:%u\n", prev_token_nxt);
 			fh->num_sacks++;
 		}
 
@@ -651,7 +652,7 @@ int dcacp_write_timer_handler(struct sock *sk)
 		dcacp_retransmit(sk);
 	}
 	while((skb = skb_dequeue(&sk->sk_write_queue)) != NULL) {
-		if (DCACP_SKB_CB(skb)->end_seq <= dsk->grant_nxt) {
+		if (DCACP_SKB_CB(skb)->end_seq <= dsk->sender.token_seq) {
 			dcacp_xmit_data(skb, dsk, false);
 			sent_bytes += DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq;
 		} else {
@@ -661,39 +662,64 @@ int dcacp_write_timer_handler(struct sock *sk)
 		/* To Do: grant_nxt might be somewhere in the middle of seq and end_seq; need to split skb to do the transmission */
 	}
 	return sent_bytes;
+}
 
-//         struct inet_connection_sock *icsk = inet_csk(sk);
-//         int event;
-        
-//         if (((1 << sk->sk_state) & (TCPF_CLOSE | TCPF_LISTEN)) ||
-//             !icsk->icsk_pending)
-//                 goto out;
-        
-//         if (time_after(icsk->icsk_timeout, jiffies)) {
-//                 sk_reset_timer(sk, &icsk->icsk_retransmit_timer, icsk->icsk_timeout);
-//                 goto out;
-//         }
-        
-//         tcp_mstamp_refresh(tcp_sk(sk));
-//         event = icsk->icsk_pending;
-        
-//         switch (event) {
-//         case ICSK_TIME_REO_TIMEOUT:
-//                 tcp_rack_reo_timeout(sk);
-//                 break;
-//         case ICSK_TIME_LOSS_PROBE:
-//                 tcp_send_loss_probe(sk);
-//                 break;
-//         case ICSK_TIME_RETRANS:
-//                 icsk->icsk_pending = 0;
-//                 tcp_retransmit_timer(sk);
-//                 break;
-//         case ICSK_TIME_PROBE0:
-//                 icsk->icsk_pending = 0;
-//                 tcp_probe_timer(sk);
-//                 break;
-//         }
 
-// out:
-//         sk_mem_reclaim(sk);
+uint32_t dcacp_xmit_token(struct dcacp_sock* dsk, uint32_t token_bytes) {
+	struct inet_sock *inet = inet_sk((struct sock*)dsk);
+	struct sock *sk = (struct sock*)dsk;
+	if(token_bytes == 0) {
+		return token_bytes;
+	}
+	dsk->receiver.prev_token_nxt = dsk->receiver.token_nxt;
+	dsk->receiver.token_nxt += token_bytes; 
+	dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
+	atomic_add(token_bytes, &dsk->receiver.inflight_bytes);
+	dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, dsk->receiver.prev_token_nxt, dsk->receiver.token_nxt, false),
+	 	sk, inet->inet_dport);
+	return token_bytes;
+	
+}
+
+int dcacp_token_timer_defer_handler(struct sock *sk) {
+	struct dcacp_sock *dsk = dcacp_sk(sk);
+	uint32_t matched_bw = atomic_read(&dsk->receiver.matched_bw);
+	uint32_t token_bytes = dcacp_avail_token_space((struct sock*)dsk);
+	if(matched_bw == 0)
+		return 0;
+	if(token_bytes < dsk->receiver.token_batch)
+		return 0;
+	token_bytes = dcacp_xmit_token(dsk, token_bytes);
+	hrtimer_start(&dsk->receiver.token_pace_timer,
+		ns_to_ktime(token_bytes * 8 / matched_bw), HRTIMER_MODE_REL_PINNED_SOFT);
+	return token_bytes;
+}
+
+enum hrtimer_restart dcacp_xmit_token_handler(struct hrtimer *timer) {
+	struct dcacp_sock *dsk = container_of(timer, struct dcacp_sock, receiver.token_pace_timer);
+	struct sock* sk = (struct sock *)dsk;
+	uint32_t matched_bw = atomic_read(&dsk->receiver.matched_bw);
+	uint32_t token_bytes = 0;
+
+	if(matched_bw == 0)
+		goto put_sock;
+	bh_lock_sock(sk);
+	if (!sock_owned_by_user(sk)) {
+		token_bytes = dcacp_avail_token_space((struct sock*)dsk);
+		if(token_bytes >= dsk->receiver.token_batch) {
+			dcacp_xmit_token(dsk, token_bytes);
+			hrtimer_forward_now(timer, ns_to_ktime(token_bytes * 8 / matched_bw));
+			bh_unlock_sock(sk);
+			/* still need to sock_hold */
+			return HRTIMER_RESTART;
+		}	
+	} else {
+		/* delegate our work to dcacp_release_cb() */
+		if (!test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags))
+			sock_hold(sk);
+	}
+	bh_unlock_sock(sk);
+put_sock:
+	sock_put(sk);
+	return HRTIMER_NORESTART;
 }

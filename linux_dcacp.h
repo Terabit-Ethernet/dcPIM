@@ -18,18 +18,7 @@
 #include <net/netns/hash.h>
 #include "uapi_linux_dcacp.h"
 
-#define DCACP_MESSAGE_BUCKETS 1024
-/**
- * define DCACP_PEERTAB_BUCKETS - Number of bits in the bucket index for a
- * dcacp_peertab.  Should be large enough to hold an entry for every server
- * in a datacenter without long hash chains.
- */
-#define DCACP_PEERTAB_BUCKET_BITS 20
-/** define DCACP_PEERTAB_BUCKETS - Number of buckets in a dcacp_peertab. */
-#define DCACP_PEERTAB_BUCKETS (1 << DCACP_PEERTAB_BUCKET_BITS)
-
 struct dcacp_sock;
-
 
 enum {
 	/* Core State */
@@ -110,50 +99,6 @@ struct dcacp_pq {
 	// struct spinlock lock;
 	int count;
 	bool (*comp)(const struct list_head*, const struct list_head*);
-};
-
-/**
- * struct dcacp_peertab - A hash table that maps from IPV4 addresses
- * to dcacp_peer objects. Entries are gradually added to this table,
- * but they are never removed except when the entire table is deleted.
- * We can't safely delete because results returned by dcacp_peer_find
- * may be retained indefinitely.
- *
- * This table is managed exclusively by dcacp_peertab.c, using RCU to
- * permit efficient lookups.
- */
-struct dcacp_peertab {
-	/**
-	 * @write_lock: Synchronizes addition of new entries; not needed
-	 * for lookups (RCU is used instead).
-	 */
-	struct spinlock write_lock;
-	
-	/**
-	 * @buckets: Pointer to heads of chains of dcacp_peers for each bucket.
-	 * Malloc-ed, and must eventually be freed. NULL means this structure
-	 * has not been initialized.
-	 */
-	struct hlist_head *buckets;
-};
-
-struct dcacp_peer {
-	/** @daddr: IPV4 address for the machine. */
-	__be32 addr;
-	
-	/** @flow: Addressing info needed to send packets. */
-	struct flowi flow;
-	
-	/**
-	 * @dst: Used to route packets to this peer; we own a reference
-	 * to this, which we must eventually release.
-	 */
-	struct dst_entry *dst;
-	/**
-	 * @peertab_links: Links this object into a bucket of its
-	 * dcacp_peertab.
-	 */
-	struct hlist_node peertab_links;
 };
 
 // struct message_table {
@@ -366,17 +311,7 @@ static inline unsigned int __dcacp_hdrlen(const struct dcacphdr *dh)
 	return dh->doff * 4;
 }
 
-static inline struct dcacphdr *inner_dcacp_hdr(const struct sk_buff *skb)
-{
-	return (struct dcacphdr *)skb_inner_transport_header(skb);
-}
-
 #define DCACP_HTABLE_SIZE_MIN		(CONFIG_BASE_SMALL ? 128 : 256)
-
-static inline u32 dcacp_hashfn(const struct net *net, u32 num, u32 mask)
-{
-	return (num + net_hash_mix(net)) & mask;
-}
 
 /* This defines a selective acknowledgement block. */
 struct dcacp_sack_block_wire {
@@ -392,49 +327,6 @@ struct dcacp_sack_block {
 struct dcacp_sock {
 	/* inet_connection_sock has to be the first member of dcacp_sock */
 	struct inet_connection_sock	dccps_inet_connection;
-#define dcacp_port_hash		inet.sk.__sk_common.skc_u16hashes[0]
-#define dcacp_portaddr_hash	inet.sk.__sk_common.skc_u16hashes[1]
-#define dcacp_portaddr_node	inet.sk.__sk_common.skc_portaddr_node
-
-	// struct inet_bind_bucket	  *icsk_bind_hash;
-	// struct hlist_node         icsk_listen_portaddr_node;
-	// struct request_sock_queue icsk_accept_queue;
-
-	int		 pending;	/* Any pending frames ? */
-	unsigned int	 corkflag;	/* Cork is required */
-	__u8		 encap_type;	/* Is this an Encapsulation socket? */
-	unsigned char	 no_check6_tx:1,/* Send zero DCACP6 checksums on TX? */
-			 no_check6_rx:1,/* Allow zero DCACP6 checksums on RX? */
-			 encap_enabled:1, /* This socket enabled encap
-					   * processing; DCACP tunnels and
-					   * different encapsulation layer set
-					   * this
-					   */
-			 gro_enabled:1;	/* Can accept GRO packets */
-	/*
-	 * Following member retains the information to create a DCACP header
-	 * when the socket is uncorked.
-	 */
-	__u16		 len;		/* total length of pending frames */
-	__u16		 gso_size;
-	/*
-	 * Fields specific to DCACP-Lite.
-	 */
-	__u16		 pcslen;
-	__u16		 pcrlen;
-/* indicator bits used by pcflag: */
-#define DCACPLITE_BIT      0x1  		/* set by dcacplite proto init function */
-#define DCACPLITE_SEND_CC  0x2  		/* set via dcacplite setsockopt         */
-#define DCACPLITE_RECV_CC  0x4		/* set via dcacplite setsocktopt        */
-	__u8		 pcflag;        /* marks socket as DCACP-Lite if > 0    */
-	__u8		 unused[3];
-	/*
-	 * For encapsulation sockets.
-	 */
-	int (*encap_rcv)(struct sock *sk, struct sk_buff *skb);
-	int (*encap_err_lookup)(struct sock *sk, struct sk_buff *skb);
-	void (*encap_destroy)(struct sock *sk);
-
 	/* GRO functions for DCACP socket */
 	struct sk_buff *	(*gro_receive)(struct sock *sk,
 					       struct list_head *head,
@@ -444,10 +336,6 @@ struct dcacp_sock {
 						int nhoff);
 
 	/* dcacp_recvmsg try to use this before splicing sk_receive_queue */
-	struct sk_buff_head	reader_queue ____cacheline_aligned_in_smp;
-
-	/* This field is dirtied by dcacp_recvmsg() */
-	int		forward_deficit;
 	
 	/**
 	 * flow id
@@ -460,19 +348,15 @@ struct dcacp_sock {
 	 */
     uint32_t total_length;
 	
-	/*protected by entry scheduling lock */
-	uint32_t grant_nxt;
-	uint32_t prev_grant_nxt;
-
 	/* protected by socket user lock*/
-	uint32_t new_grant_nxt;
     uint32_t num_sacks;
 	struct dcacp_sack_block selective_acks[16]; /* The SACKS themselves*/
 
-    ktime_t start_time;
+    // ktime_t start_time;
 	struct list_head match_link;
     /* sender */
     struct dcacp_sender {
+		uint32_t token_seq;
 	    /* next sequence from the user; Also equals total bytes written by user. */
 	    uint32_t write_seq;
 	    /* the next sequence will be sent (at the first time)*/
@@ -486,36 +370,25 @@ struct dcacp_sock {
 	    int remaining_pkts_at_sender;
 
 		/* DCACP metric */
-	    uint64_t first_byte_send_time;
-
-	    uint64_t start_time;
-	    uint64_t finish_time;
-	    double latest_data_pkt_sent_time;
+	    // uint64_t first_byte_send_time;
+	    // uint64_t start_time;
+	    // uint64_t finish_time;
+	    // double latest_data_pkt_sent_time;
     } sender;
     struct dcacp_receiver {
-		/**
-		 * size of message in bytes
-		 */
-		bool is_ready;
-		/* short flow and hasn't reached timeout yet */
-		bool free_flow;
-
+		// link for DCACP matching table
+		// struct list_head match_link;
 	    bool flow_sync_received;
-
 		/* protected by user lock */
 	 	bool finished_at_receiver;
 		bool flow_finish_wait;
 		int rmem_exhausted;
 		/* short flow waiting timer or long flow waiting timer; after all tokens arer granted */
-		struct hrtimer flow_wait_timer;
+		// struct hrtimer flow_wait_timer;
 	    ktime_t last_rtx_time;
-
 		uint32_t copied_seq;
 	    uint32_t bytes_received;
 	    // uint32_t received_count;
-	    uint32_t max_gso_data;
-	    uint32_t max_grant_batch;
-
 	    /* current received bytes + 1*/
 	    uint32_t rcv_nxt;
 	    uint32_t last_ack;
@@ -526,28 +399,22 @@ struct dcacp_sock {
 		/* DCACP metric */
 	    // uint64_t latest_token_sent_time;
 	    // uint64_t first_byte_receive_time;
-
 		// struct list_head ready_link;
-
 		/* protected by entry lock */
 		bool in_pq;
-		// link for DCACP matching table
-		struct list_head match_link;
-
-		/* protected by the entry lock */
-		uint32_t grant_batch;
-		int prev_grant_bytes;
+		uint32_t prev_token_nxt;
+		uint32_t token_nxt;
+		uint32_t max_congestion_win;
+	    uint32_t token_batch;
 		atomic_t backlog_len;
-		atomic_t in_flight_bytes;
-
+		atomic_t inflight_bytes;
+		struct hrtimer token_pace_timer;
+		atomic_t matched_bw;
 		// struct work_struct token_xmit_struct;
-
     } receiver;
 
 
 	// atomic64_t next_outgoing_id;
-
-	int unsolved;
 };
 
 struct dcacp_request_sock {
@@ -574,50 +441,4 @@ static inline struct dcacp_sock *dcacp_sk(const struct sock *sk)
 {
 	return (struct dcacp_sock *)sk;
 }
-
-static inline void dcacp_set_no_check6_tx(struct sock *sk, bool val)
-{
-	dcacp_sk(sk)->no_check6_tx = val;
-}
-
-static inline void dcacp_set_no_check6_rx(struct sock *sk, bool val)
-{
-	dcacp_sk(sk)->no_check6_rx = val;
-}
-
-static inline bool dcacp_get_no_check6_tx(struct sock *sk)
-{
-	return dcacp_sk(sk)->no_check6_tx;
-}
-
-static inline bool dcacp_get_no_check6_rx(struct sock *sk)
-{
-	return dcacp_sk(sk)->no_check6_rx;
-}
-
-static inline void dcacp_cmsg_recv(struct msghdr *msg, struct sock *sk,
-				 struct sk_buff *skb)
-{
-	int gso_size;
-
-	if (skb_shinfo(skb)->gso_type & SKB_GSO_DCACP_L4) {
-		gso_size = skb_shinfo(skb)->gso_size;
-		put_cmsg(msg, SOL_DCACP, DCACP_GRO, sizeof(gso_size), &gso_size);
-	}
-}
-
-static inline bool dcacp_unexpected_gso(struct sock *sk, struct sk_buff *skb)
-{
-	return !dcacp_sk(sk)->gro_enabled && skb_is_gso(skb) &&
-	       skb_shinfo(skb)->gso_type & SKB_GSO_DCACP_L4;
-}
-
-#define dcacp_portaddr_for_each_entry(__sk, list) \
-	hlist_for_each_entry(__sk, list, __sk_common.skc_portaddr_node)
-
-#define dcacp_portaddr_for_each_entry_rcu(__sk, list) \
-	hlist_for_each_entry_rcu(__sk, list, __sk_common.skc_portaddr_node)
-
-// #define IS_DCACPLITE(__sk) (__sk->sk_protocol == IPPROTO_DCACPLITE)
-
 #endif	/* _LINUX_DCACP_H */

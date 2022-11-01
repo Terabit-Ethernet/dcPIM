@@ -59,24 +59,32 @@ struct dcacp_skb_cb {
 };
 #define DCACP_SKB_CB(__skb)	((struct dcacp_skb_cb *)((__skb)->cb))
 
-/* window space */
-static inline int dcacp_win_from_space(const struct sock *sk, int space)
-{
-	return space;
-}
-
-/* Note: caller must be prepared to deal with negative returns */
-static inline int dcacp_space(const struct sock *sk)
+/* return flow control window */
+static inline uint32_t dcacp_space(const struct sock *sk)
 {
 	struct dcacp_sock *dsk = dcacp_sk(sk);
-	return dcacp_win_from_space(sk, READ_ONCE(sk->sk_rcvbuf) -
-				  atomic_read(&dsk->receiver.backlog_len) -
-				  atomic_read(&sk->sk_rmem_alloc) - atomic_read(&dsk->receiver.in_flight_bytes));
+	uint32_t flow_control_window = READ_ONCE(sk->sk_rcvbuf) - atomic_read(&dsk->receiver.backlog_len) 
+		- atomic_read(&sk->sk_rmem_alloc) - atomic_read(&dsk->receiver.inflight_bytes);
+	return flow_control_window > sk->sk_rcvbuf ? 0 : flow_control_window;
 }
 
-static inline int dcacp_full_space(const struct sock *sk)
-{
-	return dcacp_win_from_space(sk, READ_ONCE(sk->sk_rcvbuf));
+static inline uint32_t dcacp_congestion_space(const struct sock *sk) {
+	struct dcacp_sock *dsk = dcacp_sk(sk);
+	uint32_t congestion_window = dsk->receiver.max_congestion_win - atomic_read(&dsk->receiver.inflight_bytes);
+	return congestion_window > dsk->receiver.max_congestion_win ? 0 : congestion_window; 
+}
+
+static inline uint32_t dcacp_avail_token_space(const struct sock *sk) {
+	struct dcacp_sock *dsk = dcacp_sk(sk);
+	uint32_t flow_control_win = dcacp_space(sk);
+	uint32_t congestion_win = dcacp_congestion_space(sk);
+	uint32_t token_space = 0;
+	if(congestion_win > flow_control_win)
+		token_space = flow_control_win;
+	else
+		token_space = congestion_win;
+	return token_space > dsk->receiver.token_batch ? dsk->receiver.token_batch : token_space;
+ 
 }
 
 static inline void dcacp_rps_record_flow(const struct sock *sk)
@@ -511,195 +519,9 @@ int dcacp_lib_getsockopt(struct sock *sk, int level, int optname,
 int dcacp_lib_setsockopt(struct sock *sk, int level, int optname,
 		       char __user *optval, unsigned int optlen,
 		       int (*push_pending_frames)(struct sock *));
-// struct sock *dcacp4_lib_lookup(struct net *net, __be32 saddr, __be16 sport,
-// 			     __be32 daddr, __be16 dport, int dif);
-// struct sock *__dcacp4_lib_lookup(struct net *net, __be32 saddr, __be16 sport,
-// 			       __be32 daddr, __be16 dport, int dif, int sdif,
-// 			       struct udp_table *tbl, struct sk_buff *skb);
-// struct sock *dcacp4_lib_lookup_skb(struct sk_buff *skb,
-// 				 __be16 sport, __be16 dport);
-// struct sock *dcacp6_lib_lookup(struct net *net,
-// 			     const struct in6_addr *saddr, __be16 sport,
-// 			     const struct in6_addr *daddr, __be16 dport,
-// 			     int dif);
-// struct sock *__dcacp6_lib_lookup(struct net *net,
-// 			       const struct in6_addr *saddr, __be16 sport,
-// 			       const struct in6_addr *daddr, __be16 dport,
-// 			       int dif, int sdif, struct dcacp_table *tbl,
-// 			       struct sk_buff *skb);
-// struct sock *dcacp6_lib_lookup_skb(struct sk_buff *skb,
-// 				 __be16 sport, __be16 dport);
-
-/* DCACP uses skb->dev_scratch to cache as much information as possible and avoid
- * possibly multiple cache miss on dequeue()
- */
-struct dcacp_dev_scratch {
-	/* skb->truesize and the stateless bit are embedded in a single field;
-	 * do not use a bitfield since the compiler emits better/smaller code
-	 * this way
-	 */
-	u32 _tsize_state;
-
-#if BITS_PER_LONG == 64
-	/* len and the bit needed to compute skb_csum_unnecessary
-	 * will be on cold cache lines at recvmsg time.
-	 * skb->len can be stored on 16 bits since the dcacp header has been
-	 * already validated and pulled.
-	 */
-	u16 len;
-	bool is_linear;
-	bool csum_unnecessary;
-#endif
-};
-
-static inline struct dcacp_dev_scratch *dcacp_skb_scratch(struct sk_buff *skb)
-{
-	return (struct dcacp_dev_scratch *)&skb->dev_scratch;
-}
-
-#if BITS_PER_LONG == 64
-static inline unsigned int dcacp_skb_len(struct sk_buff *skb)
-{
-	return dcacp_skb_scratch(skb)->len;
-}
-
-static inline bool dcacp_skb_csum_unnecessary(struct sk_buff *skb)
-{
-	return true;
-	// return dcacp_skb_scratch(skb)->csum_unnecessary;
-}
-
-static inline bool dcacp_skb_is_linear(struct sk_buff *skb)
-{
-	return dcacp_skb_scratch(skb)->is_linear;
-}
-
-#else
-static inline unsigned int dcacp_skb_len(struct sk_buff *skb)
-{
-	return skb->len;
-}
-
-static inline bool dcacp_skb_csum_unnecessary(struct sk_buff *skb)
-{
-	return skb_csum_unnecessary(skb);
-}
-
-static inline bool dcacp_skb_is_linear(struct sk_buff *skb)
-{
-	return !skb_is_nonlinear(skb);
-}
-#endif
-
-// static inline int copy_linear_skb(struct sk_buff *skb, int len, int off,
-// 				  struct iov_iter *to)
-// {
-// 	int n;
-
-// 	n = copy_to_iter(skb->data + off, len, to);
-// 	if (n == len)
-// 		return 0;
-
-// 	iov_iter_revert(to, n);
-// 	return -EFAULT;
-// }
-
-/*
- * 	SNMP statistics for UDP and UDP-Lite
- */
-#define UDP_INC_STATS(net, field, is_udplite)		      do { \
-	if (is_udplite) SNMP_INC_STATS((net)->mib.udplite_statistics, field);       \
-	else		SNMP_INC_STATS((net)->mib.udp_statistics, field);  }  while(0)
-#define __UDP_INC_STATS(net, field, is_udplite) 	      do { \
-	if (is_udplite) __SNMP_INC_STATS((net)->mib.udplite_statistics, field);         \
-	else		__SNMP_INC_STATS((net)->mib.udp_statistics, field);    }  while(0)
-
-#define __UDP6_INC_STATS(net, field, is_udplite)	    do { \
-	if (is_udplite) __SNMP_INC_STATS((net)->mib.udplite_stats_in6, field);\
-	else		__SNMP_INC_STATS((net)->mib.udp_stats_in6, field);  \
-} while(0)
-#define UDP6_INC_STATS(net, field, __lite)		    do { \
-	if (__lite) SNMP_INC_STATS((net)->mib.udplite_stats_in6, field);  \
-	else	    SNMP_INC_STATS((net)->mib.udp_stats_in6, field);      \
-} while(0)
-
-#if IS_ENABLED(CONFIG_IPV6)
-#define __UDPX_MIB(sk, ipv4)						\
-({									\
-	ipv4 ? (IS_UDPLITE(sk) ? sock_net(sk)->mib.udplite_statistics :	\
-				 sock_net(sk)->mib.udp_statistics) :	\
-		(IS_UDPLITE(sk) ? sock_net(sk)->mib.udplite_stats_in6 :	\
-				 sock_net(sk)->mib.udp_stats_in6);	\
-})
-#else
-#define __UDPX_MIB(sk, ipv4)						\
-({									\
-	IS_UDPLITE(sk) ? sock_net(sk)->mib.udplite_statistics :		\
-			 sock_net(sk)->mib.udp_statistics;		\
-})
-#endif
-
-#define __UDPX_INC_STATS(sk, field) \
-	__SNMP_INC_STATS(__UDPX_MIB(sk, (sk)->sk_family == AF_INET), field)
-
-#ifdef CONFIG_PROC_FS
-struct dcacp_seq_afinfo {
-	sa_family_t			family;
-	struct udp_table		*dcacp_table;
-};
-
-struct dcacp_iter_state {
-	struct seq_net_private  p;
-	int			bucket;
-};
-
-int dcacp4_proc_init(void);
-void dcacp4_proc_exit(void);
-#endif /* CONFIG_PROC_FS */
-
 int dcacpv4_offload_init(void);
 int dcacpv4_offload_end(void);
 void dcacp_init(void);
 
 void dcacp_destroy(void);
-
-static inline struct sk_buff *dcacp_rcv_segment(struct sock *sk,
-					      struct sk_buff *skb, bool ipv4)
-{
-	netdev_features_t features = NETIF_F_SG;
-	struct sk_buff *segs;
-
-	/* Avoid csum recalculation by skb_segment unless userspace explicitly
-	 * asks for the final checksum values
-	 */
-	if (!inet_get_convert_csum(sk))
-		features |= NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM;
-
-	/* DCACP segmentation expects packets of type CHECKSUM_PARTIAL or
-	 * CHECKSUM_NONE in __dcacp_gso_segment. DCACP GRO indeed builds partial
-	 * packets in dcacp_gro_complete_segment. As does DCACP GSO, verified by
-	 * dcacp_send_skb. But when those packets are looped in dev_loopback_xmit
-	 * their ip_summed is set to CHECKSUM_UNNECESSARY. Reset in this
-	 * specific case, where PARTIAL is both correct and required.
-	 */
-	if (skb->pkt_type == PACKET_LOOPBACK)
-		skb->ip_summed = CHECKSUM_PARTIAL;
-
-	/* the GSO CB lays after the DCACP one, no need to save and restore any
-	 * CB fragment
-	 */
-	segs = __skb_gso_segment(skb, features, false);
-	if (IS_ERR_OR_NULL(segs)) {
-		int segs_nr = skb_shinfo(skb)->gso_segs;
-
-		atomic_add(segs_nr, &sk->sk_drops);
-		SNMP_ADD_STATS(__UDPX_MIB(sk, ipv4), UDP_MIB_INERRORS, segs_nr);
-		kfree_skb(skb);
-		return NULL;
-	}
-
-	consume_skb(skb);
-	return segs;
-}
-
 #endif	/* _DCACP_H */

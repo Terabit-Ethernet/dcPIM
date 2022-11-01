@@ -8,33 +8,33 @@ struct rcv_core_table rcv_core_tab;
 extern uint32_t backlog_rcv;
 
 int calc_grant_bytes(struct sock *sk) {
-	    struct dcacp_sock* dsk = dcacp_sk(sk);
-	    int max_gso_data = (int)dsk->receiver.max_gso_data;
-        int free_space = dcacp_space(sk);
-        int allowed_space = dcacp_full_space(sk);
-        int full_space = min_t(int, dsk->receiver.grant_batch, allowed_space);
-        int grant_bytes = dsk->receiver.grant_batch;
-
-        if (unlikely(max_gso_data > allowed_space)) {
-            return 0;
-        }
-        if (dsk->receiver.prev_grant_bytes >= dsk->receiver.grant_batch)
-        	return 0;
-        if (free_space < dsk->receiver.grant_batch * 2) {
-        	// printk("free space:%d\n", free_space);
-        	// printk("max gso data:%d\n", max_gso_data);
-                return 0;
-        }
-        if (grant_bytes > free_space)
-        	grant_bytes = free_space;
-        grant_bytes -= dsk->receiver.prev_grant_bytes;
-        if (grant_bytes <= 0) {
-        	// printk("prev grant bytes full grant bytes: 0\n");
-        	return 0;
-        }
-		if(grant_bytes > dsk->receiver.max_gso_data)
-        	grant_bytes = grant_bytes / dsk->receiver.max_gso_data * dsk->receiver.max_gso_data;
-        return grant_bytes;
+	    // struct dcacp_sock* dsk = dcacp_sk(sk);
+	    // int max_gso_data = (int)dsk->receiver.max_gso_data;
+        // int free_space = dcacp_space(sk);
+        // int allowed_space = dcacp_full_space(sk);
+        // int full_space = min_t(int, dsk->receiver.grant_batch, allowed_space);
+        // int grant_bytes = dsk->receiver.grant_batch;
+		// int grant_bytes;
+        // if (unlikely(max_gso_data > allowed_space)) {
+        //     return 0;
+        // }
+        // if (dsk->receiver.prev_grant_bytes >= dsk->receiver.grant_batch)
+        // 	return 0;
+        // if (free_space < dsk->receiver.grant_batch * 2) {
+        // 	// printk("free space:%d\n", free_space);
+        // 	// printk("max gso data:%d\n", max_gso_data);
+        //         return 0;
+        // }
+        // if (grant_bytes > free_space)
+        // 	grant_bytes = free_space;
+        // grant_bytes -= dsk->receiver.prev_grant_bytes;
+        // if (grant_bytes <= 0) {
+        // 	// printk("prev grant bytes full grant bytes: 0\n");
+        // 	return 0;
+        // }
+		// if(grant_bytes > dsk->receiver.max_gso_data)
+        // 	grant_bytes = grant_bytes / dsk->receiver.max_gso_data * dsk->receiver.max_gso_data;
+        return 0;
 }
 
 bool flow_compare(const struct list_head* node1, const struct list_head* node2) {
@@ -43,8 +43,8 @@ bool flow_compare(const struct list_head* node1, const struct list_head* node2) 
     e2 = list_entry(node2, struct dcacp_sock, match_link);
     if(e1->total_length > e2->total_length)
         return true;
-    if(ktime_compare(e1->start_time, e2->start_time) > 0)
-    	return true;
+    // if(ktime_compare(e1->start_time, e2->start_time) > 0)
+    // 	return true;
     return false;
 
 }
@@ -109,401 +109,404 @@ void rcv_invoke_next(struct rcv_core_table* tab) {
 #define DCACP_TIMER_SETUP 2
 
 int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
-	struct dcacp_sock *dsk = dcacp_sk(sk);
-	struct rcv_core_entry* entry = &rcv_core_tab.table[dsk->core_id];
-	int grant_len = 0;
-	struct inet_sock *inet;
-	int push_bk = 0;
-	int retransmit_bytes = 0;
-	ktime_t tx_time = ktime_get();
-	__u32 prev_grant_nxt = dsk->prev_grant_nxt;
-	inet = inet_sk(sk);
-	// dsk->new_grant_nxt = dsk->grant_nxt;
-	// printk("process core id:%d\n", raw_smp_processor_id());
-	// printk("entry core id:%d\n", entry->core_id);
-	// printk("entry address:%p\n", entry);
-	// printk("xmit token cpu:%d\n", dsk->core_id);
-	if (dsk->receiver.flow_finish_wait) {
-		// printk("flow wait\n");
-		return DCACP_TIMER_SETUP;
-	}
-	/* this is only exception for retransmission*/
-	if (grant_bytes < 0)
-		grant_bytes = 0;
-	/*compute total sack bytes*/
-	if(handle_rtx && 
-		/* rcv next must be smaller than previous round grant nxt */
-		dsk->receiver.rcv_nxt < prev_grant_nxt && 
-		/* rcv next should be less than current grant nxt - grant_batch */
-		(dsk->receiver.rcv_nxt + dsk->receiver.grant_batch < dsk->grant_nxt 
-			|| dsk->grant_nxt == dsk->total_length) &&
-		/* don't to immediate retransmission */
-		ktime_to_us(ktime_sub(tx_time, dsk->receiver.last_rtx_time)) > 50) {
-		// printk("previous grant next:%u\n", prev_grant_nxt);
-		dsk->receiver.last_rtx_time = ktime_get();
-		retransmit_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
-		grant_len += retransmit_bytes;
-		// atomic_add_return(retransmit_bytes, &dcacp_epoch.remaining_tokens);
-		if (retransmit_bytes > dcacp_params.control_pkt_bdp / 2)
-			grant_bytes = 0;
-		// for debugging purpose now; should remove this later
-		handle_rtx = false;
-	} else {
-		handle_rtx = false;
-	}
-	/* if retransmit_bytes is larger, then we don't increment grant_nxt */
-
-	// printk("grant bytes:%u\n", grant_bytes);
-	/* set grant next*/
-	/* receiver buffer bottleneck; or token is dropped */
-	// if(prev_grant_nxt == dsk->receiver.rcv_nxt) {
-	// 	dsk->grant_nxt = dsk->receiver.rcv_nxt;
-	// 	printk("shrink grant nxt:%d\n", dsk->grant_nxt);
+	return true;
+	// struct dcacp_sock *dsk = dcacp_sk(sk);
+	// struct rcv_core_entry* entry = &rcv_core_tab.table[dsk->core_id];
+	// int grant_len = 0;
+	// struct inet_sock *inet;
+	// int push_bk = 0;
+	// int retransmit_bytes = 0;
+	// ktime_t tx_time = ktime_get();
+	// __u32 prev_grant_nxt = dsk->prev_grant_nxt;
+	// inet = inet_sk(sk);
+	// // dsk->new_grant_nxt = dsk->grant_nxt;
+	// // printk("process core id:%d\n", raw_smp_processor_id());
+	// // printk("entry core id:%d\n", entry->core_id);
+	// // printk("entry address:%p\n", entry);
+	// // printk("xmit token cpu:%d\n", dsk->core_id);
+	// if (dsk->receiver.flow_finish_wait) {
+	// 	// printk("flow wait\n");
+	// 	return DCACP_TIMER_SETUP;
 	// }
-	/* this is a temporary solution */
-	if(dsk->new_grant_nxt + grant_bytes > dsk->total_length) {
-		grant_bytes =  dsk->total_length - dsk->grant_nxt;
-		dsk->new_grant_nxt = dsk->total_length;
-	} else {
-		dsk->new_grant_nxt += grant_bytes;
-	}
+	// /* this is only exception for retransmission*/
+	// if (grant_bytes < 0)
+	// 	grant_bytes = 0;
+	// /*compute total sack bytes*/
+	// if(handle_rtx && 
+	// 	/* rcv next must be smaller than previous round grant nxt */
+	// 	dsk->receiver.rcv_nxt < prev_grant_nxt && 
+	// 	/* rcv next should be less than current grant nxt - grant_batch */
+	// 	(dsk->receiver.rcv_nxt + dsk->receiver.grant_batch < dsk->grant_nxt 
+	// 		|| dsk->grant_nxt == dsk->total_length) &&
+	// 	/* don't to immediate retransmission */
+	// 	ktime_to_us(ktime_sub(tx_time, dsk->receiver.last_rtx_time)) > 50) {
+	// 	// printk("previous grant next:%u\n", prev_grant_nxt);
+	// 	dsk->receiver.last_rtx_time = ktime_get();
+	// 	retransmit_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
+	// 	grant_len += retransmit_bytes;
+	// 	// atomic_add_return(retransmit_bytes, &dcacp_epoch.remaining_tokens);
+	// 	if (retransmit_bytes > dcacp_params.control_pkt_bdp / 2)
+	// 		grant_bytes = 0;
+	// 	// for debugging purpose now; should remove this later
+	// 	handle_rtx = false;
+	// } else {
+	// 	handle_rtx = false;
+	// }
+	// /* if retransmit_bytes is larger, then we don't increment grant_nxt */
 
-	grant_len += grant_bytes;
-	if (grant_len == 0) {
-		dsk->receiver.rmem_exhausted += 1;
-	}
-	if(dsk->new_grant_nxt == dsk->total_length) {
-		push_bk = DCACP_TIMER_SETUP;
-		/* TO DO: setup a timer here */
-		/* current set timer to be 10 RTT */
-		dsk->receiver.flow_finish_wait = true;
-		// printk("set up flow wait timer\n");
-		hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 40 * 1000), 
-			HRTIMER_MODE_REL_PINNED_SOFT);
-	} else {
-		// printk("setup flow wait timer\n");
-		// printk("expire time:%d\n", dcacp_params.rtt * 10 * 1000);
-		hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 40 * 1000), 
-			HRTIMER_MODE_REL_PINNED_SOFT);
-	}
-	// printk("xmit token grant next:%u\n", dsk->new_grant_nxt);
-	// printk("prev_grant_nxt:%u\n", dsk->prev_grant_nxt);
-	// printk ("dsk->receiver.rcv_nxt:%u\n", dsk->receiver.rcv_nxt);
-	// printk("grant_len:%d\n", grant_len);
-	// atomic_add(grant_len, &entry->remaining_tokens);
-	dsk->receiver.prev_grant_bytes += grant_len;
-	// atomic_add(grant_len, &dsk->receiver.in_flight_bytes);
-	// printk("send token");
-	if(handle_rtx || grant_len != 0)
-		dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->new_grant_nxt, handle_rtx),
-	 	sk, inet->inet_dport);
-	return push_bk;
+	// // printk("grant bytes:%u\n", grant_bytes);
+	// /* set grant next*/
+	// /* receiver buffer bottleneck; or token is dropped */
+	// // if(prev_grant_nxt == dsk->receiver.rcv_nxt) {
+	// // 	dsk->grant_nxt = dsk->receiver.rcv_nxt;
+	// // 	printk("shrink grant nxt:%d\n", dsk->grant_nxt);
+	// // }
+	// /* this is a temporary solution */
+	// if(dsk->new_grant_nxt + grant_bytes > dsk->total_length) {
+	// 	grant_bytes =  dsk->total_length - dsk->grant_nxt;
+	// 	dsk->new_grant_nxt = dsk->total_length;
+	// } else {
+	// 	dsk->new_grant_nxt += grant_bytes;
+	// }
+
+	// grant_len += grant_bytes;
+	// if (grant_len == 0) {
+	// 	dsk->receiver.rmem_exhausted += 1;
+	// }
+	// if(dsk->new_grant_nxt == dsk->total_length) {
+	// 	push_bk = DCACP_TIMER_SETUP;
+	// 	/* TO DO: setup a timer here */
+	// 	/* current set timer to be 10 RTT */
+	// 	dsk->receiver.flow_finish_wait = true;
+	// 	// printk("set up flow wait timer\n");
+	// 	hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 40 * 1000), 
+	// 		HRTIMER_MODE_REL_PINNED_SOFT);
+	// } else {
+	// 	// printk("setup flow wait timer\n");
+	// 	// printk("expire time:%d\n", dcacp_params.rtt * 10 * 1000);
+	// 	hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 40 * 1000), 
+	// 		HRTIMER_MODE_REL_PINNED_SOFT);
+	// }
+	// // printk("xmit token grant next:%u\n", dsk->new_grant_nxt);
+	// // printk("prev_grant_nxt:%u\n", dsk->prev_grant_nxt);
+	// // printk ("dsk->receiver.rcv_nxt:%u\n", dsk->receiver.rcv_nxt);
+	// // printk("grant_len:%d\n", grant_len);
+	// // atomic_add(grant_len, &entry->remaining_tokens);
+	// dsk->receiver.prev_grant_bytes += grant_len;
+	// // atomic_add(grant_len, &dsk->receiver.in_flight_bytes);
+	// // printk("send token");
+	// if(handle_rtx || grant_len != 0)
+	// 	dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->new_grant_nxt, handle_rtx),
+	//  	sk, inet->inet_dport);
+	// return push_bk;
 }
 
 /* assume entry lock is hold and bh is disabled */
 bool dcacp_xmit_token_single_core(struct rcv_core_entry *entry) {
-	bool find_flow = false;
-	struct list_head *match_link;
-	struct dcacp_sock *dsk;
-	struct inet_sock *inet;
-	struct sock* sk;
+// 	bool find_flow = false;
+// 	struct list_head *match_link;
+// 	struct dcacp_sock *dsk;
+// 	struct inet_sock *inet;
+// 	struct sock* sk;
 
-	while(!dcacp_pq_empty(&entry->flow_q)) {
-		int not_push_bk = 0;
-		bool handle_rtx = false;
-		// printk("pq size:%d\n", dcacp_pq_size(&entry->flow_q));
-		match_link = dcacp_pq_peek(&entry->flow_q);
-		dsk =  list_entry(match_link, struct dcacp_sock, match_link);
-		sk = (struct sock*)dsk;
-		inet = inet_sk(sk);
-		dcacp_pq_pop(&entry->flow_q);
- 		bh_lock_sock(sk);
- 		dsk->receiver.in_pq = false;
- 		// printk("xmit token for socket:%d\n", ntohs(inet->inet_dport));
- 		if(sk->sk_state == DCACP_ESTABLISHED && !dsk->receiver.finished_at_receiver) {
-			// int retransmit_bytes;
-			// dsk->receiver.prev_grant_bytes = 0;
-			// if(ntohs(inet->inet_dport) == 1000) {
-				// printk("port:%d", ntohs(inet->inet_dport));
-				// printk(" grant bytes:%d", grant_bytes);
-				// printk(" space: %d\n", dcacp_space(sk));
+// 	while(!dcacp_pq_empty(&entry->flow_q)) {
+// 		int not_push_bk = 0;
+// 		bool handle_rtx = false;
+// 		// printk("pq size:%d\n", dcacp_pq_size(&entry->flow_q));
+// 		match_link = dcacp_pq_peek(&entry->flow_q);
+// 		dsk =  list_entry(match_link, struct dcacp_sock, match_link);
+// 		sk = (struct sock*)dsk;
+// 		inet = inet_sk(sk);
+// 		dcacp_pq_pop(&entry->flow_q);
+//  		bh_lock_sock(sk);
+//  		dsk->receiver.in_pq = false;
+//  		// printk("xmit token for socket:%d\n", ntohs(inet->inet_dport));
+//  		if(sk->sk_state == DCACP_ESTABLISHED && !dsk->receiver.finished_at_receiver) {
+// 			// int retransmit_bytes;
+// 			// dsk->receiver.prev_grant_bytes = 0;
+// 			// if(ntohs(inet->inet_dport) == 1000) {
+// 				// printk("port:%d", ntohs(inet->inet_dport));
+// 				// printk(" grant bytes:%d", grant_bytes);
+// 				// printk(" space: %d\n", dcacp_space(sk));
 
-			// }
-			// retransmit_bytes = rtx_bytes_count(dsk, dsk->prev_grant_nxt);
-	 		// if (!sock_owned_by_user(sk)
-			//  ) {
-	 		// 	handle_rtx = true;
-	 		// 	// printk("sock_owned_by_user\n");
-	 		// }
-	 		// printk("dsk address:%p\n", dsk);
- 			// printk("single core grant bytes:%d\n", grant_bytes);
- 			// printk("retransmit byte:%d\n", retransmit_bytes);
+// 			// }
+// 			// retransmit_bytes = rtx_bytes_count(dsk, dsk->prev_grant_nxt);
+// 	 		// if (!sock_owned_by_user(sk)
+// 			//  ) {
+// 	 		// 	handle_rtx = true;
+// 	 		// 	// printk("sock_owned_by_user\n");
+// 	 		// }
+// 	 		// printk("dsk address:%p\n", dsk);
+//  			// printk("single core grant bytes:%d\n", grant_bytes);
+//  			// printk("retransmit byte:%d\n", retransmit_bytes);
 
- 			/* need morer work on that */
-			WARN_ON(dsk->receiver.grant_batch + dsk->grant_nxt >  dsk->total_length);
-			atomic_add(dsk->receiver.grant_batch, &entry->remaining_tokens);
-			atomic_add(dsk->receiver.grant_batch, &dsk->receiver.in_flight_bytes);
-	 		if(!sock_owned_by_user(sk)) {
-	 			int grant_bytes; 
-				grant_bytes = calc_grant_bytes(sk);
- 				not_push_bk = xmit_batch_token(sk, grant_bytes, handle_rtx);
-	  			if (!dsk->receiver.flow_finish_wait && grant_bytes != 0){
-	  				// printk("push back socket \n");
-					/* reinitialize the state for the next time*/
-					if(dsk->receiver.grant_batch != dsk->receiver.prev_grant_bytes) {
-						atomic_sub(dsk->receiver.grant_batch - dsk->receiver.prev_grant_bytes, &entry->remaining_tokens);
-						atomic_sub(dsk->receiver.grant_batch - dsk->receiver.prev_grant_bytes, &dsk->receiver.in_flight_bytes);
-					}
-					dsk->prev_grant_nxt = dsk->grant_nxt;
-					dsk->grant_nxt = dsk->new_grant_nxt;
-	  				dcacp_pq_push(&entry->flow_q, &dsk->match_link);
-	  				dsk->receiver.in_pq = true;
-					dsk->receiver.prev_grant_bytes = 0;
-					dsk->receiver.grant_batch = min_t(uint32_t, dsk->total_length - dsk->grant_nxt,
-		 				dsk->receiver.max_grant_batch);
-	  			} 
-	  			if (!dsk->receiver.flow_finish_wait && grant_bytes == 0) {
-	  				test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
-	  			}
-  				// printk("reach here:%d\n", __LINE__);
-	 		}
-	 		else if(!test_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
-  				// printk("token timer deferred set\n");
- 				test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
-	 		}
- 		} else {
- 			goto unlock;
- 		}
- 		find_flow = true;
-		bh_unlock_sock(sk);
-		break;
-unlock:
-        bh_unlock_sock(sk);
-	}
-	if (!dcacp_pq_empty(&entry->flow_q)) {
-	}
-	return find_flow;
+//  			/* need morer work on that */
+// 			WARN_ON(dsk->receiver.grant_batch + dsk->grant_nxt >  dsk->total_length);
+// 			atomic_add(dsk->receiver.grant_batch, &entry->remaining_tokens);
+// 			atomic_add(dsk->receiver.grant_batch, &dsk->receiver.in_flight_bytes);
+// 	 		if(!sock_owned_by_user(sk)) {
+// 	 			int grant_bytes; 
+// 				grant_bytes = calc_grant_bytes(sk);
+//  				not_push_bk = xmit_batch_token(sk, grant_bytes, handle_rtx);
+// 	  			if (!dsk->receiver.flow_finish_wait && grant_bytes != 0){
+// 	  				// printk("push back socket \n");
+// 					/* reinitialize the state for the next time*/
+// 					if(dsk->receiver.grant_batch != dsk->receiver.prev_grant_bytes) {
+// 						atomic_sub(dsk->receiver.grant_batch - dsk->receiver.prev_grant_bytes, &entry->remaining_tokens);
+// 						atomic_sub(dsk->receiver.grant_batch - dsk->receiver.prev_grant_bytes, &dsk->receiver.in_flight_bytes);
+// 					}
+// 					dsk->prev_grant_nxt = dsk->grant_nxt;
+// 					dsk->grant_nxt = dsk->new_grant_nxt;
+// 	  				dcacp_pq_push(&entry->flow_q, &dsk->match_link);
+// 	  				dsk->receiver.in_pq = true;
+// 					dsk->receiver.prev_grant_bytes = 0;
+// 					dsk->receiver.grant_batch = min_t(uint32_t, dsk->total_length - dsk->grant_nxt,
+// 		 				dsk->receiver.max_grant_batch);
+// 	  			} 
+// 	  			if (!dsk->receiver.flow_finish_wait && grant_bytes == 0) {
+// 	  				test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+// 	  			}
+//   				// printk("reach here:%d\n", __LINE__);
+// 	 		}
+// 	 		else if(!test_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
+//   				// printk("token timer deferred set\n");
+//  				test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+// 	 		}
+//  		} else {
+//  			goto unlock;
+//  		}
+//  		find_flow = true;
+// 		bh_unlock_sock(sk);
+// 		break;
+// unlock:
+//         bh_unlock_sock(sk);
+// 	}
+// 	if (!dcacp_pq_empty(&entry->flow_q)) {
+// 	}
+// 	return find_flow;
+	return true;
 }
 
 /* Assume local bh is disabled */
-void dcacp_update_and_schedule_sock(struct dcacp_sock *dsk) {
-	struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
-	WARN_ON(dsk->receiver.in_pq);
-	spin_lock(&entry->lock);
-	/* clean unsent token */
-	if(dsk->receiver.grant_batch != dsk->receiver.prev_grant_bytes) {
-		atomic_sub(dsk->receiver.grant_batch - dsk->receiver.prev_grant_bytes, &entry->remaining_tokens);
-		atomic_sub(dsk->receiver.grant_batch - dsk->receiver.prev_grant_bytes, &dsk->receiver.in_flight_bytes);
-	}
-	dsk->prev_grant_nxt = dsk->grant_nxt;
-	dsk->grant_nxt = dsk->new_grant_nxt;
-	dsk->receiver.prev_grant_bytes = 0;
-	dsk->receiver.grant_batch = min_t(uint32_t, dsk->total_length - dsk->grant_nxt,
-		 dsk->receiver.max_grant_batch);
-	if(!dsk->receiver.in_pq) {
-		dcacp_pq_push(&entry->flow_q, &dsk->match_link);
-		dsk->receiver.in_pq = true;
-	}
-	spin_unlock(&entry->lock);
-}
+// void dcacp_update_and_schedule_sock(struct dcacp_sock *dsk) {
+// 	// struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
+// 	// WARN_ON(dsk->receiver.in_pq);
+// 	// spin_lock(&entry->lock);
+// 	// /* clean unsent token */
+// 	// if(dsk->receiver.grant_batch != dsk->receiver.prev_grant_bytes) {
+// 	// 	atomic_sub(dsk->receiver.grant_batch - dsk->receiver.prev_grant_bytes, &entry->remaining_tokens);
+// 	// 	atomic_sub(dsk->receiver.grant_batch - dsk->receiver.prev_grant_bytes, &dsk->receiver.in_flight_bytes);
+// 	// }
+// 	// dsk->prev_grant_nxt = dsk->grant_nxt;
+// 	// dsk->grant_nxt = dsk->new_grant_nxt;
+// 	// dsk->receiver.prev_grant_bytes = 0;
+// 	// dsk->receiver.grant_batch = min_t(uint32_t, dsk->total_length - dsk->grant_nxt,
+// 	// 	 dsk->receiver.max_grant_batch);
+// 	// if(!dsk->receiver.in_pq) {
+// 	// 	dcacp_pq_push(&entry->flow_q, &dsk->match_link);
+// 	// 	dsk->receiver.in_pq = true;
+// 	// }
+// 	// spin_unlock(&entry->lock);
+// }
 
 /* Assume local bh is disabled */
 void dcacp_unschedule_sock(struct dcacp_sock *dsk) {
-	struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
-	// WARN_ON(!dsk->receiver.in_pq);
-	spin_lock(&entry->lock);
-	if(dsk->receiver.in_pq) {
-		dcacp_pq_delete(&entry->flow_q, &dsk->match_link);
-		dsk->receiver.in_pq = false;
-	}
-	spin_unlock(&entry->lock);
+	// struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
+	// // WARN_ON(!dsk->receiver.in_pq);
+	// spin_lock(&entry->lock);
+	// if(dsk->receiver.in_pq) {
+	// 	dcacp_pq_delete(&entry->flow_q, &dsk->match_link);
+	// 	dsk->receiver.in_pq = false;
+	// }
+	// spin_unlock(&entry->lock);
 }
 
 /* Process Context */
 void dcacp_xmit_token_event(struct work_struct *w) {
-	struct rcv_core_entry *entry = container_of(w, struct rcv_core_entry, token_xmit_struct);
-	bool find_flow = false;
-		// start2 = ktime_get();
-	// printk("dcacp xmit token\n");
-	spin_lock_bh(&entry->lock);
-	// WARN_ON(entry->is_active);
-	WARN_ON(entry->state != DCACP_IN_QUEUE);
-	if(entry->state == DCACP_ACTIVE) {
-		// WARN_ON(true);
-		goto not_find_flow;
-	}
-	entry->state = DCACP_ACTIVE;
-	// printk("reach here:%d\n", __LINE__);
-	find_flow = dcacp_xmit_token_single_core(entry);
-	if(!find_flow)
-		entry->state = DCACP_IDLE;
+// 	struct rcv_core_entry *entry = container_of(w, struct rcv_core_entry, token_xmit_struct);
+// 	bool find_flow = false;
+// 		// start2 = ktime_get();
+// 	// printk("dcacp xmit token\n");
+// 	spin_lock_bh(&entry->lock);
+// 	// WARN_ON(entry->is_active);
+// 	WARN_ON(entry->state != DCACP_IN_QUEUE);
+// 	if(entry->state == DCACP_ACTIVE) {
+// 		// WARN_ON(true);
+// 		goto not_find_flow;
+// 	}
+// 	entry->state = DCACP_ACTIVE;
+// 	// printk("reach here:%d\n", __LINE__);
+// 	find_flow = dcacp_xmit_token_single_core(entry);
+// 	if(!find_flow)
+// 		entry->state = DCACP_IDLE;
 
-	/* not enough pkt is granted */
-	if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
-		entry->state = DCACP_IDLE;
-		find_flow = false;
-	}
+// 	/* not enough pkt is granted */
+// 	if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
+// 		entry->state = DCACP_IDLE;
+// 		find_flow = false;
+// 	}
 
-not_find_flow:
-	spin_unlock_bh(&entry->lock);
-	if(!find_flow) {
-		spin_lock_bh(&rcv_core_tab.lock);
-		rcv_core_tab.num_active_cores -= 1;
-		rcv_invoke_next(&rcv_core_tab);
-		spin_unlock_bh(&rcv_core_tab.lock);
-	}
+// not_find_flow:
+// 	spin_unlock_bh(&entry->lock);
+// 	if(!find_flow) {
+// 		spin_lock_bh(&rcv_core_tab.lock);
+// 		rcv_core_tab.num_active_cores -= 1;
+// 		rcv_invoke_next(&rcv_core_tab);
+// 		spin_unlock_bh(&rcv_core_tab.lock);
+// 	}
 }
 
 void rcv_handle_new_flow(struct dcacp_sock* dsk) {
-	int core_id = dsk->core_id;
-	// bool is_empty = false;
-	struct rcv_core_entry* entry = &rcv_core_tab.table[core_id];
-	WARN_ON(!in_softirq());
-	spin_lock(&entry->lock);
+// 	int core_id = dsk->core_id;
+// 	// bool is_empty = false;
+// 	struct rcv_core_entry* entry = &rcv_core_tab.table[core_id];
+// 	WARN_ON(!in_softirq());
+// 	spin_lock(&entry->lock);
 
-	/* push the long flow to the control plane for scheduling*/
-	dcacp_pq_push(&entry->flow_q, &dsk->match_link);
-	dsk->receiver.in_pq = true;
-	dsk->receiver.prev_grant_bytes = 0;
-	dsk->receiver.grant_batch = min_t(uint32_t, dsk->total_length - dsk->grant_nxt,
-		dsk->receiver.max_grant_batch);
-	// printk("dsk->address:%p\n", dsk);
-	// printk("dsk->match_link:%p\n", &dsk->match_link);
-	// printk("pq peek:%p\n", dcacp_pq_peek(&entry->flow_q));
-	// printk("pq size:%d\n", dcacp_pq_size(&entry->flow_q));
-	// printk("handle new flow flow wait:%d\n", dsk->receiver.flow_wait);
-	// if(dcacp_pq_size(&entry->flow_q) == 1) {
-	// 	is_empty = true;
-	// }
-	// printk("handle new flow core id:%d\n", core_id);
-	// printk("entry state:%d\n", entry->state);f
-	// printk("handle new flow\n");
-	if(entry->state == DCACP_IDLE) {
-		spin_lock(&rcv_core_tab.lock);
-		// printk("entry state:%d\n", entry->state);
+// 	/* push the long flow to the control plane for scheduling*/
+// 	dcacp_pq_push(&entry->flow_q, &dsk->match_link);
+// 	dsk->receiver.in_pq = true;
+// 	dsk->receiver.prev_token_nxt = 0;
+// 	dsk->receiver.token_nxt = 0;
+// 	dsk->receiver.token_batch = min_t(uint32_t, dsk->total_length - dsk->grant_nxt,
+// 		dsk->receiver.max_grant_batch);
+// 	// printk("dsk->address:%p\n", dsk);
+// 	// printk("dsk->match_link:%p\n", &dsk->match_link);
+// 	// printk("pq peek:%p\n", dcacp_pq_peek(&entry->flow_q));
+// 	// printk("pq size:%d\n", dcacp_pq_size(&entry->flow_q));
+// 	// printk("handle new flow flow wait:%d\n", dsk->receiver.flow_wait);
+// 	// if(dcacp_pq_size(&entry->flow_q) == 1) {
+// 	// 	is_empty = true;
+// 	// }
+// 	// printk("handle new flow core id:%d\n", core_id);
+// 	// printk("entry state:%d\n", entry->state);f
+// 	// printk("handle new flow\n");
+// 	if(entry->state == DCACP_IDLE) {
+// 		spin_lock(&rcv_core_tab.lock);
+// 		// printk("entry state:%d\n", entry->state);
 
-		/* list empty*/
-		if(rcv_core_tab.num_active_cores < MAX_ACTIVE_CORE) {
-			rcv_core_tab.num_active_cores += 1;
-			entry->state = DCACP_ACTIVE;
-			// printk("reach here:%d\n", __LINE__);
-			spin_unlock(&rcv_core_tab.lock);
-			// printk("reach here:%d\n", __LINE__);
-			dcacp_xmit_token_single_core(entry);
-			goto end;
-		} else {
-			entry->state = DCACP_IN_QUEUE;
-			list_add_tail(&entry->list_link, &rcv_core_tab.sche_list);
-		}
-		spin_unlock(&rcv_core_tab.lock);
-	}
-end:
-	spin_unlock(&entry->lock);
+// 		/* list empty*/
+// 		if(rcv_core_tab.num_active_cores < MAX_ACTIVE_CORE) {
+// 			rcv_core_tab.num_active_cores += 1;
+// 			entry->state = DCACP_ACTIVE;
+// 			// printk("reach here:%d\n", __LINE__);
+// 			spin_unlock(&rcv_core_tab.lock);
+// 			// printk("reach here:%d\n", __LINE__);
+// 			dcacp_xmit_token_single_core(entry);
+// 			goto end;
+// 		} else {
+// 			entry->state = DCACP_IN_QUEUE;
+// 			list_add_tail(&entry->list_link, &rcv_core_tab.sche_list);
+// 		}
+// 		spin_unlock(&rcv_core_tab.lock);
+// 	}
+// end:
+// 	spin_unlock(&entry->lock);
 }
 
 /* entry lock is hold and bh is disabled */
 void rcv_flowlet_done(struct rcv_core_entry *entry) {
 
-	bool pq_empty = dcacp_pq_empty(&entry->flow_q);
-	if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2 
-		&& entry->state == DCACP_ACTIVE) {
-		spin_lock(&rcv_core_tab.lock);
-		// printk("control pkt bdp / 2:%d\n", dcacp_params.control_pkt_bdp / 2);
-		if(pq_empty) {
-			entry->state = DCACP_IDLE;
-			rcv_core_tab.num_active_cores -= 1;
-			// printk("pq empty reach here:%d\n", __LINE__);
-			rcv_invoke_next(&rcv_core_tab);
-		} else if (rcv_core_tab.num_active_cores < MAX_ACTIVE_CORE) {
-			bool find_flow;
-			/* send next token in the same core */
-			spin_unlock(&rcv_core_tab.lock);
-			// printk("reach here:%d\n", __LINE__);
+// 	bool pq_empty = dcacp_pq_empty(&entry->flow_q);
+// 	if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2 
+// 		&& entry->state == DCACP_ACTIVE) {
+// 		spin_lock(&rcv_core_tab.lock);
+// 		// printk("control pkt bdp / 2:%d\n", dcacp_params.control_pkt_bdp / 2);
+// 		if(pq_empty) {
+// 			entry->state = DCACP_IDLE;
+// 			rcv_core_tab.num_active_cores -= 1;
+// 			// printk("pq empty reach here:%d\n", __LINE__);
+// 			rcv_invoke_next(&rcv_core_tab);
+// 		} else if (rcv_core_tab.num_active_cores < MAX_ACTIVE_CORE) {
+// 			bool find_flow;
+// 			/* send next token in the same core */
+// 			spin_unlock(&rcv_core_tab.lock);
+// 			// printk("reach here:%d\n", __LINE__);
 
-			find_flow = dcacp_xmit_token_single_core(entry);
-			// if(!find_flow) {
-			// 	entry->state = DCACP_IDLE;
-			// 	printk("reach here:%d\n", __LINE__);
-			// 	goto not_find_flow;
-			// }
-			/* not enough pkt is granted */
-			if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
-				entry->state = DCACP_IDLE;
-				// printk("reach here:%d\n", __LINE__);
-				goto not_find_flow;
-			}
-			goto end;
-		} else {
-			entry->state = DCACP_IN_QUEUE;
-			rcv_core_tab.num_active_cores -= 1;
-			// printk("reach here:%d\n", __LINE__);
-			list_add_tail(&entry->list_link, &rcv_core_tab.sche_list);
-			rcv_invoke_next(&rcv_core_tab);
-		}
-		spin_unlock(&rcv_core_tab.lock);
-		// hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0, 0), HRTIMER_MODE_REL_PINNED_SOFT);
-	}
-end:
-	return;
+// 			find_flow = dcacp_xmit_token_single_core(entry);
+// 			// if(!find_flow) {
+// 			// 	entry->state = DCACP_IDLE;
+// 			// 	printk("reach here:%d\n", __LINE__);
+// 			// 	goto not_find_flow;
+// 			// }
+// 			/* not enough pkt is granted */
+// 			if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
+// 				entry->state = DCACP_IDLE;
+// 				// printk("reach here:%d\n", __LINE__);
+// 				goto not_find_flow;
+// 			}
+// 			goto end;
+// 		} else {
+// 			entry->state = DCACP_IN_QUEUE;
+// 			rcv_core_tab.num_active_cores -= 1;
+// 			// printk("reach here:%d\n", __LINE__);
+// 			list_add_tail(&entry->list_link, &rcv_core_tab.sche_list);
+// 			rcv_invoke_next(&rcv_core_tab);
+// 		}
+// 		spin_unlock(&rcv_core_tab.lock);
+// 		// hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0, 0), HRTIMER_MODE_REL_PINNED_SOFT);
+// 	}
+// end:
+// 	return;
 
-not_find_flow:
-	spin_lock(&rcv_core_tab.lock);
-	rcv_core_tab.num_active_cores -= 1;
-	rcv_invoke_next(&rcv_core_tab);
-	spin_unlock(&rcv_core_tab.lock);
+// not_find_flow:
+// 	spin_lock(&rcv_core_tab.lock);
+// 	rcv_core_tab.num_active_cores -= 1;
+// 	rcv_invoke_next(&rcv_core_tab);
+// 	spin_unlock(&rcv_core_tab.lock);
 }
 
 /* handle flowlet done, flow came back after timeour or retranmission; */
 enum hrtimer_restart flowlet_done_event(struct hrtimer *timer) {
 	// struct dcacp_grant* grant, temp;
-	struct rcv_core_entry *entry = container_of(timer, struct rcv_core_entry, flowlet_done_timer);
-	WARN_ON(!in_softirq());
-	// printk("flowlet done timer is called\n");
+// 	struct rcv_core_entry *entry = container_of(timer, struct rcv_core_entry, flowlet_done_timer);
+// 	WARN_ON(!in_softirq());
+// 	// printk("flowlet done timer is called\n");
 
-	spin_lock(&entry->lock);
-	/* reset the remaining tokens to zero */
-	if(entry->state == DCACP_ACTIVE) {
-		rcv_flowlet_done(entry);
-	} else if(entry->state == DCACP_IDLE && !dcacp_pq_empty(&entry->flow_q)) {
-		bool find_flow = false;
-		spin_lock(&rcv_core_tab.lock);
-		/* list empty*/
-		if(rcv_core_tab.num_active_cores < MAX_ACTIVE_CORE) {
-			rcv_core_tab.num_active_cores += 1;
-			entry->state = DCACP_ACTIVE;
-			spin_unlock(&rcv_core_tab.lock);
-			// printk("reach here:%d\n", __LINE__);
-			find_flow = dcacp_xmit_token_single_core(entry);
-			// if(!find_flow) {
-			// 	entry->state = DCACP_IDLE;
-			// 	printk("reach here:%d\n", __LINE__);
+// 	spin_lock(&entry->lock);
+// 	/* reset the remaining tokens to zero */
+// 	if(entry->state == DCACP_ACTIVE) {
+// 		rcv_flowlet_done(entry);
+// 	} else if(entry->state == DCACP_IDLE && !dcacp_pq_empty(&entry->flow_q)) {
+// 		bool find_flow = false;
+// 		spin_lock(&rcv_core_tab.lock);
+// 		/* list empty*/
+// 		if(rcv_core_tab.num_active_cores < MAX_ACTIVE_CORE) {
+// 			rcv_core_tab.num_active_cores += 1;
+// 			entry->state = DCACP_ACTIVE;
+// 			spin_unlock(&rcv_core_tab.lock);
+// 			// printk("reach here:%d\n", __LINE__);
+// 			find_flow = dcacp_xmit_token_single_core(entry);
+// 			// if(!find_flow) {
+// 			// 	entry->state = DCACP_IDLE;
+// 			// 	printk("reach here:%d\n", __LINE__);
 
-			// 	goto not_find_flow;
-			// }
-			/* not enough pkt is granted */
-			if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
-				entry->state = DCACP_IDLE;
-				// printk("reach here:%d\n", __LINE__);
-				goto not_find_flow;
-			}
-			goto end;
-		} else {
-			entry->state = DCACP_IN_QUEUE;
-			list_add_tail(&entry->list_link, &rcv_core_tab.sche_list);
-		}
-		spin_unlock(&rcv_core_tab.lock);
-	}
-end:
-	spin_unlock(&entry->lock);
- 	// queue_work(dcacp_epoch.wq, &dcacp_epoch.token_xmit_struct);
-	return HRTIMER_NORESTART;
+// 			// 	goto not_find_flow;
+// 			// }
+// 			/* not enough pkt is granted */
+// 			if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
+// 				entry->state = DCACP_IDLE;
+// 				// printk("reach here:%d\n", __LINE__);
+// 				goto not_find_flow;
+// 			}
+// 			goto end;
+// 		} else {
+// 			entry->state = DCACP_IN_QUEUE;
+// 			list_add_tail(&entry->list_link, &rcv_core_tab.sche_list);
+// 		}
+// 		spin_unlock(&rcv_core_tab.lock);
+// 	}
+// end:
+// 	spin_unlock(&entry->lock);
+//  	// queue_work(dcacp_epoch.wq, &dcacp_epoch.token_xmit_struct);
+// 	return HRTIMER_NORESTART;
 
-not_find_flow:
-	spin_unlock(&entry->lock);
-	spin_lock(&rcv_core_tab.lock);
-	rcv_core_tab.num_active_cores -= 1;
-	rcv_invoke_next(&rcv_core_tab);
-	spin_unlock(&rcv_core_tab.lock);
+// not_find_flow:
+// 	spin_unlock(&entry->lock);
+// 	spin_lock(&rcv_core_tab.lock);
+// 	rcv_core_tab.num_active_cores -= 1;
+// 	rcv_invoke_next(&rcv_core_tab);
+// 	spin_unlock(&rcv_core_tab.lock);
 	return HRTIMER_NORESTART;
 
 }
@@ -545,38 +548,39 @@ void xmit_core_table_destory(struct xmit_core_table *tab) {
 	destroy_workqueue(tab->wq);
 }
 int xmit_use_token(struct sk_buff* skb) {
-	struct dcacp_token_hdr *th;
-	struct sock* sk;
-	struct dcacp_sock *dsk;
-	// int sdif = inet_sdif(skb);
-	// bool refcounted = false;
-	int sent_bytes = 0;
+// 	struct dcacp_token_hdr *th;
+// 	struct sock* sk;
+// 	struct dcacp_sock *dsk;
+// 	// int sdif = inet_sdif(skb);
+// 	// bool refcounted = false;
+// 	int sent_bytes = 0;
 
-	th = dcacp_token_hdr(skb);
-	// sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&th->common), th->common.source,
- //            th->common.dest, sdif, &refcounted);
-	sk = skb->sk;
-	if(sk) {
-		// printk("reach here:%d\n", __LINE__);
-		// printk("use token\n");
-	 	dsk = dcacp_sk(sk);
- 		bh_lock_sock(sk);
-		/* add token */
- 		dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
- 		/* add sack info */
- 		dcacp_get_sack_info(sk, skb);
-	    if(!sock_owned_by_user(sk) || dsk->num_sacks == 0) {
-	 		sent_bytes += dcacp_write_timer_handler(sk);
-	    } else {
-	 		test_and_set_bit(DCACP_RTX_DEFERRED, &sk->sk_tsq_flags);
-	    }
-	    bh_unlock_sock(sk);
-	}
-	// if (refcounted) {
- //        sock_put(sk);
- //    }
-	kfree_skb(skb);
-	return sent_bytes;
+// 	th = dcacp_token_hdr(skb);
+// 	// sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&th->common), th->common.source,
+//  //            th->common.dest, sdif, &refcounted);
+// 	sk = skb->sk;
+// 	if(sk) {
+// 		// printk("reach here:%d\n", __LINE__);
+// 		// printk("use token\n");
+// 	 	dsk = dcacp_sk(sk);
+//  		bh_lock_sock(sk);
+// 		/* add token */
+//  		dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
+//  		/* add sack info */
+//  		dcacp_get_sack_info(sk, skb);
+// 	    if(!sock_owned_by_user(sk) || dsk->num_sacks == 0) {
+// 	 		sent_bytes += dcacp_write_timer_handler(sk);
+// 	    } else {
+// 	 		test_and_set_bit(DCACP_RTX_DEFERRED, &sk->sk_tsq_flags);
+// 	    }
+// 	    bh_unlock_sock(sk);
+// 	}
+// 	// if (refcounted) {
+//  //        sock_put(sk);
+//  //    }
+// 	kfree_skb(skb);
+// 	return sent_bytes;
+	return 0;
 }
 
 /* Assume table lock is hold*/

@@ -133,7 +133,7 @@ struct dcacp_data_hdr {
 struct dcacp_token_hdr {
 	struct dcacphdr common;
 	__be32 rcv_nxt;
-	__be32 grant_nxt;
+	__be32 token_nxt;
 	__u8 priority;
 	__u8 num_sacks;
 	/* token seq number */

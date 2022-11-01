@@ -36,10 +36,9 @@ void dcacp_params_init(struct dcacp_params *params);
 // DCACP priority queue
 int calc_grant_bytes(struct sock *sk);
 int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx);
-void dcacp_xmit_token(struct dcacp_epoch* epoch);
+uint32_t dcacp_xmit_token(struct dcacp_sock* dsk, uint32_t token_bytes);
 int rtx_bytes_count(struct dcacp_sock* dsk, __u32 prev_grant_nxt);
-void dcacp_xmit_token_handler(struct work_struct *work);
-enum hrtimer_restart dcacp_token_xmit_event(struct hrtimer *timer);
+enum hrtimer_restart dcacp_xmit_token_handler(struct hrtimer *timer);
 void dcacp_pq_init(struct dcacp_pq* pq, bool(*comp)(const struct list_head*, const struct list_head*));
 bool dcacp_pq_empty(struct dcacp_pq* pq);
 bool dcacp_pq_empty_lockless(struct dcacp_pq* pq);
@@ -122,7 +121,7 @@ bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check);
 int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb);
 
 void dcacp_rem_check_handler(struct sock *sk);
-void dcacp_token_timer_defer_handler(struct sock *sk);
+int dcacp_token_timer_defer_handler(struct sock *sk);
 int dcacp_clean_rtx_queue(struct sock *sk);
 
 enum hrtimer_restart dcacp_flow_wait_event(struct hrtimer *timer);

@@ -231,41 +231,41 @@ void dcacp_get_sack_info(struct sock *sk, struct sk_buff *skb) {
 
 /* assume hold the socket spinlock*/
 void dcacp_flow_wait_handler(struct sock *sk) {
-	struct dcacp_sock *dsk = dcacp_sk(sk);
-	struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
+	// struct dcacp_sock *dsk = dcacp_sk(sk);
+	// struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
 
-	atomic_sub(atomic_read(&dsk->receiver.in_flight_bytes), &entry->remaining_tokens);
-	atomic_set(&dsk->receiver.in_flight_bytes, 0);
-	dsk->receiver.flow_finish_wait = false;
-	// dsk->receiver.prev_grant_bytes = 0;
-	// dsk->prev_grant_nxt = dsk->grant_nxt;
-	// printk("flow_wait_timer");
-	// printk("entry remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
-	// printk("inet dport:%d\n",  ntohs(inet->inet_dport));
-	if(test_and_clear_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
-		// atomic_sub(dsk->receiver.grant_batch,  &entry->remaining_tokens);
-	}
-	if(!dsk->receiver.finished_at_receiver)
-		dcacp_update_and_schedule_sock(dsk);
-	bh_unlock_sock(sk);
-	flowlet_done_event(&entry->flowlet_done_timer);
-	bh_lock_sock(sk);
+	// atomic_sub(atomic_read(&dsk->receiver.inflight_bytes), &entry->remaining_tokens);
+	// atomic_set(&dsk->receiver.inflight_bytes, 0);
+	// dsk->receiver.flow_finish_wait = false;
+	// // dsk->receiver.prev_grant_bytes = 0;
+	// // dsk->prev_grant_nxt = dsk->grant_nxt;
+	// // printk("flow_wait_timer");
+	// // printk("entry remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
+	// // printk("inet dport:%d\n",  ntohs(inet->inet_dport));
+	// if(test_and_clear_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
+	// 	// atomic_sub(dsk->receiver.grant_batch,  &entry->remaining_tokens);
+	// }
+	// if(!dsk->receiver.finished_at_receiver)
+	// 	dcacp_update_and_schedule_sock(dsk);
+	// bh_unlock_sock(sk);
+	// flowlet_done_event(&entry->flowlet_done_timer);
+	// bh_lock_sock(sk);
 }
 /* ToDO: should be protected by user lock called inside softIRQ context */
 enum hrtimer_restart dcacp_flow_wait_event(struct hrtimer *timer) {
 	// struct dcacp_grant* grant, temp;
-	struct dcacp_sock *dsk = container_of(timer, struct dcacp_sock, receiver.flow_wait_timer);
-	struct sock *sk = (struct sock*)dsk;
-	// struct inet_sock* inet = inet_sk(sk);
-	WARN_ON(!in_softirq());
-	// printk("call flow wait\n");
-	bh_lock_sock(sk);
-	if(!sock_owned_by_user(sk)) {
-		dcacp_flow_wait_handler(sk);
-	} else {
-		test_and_set_bit(DCACP_WAIT_DEFERRED, &sk->sk_tsq_flags);
-	}
-	bh_unlock_sock(sk);
+	// struct dcacp_sock *dsk = container_of(timer, struct dcacp_sock, receiver.flow_wait_timer);
+	// struct sock *sk = (struct sock*)dsk;
+	// // struct inet_sock* inet = inet_sk(sk);
+	// WARN_ON(!in_softirq());
+	// // printk("call flow wait\n");
+	// bh_lock_sock(sk);
+	// if(!sock_owned_by_user(sk)) {
+	// 	dcacp_flow_wait_handler(sk);
+	// } else {
+	// 	test_and_set_bit(DCACP_WAIT_DEFERRED, &sk->sk_tsq_flags);
+	// }
+	// bh_unlock_sock(sk);
 	return HRTIMER_NORESTART;
 }
 
@@ -291,57 +291,57 @@ void dcacp_rem_check_handler(struct sock *sk) {
 
 }
 
-void dcacp_token_timer_defer_handler(struct sock *sk) {
-	// bool pq_empty = false;
-	// int grant_bytes = calc_grant_bytes(sk);
-	bool not_push_bk = false;
-	struct dcacp_sock* dsk = dcacp_sk(sk);
-	// struct inet_sock *inet = inet_sk(sk);
-	struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
-	__u32 prev_grant_nxt = dsk->prev_grant_nxt;
-	// printk("timer defer handling\n");
-	WARN_ON(!in_softirq());
-	if(!dsk->receiver.flow_finish_wait && !dsk->receiver.finished_at_receiver) {
-		int grant_bytes = calc_grant_bytes(sk);
-		int rtx_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
-		// printk("defer grant bytes:%d\n", grant_bytes);
-		if(!dsk->receiver.finished_at_receiver && (rtx_bytes != 0 || grant_bytes != 0)) {
-			// printk("call timer defer xmit token\n");
-			not_push_bk = xmit_batch_token(sk, grant_bytes, true);
-		}
-	} else {
-		not_push_bk = true;
-	}
+// void dcacp_token_timer_defer_handler(struct sock *sk) {
+// 	// bool pq_empty = false;
+// 	// int grant_bytes = calc_grant_bytes(sk);
+// 	bool not_push_bk = false;
+// 	struct dcacp_sock* dsk = dcacp_sk(sk);
+// 	// struct inet_sock *inet = inet_sk(sk);
+// 	struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
+// 	__u32 prev_token_nxt = dsk->receiver.prev_token_nxt;
+// 	// printk("timer defer handling\n");
+// 	WARN_ON(!in_softirq());
+// 	if(!dsk->receiver.flow_finish_wait && !dsk->receiver.finished_at_receiver) {
+// 		int grant_bytes = calc_grant_bytes(sk);
+// 		int rtx_bytes = rtx_bytes_count(dsk, prev_token_nxt);
+// 		// printk("defer grant bytes:%d\n", grant_bytes);
+// 		if(!dsk->receiver.finished_at_receiver && (rtx_bytes != 0 || grant_bytes != 0)) {
+// 			// printk("call timer defer xmit token\n");
+// 			not_push_bk = xmit_batch_token(sk, grant_bytes, true);
+// 		}
+// 	} else {
+// 		not_push_bk = true;
+// 	}
 
-	// printk("timer defer\n");
-	// if(dsk->receiver.prev_grant_bytes == 0) {
-	// 	int grant_bytes = calc_grant_bytes(sk);
-	// 	not_push_bk = xmit_batch_token(sk, grant_bytes, true);
-	// } else {
-	// 	int rtx_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
-	// 	if(rtx_bytes && sk->sk_state == DCACP_RECEIVER) {
-	// 		dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->new_grant_nxt, true),
-	// 	 	dsk->peer, sk, inet->inet_dport);
-	// 		atomic_add(rtx_bytes, &dcacp_epoch.remaining_tokens);
-	// 		dsk->receiver.prev_grant_bytes += rtx_bytes;
-	// 	}
-	// 	if(dsk->new_grant_nxt == dsk->total_length) {
-	// 		not_push_bk = true;
-	// 		/* TO DO: setup a timer here */
-	// 		/* current set timer to be 10 RTT */
-	// 		hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 10 * 1000), 
-	// 			HRTIMER_MODE_REL_PINNED_SOFT);
-	// 	}
-	// }
-	/* Deadlock won't happen because flow is not in flow_q. */
-	if(!not_push_bk) {
-		dcacp_update_and_schedule_sock(dsk);
-	}
-	bh_unlock_sock(sk);
-	flowlet_done_event(&entry->flowlet_done_timer);
-	bh_lock_sock(sk);
+// 	// printk("timer defer\n");
+// 	// if(dsk->receiver.prev_grant_bytes == 0) {
+// 	// 	int grant_bytes = calc_grant_bytes(sk);
+// 	// 	not_push_bk = xmit_batch_token(sk, grant_bytes, true);
+// 	// } else {
+// 	// 	int rtx_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
+// 	// 	if(rtx_bytes && sk->sk_state == DCACP_RECEIVER) {
+// 	// 		dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->new_grant_nxt, true),
+// 	// 	 	dsk->peer, sk, inet->inet_dport);
+// 	// 		atomic_add(rtx_bytes, &dcacp_epoch.remaining_tokens);
+// 	// 		dsk->receiver.prev_grant_bytes += rtx_bytes;
+// 	// 	}
+// 	// 	if(dsk->new_grant_nxt == dsk->total_length) {
+// 	// 		not_push_bk = true;
+// 	// 		/* TO DO: setup a timer here */
+// 	// 		/* current set timer to be 10 RTT */
+// 	// 		hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 10 * 1000), 
+// 	// 			HRTIMER_MODE_REL_PINNED_SOFT);
+// 	// 	}
+// 	// }
+// 	/* Deadlock won't happen because flow is not in flow_q. */
+// 	if(!not_push_bk) {
+// 		dcacp_update_and_schedule_sock(dsk);
+// 	}
+// 	bh_unlock_sock(sk);
+// 	flowlet_done_event(&entry->flowlet_done_timer);
+// 	bh_lock_sock(sk);
 
-}
+// }
 
 void sk_stream_write_space(struct sock *sk)
 {
@@ -369,217 +369,62 @@ void sk_stream_write_space(struct sock *sk)
  */
 int dcacp_clean_rtx_queue(struct sock *sk)
 {
-	// const struct inet_connection_sock *icsk = inet_csk(sk);
 	struct dcacp_sock *dsk = dcacp_sk(sk);
-	// u64 first_ackt, last_ackt;
-	// u32 prior_sacked = tp->sacked_out;
-	// u32 reord = tp->snd_nxt;  lowest acked un-retx un-sacked seq 
 	struct sk_buff *skb, *next;
 	bool fully_acked = true;
-	// long sack_rtt_us = -1L;
-	// long seq_rtt_us = -1L;
-	// long ca_rtt_us = -1L;
-	// u32 pkts_acked = 0;
-	// u32 last_in_flight = 0;
-	// bool rtt_update;
 	int flag = 0;
-
-	// first_ackt = 0;
 
 	for (skb = skb_rb_first(&sk->tcp_rtx_queue); skb; skb = next) {
 		struct dcacp_skb_cb *scb = DCACP_SKB_CB(skb);
-		// const u32 start_seq = scb->seq;
-		// u8 sacked = scb->sacked;
-		// u32 acked_pcount;
-
-		// tcp_ack_tstamp(sk, skb, prior_snd_una);
-
 		/* Determine how many packets and what bytes were acked, tso and else */
 		if (after(scb->end_seq, dsk->sender.snd_una)) {
-			// if (tcp_skb_pcount(skb) == 1 ||
-			//     !after(tp->snd_una, scb->seq))
-			// 	break;
-
-			// acked_pcount = tcp_tso_acked(sk, skb);
-			// if (!acked_pcount)
-			// 	break;
 			fully_acked = false;
-		} else {
-			// acked_pcount = tcp_skb_pcount(skb);
 		}
-
-		// if (unlikely(sacked & TCPCB_RETRANS)) {
-		// 	if (sacked & TCPCB_SACKED_RETRANS)
-		// 		tp->retrans_out -= acked_pcount;
-		// 	flag |= FLAG_RETRANS_DATA_ACKED;
-		// } else if (!(sacked & TCPCB_SACKED_ACKED)) {
-		// 	last_ackt = tcp_skb_timestamp_us(skb);
-		// 	WARN_ON_ONCE(last_ackt == 0);
-		// 	if (!first_ackt)
-		// 		first_ackt = last_ackt;
-
-		// 	last_in_flight = TCP_SKB_CB(skb)->tx.in_flight;
-		// 	if (before(start_seq, reord))
-		// 		reord = start_seq;
-		// 	if (!after(scb->end_seq, tp->high_seq))
-		// 		flag |= FLAG_ORIG_SACK_ACKED;
-		// }
-
-		// if (sacked & TCPCB_SACKED_ACKED) {
-		// 	tp->sacked_out -= acked_pcount;
-		// } else if (tcp_is_sack(tp)) {
-		// 	tp->delivered += acked_pcount;
-		// 	if (!tcp_skb_spurious_retrans(tp, skb))
-		// 		tcp_rack_advance(tp, sacked, scb->end_seq,
-		// 				 tcp_skb_timestamp_us(skb));
-		// }
-		// if (sacked & TCPCB_LOST)
-		// 	tp->lost_out -= acked_pcount;
-
-		// tp->packets_out -= acked_pcount;
-		// pkts_acked += acked_pcount;
-		// tcp_rate_skb_delivered(sk, skb, sack->rate);
-
-		/* Initial outgoing SYN's get put onto the write_queue
-		 * just like anything else we transmit.  It is not
-		 * true data, and if we misinform our callers that
-		 * this ACK acks real data, we will erroneously exit
-		 * connection startup slow start one packet too
-		 * quickly.  This is severely frowned upon behavior.
-		 */
-		// if (likely(!(scb->tcp_flags & TCPHDR_SYN))) {
-		// 	flag |= FLAG_DATA_ACKED;
-		// } else {
-		// 	flag |= FLAG_SYN_ACKED;
-		// 	tp->retrans_stamp = 0;
-		// }
-
 		if (!fully_acked)
 			break;
 
 		next = skb_rb_next(skb);
-		// if (unlikely(skb == tp->retransmit_skb_hint))
-		// 	tp->retransmit_skb_hint = NULL;
-		// if (unlikely(skb == tp->lost_skb_hint))
-		// 	tp->lost_skb_hint = NULL;
-		// tcp_highest_sack_replace(sk, skb, next);
 		dcacp_rtx_queue_unlink_and_free(skb, sk);
 		sk_stream_write_space(sk);
 	}
-	// if (!skb)
-	// 	tcp_chrono_stop(sk, TCP_CHRONO_BUSY);
-
-	// if (likely(between(tp->snd_up, prior_snd_una, tp->snd_una)))
-	// 	tp->snd_up = tp->snd_una;
-
-	// if (skb && (TCP_SKB_CB(skb)->sacked & TCPCB_SACKED_ACKED))
-	// 	flag |= FLAG_SACK_RENEGING;
-
-	// if (likely(first_ackt) && !(flag & FLAG_RETRANS_DATA_ACKED)) {
-	// 	seq_rtt_us = tcp_stamp_us_delta(tp->tcp_mstamp, first_ackt);
-	// 	ca_rtt_us = tcp_stamp_us_delta(tp->tcp_mstamp, last_ackt);
-
-	// 	if (pkts_acked == 1 && last_in_flight < tp->mss_cache &&
-	// 	    last_in_flight && !prior_sacked && fully_acked &&
-	// 	    sack->rate->prior_delivered + 1 == tp->delivered &&
-	// 	    !(flag & (FLAG_CA_ALERT | FLAG_SYN_ACKED))) {
-	// 		/* Conservatively mark a delayed ACK. It's typically
-	// 		 * from a lone runt packet over the round trip to
-	// 		 * a receiver w/o out-of-order or CE events.
-	// 		 */
-	// 		flag |= FLAG_ACK_MAYBE_DELAYED;
-	// 	}
-	// }
-	// if (sack->first_sackt) {
-	// 	sack_rtt_us = tcp_stamp_us_delta(tp->tcp_mstamp, sack->first_sackt);
-	// 	ca_rtt_us = tcp_stamp_us_delta(tp->tcp_mstamp, sack->last_sackt);
-	// }
-	// rtt_update = tcp_ack_update_rtt(sk, flag, seq_rtt_us, sack_rtt_us,
-	// 				ca_rtt_us, sack->rate);
-
-	// if (flag & FLAG_ACKED) {
-	// 	flag |= FLAG_SET_XMIT_TIMER;  /* set TLP or RTO timer */
-	// 	if (unlikely(icsk->icsk_mtup.probe_size &&
-	// 		     !after(tp->mtu_probe.probe_seq_end, tp->snd_una))) {
-	// 		tcp_mtup_probe_success(sk);
-	// 	}
-
-	// 	if (tcp_is_reno(tp)) {
-	// 		tcp_remove_reno_sacks(sk, pkts_acked);
-
-	// 		/* If any of the cumulatively ACKed segments was
-	// 		 * retransmitted, non-SACK case cannot confirm that
-	// 		 * progress was due to original transmission due to
-	// 		 * lack of TCPCB_SACKED_ACKED bits even if some of
-	// 		 * the packets may have been never retransmitted.
-	// 		 */
-	// 		if (flag & FLAG_RETRANS_DATA_ACKED)
-	// 			flag &= ~FLAG_ORIG_SACK_ACKED;
-	// 	} else {
-	// 		int delta;
-
-	// 		/* Non-retransmitted hole got filled? That's reordering */
-	// 		if (before(reord, prior_fack))
-	// 			tcp_check_sack_reordering(sk, reord, 0);
-
-	// 		delta = prior_sacked - tp->sacked_out;
-	// 		tp->lost_cnt_hint -= min(tp->lost_cnt_hint, delta);
-	// 	}
-	// } else if (skb && rtt_update && sack_rtt_us >= 0 &&
-	// 	   sack_rtt_us > tcp_stamp_us_delta(tp->tcp_mstamp,
-	// 					    tcp_skb_timestamp_us(skb))) {
-	// 	/* Do not re-arm RTO if the sack RTT is measured from data sent
-	// 	 * after when the head was last (re)transmitted. Otherwise the
-	// 	 * timeout may continue to extend in loss recovery.
-	// 	 */
-	// 	flag |= FLAG_SET_XMIT_TIMER;  /* set TLP or RTO timer */
-	// }
-
-	// if (icsk->icsk_ca_ops->pkts_acked) {
-	// 	struct ack_sample sample = { .pkts_acked = pkts_acked,
-	// 				     .rtt_us = sack->rate->rtt_us,
-	// 				     .in_flight = last_in_flight };
-
-	// 	icsk->icsk_ca_ops->pkts_acked(sk, &sample);
-	// }
 	return flag;
 }
 
 // check flow finished at receiver; assuming holding user lock and local bh is disabled
-static void dcacp_check_flow_finished_at_receiver(struct dcacp_sock *dsk) {
-	if(!dsk->receiver.finished_at_receiver && dsk->receiver.rcv_nxt == dsk->total_length) {
-		struct sock* sk = (struct sock*) dsk;
-		struct inet_sock *inet = inet_sk(sk);
-		struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
+// static void dcacp_check_flow_finished_at_receiver(struct dcacp_sock *dsk) {
+// 	if(!dsk->receiver.finished_at_receiver && dsk->receiver.rcv_nxt == dsk->total_length) {
+// 		struct sock* sk = (struct sock*) dsk;
+// 		struct inet_sock *inet = inet_sk(sk);
+// 		struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
 
-		dsk->receiver.finished_at_receiver = true;
-		if(dsk->receiver.flow_finish_wait) {
-			hrtimer_cancel(&dsk->receiver.flow_wait_timer);
-			test_and_clear_bit(DCACP_WAIT_DEFERRED, &sk->sk_tsq_flags);
-			dsk->receiver.flow_finish_wait = false;
-		} 
-		// printk("send fin pkt\n");
-		printk("dsk->in_flight:%d\n", atomic_read(&dsk->receiver.in_flight_bytes));
-		printk("dentry->remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
-		atomic_sub(atomic_read(&dsk->receiver.in_flight_bytes), &entry->remaining_tokens);
-		sk->sk_prot->unhash(sk);
-		/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
-		if (inet_csk(sk)->icsk_bind_hash) {
-			printk("put port\n");
-			inet_put_port(sk);
-		} else {
-			printk("userlook and SOCK_BINDPORT_LOCK:%d\n", !(sk->sk_userlocks & SOCK_BINDPORT_LOCK));
-			printk("cannot put port\n");
-		}
-		/* remove the socket from scheduing */
-		dcacp_unschedule_sock(dsk);
-		dcacp_xmit_control(construct_fin_pkt(sk), sk, inet->inet_dport); 
-		if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
-			flowlet_done_event(&entry->flowlet_done_timer);
-		}
-	}
+// 		dsk->receiver.finished_at_receiver = true;
+// 		if(dsk->receiver.flow_finish_wait) {
+// 			hrtimer_cancel(&dsk->receiver.flow_wait_timer);
+// 			test_and_clear_bit(DCACP_WAIT_DEFERRED, &sk->sk_tsq_flags);
+// 			dsk->receiver.flow_finish_wait = false;
+// 		} 
+// 		// printk("send fin pkt\n");
+// 		printk("dsk->in_flight:%d\n", atomic_read(&dsk->receiver.inflight_bytes));
+// 		printk("dentry->remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
+// 		atomic_sub(atomic_read(&dsk->receiver.inflight_bytes), &entry->remaining_tokens);
+// 		sk->sk_prot->unhash(sk);
+// 		/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
+// 		if (inet_csk(sk)->icsk_bind_hash) {
+// 			printk("put port\n");
+// 			inet_put_port(sk);
+// 		} else {
+// 			printk("userlook and SOCK_BINDPORT_LOCK:%d\n", !(sk->sk_userlocks & SOCK_BINDPORT_LOCK));
+// 			printk("cannot put port\n");
+// 		}
+// 		/* remove the socket from scheduing */
+// 		dcacp_unschedule_sock(dsk);
+// 		dcacp_xmit_control(construct_fin_pkt(sk), sk, inet->inet_dport); 
+// 		if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
+// 			flowlet_done_event(&entry->flowlet_done_timer);
+// 		}
+// 	}
 
-}
+// }
 /* If we update dsk->receiver.rcv_nxt, also update dsk->receiver.bytes_received 
  * and send ack pkt if the flow is finished */
 static void dcacp_rcv_nxt_update(struct dcacp_sock *dsk, u32 seq)
@@ -587,12 +432,14 @@ static void dcacp_rcv_nxt_update(struct dcacp_sock *dsk, u32 seq)
 	struct sock *sk = (struct sock*) dsk;
 	struct inet_sock *inet = inet_sk(sk);
 	u32 delta = seq - dsk->receiver.rcv_nxt;
+	uint32_t token_bytes = 0;
 	// int grant_bytes = calc_grant_bytes(sk);
 
 	dsk->receiver.bytes_received += delta;
 	WRITE_ONCE(dsk->receiver.rcv_nxt, seq);
 	// printk("update the seq:%d\n", dsk->receiver.rcv_nxt);
-	if(dsk->receiver.rcv_nxt >= dsk->receiver.last_ack + dsk->receiver.max_grant_batch) {
+	token_bytes = dcacp_token_timer_defer_handler(sk);
+	if(token_bytes == 0 && dsk->receiver.rcv_nxt >= dsk->receiver.last_ack + dsk->receiver.token_batch) {
 		dcacp_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk, inet->inet_dport); 
 		dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
 	}
@@ -866,7 +713,7 @@ void dcacp_data_ready(struct sock *sk)
 }
 
 int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
-	// struct dcacp_sock *dsk;
+	struct dcacp_sock *dsk;
 	// struct inet_sock *inet;
 	// struct dcacp_peer *peer;
 	// struct iphdr *iph;
@@ -888,14 +735,16 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 	if(sk) {
 		child = dcacp_conn_request(sk, skb);
 		if(child) {
-			struct dcacp_sock *dsk = dcacp_sk(child);
-			if(dsk->total_length >= dcacp_params.short_flow_size) {
-				rcv_handle_new_flow(dsk);
-			} else {
-				/* set short flow timer */
-				hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 1000), 
-				HRTIMER_MODE_REL_PINNED_SOFT);
-			}
+			dsk = dcacp_sk(child);
+			/* this line needed to change later */
+			hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);		
+			// if(dsk->total_length >= dcacp_params.short_flow_size) {
+			// 	rcv_handle_new_flow(dsk);
+			// } else {
+			// 	/* set short flow timer */
+			// 	hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 1000), 
+			// 	HRTIMER_MODE_REL_PINNED_SOFT);
+			// }
 		}
 		// dsk = dcacp_sk(sk);
 		// inet = inet_sk(sk);
@@ -951,7 +800,6 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
  		skb->sk = sk;
  		// if (!sock_owned_by_user(sk)) {
 			/* clean rtx queue */
-		dsk->sender.snd_una = th->rcv_nxt > dsk->sender.snd_una ? th->rcv_nxt: dsk->sender.snd_una;
 		/* add token */
  		// dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
  	// 	/* add sack info */
@@ -959,9 +807,13 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
 		// /* start doing transmission (this part may move to different places later)*/
 	    if(!sock_owned_by_user(sk)) {
 	    	sock_rps_save_rxhash(sk, skb);
+			dsk->sender.snd_una = th->rcv_nxt > dsk->sender.snd_una ? th->rcv_nxt: dsk->sender.snd_una;
+			dsk->sender.token_seq = th->token_nxt;
+			dcacp_write_timer_handler(sk);
 	 		dcacp_clean_rtx_queue(sk);
 	    } else {
-	 		test_and_set_bit(DCACP_CLEAN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+			dcacp_add_backlog(sk, skb, true);
+	 		// test_and_set_bit(DCACP_CLEAN_TIMER_DEFERRED, &sk->sk_tsq_flags);
 	    }
 	 //    if(!sock_owned_by_user(sk) || dsk->num_sacks == 0) {
 	 // 		dcacp_write_timer_handler(sk);
@@ -978,7 +830,7 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
         //     dcacp_add_backlog(sk, skb, true);
         // }
         bh_unlock_sock(sk);
-		xmit_handle_new_token(&xmit_core_tab, skb);
+		// xmit_handle_new_token(&xmit_core_tab, skb);
 	} else {
 		kfree_skb(skb);
 	};
@@ -1015,11 +867,11 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb) {
 	if(sk) {
  		bh_lock_sock(sk);
 		dsk = dcacp_sk(sk);
-		dsk->sender.snd_una = ah->rcv_nxt > dsk->sender.snd_una ? ah->rcv_nxt: dsk->sender.snd_una;
 		if (!sock_owned_by_user(sk)) {
+			dsk->sender.snd_una = ah->rcv_nxt > dsk->sender.snd_una ? ah->rcv_nxt: dsk->sender.snd_una;
 	 		dcacp_clean_rtx_queue(sk);
         } else {
-	 		test_and_set_bit(DCACP_CLEAN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+			dcacp_add_backlog(sk, skb, true);
 	    }
         bh_unlock_sock(sk);
 	   
@@ -1111,15 +963,15 @@ int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
 		dcacp_rmem_free_skb(sk, skb);
 		return 0;
 	}
-	if(atomic_read(&sk->sk_rmem_alloc) > sk->sk_rcvbuf) {
-		struct inet_sock *inet = inet_sk(sk);
-	    printk("seq num:%u\n", DCACP_SKB_CB(skb)->seq);
-	    printk("inet sk dport:%d\n", ntohs(inet->inet_dport));
-	    printk("discard packet due to memory:%d\n", __LINE__);
-		sk_drops_add(sk, skb);
-		kfree_skb(skb);
-		return 0;
-	}
+	// if(atomic_read(&sk->sk_rmem_alloc) > sk->sk_rcvbuf) {
+	// 	struct inet_sock *inet = inet_sk(sk);
+	//     printk("seq num:%u\n", DCACP_SKB_CB(skb)->seq);
+	//     printk("inet sk dport:%d\n", ntohs(inet->inet_dport));
+	//     printk("discard packet due to memory:%d\n", __LINE__);
+	// 	sk_drops_add(sk, skb);
+	// 	kfree_skb(skb);
+	// 	return 0;
+	// }
 	atomic_add(skb->truesize, &sk->sk_rmem_alloc);
 
 	// skb_dst_drop(skb);
@@ -1280,9 +1132,10 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 		iph = ip_hdr(skb);
  		bh_lock_sock(sk);
 
- 		atomic_sub(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq, &dsk->receiver.in_flight_bytes);
- 		if(atomic_read(&dsk->receiver.in_flight_bytes) < 0) {
- 			atomic_set(&dsk->receiver.in_flight_bytes, 0);
+ 		/* inflight_bytes for now is best-effort estimation */
+		atomic_sub(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq, &dsk->receiver.inflight_bytes);
+ 		if(atomic_read(&dsk->receiver.inflight_bytes) < 0) {
+ 			atomic_set(&dsk->receiver.inflight_bytes, 0);
  		}
         // ret = 0;
 		// printk("atomic backlog len:%d\n", atomic_read(&dsk->receiver.backlog_len));
@@ -1291,10 +1144,10 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 			// printk("skb->hash:%u\n", skb->hash);
 		 	sock_rps_save_rxhash(sk, skb);
             dcacp_data_queue(sk, skb);
-			dcacp_check_flow_finished_at_receiver(dsk);;
+			// dcacp_check_flow_finished_at_receiver(dsk);;
         } else {
         	// printk("add to backlog\n");
-            if (dcacp_add_backlog(sk, skb, false)) {
+            if (dcacp_add_backlog(sk, skb, true)) {
             	discard = true;
                 // goto discard_and_relse;
             }
@@ -1305,41 +1158,41 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	}
 	
 
-	if (!dh->free_token && sk &&  sk->sk_state == DCACP_ESTABLISHED) {
-		dsk = dcacp_sk(sk);
-		int remaining_tokens = 0;
-		struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
-		// printk("remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
-		// printk("core id:%d\n", dsk->core_id);
-		// printk("process core id:%d\n", raw_smp_processor_id());
-		// printk("entry address:%p\n", entry);
+	// if (!dh->free_token && sk &&  sk->sk_state == DCACP_ESTABLISHED) {
+	// 	dsk = dcacp_sk(sk);
+	// 	int remaining_tokens = 0;
+	// 	struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
+	// 	// printk("remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
+	// 	// printk("core id:%d\n", dsk->core_id);
+	// 	// printk("process core id:%d\n", raw_smp_processor_id());
+	// 	// printk("entry address:%p\n", entry);
 
-		remaining_tokens = atomic_sub_return( DCACP_SKB_CB(skb)->end_seq - 
-			DCACP_SKB_CB(skb)->seq, &entry->remaining_tokens);
-		// if(DCACP_SKB_CB(skb)->end_seq == dsk->total_length) {
-		// 	printk("remaining_tokens:%d\n", );
-		// }
+	// 	remaining_tokens = atomic_sub_return( DCACP_SKB_CB(skb)->end_seq - 
+	// 		DCACP_SKB_CB(skb)->seq, &entry->remaining_tokens);
+	// 	// if(DCACP_SKB_CB(skb)->end_seq == dsk->total_length) {
+	// 	// 	printk("remaining_tokens:%d\n", );
+	// 	// }
 
-		if(remaining_tokens < 0) {
-			remaining_tokens = 0;
-			atomic_set(&entry->remaining_tokens, 0);
-		}
-		// printk("remaining_tokens variable:%d\n", remaining_tokens);
-		// printk("remaining_tokens of core 15:%d\n", atomic_read(&rcv_core_tab.table[15].remaining_tokens));
+	// 	if(remaining_tokens < 0) {
+	// 		remaining_tokens = 0;
+	// 		atomic_set(&entry->remaining_tokens, 0);
+	// 	}
+	// 	// printk("remaining_tokens variable:%d\n", remaining_tokens);
+	// 	// printk("remaining_tokens of core 15:%d\n", atomic_read(&rcv_core_tab.table[15].remaining_tokens));
 
-		// printk("cpu core:%d\n", dsk->core_id);
-		// printk("remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
-		if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
-			// spin_lock_bh(&entry->lock);
-			// printk("call flowlet done event here:%d\n", __LINE__);
-			// printk("remaining_tokens of core 15:%d\n", atomic_read(&rcv_core_tab.table[15].remaining_tokens));
-			// printk("entry address:%p\n", entry);
+	// 	// printk("cpu core:%d\n", dsk->core_id);
+	// 	// printk("remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
+	// 	if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
+	// 		// spin_lock_bh(&entry->lock);
+	// 		// printk("call flowlet done event here:%d\n", __LINE__);
+	// 		// printk("remaining_tokens of core 15:%d\n", atomic_read(&rcv_core_tab.table[15].remaining_tokens));
+	// 		// printk("entry address:%p\n", entry);
 
-			flowlet_done_event(&entry->flowlet_done_timer);
-			// spin_unlock_bh(&entry->lock);
-		}
+	// 		flowlet_done_event(&entry->flowlet_done_timer);
+	// 		// spin_unlock_bh(&entry->lock);
+	// 	}
 
-	} 
+	// } 
 
 	if (discard) {
 	    printk("seq num:%u\n", DCACP_SKB_CB(skb)->seq);
@@ -1380,35 +1233,36 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 	/* current place to set rxhash for RFS/RPS */
  	sock_rps_save_rxhash(sk, skb);
 	// printk("backlog rcv\n");
-
+	if(sk->sk_state != DCACP_ESTABLISHED)
+		goto free_skb;
 	if(dh->type == DATA) {
 		// printk("backlog handling\n");
 		dcacp_data_queue(sk, skb);
 		// spin_lock_bh(&sk->sk_lock.slock);
-		local_bh_disable();
-		dcacp_check_flow_finished_at_receiver(dsk);
+		// local_bh_disable();
+		// dcacp_check_flow_finished_at_receiver(dsk);
 		// if(test_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
 		// 	printk("send token");
 		// }
-		local_bh_enable();
-		if(!dsk->receiver.finished_at_receiver)
-			dcacp_try_send_token(sk);
+		// local_bh_enable();
+		// if(!dsk->receiver.finished_at_receiver)
+		// 	dcacp_try_send_token(sk);
 
 		// spin_unlock_bh(&sk->sk_lock.slock);
-		if(test_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
-			bool push_back = false;
-			struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
-			// spin_lock_bh(&sk->sk_lock.slock);
-			if(dsk->receiver.rcv_nxt >= dsk->prev_grant_nxt && dcacp_space(sk) > 0) {
-				push_back = true;
-				// printk("handle in backlogv\n");
-				clear_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
-				local_bh_disable();
-				dcacp_update_and_schedule_sock(dsk);
-				flowlet_done_event(&entry->flowlet_done_timer);
-				local_bh_enable();
-			}
-		}
+		// if(test_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
+		// 	bool push_back = false;
+		// 	struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
+		// 	// spin_lock_bh(&sk->sk_lock.slock);
+		// 	if(dsk->receiver.rcv_nxt >= dsk->receiver.prev_token_nxt && dcacp_space(sk) > 0) {
+		// 		push_back = true;
+		// 		// printk("handle in backlogv\n");
+		// 		clear_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+		// 		local_bh_disable();
+		// 		dcacp_update_and_schedule_sock(dsk);
+		// 		flowlet_done_event(&entry->flowlet_done_timer);
+		// 		local_bh_enable();
+		// 	}
+		// }
 		return 0;
 		// return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
 	} else if (dh->type == FIN) {
@@ -1419,22 +1273,22 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 		// atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 		sk->sk_data_ready(sk);
 	} else if (dh->type == ACK) {
-		WARN_ON(true);
+		struct dcacp_ack_hdr *ah = dcacp_ack_hdr(skb);
+		dsk->sender.snd_una = ah->rcv_nxt > dsk->sender.snd_una ? ah->rcv_nxt: dsk->sender.snd_una;
+		dcacp_clean_rtx_queue(sk);
 	}
-
-	// else if (dh->type == TOKEN) {
-	// 	/* clean rtx queue */
-	// 	struct dcacp_token_hdr *th = dcacp_token_hdr(skb);
-	// 	dsk->sender.snd_una = th->rcv_nxt > dsk->sender.snd_una ? th->rcv_nxt: dsk->sender.snd_una;
- // 		dcacp_clean_rtx_queue(sk);
-	// 	/* add token */
- // 		dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
-	//  	/* add sack info */
- // 		dcacp_get_sack_info(sk, skb);
- // 		// will be handled by dcacp_release_cb
- // 		test_and_set_bit(DCACP_CLEAN_TIMER_DEFERRED, &sk->sk_tsq_flags);
-	// 	atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
-	// }
+	else if (dh->type == TOKEN) {
+		/* clean rtx queue */
+		struct dcacp_token_hdr *th = dcacp_token_hdr(skb);
+		dsk->sender.snd_una = th->rcv_nxt > dsk->sender.snd_una ? th->rcv_nxt: dsk->sender.snd_una;
+		dsk->sender.token_seq = th->token_nxt;
+		dcacp_write_timer_handler(sk);
+		dcacp_clean_rtx_queue(sk);
+	 	/* add sack info */
+ 		// dcacp_get_sack_info(sk, skb);
+ 		// will be handled by dcacp_release_cb
+	}
+free_skb:
 	kfree_skb(skb);
 	return 0;
 }
