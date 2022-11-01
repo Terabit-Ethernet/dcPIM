@@ -641,6 +641,7 @@ struct sock* dcacp_conn_request(struct sock *sk, struct sk_buff *skb)
     if (!child){
     	goto drop_and_free;
     }
+	printk("create child\n");
 	sk->sk_data_ready(sk);
 	bh_unlock_sock(child);
 	sock_put(child);

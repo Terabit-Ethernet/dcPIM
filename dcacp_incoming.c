@@ -737,7 +737,8 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 		if(child) {
 			dsk = dcacp_sk(child);
 			/* this line needed to change later */
-			hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);		
+			hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
+			sock_hold(sk);	
 			// if(dsk->total_length >= dcacp_params.short_flow_size) {
 			// 	rcv_handle_new_flow(dsk);
 			// } else {
