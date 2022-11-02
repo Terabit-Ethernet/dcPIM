@@ -924,16 +924,15 @@ void dcacp_destroy_sock(struct sock *sk)
 
 	lock_sock(sk);
 	// hrtimer_cancel(&up->receiver.flow_wait_timer);
+	// if(sk->sk_state == DCACP_ESTABLISHED) {
+	test_and_clear_bit(DCACP_WAIT_DEFERRED, &sk->sk_tsq_flags);
+	dsk->receiver.flow_finish_wait = false;
+	hrtimer_cancel(&dsk->receiver.token_pace_timer);
+	dcacp_xmit_control(construct_fin_pkt(sk), sk, inet->inet_dport); 
+	dcacp_write_queue_purge(sk);
+	dcacp_read_queue_purge(sk);
+	// }
 	dcacp_set_state(sk, DCACP_CLOSE);
-	if(sk->sk_state == DCACP_ESTABLISHED) {
-		printk("send ack pkt\n");
-		test_and_clear_bit(DCACP_WAIT_DEFERRED, &sk->sk_tsq_flags);
-		dsk->receiver.flow_finish_wait = false;
-		hrtimer_cancel(&dsk->receiver.token_pace_timer);
-		dcacp_xmit_control(construct_fin_pkt(sk), sk, inet->inet_dport); 
-		dcacp_write_queue_purge(sk);
-		dcacp_read_queue_purge(sk);
-	}
 	// dcacp_flush_pending_frames(sk);
 	release_sock(sk);
 
