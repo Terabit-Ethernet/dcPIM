@@ -882,7 +882,6 @@ int dcacp_rcv(struct sk_buff *skb)
 		goto drop;		/* No space for header. */
 	dh = dcacp_hdr(skb);
 	// printk("dh == NULL?: %d\n", dh == NULL);
-	printk("receive pkt: %d\n", dh->type);
 	// printk("end ref \n");
 	if(dh->type == DATA) {
 		return dcacp_handle_data_pkt(skb);
