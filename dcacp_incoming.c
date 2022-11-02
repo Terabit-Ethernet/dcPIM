@@ -735,13 +735,16 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 	if(sk) {
 		bh_lock_sock(sk);
 		if(!sock_owned_by_user(sk)) {
-			child = dcacp_conn_request(sk, skb);
-			if(child) {
-				dsk = dcacp_sk(child);
-				/* this line needed to change later */
-				if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
-					hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
-					sock_hold(child);	
+			if(sk->sk_state == DCACP_LISTEN) {
+				child = dcacp_conn_request(sk, skb);
+				if(child) {
+					dsk = dcacp_sk(child);
+					printk("dsk address:%p\n", dsk);
+					/* this line needed to change later */
+					if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
+						hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
+						sock_hold(child);	
+					}
 				}
 			}
 			kfree_skb(skb);
@@ -792,13 +795,15 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
  	// 	dcacp_get_sack_info(sk, skb);
 		// /* start doing transmission (this part may move to different places later)*/
 	    if(!sock_owned_by_user(sk)) {
-	    	sock_rps_save_rxhash(sk, skb);
-			if(th->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
-				dsk->sender.snd_una = th->rcv_nxt;
-			if(th->token_nxt - dsk->sender.token_seq <= sk->sk_sndbuf)
-				dsk->sender.token_seq = th->token_nxt;
-			dcacp_write_timer_handler(sk);
-	 		dcacp_clean_rtx_queue(sk);
+			if(sk->sk_state == DCACP_ESTABLISHED) {
+				sock_rps_save_rxhash(sk, skb);
+				if(th->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
+					dsk->sender.snd_una = th->rcv_nxt;
+				if(th->token_nxt - dsk->sender.token_seq <= sk->sk_sndbuf)
+					dsk->sender.token_seq = th->token_nxt;
+				dcacp_write_timer_handler(sk);
+				dcacp_clean_rtx_queue(sk);
+			}
 			kfree_skb(skb);
 	    } else {
 			dcacp_add_backlog(sk, skb, true);
@@ -857,9 +862,11 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb) {
  		bh_lock_sock(sk);
 		dsk = dcacp_sk(sk);
 		if (!sock_owned_by_user(sk)) {
-			if(ah->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
-				dsk->sender.snd_una = ah->rcv_nxt;
-			dcacp_clean_rtx_queue(sk);
+			if(sk->sk_state == DCACP_ESTABLISHED) {
+				if(ah->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
+					dsk->sender.snd_una = ah->rcv_nxt;
+				dcacp_clean_rtx_queue(sk);
+			}
 			kfree_skb(skb);
         } else {
 			dcacp_add_backlog(sk, skb, true);
@@ -1102,40 +1109,26 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
             dh->common.dest, sdif, &refcounted);
     if(!sk)
     	goto drop;
-    // }
-    // if(total_bytes == 0) {
-    // 	start = ktime_get();
-    // }
-    // total_bytes += skb->len;
-    // if(total_bytes > 300000000) {
-    // 	end = ktime_get();
-    // 	printk("throughput:%llu\n", total_bytes * 8 * 1000000 / ktime_to_us(ktime_sub(end, start)));
-    // 	total_bytes = 0;
-    // }
+
 	dcacp_v4_fill_cb(skb, iph, dh);
-	// printk("packet hash %u\n", skb->hash);
-	// printk("oacket is l4 hash:%d\n", skb->l4_hash);
-	// printk("receive packet core:%d\n", raw_smp_processor_id());
-	// printk("dport:%d\n", ntohs(inet_sk(sk)->inet_dport));
-	// printk("skb seq:%u\n", DCACP_SKB_CB(skb)->seq);
-	// printk("skb address:%p\n", skb);
-	if(sk && sk->sk_state == DCACP_ESTABLISHED) {
+	if(sk) {
 		dsk = dcacp_sk(sk);
 		iph = ip_hdr(skb);
  		bh_lock_sock(sk);
-
  		/* inflight_bytes for now is best-effort estimation */
-		atomic_sub(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq, &dsk->receiver.inflight_bytes);
- 		if(atomic_read(&dsk->receiver.inflight_bytes) < 0) {
- 			atomic_set(&dsk->receiver.inflight_bytes, 0);
- 		}
         // ret = 0;
 		// printk("atomic backlog len:%d\n", atomic_read(&dsk->receiver.backlog_len));
         if (!sock_owned_by_user(sk)) {
 			/* current place to set rxhash for RFS/RPS */
 			// printk("skb->hash:%u\n", skb->hash);
-		 	sock_rps_save_rxhash(sk, skb);
-            dcacp_data_queue(sk, skb);
+			if(sk->sk_state == DCACP_ESTABLISHED) {
+				atomic_sub(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq, &dsk->receiver.inflight_bytes);
+				if(atomic_read(&dsk->receiver.inflight_bytes) < 0) {
+					atomic_set(&dsk->receiver.inflight_bytes, 0);
+				}
+				sock_rps_save_rxhash(sk, skb);
+				dcacp_data_queue(sk, skb);
+			}
 			// dcacp_check_flow_finished_at_receiver(dsk);;
         } else {
         	// printk("add to backlog\n");
@@ -1149,43 +1142,6 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	} else {
 		discard = true;
 	}
-	
-
-	// if (!dh->free_token && sk &&  sk->sk_state == DCACP_ESTABLISHED) {
-	// 	dsk = dcacp_sk(sk);
-	// 	int remaining_tokens = 0;
-	// 	struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
-	// 	// printk("remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
-	// 	// printk("core id:%d\n", dsk->core_id);
-	// 	// printk("process core id:%d\n", raw_smp_processor_id());
-	// 	// printk("entry address:%p\n", entry);
-
-	// 	remaining_tokens = atomic_sub_return( DCACP_SKB_CB(skb)->end_seq - 
-	// 		DCACP_SKB_CB(skb)->seq, &entry->remaining_tokens);
-	// 	// if(DCACP_SKB_CB(skb)->end_seq == dsk->total_length) {
-	// 	// 	printk("remaining_tokens:%d\n", );
-	// 	// }
-
-	// 	if(remaining_tokens < 0) {
-	// 		remaining_tokens = 0;
-	// 		atomic_set(&entry->remaining_tokens, 0);
-	// 	}
-	// 	// printk("remaining_tokens variable:%d\n", remaining_tokens);
-	// 	// printk("remaining_tokens of core 15:%d\n", atomic_read(&rcv_core_tab.table[15].remaining_tokens));
-
-	// 	// printk("cpu core:%d\n", dsk->core_id);
-	// 	// printk("remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
-	// 	if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
-	// 		// spin_lock_bh(&entry->lock);
-	// 		// printk("call flowlet done event here:%d\n", __LINE__);
-	// 		// printk("remaining_tokens of core 15:%d\n", atomic_read(&rcv_core_tab.table[15].remaining_tokens));
-	// 		// printk("entry address:%p\n", entry);
-
-	// 		flowlet_done_event(&entry->flowlet_done_timer);
-	// 		// spin_unlock_bh(&entry->lock);
-	// 	}
-
-	// } 
 discard_skb:
 	if (discard) {
 	    printk("seq num:%u\n", DCACP_SKB_CB(skb)->seq);
@@ -1229,6 +1185,10 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 	// printk("backlog rcv\n");
 	if(sk->sk_state == DCACP_ESTABLISHED) {
 		if(dh->type == DATA) {
+			atomic_sub(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq, &dsk->receiver.inflight_bytes);
+			if(atomic_read(&dsk->receiver.inflight_bytes) < 0) {
+				atomic_set(&dsk->receiver.inflight_bytes, 0);
+			}
 			dcacp_data_queue(sk, skb);
 			return 0;
 			// return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);

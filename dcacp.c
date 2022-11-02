@@ -920,7 +920,7 @@ void dcacp_destroy_sock(struct sock *sk)
 	struct dcacp_sock *dsk = dcacp_sk(sk);
 	struct inet_sock *inet = inet_sk(sk);
 	struct rcv_core_entry *entry = &rcv_core_tab.table[raw_smp_processor_id()];
-
+	printk("destroy dsk address:%p\n", dsk);
 	lock_sock(sk);
 	// hrtimer_cancel(&up->receiver.flow_wait_timer);
 	// if(sk->sk_state == DCACP_ESTABLISHED) {
