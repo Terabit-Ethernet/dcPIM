@@ -733,40 +733,24 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 		// sk = __dcacp4_lib_lookup_skb(skb, fh->common.source, fh->common.dest, &dcacp_table);
 	// }
 	if(sk) {
-		child = dcacp_conn_request(sk, skb);
-		if(child) {
-			dsk = dcacp_sk(child);
-			/* this line needed to change later */
-			if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
-				hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
-				sock_hold(child);	
+		bh_lock_sock(sk);
+		if(!sock_owned_by_user(sk)) {
+			child = dcacp_conn_request(sk, skb);
+			if(child) {
+				dsk = dcacp_sk(child);
+				/* this line needed to change later */
+				if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
+					hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
+					sock_hold(child);	
+				}
 			}
-			// if(dsk->total_length >= dcacp_params.short_flow_size) {
-			// 	rcv_handle_new_flow(dsk);
-			// } else {
-			// 	/* set short flow timer */
-			// 	hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 1000), 
-			// 	HRTIMER_MODE_REL_PINNED_SOFT);
-			// }
+			kfree_skb(skb);
+		} else {
+			dcacp_add_backlog(sk, skb, true);
 		}
-		// dsk = dcacp_sk(sk);
-		// inet = inet_sk(sk);
-		// iph = ip_hdr(skb);
-
-		// peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet);
-		// printk("message size:%d\n", fh->message_size);
-		// msg = dcacp_message_in_init(peer, dsk, fh->message_id, fh->message_size, fh->common.source);
-		// slot = dcacp_message_in_bucket(dsk, fh->message_id);
-		// spin_lock_bh(&slot->lock);
-		// add_dcacp_message_in(dsk, msg);
-		// spin_unlock_bh(&slot->lock);
-		// dsk->unsolved += 1;
-		// printk("msg address: %p LINE:%d\n", msg, __LINE__);
-		// printk("fh->message_id:%d\n", msg->id);
-		// printk("fh->message_size:%d\n", msg->total_length);
-		// printk("source port: %u\n", fh->common.source);
-		// printk("dest port: %u\n", fh->common.dest);
-		// printk("socket is NULL?: %d\n", sk == NULL);
+		bh_unlock_sock(sk);
+	} else {
+		kfree_skb(skb);
 	}
 
 
@@ -774,7 +758,6 @@ drop:
     if (refcounted) {
         sock_put(sk);
     }
-	kfree_skb(skb);
 
 	return 0;
 }
@@ -921,10 +904,11 @@ int dcacp_handle_fin_pkt(struct sk_buff *skb) {
 		dsk = dcacp_sk(sk);
 		if (!sock_owned_by_user(sk)) {
 			// printk("reach here:%d", __LINE__);
-
-	        dcacp_set_state(sk, DCACP_CLOSE);
-	        dcacp_write_queue_purge(sk);
-	        sk->sk_data_ready(sk);
+			if(sk->sk_state == DCACP_ESTABLISHED) {
+				dcacp_set_state(sk, DCACP_CLOSE);
+				dcacp_write_queue_purge(sk);
+				sk->sk_data_ready(sk);
+			}
 	        kfree_skb(skb);
         } else {
             dcacp_add_backlog(sk, skb, true);
@@ -1243,64 +1227,53 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 	/* current place to set rxhash for RFS/RPS */
  	sock_rps_save_rxhash(sk, skb);
 	// printk("backlog rcv\n");
-	if(sk->sk_state != DCACP_ESTABLISHED)
-		goto free_skb;
-	if(dh->type == DATA) {
-		// printk("backlog handling\n");
-		dcacp_data_queue(sk, skb);
-		// spin_lock_bh(&sk->sk_lock.slock);
-		// local_bh_disable();
-		// dcacp_check_flow_finished_at_receiver(dsk);
-		// if(test_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
-		// 	printk("send token");
-		// }
-		// local_bh_enable();
-		// if(!dsk->receiver.finished_at_receiver)
-		// 	dcacp_try_send_token(sk);
+	if(sk->sk_state == DCACP_ESTABLISHED) {
+		if(dh->type == DATA) {
+			dcacp_data_queue(sk, skb);
+			return 0;
+			// return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
+		} else if (dh->type == FIN) {
+			// printk("reach here:%d", __LINE__);
 
-		// spin_unlock_bh(&sk->sk_lock.slock);
-		// if(test_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
-		// 	bool push_back = false;
-		// 	struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
-		// 	// spin_lock_bh(&sk->sk_lock.slock);
-		// 	if(dsk->receiver.rcv_nxt >= dsk->receiver.prev_token_nxt && dcacp_space(sk) > 0) {
-		// 		push_back = true;
-		// 		// printk("handle in backlogv\n");
-		// 		clear_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
-		// 		local_bh_disable();
-		// 		dcacp_update_and_schedule_sock(dsk);
-		// 		flowlet_done_event(&entry->flowlet_done_timer);
-		// 		local_bh_enable();
-		// 	}
-		// }
-		return 0;
-		// return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
-	} else if (dh->type == FIN) {
-		// printk("reach here:%d", __LINE__);
+			dcacp_set_state(sk, DCACP_CLOSE);
+			dcacp_write_queue_purge(sk);
+			// atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+			sk->sk_data_ready(sk);
+		} else if (dh->type == ACK) {
+			struct dcacp_ack_hdr *ah = dcacp_ack_hdr(skb);
+			if(ah->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
+				dsk->sender.snd_una = ah->rcv_nxt;
+			dcacp_clean_rtx_queue(sk);
+		}
+		else if (dh->type == TOKEN) {
+			/* clean rtx queue */
+			struct dcacp_token_hdr *th = dcacp_token_hdr(skb);
+			if(th->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
+				dsk->sender.snd_una = th->rcv_nxt;
+			if(th->token_nxt - dsk->sender.token_seq <= sk->sk_sndbuf)
+				dsk->sender.token_seq = th->token_nxt;
+			dcacp_write_timer_handler(sk);
+			dcacp_clean_rtx_queue(sk);
+		}
+	}
+	if(sk->sk_state == DCACP_LISTEN) {
+		if(dh->type == NOTIFICATION) {
+			struct dcacp_flow_sync_hdr *fh;
+			struct sock* child;
+			fh =  dcacp_flow_sync_hdr(skb);
+			child = dcacp_conn_request(sk, skb);
+			if(child) {
+				dsk = dcacp_sk(child);
+				/* this line needed to change later */
+				if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
+					hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
+					sock_hold(child);	
+				}
+			}
+			// return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
+		} 
+	}
 
-        dcacp_set_state(sk, DCACP_CLOSE);
-        dcacp_write_queue_purge(sk);
-		// atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
-		sk->sk_data_ready(sk);
-	} else if (dh->type == ACK) {
-		struct dcacp_ack_hdr *ah = dcacp_ack_hdr(skb);
-		if(ah->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
-			dsk->sender.snd_una = ah->rcv_nxt;
-		dcacp_clean_rtx_queue(sk);
-	}
-	else if (dh->type == TOKEN) {
-		/* clean rtx queue */
-		struct dcacp_token_hdr *th = dcacp_token_hdr(skb);
-		if(th->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
-			dsk->sender.snd_una = th->rcv_nxt;
-		if(th->token_nxt - dsk->sender.token_seq <= sk->sk_sndbuf)
-			dsk->sender.token_seq = th->token_nxt;
-		dcacp_write_timer_handler(sk);
-		dcacp_clean_rtx_queue(sk);
-	 	/* add sack info */
- 		// dcacp_get_sack_info(sk, skb);
- 		// will be handled by dcacp_release_cb
-	}
 free_skb:
 	kfree_skb(skb);
 	return 0;

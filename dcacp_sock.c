@@ -75,7 +75,7 @@ void inet_sk_state_store(struct sock *sk, int newstate)
 
 
 void dcacp_set_state(struct sock* sk, int state) {
-	
+	struct inet_sock* inet = inet_sk(sk);
 	switch (state) {
 	case DCACP_ESTABLISHED:
 		break;
@@ -86,12 +86,10 @@ void dcacp_set_state(struct sock* sk, int state) {
 		sk->sk_prot->unhash(sk);
 		/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
 		if (inet_csk(sk)->icsk_bind_hash) {
-			printk("call put port\n");
 			inet_put_port(sk);
-		} else {
-			printk("userlook and SOCK_BINDPORT_LOCK:%d\n", !(sk->sk_userlocks & SOCK_BINDPORT_LOCK));
-			printk("cannot put port\n");
-		}
+		} 
+		if (sk->sk_state == DCACP_ESTABLISHED)
+			dcacp_xmit_control(construct_fin_pkt(sk), sk, inet->inet_dport); 
 		/* fall through */
 	default:
 		// if (oldstate == TCP_ESTABLISHED)

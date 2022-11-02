@@ -928,7 +928,6 @@ void dcacp_destroy_sock(struct sock *sk)
 	test_and_clear_bit(DCACP_WAIT_DEFERRED, &sk->sk_tsq_flags);
 	dsk->receiver.flow_finish_wait = false;
 	hrtimer_cancel(&dsk->receiver.token_pace_timer);
-	dcacp_xmit_control(construct_fin_pkt(sk), sk, inet->inet_dport); 
 	dcacp_write_queue_purge(sk);
 	dcacp_read_queue_purge(sk);
 	// }
