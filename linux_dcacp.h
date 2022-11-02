@@ -346,7 +346,7 @@ struct dcacp_sock {
 	/**
 	 * size of flow in bytes
 	 */
-    uint32_t total_length;
+    // uint32_t total_length;
 	
 	/* protected by socket user lock*/
     uint32_t num_sacks;

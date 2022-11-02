@@ -203,15 +203,15 @@ int dcacp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	}
 
 	/* the bytes from user larger than the flow size */
-	if (dsk->sender.write_seq >= dsk->total_length) {
-		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
-		sk_wait_ack(sk, &timeo);
-		return -EMSGSIZE;
-	}
+	// if (dsk->sender.write_seq >= dsk->total_length) {
+	// 	timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
+	// 	sk_wait_ack(sk, &timeo);
+	// 	return -EMSGSIZE;
+	// }
 
-	if (len + dsk->sender.write_seq > dsk->total_length) {
-		len = dsk->total_length - dsk->sender.write_seq;
-	}
+	// if (len + dsk->sender.write_seq > dsk->total_length) {
+	// 	len = dsk->total_length - dsk->sender.write_seq;
+	// }
 	if(sk_stream_wspace(sk) <= 0) {
 		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
 		sk_stream_wait_memory(sk, &timeo);
@@ -224,13 +224,13 @@ int dcacp_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
 		sk_stream_wait_memory(sk, &timeo);
 	}
-	if(dsk->total_length < dcacp_params.short_flow_size) {
-		struct sk_buff *skb;
-		dsk->sender.token_seq = dsk->total_length;
-		while((skb = skb_dequeue(&sk->sk_write_queue)) != NULL) {
-			dcacp_xmit_data(skb, dsk, false);
-		}
-	}
+	// if(dsk->total_length < dcacp_params.short_flow_size) {
+	// 	struct sk_buff *skb;
+	// 	dsk->sender.token_seq = dsk->total_length;
+	// 	while((skb = skb_dequeue(&sk->sk_write_queue)) != NULL) {
+	// 		dcacp_xmit_data(skb, dsk, false);
+	// 	}
+	// }
 
 	// if(sent_len == -ENOMEM) {
 	// 	timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
@@ -756,12 +756,12 @@ found_ok_skb:
 	/* Clean up data we have read: This will do ACK frames. */
 	// tcp_cleanup_rbuf(sk, copied);
 	dcacp_try_send_token(sk);
-	if (dsk->receiver.copied_seq == dsk->total_length) {
-		printk("call tcp close in the recv msg\n");
-		dcacp_set_state(sk, DCACP_CLOSE);
-	} else {
-		// dcacp_try_send_token(sk);
-	}
+	// if (dsk->receiver.copied_seq == dsk->total_length) {
+	// 	printk("call tcp close in the recv msg\n");
+	// 	dcacp_set_state(sk, DCACP_CLOSE);
+	// } else {
+	// 	// dcacp_try_send_token(sk);
+	// }
 	release_sock(sk);
 
 	// if (cmsg_flags) {

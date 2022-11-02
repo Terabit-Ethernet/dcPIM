@@ -706,7 +706,7 @@ void dcacp_data_ready(struct sock *sk)
         const struct dcacp_sock *dsk = dcacp_sk(sk);
         int avail = dsk->receiver.rcv_nxt - dsk->receiver.copied_seq;
 
-        if ((avail < sk->sk_rcvlowat && dsk->receiver.rcv_nxt != dsk->total_length) && !sock_flag(sk, SOCK_DONE)) {
+        if ((avail < sk->sk_rcvlowat) && !sock_flag(sk, SOCK_DONE)) {
         	return;
         }
         sk->sk_data_ready(sk);

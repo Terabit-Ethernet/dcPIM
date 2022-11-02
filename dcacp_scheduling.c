@@ -39,10 +39,10 @@ int calc_grant_bytes(struct sock *sk) {
 
 bool flow_compare(const struct list_head* node1, const struct list_head* node2) {
     struct dcacp_sock *e1, *e2;
-    e1 = list_entry(node1, struct dcacp_sock, match_link);
-    e2 = list_entry(node2, struct dcacp_sock, match_link);
-    if(e1->total_length > e2->total_length)
-        return true;
+    // e1 = list_entry(node1, struct dcacp_sock, match_link);
+    // e2 = list_entry(node2, struct dcacp_sock, match_link);
+    // if(e1->total_length > e2->total_length)
+    //     return true;
     // if(ktime_compare(e1->start_time, e2->start_time) > 0)
     // 	return true;
     return false;

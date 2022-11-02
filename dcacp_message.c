@@ -341,8 +341,7 @@ int dcacp_fill_packets(struct sock *sk,
 			err = -ENOMEM;
 			goto error;
 		}
-		if (skb->truesize > sk_stream_wspace(sk) || 
-			(max_gso_data > bytes_left && bytes_left + sent_len + dsk->sender.write_seq != dsk->total_length)) {
+		if (skb->truesize > sk_stream_wspace(sk) || (max_gso_data > bytes_left)) {
 			// if(!sk->sk_tx_skb_cache)
 			// 	sk->sk_tx_skb_cache = skb;
 			// else

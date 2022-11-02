@@ -111,13 +111,13 @@ int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	struct flowi4 *fl4;
 	struct rtable *rt;
 	int err;
-	uint32_t flow_len;
+	// uint32_t flow_len;
 	struct ip_options_rcu *inet_opt;
 	// struct inet_timewait_death_row *tcp_death_row = &sock_net(sk)->ipv4.tcp_death_row;
-	flow_len = (uint32_t)usin->sin_zero[0] << 24 |
-      (uint32_t)usin->sin_zero[1] << 16 |
-      (uint32_t)usin->sin_zero[2] << 8  |
-      (uint32_t)usin->sin_zero[3];	
+	// flow_len = (uint32_t)usin->sin_zero[0] << 24 |
+    //   (uint32_t)usin->sin_zero[1] << 16 |
+    //   (uint32_t)usin->sin_zero[2] << 8  |
+    //   (uint32_t)usin->sin_zero[3];	
     WARN_ON(sk->sk_state != DCACP_CLOSE);
     if (addr_len < sizeof(struct sockaddr_in))
 		return -EINVAL;
@@ -236,8 +236,8 @@ int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	// if(!dsk->peer)
 	// 	dsk->peer = dcacp_peer_find(&dcacp_peers_table, daddr, inet);
 
-	dcacp_xmit_control(construct_flow_sync_pkt(sk, 0, flow_len, 0), sk, inet->inet_dport); 
-	dsk->total_length = flow_len;
+	dcacp_xmit_control(construct_flow_sync_pkt(sk, 0, 0, 0), sk, inet->inet_dport); 
+	// dsk->total_length = flow_len;
 
 	if (err)
 		goto failure;
@@ -561,7 +561,7 @@ struct sock *dcacp_create_con_sock(struct sock *sk, struct sk_buff *skb,
 	dsk = dcacp_sk(newsk);
 	// dsk->flow_id = fhdr->flow_id;
 	dsk->core_id = dcacp_sk(sk)->core_id;
-	dsk->total_length = ntohl(fhdr->flow_size);
+	// dsk->total_length = ntohl(fhdr->flow_size);
 	set_max_grant_batch(dst, dsk);
 	/* set up max gso segment */
 	sk_setup_caps(newsk, dst);
