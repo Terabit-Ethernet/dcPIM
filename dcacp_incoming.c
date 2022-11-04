@@ -743,7 +743,7 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 					/* this line needed to change later */
 					if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
 						hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
-						sock_hold(child);	
+						// sock_hold(child);
 					}
 				}
 			}
@@ -827,7 +827,7 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
 		// xmit_handle_new_token(&xmit_core_tab, skb);
 	} else {
 		kfree_skb(skb);
-	};
+	}
 	// kfree_skb(skb);
 
     if (refcounted) {
@@ -913,7 +913,7 @@ int dcacp_handle_fin_pkt(struct sk_buff *skb) {
 			// printk("reach here:%d", __LINE__);
 			if(sk->sk_state == DCACP_ESTABLISHED) {
 				dcacp_set_state(sk, DCACP_CLOSE);
-				dcacp_write_queue_purge(sk);
+				// dcacp_write_queue_purge(sk);
 				sk->sk_data_ready(sk);
 			}
 	        kfree_skb(skb);
@@ -1196,7 +1196,7 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 			// printk("reach here:%d", __LINE__);
 
 			dcacp_set_state(sk, DCACP_CLOSE);
-			dcacp_write_queue_purge(sk);
+			// dcacp_write_queue_purge(sk);
 			// atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 			sk->sk_data_ready(sk);
 		} else if (dh->type == ACK) {
@@ -1227,7 +1227,8 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 				/* this line needed to change later */
 				if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
 					hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
-					sock_hold(child);	
+					// sock_hold(child);	
+					// printk(" call hrtimer at:%d %d\n", __LINE__, refcount_read(&sk->sk_refcnt));	
 				}
 			}
 			// return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);

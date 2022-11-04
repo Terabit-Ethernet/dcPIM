@@ -100,17 +100,17 @@ void dcacp_release_cb(struct sock *sk)
 	 * But following code is meant to be called from BH handlers,
 	 * so we should keep BH disabled, but early release socket ownership
 	 */
-	sock_release_ownership(sk);
+	// sock_release_ownership(sk);
 
 	/* First check read memory */
-	if (flags & DCACPF_RMEM_CHECK_DEFERRED) {
-		dcacp_rem_check_handler(sk);
-	}
+	// if (flags & DCACPF_RMEM_CHECK_DEFERRED) {
+	// 	dcacp_rem_check_handler(sk);
+	// }
 
-	if (flags & DCACPF_CLEAN_TIMER_DEFERRED) {
-		dcacp_clean_rtx_queue(sk);
-		// __sock_put(sk);
-	}
+	// if (flags & DCACPF_CLEAN_TIMER_DEFERRED) {
+	// 	dcacp_clean_rtx_queue(sk);
+	// 	// __sock_put(sk);
+	// }
 	if (flags & DCACPF_TOKEN_TIMER_DEFERRED) {
 		dcacp_token_timer_defer_handler(sk);
 		__sock_put(sk);
@@ -685,6 +685,8 @@ int dcacp_token_timer_defer_handler(struct sock *sk) {
 	struct dcacp_sock *dsk = dcacp_sk(sk);
 	uint32_t matched_bw = atomic_read(&dsk->receiver.matched_bw);
 	uint32_t token_bytes = dcacp_avail_token_space((struct sock*)dsk);
+	if(sk->sk_state != DCACP_ESTABLISHED)
+		return 0;
 	if(matched_bw == 0)
 		return 0;
 	if(token_bytes < dsk->receiver.token_batch)
@@ -693,11 +695,11 @@ int dcacp_token_timer_defer_handler(struct sock *sk) {
 	if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
 		hrtimer_start(&dsk->receiver.token_pace_timer,
 			ns_to_ktime(token_bytes * 8 / matched_bw), HRTIMER_MODE_REL_PINNED_SOFT);
-		sock_hold(sk);
 	}
 	return token_bytes;
 }
 
+/* hrtimer may fire twice for some reaons; need to check what happens later. */
 enum hrtimer_restart dcacp_xmit_token_handler(struct hrtimer *timer) {
 
 	struct dcacp_sock *dsk = container_of(timer, struct dcacp_sock, receiver.token_pace_timer);
@@ -719,11 +721,14 @@ enum hrtimer_restart dcacp_xmit_token_handler(struct hrtimer *timer) {
 		}	
 	} else {
 		/* delegate our work to dcacp_release_cb() */
-		if (!test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags))
+		// WARN_ON(sk->sk_state == DCACP_CLOSE);
+		if (!test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
 			sock_hold(sk);
+		}
+
 	}
 	bh_unlock_sock(sk);
 put_sock:
-	sock_put(sk);
+	// sock_put(sk);
 	return HRTIMER_NORESTART;
 }

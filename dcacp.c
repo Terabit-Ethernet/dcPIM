@@ -475,6 +475,10 @@ bool dcacp_try_send_token(struct sock *sk) {
 	token_bytes = dcacp_token_timer_defer_handler(sk);
 	if(token_bytes > 0)
 		return true;
+	if(token_bytes == 0 && dsk->receiver.rcv_nxt >= dsk->receiver.last_ack + dsk->receiver.token_batch) {
+		dcacp_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk, inet->inet_dport); 
+		dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
+	}
 	// if(dsk->receiver.rcv_nxt >= dsk->receiver.last_ack + dsk->receiver.token_batch) {
 	// 	dcacp_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk, inet->inet_dport); 
 	// 	dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
@@ -632,7 +636,7 @@ int dcacp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 				/* This occurs when user tries to read
 				 * from never connected socket.
 				 */
-				copied = -ENOTCONN;
+				// copied = -ENOTCONN;
 				break;
 			}
 
@@ -803,7 +807,8 @@ int dcacp_disconnect(struct sock *sk, int flags)
  	/*
  	 *	1003.1g - break association.
  	 */
-
+	if(sk->sk_state == DCACP_LISTEN)
+		inet_csk_listen_stop(sk);
  	sk->sk_state = DCACP_CLOSE;
  	inet->inet_daddr = 0;
  	inet->inet_dport = 0;
@@ -920,17 +925,21 @@ void dcacp_destroy_sock(struct sock *sk)
 	struct dcacp_sock *dsk = dcacp_sk(sk);
 	struct inet_sock *inet = inet_sk(sk);
 	struct rcv_core_entry *entry = &rcv_core_tab.table[raw_smp_processor_id()];
-	printk("destroy dsk address:%p\n", dsk);
+	printk("destroy dsk address: %d %p\n", refcount_read(&sk->sk_refcnt), dsk);
 	lock_sock(sk);
+	if(sk->sk_state == DCACP_LISTEN)
+		inet_csk_listen_stop(sk);
 	// hrtimer_cancel(&up->receiver.flow_wait_timer);
 	// if(sk->sk_state == DCACP_ESTABLISHED) {
-	test_and_clear_bit(DCACP_WAIT_DEFERRED, &sk->sk_tsq_flags);
-	dsk->receiver.flow_finish_wait = false;
-	hrtimer_cancel(&dsk->receiver.token_pace_timer);
+	dcacp_set_state(sk, DCACP_CLOSE);
+	if(hrtimer_cancel(&dsk->receiver.token_pace_timer)) {
+		printk(" cancel hrtimer at:%d\n", __LINE__);	
+		// __sock_put(sk);
+		printk("hrtimer is active");
+	}
 	dcacp_write_queue_purge(sk);
 	dcacp_read_queue_purge(sk);
 	// }
-	dcacp_set_state(sk, DCACP_CLOSE);
 	// dcacp_flush_pending_frames(sk);
 	release_sock(sk);
 
@@ -940,6 +949,7 @@ void dcacp_destroy_sock(struct sock *sk)
 	if(dsk->receiver.in_pq)
 		dcacp_pq_delete(&entry->flow_q, &dsk->match_link);
 	spin_unlock_bh(&entry->lock);
+	printk("refcount sock:%d %p\n", refcount_read(&sk->sk_refcnt), dsk);
 	// if (static_branch_unlikely(&dcacp_encap_needed_key)) {
 	// 	if (up->encap_type) {
 	// 		void (*encap_destroy)(struct sock *sk);
