@@ -476,7 +476,7 @@ bool dcacp_try_send_token(struct sock *sk) {
 	if(token_bytes > 0)
 		return true;
 	if(token_bytes == 0 && dsk->receiver.rcv_nxt >= dsk->receiver.last_ack + dsk->receiver.token_batch) {
-		dcacp_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk, inet->inet_dport); 
+		dcacp_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk); 
 		dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
 	}
 	// if(dsk->receiver.rcv_nxt >= dsk->receiver.last_ack + dsk->receiver.token_batch) {
@@ -1085,6 +1085,8 @@ void __init dcacp_init(void)
 	// unsigned int i;
 
 	printk("try to add dcacp table \n");
+	printk("dcacp sock size:%ld\n", sizeof(struct dcacp_sock));
+	printk("tcp sock size:%ld\n", sizeof(struct tcp_sock));
 
 	dcacp_hashtable_init(&dcacp_hashinfo, 0);
 

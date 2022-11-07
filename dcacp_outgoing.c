@@ -278,7 +278,7 @@ struct sk_buff* construct_fin_pkt(struct sock* sk) {
 	return skb;
 }
 
-struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz) {
+struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short round, int epoch, int remaining_sz) {
 	// int extra_bytes = 0;
 	struct sk_buff* skb = __construct_control_skb(sk, 0);
 	struct dcacp_rts_hdr* fh;
@@ -290,7 +290,7 @@ struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoc
 	dh = (struct dcacphdr*) (&fh->common);
 	dh->len = htons(sizeof(struct dcacp_rts_hdr));
 	dh->type = RTS;
-	fh->iter = iter;
+	fh->round = round;
 	fh->epoch = epoch;
 	fh->remaining_sz = remaining_sz;
 	// extra_bytes = DCACP_HEADER_MAX_SIZE - length;
@@ -299,7 +299,7 @@ struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoc
 	return skb;
 }
 
-struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool prompt) {
+struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short round, int epoch, int remaining_sz, bool prompt) {
 	// int extra_bytes = 0;
 	struct sk_buff* skb = __construct_control_skb(sk, 0);
 	struct dcacp_grant_hdr* fh;
@@ -311,7 +311,7 @@ struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short iter, int ep
 	dh = (struct dcacphdr*) (&fh->common);
 	dh->len = htons(sizeof(struct dcacp_grant_hdr));
 	dh->type = GRANT;
-	fh->iter = iter;
+	fh->round = round;
 	fh->epoch = epoch;
 	fh->remaining_sz = remaining_sz;
 	fh->prompt = prompt;
@@ -321,7 +321,7 @@ struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short iter, int ep
 	return skb;
 }
 
-struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short iter, int epoch) {
+struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short round, int epoch, int remaining_sz) {
 	// int extra_bytes = 0;
 	struct sk_buff* skb = __construct_control_skb(sk, 0);
 	struct dcacp_accept_hdr* fh;
@@ -333,8 +333,9 @@ struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short iter, int e
 	dh = (struct dcacphdr*) (&fh->common);
 	dh->len = htons(sizeof(struct dcacp_accept_hdr));
 	dh->type = ACCEPT;
-	fh->iter = iter;
+	fh->round = round;
 	fh->epoch = epoch;
+	fh->remaining_sz = remaining_sz;
 	// extra_bytes = DCACP_HEADER_MAX_SIZE - length;
 	// if (extra_bytes > 0)
 	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
@@ -433,17 +434,13 @@ go_to_next:
 /**
  * __dcacp_xmit_control() - Lower-level version of dcacp_xmit_control: sends
  * a control packet.
- * @contents:  Address of buffer containing the contents of the packet.
- *             The caller must have filled in all of the information,
- *             including the common header.
- * @length:    Length of @contents.
- * @peer:      Destination to which the packet will be sent.
+ * @skb:	   Packet payload
  * @hsk:       Socket via which the packet will be sent.
  * 
  * Return:     Either zero (for success), or a negative errno value if there
  *             was a problem.
  */
-int dcacp_xmit_control(struct sk_buff* skb, struct sock *sk, int dport)
+int dcacp_xmit_control(struct sk_buff* skb, struct sock *sk)
 {
 	// struct dcacp_hdr *h;
 	int result;
@@ -676,7 +673,7 @@ uint32_t dcacp_xmit_token(struct dcacp_sock* dsk, uint32_t token_bytes) {
 	dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
 	atomic_add(token_bytes, &dsk->receiver.inflight_bytes);
 	dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, dsk->receiver.prev_token_nxt, dsk->receiver.token_nxt, false),
-	 	sk, inet->inet_dport);
+	 	sk);
 	return token_bytes;
 	
 }

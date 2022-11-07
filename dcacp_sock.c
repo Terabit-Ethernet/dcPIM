@@ -89,7 +89,7 @@ void dcacp_set_state(struct sock* sk, int state) {
 			inet_put_port(sk);
 		} 
 		if (sk->sk_state == DCACP_ESTABLISHED)
-			dcacp_xmit_control(construct_fin_pkt(sk), sk, inet->inet_dport); 
+			dcacp_xmit_control(construct_fin_pkt(sk), sk); 
 		/* fall through */
 	default:
 		// if (oldstate == TCP_ESTABLISHED)
@@ -236,7 +236,7 @@ int dcacp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	// if(!dsk->peer)
 	// 	dsk->peer = dcacp_peer_find(&dcacp_peers_table, daddr, inet);
 
-	dcacp_xmit_control(construct_flow_sync_pkt(sk, 0, 0, 0), sk, inet->inet_dport); 
+	dcacp_xmit_control(construct_flow_sync_pkt(sk, 0, 0, 0), sk); 
 	// dsk->total_length = flow_len;
 
 	if (err)

@@ -3,6 +3,8 @@
 // static void sender_iter_event_handler(struct work_struct *work);
 // __u64 js, je;
 
+struct dcacp_sock* fake_sk;
+
 static void recevier_matching_handler(struct work_struct *work) {
 	struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, receiver_matching_work);
 	// je = ktime_get_ns();
@@ -37,13 +39,13 @@ static void sender_matching_handler(struct work_struct *work) {
 	struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, sender_matching_work);
 	// spin_lock_bh(&epoch->lock);
 	if(epoch->round > 0) {
-		// dcacp_handle_all_grants(&dcacp_match_table, epoch);
+		dcacp_handle_all_grants(epoch);
 	}
 	// advance rounds
 	epoch->round += 1;
 	if(epoch->round >= dcacp_params.num_rounds) {
-		epoch->cur_match_src_addr = epoch->match_src_addr;
-		epoch->cur_match_dst_addr = epoch->match_dst_addr;
+		// epoch->cur_match_src_addr = epoch->match_src_addr;
+		// epoch->cur_match_dst_addr = epoch->match_dst_addr;
 		epoch->cur_epoch = epoch->epoch;
 		epoch->round = 0;
 		epoch->epoch += 1;
@@ -53,7 +55,7 @@ static void sender_matching_handler(struct work_struct *work) {
 		// 	kfree(grant);
 		// }
 	} 
-	// dcacp_send_all_rts(&dcacp_match_table, epoch);
+	dcacp_send_all_rts(epoch);
 	// spin_unlock_bh(&epoch->lock);
 }
 
@@ -227,35 +229,40 @@ void dcacp_mattab_delete_match_entry(struct dcacp_match_tab *table, struct dcacp
 }
 
 void dcacp_epoch_init(struct dcacp_epoch *epoch) {
-	int ret;
-	ktime_t now;
-	s64 time;
+	// int ret;
+	// ktime_t now;
+	// s64 time;
 	// struct inet_sock *inet;
 	// struct dcacp_peer* peer;
 	epoch->epoch = 0;
 	epoch->round = 0;
+	epoch->k = 4;
 	epoch->prompt = false;
-	epoch->match_src_addr = 0;
-	epoch->match_dst_addr = 0;
+	// epoch->match_src_addr = 0;
+	// epoch->match_dst_addr = 0;
+	// epoch->matched_k = 0;
 	INIT_LIST_HEAD(&epoch->rts_q);
 	INIT_LIST_HEAD(&epoch->grants_q);
 	epoch->grant_size = 0;
 	epoch->rts_size = 0;
-	epoch->min_rts = NULL;
-	epoch->min_grant = NULL;
+	// epoch->min_rts = NULL;
+	// epoch->min_grant = NULL;
 	epoch->epoch_length = dcacp_params.epoch_length;
 	epoch->round_length = dcacp_params.round_length;
+	epoch->epoch_bytes_per_k = epoch->epoch_length * dcacp_params.bandwidth / 8 / epoch->k;
+	epoch->epoch_bytes = epoch->epoch_bytes_per_k * epoch->k;
+
 	// struct rte_timer epoch_timer;
 	// struct rte_timer sender_iter_timers[10];
 	// struct rte_timer receiver_iter_timers[10];
 	// struct pim_timer_params pim_timer_params;
-	epoch->start_cycle = 0;
+	// epoch->start_cycle = 0;
 
 	// current epoch and address
 	epoch->cur_epoch = 0;
-	epoch->cur_match_src_addr = 0;
-	epoch->cur_match_dst_addr = 0;
-	epoch->cpu = 0;
+	// epoch->cur_match_src_addr = 0;
+	// epoch->cur_match_dst_addr = 0;
+	epoch->cpu = 28;
 	// ret = sock_create(AF_INET, SOCK_DGRAM, IPPROTO_DCACP, &epoch->sock);
 	// inet = inet_sk(epoch->sock->sk);
 	// peer =  dcacp_peer_find(&dcacp_peers_table, 167772169, inet);
@@ -265,8 +272,11 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 	// 	return;
 	// }
 	spin_lock_init(&epoch->lock);
+	spin_lock_init(&epoch->rts_lock);
+	spin_lock_init(&epoch->grant_lock);
+
 	/* token xmit timer*/
-	atomic_set(&epoch->remaining_tokens, 0);
+	// atomic_set(&epoch->remaining_tokens, 0);
 	// atomic_set(&epoch->pending_flows, 0);
 
 	// hrtimer_init(&epoch->token_xmit_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
@@ -316,188 +326,225 @@ void dcacp_epoch_destroy(struct dcacp_epoch *epoch) {
     // sock_release(sk);
 
 }
-// void dcacp_send_all_rts (struct dcacp_match_tab *table, struct dcacp_epoch* epoch) {
-// 	struct dcacp_match_entry *entry = NULL;
-//  	// struct dcacp_peer *peer;
-// 	// struct inet_sock *inet;
-// 	// struct sk_buff* pkt;
+void dcacp_send_all_rts (struct dcacp_epoch* epoch) {
+	// struct dcacp_match_entry *entry = NULL;
+ 	// struct dcacp_peer *peer;
+	// struct inet_sock *inet;
+	// struct sk_buff* pkt;
 
-// 	spin_lock(&table->lock);
-// 	list_for_each_entry(entry, &table->hash_list, list_link) {
-// 		struct list_head *list_head = NULL;
-// 		struct dcacp_sock *dsk = NULL;
-// 		spin_lock(&entry->lock);
-// 		list_head = dcacp_pq_peek(&entry->pq);
-// 		if(list_head != NULL) {
-// 			// don't need to hold dsk lock, beacuase holding the priority lock
-// 			dsk = list_entry(list_head, struct dcacp_sock, match_link);
-// 			// send rts
-// 			dcacp_xmit_control(construct_rts_pkt(epoch->sock->sk, 
-// 				epoch->iter, epoch->epoch, dsk->total_length), 
-// 				dsk->peer, epoch->sock->sk, dcacp_params.match_socket_port);
-// 		}
-// 		spin_unlock(&entry->lock);
-// 	}
-// 	// if(epoch->sock != NULL) {
-// 	// 	inet = inet_sk(epoch->sock->sk);
-// 	// 	// printk("inet is null: %d\n", inet == NULL);
-// 	// 	peer =  dcacp_peer_find(&dcacp_peers_table, 167772169, inet);
-// 	// 	pkt = construct_rts_pkt(epoch->sock->sk, epoch->iter, epoch->epoch, 3);
-// 	// 	dcacp_xmit_control(pkt, peer, epoch->sock->sk, 3000);
+	// spin_lock(&table->lock);
+	// list_for_each_entry(entry, &table->hash_list, list_link) {
+	// 	struct list_head *list_head = NULL;
+	// 	struct dcacp_sock *dsk = NULL;
+	// 	spin_lock(&entry->lock);
+	// 	list_head = dcacp_pq_peek(&entry->pq);
+	// 	if(list_head != NULL) {
+			// don't need to hold dsk lock, beacuase holding the priority lock
+			// dsk = list_entry(list_head, struct dcacp_sock, match_link);
+			// send rts
+			dcacp_xmit_control(construct_rts_pkt((struct sock*)fake_sk, 
+				epoch->round, epoch->epoch, 50000), (struct sock*)fake_sk);
+		// }
+		// spin_unlock(&entry->lock);
+	// }
+	// if(epoch->sock != NULL) {
+	// 	inet = inet_sk(epoch->sock->sk);
+	// 	// printk("inet is null: %d\n", inet == NULL);
+	// 	peer =  dcacp_peer_find(&dcacp_peers_table, 167772169, inet);
+	// 	pkt = construct_rts_pkt(epoch->sock->sk, epoch->iter, epoch->epoch, 3);
+	// 	dcacp_xmit_control(pkt, peer, epoch->sock->sk, 3000);
 
-// 	// }
+	// }
 
 
 // 	spin_unlock(&table->lock);
 
-// }
+}
 
-// int dcacp_handle_rts (struct sk_buff *skb, struct dcacp_match_tab *table, struct dcacp_epoch *epoch) {
-// 	struct dcacp_rts *rts;
+int dcacp_handle_rts (struct sk_buff *skb, struct dcacp_epoch *epoch) {
+	struct dcacp_rts *rts;
 
-// 	struct dcacp_rts_hdr *rh;
-// 	struct iphdr *iph;
-// 	if (!pskb_may_pull(skb, sizeof(struct dcacp_rts_hdr)))
-// 		goto drop;		/* No space for header. */
-// 	spin_lock_bh(&epoch->lock);
-// 	if(epoch->sock == NULL) {
-// 		spin_unlock_bh(&epoch->lock);
-// 		goto drop;
-// 	}
-// 	rts = kmalloc(sizeof(struct dcacp_rts), GFP_KERNEL);
-// 	INIT_LIST_HEAD(&rts->list_link);
-// 	iph = ip_hdr(skb);
-// 	rh = dcacp_rts_hdr(skb);
-// 	rts->remaining_sz = rh->remaining_sz;
+	struct dcacp_rts_hdr *rh;
+	// struct iphdr *iph;
+	struct sock* sk;
+	bool refcounted = false;
+	int sdif = inet_sdif(skb);
+	if (!pskb_may_pull(skb, sizeof(struct dcacp_rts_hdr)))
+		goto drop;		/* No space for header. */
+	// spin_lock_bh(&epoch->lock);
+	// if(epoch->sock == NULL) {
+		// spin_unlock_bh(&epoch->lock);
+		// goto drop;
+	// }
+	if(!sk)
+		goto drop;
+	rh = dcacp_rts_hdr(skb);
+	sk = __inet_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&rh->common), rh->common.source,
+            rh->common.dest, sdif, &refcounted);
+	if(!sk)
+		goto drop;
+	rts = kmalloc(sizeof(struct dcacp_rts), GFP_KERNEL);
+	INIT_LIST_HEAD(&rts->list_link);
+	// iph = ip_hdr(skb);
+	rts->remaining_sz = rh->remaining_sz;
+	rts->dsk = dcacp_sk(sk);
+	// rts->epoch = rh->epoch; 
+	// rts->iter = rh->iter;
+	// rts->peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet_sk(epoch->sock->sk));
+	// // spin_lock_bh(&epoch->lock);
+	// if (epoch->min_rts == NULL || epoch->min_rts->remaining_sz > rts->remaining_sz) {
+	// 	epoch->min_rts = rts;
+	// }
+	list_add_tail(&rts->list_link, &epoch->rts_q);
+	epoch->rts_size += 1;
+	// spin_unlock_bh(&epoch->lock);
+    if (refcounted) {
+        sock_put(sk);
+    }
+drop:
+	kfree_skb(skb);
+	return 0;
+}
 
-// 	// rts->epoch = rh->epoch; 
-// 	// rts->iter = rh->iter;
-// 	rts->peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet_sk(epoch->sock->sk));
-// 	// spin_lock_bh(&epoch->lock);
-// 	if (epoch->min_rts == NULL || epoch->min_rts->remaining_sz > rts->remaining_sz) {
-// 		epoch->min_rts = rts;
-// 	}
-// 	list_add_tail(&rts->list_link, &epoch->rts_q);
-// 	epoch->rts_size += 1;
-// 	spin_unlock_bh(&epoch->lock);
-
-// drop:
-// 	kfree_skb(skb);
-// 	return 0;
-// }
-
-// void dcacp_handle_all_rts(struct dcacp_match_tab* table, struct dcacp_epoch *epoch) {
-// 	struct dcacp_rts *rts, *temp;
-// 	// spin_lock_bh(&epoch->lock);
-// 	uint32_t iter = READ_ONCE(epoch->iter);
-// 	if(epoch->match_dst_addr == 0  && epoch->rts_size > 0) {
-// 		if (dcacp_params.fct_iter >= iter) {
-// 			dcacp_xmit_control(construct_grant_pkt(epoch->sock->sk, 
-// 				iter, epoch->epoch, epoch->min_rts->remaining_sz, epoch->cur_match_dst_addr == 0), 
-// 				epoch->min_rts->peer, epoch->sock->sk, dcacp_params.match_socket_port);	
-// 		} else {
-// 			uint32_t index = 0;
-// 			uint32_t i = 0;
-// 			index = get_random_u32() % epoch->rts_size;
-// 			list_for_each_entry(rts, &epoch->rts_q, list_link) {
-// 				if (i == index) {
-// 					dcacp_xmit_control(construct_grant_pkt(epoch->sock->sk, 
-// 						iter, epoch->epoch, rts->remaining_sz, epoch->cur_match_dst_addr == 0), 
-// 						rts->peer, epoch->sock->sk, dcacp_params.match_socket_port);
-// 					break;
-// 				}
-// 				i += 1;
-// 			}
-// 		}
-// 	}
-// 	epoch->rts_size = 0;
-// 	epoch->min_rts = NULL;
-// 	list_for_each_entry_safe(rts, temp, &epoch->rts_q, list_link) {
-// 		kfree(rts);
-// 	}
-// 	INIT_LIST_HEAD(&epoch->rts_q);
-// 	// spin_unlock_bh(&epoch->lock);
-// }
+void dcacp_handle_all_rts(struct dcacp_epoch *epoch) {
+	struct dcacp_rts *rts, *temp;
+	uint32_t index = 0;
+	uint32_t i = 0;
+	int granted_bytes = 0;
+	int cur_grant_bytes = 0;
+	// spin_lock_bh(&epoch->lock);
+	// uint32_t iter = READ_ONCE(epoch->iter);
+	// if(epoch->match_dst_addr == 0  && epoch->rts_size > 0) {
+	// 	if (dcacp_params.fct_iter >= iter) {
+	// 		dcacp_xmit_control(construct_grant_pkt(epoch->sock->sk, 
+	// 			iter, epoch->epoch, epoch->min_rts->remaining_sz, epoch->cur_match_dst_addr == 0), 
+	// 			epoch->min_rts->peer, epoch->sock->sk, dcacp_params.match_socket_port);	
+	// 	} else {
+	if(epoch->rts_size == 0)
+		return;
+	while(epoch->unmatched_grant_bytes > granted_bytes) {
+		i = 0;
+		index = get_random_u32() % epoch->rts_size;
+		list_for_each_entry(rts, &epoch->rts_q, list_link) {
+			if(rts->remaining_sz <= 0) {
+				index = index + 1;
+				continue;
+			}
+			if (i == index) {
+				cur_grant_bytes = min(epoch->unmatched_grant_bytes - granted_bytes, 
+					rts->remaining_sz / epoch->epoch_bytes_per_k * epoch->epoch_bytes_per_k);
+				dcacp_xmit_control(construct_grant_pkt((struct sock*)rts->dsk, 
+					epoch->round, epoch->epoch, cur_grant_bytes, 0), (struct sock*)rts->dsk);
+				granted_bytes += cur_grant_bytes;
+				rts->remaining_sz -= cur_grant_bytes;
+				break;
+			}
+			i += 1;
+		}
+	}
+	// }
+	epoch->rts_size = 0;
+	// epoch->min_rts = NULL;
+	list_for_each_entry_safe(rts, temp, &epoch->rts_q, list_link) {
+		kfree(rts);
+	}
+	INIT_LIST_HEAD(&epoch->rts_q);
+	// spin_unlock_bh(&epoch->lock);
+}
 
 
-// int dcacp_handle_grant(struct sk_buff *skb, struct dcacp_match_tab *table, struct dcacp_epoch *epoch) {
-// 	struct dcacp_grant *grant;
+int dcacp_handle_grant(struct sk_buff *skb, struct dcacp_epoch *epoch) {
+	struct dcacp_grant *grant;
+	struct sock* sk;
+	struct dcacp_grant_hdr *gh;
+	// struct iphdr *iph;
+	bool refcounted = false;
+	int sdif = inet_sdif(skb);
+	if (!pskb_may_pull(skb, sizeof(struct dcacp_grant_hdr)))
+		goto drop;		/* No space for header. */
+	gh = dcacp_grant_hdr(skb);
+	sk = __inet_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&gh->common), gh->common.source,
+            gh->common.dest, sdif, &refcounted);
+	if(!sk)
+		goto drop;
+	// spin_lock_bh(&epoch->lock);
+	// if(epoch->sock == NULL) {
+	// 	spin_unlock_bh(&epoch->lock);
+	// 	goto drop;
+	// }
+	grant = kmalloc(sizeof(struct dcacp_grant), GFP_KERNEL);
+	INIT_LIST_HEAD(&grant->list_link);
+	// iph = ip_hdr(skb);
+	grant->remaining_sz = gh->remaining_sz;
+	// grant->epoch = gh->epoch; 
+	// grant->iter = gh->iter;
+	// grant->prompt = gh->prompt;
+	// grant->peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet_sk(epoch->sock->sk));
+	// if (epoch->min_grant == NULL || epoch->min_grant->remaining_sz > grant->remaining_sz) {
+	// 	epoch->min_grant = grant;
+	// }
+	list_add_tail(&grant->list_link, &epoch->grants_q);
+	epoch->grant_size += 1;
+	// spin_unlock_bh(&epoch->lock);
+	if(refcounted) {
+		sock_put(sk);
+	}
+drop:
+	kfree_skb(skb);
 
-// 	struct dcacp_grant_hdr *gh;
-// 	struct iphdr *iph;
-// 	if (!pskb_may_pull(skb, sizeof(struct dcacp_grant_hdr)))
-// 		goto drop;		/* No space for header. */
-// 	spin_lock_bh(&epoch->lock);
-// 	if(epoch->sock == NULL) {
-// 		spin_unlock_bh(&epoch->lock);
-// 		goto drop;
-// 	}
-// 	grant = kmalloc(sizeof(struct dcacp_grant), GFP_KERNEL);
-// 	INIT_LIST_HEAD(&grant->list_link);
-// 	iph = ip_hdr(skb);
-// 	gh = dcacp_grant_hdr(skb);
+	return 0;
+}
 
-// 	grant->remaining_sz = gh->remaining_sz;
-// 	// grant->epoch = gh->epoch; 
-// 	// grant->iter = gh->iter;
-// 	grant->prompt = gh->prompt;
-// 	grant->peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet_sk(epoch->sock->sk));
-// 	if (epoch->min_grant == NULL || epoch->min_grant->remaining_sz > grant->remaining_sz) {
-// 		epoch->min_grant = grant;
-// 	}
-// 	list_add_tail(&grant->list_link, &epoch->grants_q);
-// 	epoch->grant_size += 1;
-// 	spin_unlock_bh(&epoch->lock);
-
-// drop:
-// 	kfree_skb(skb);
-
-// 	return 0;
-// }
-
-// void dcacp_handle_all_grants(struct dcacp_match_tab *table, struct dcacp_epoch *epoch) {
-// 	struct dcacp_grant *grant, *temp, *resp = NULL;
-// 	// spin_lock_bh(&epoch->lock);
-// 	uint32_t iter = READ_ONCE(epoch->iter);
-// 	if(epoch->match_src_addr == 0 && epoch->grant_size > 0) {
-// 		if (dcacp_params.fct_iter >= iter) {
-// 			// printk("send accept pkt:%d\n", __LINE__);
-// 			dcacp_xmit_control(construct_accept_pkt(epoch->sock->sk, 
-// 				iter, epoch->epoch), 
-// 				epoch->min_grant->peer, epoch->sock->sk, dcacp_params.match_socket_port);
-// 			resp = epoch->min_grant;
-// 		} else {
-// 			uint32_t index = 0;
-// 			uint32_t i = 0;
-// 			index = get_random_u32() % epoch->grant_size;
-// 			list_for_each_entry(grant, &epoch->grants_q, list_link) {
-// 				if (i == index) {
-// 					// printk("send accept pkt:%d\n", __LINE__);
-// 					dcacp_xmit_control(construct_accept_pkt(epoch->sock->sk, 
-// 						iter, epoch->epoch), 
-// 						grant->peer, epoch->sock->sk, dcacp_params.match_socket_port);
-// 					resp = grant;
-// 					break;
-// 				}
-// 				i += 1;
-// 			}
-// 		}
-// 		epoch->match_src_addr = resp->peer->addr;
-// 		if(resp != NULL && resp->prompt) {
-// 			epoch->cur_match_src_addr = resp->peer->addr;
-// 		}
-// 	}
-
-// 	epoch->grant_size = 0;
-// 	epoch->min_grant = NULL;
-
-// 	list_for_each_entry_safe(grant, temp, &epoch->grants_q, list_link) {
-// 		kfree(grant);
-
-// 	}
-// 	INIT_LIST_HEAD(&epoch->grants_q);
-// 	// spin_unlock_bh(&epoch->lock);
-// }
+void dcacp_handle_all_grants(struct dcacp_epoch *epoch) {
+	struct dcacp_grant *grant, *temp, *resp = NULL;
+	uint32_t index = 0;
+	uint32_t i = 0;
+	int accepted_bytes = 0;
+	int cur_accepted_bytes = 0;
+	// spin_lock_bh(&epoch->lock);
+	// uint32_t iter = READ_ONCE(epoch->iter);
+	// if(epoch->match_src_addr == 0 && epoch->grant_size > 0) {
+		// if (dcacp_params.fct_iter >= iter) {
+		// 	// printk("send accept pkt:%d\n", __LINE__);
+		// 	dcacp_xmit_control(construct_accept_pkt(epoch->sock->sk, 
+		// 		iter, epoch->epoch), 
+		// 		epoch->min_grant->peer, epoch->sock->sk, dcacp_params.match_socket_port);
+		// 	resp = epoch->min_grant;
+		// } else {
+	if (epoch->grant_size == 0) {
+		return;
+	}
+	while(epoch->unmatched_accept_bytes >= accepted_bytes) {
+		i = 0;
+		index = get_random_u32() % epoch->grant_size;
+		list_for_each_entry(grant, &epoch->grants_q, list_link) {
+			if (i == index) {
+				if(grant->remaining_sz <= 0) {
+					/* find next entry if grant->remaining size less than 0 */
+					index += 1;
+					continue;
+				}
+				// printk("send accept pkt:%d\n", __LINE__);
+				cur_accepted_bytes = min(epoch->unmatched_accept_bytes - accepted_bytes, 
+					(grant->remaining_sz / epoch->epoch_bytes_per_k) * epoch->epoch_bytes_per_k);
+				dcacp_xmit_control(construct_accept_pkt((struct sock*)grant->dsk, 
+					epoch->round, epoch->epoch, cur_accepted_bytes), (struct sock*)grant->dsk);
+				accepted_bytes += cur_accepted_bytes;
+				grant->remaining_sz -= cur_accepted_bytes;
+				break;
+			}
+			i += 1;
+		}
+	}
+	epoch->unmatched_accept_bytes -= accepted_bytes;
+	// epoch->grant_size = 0;
+	// epoch->min_grant = NULL;
+	list_for_each_entry_safe(grant, temp, &epoch->grants_q, list_link) {
+		kfree(grant);
+	}
+	INIT_LIST_HEAD(&epoch->grants_q);
+	// spin_unlock_bh(&epoch->lock);
+}
 
 // int dcacp_handle_accept(struct sk_buff *skb, struct dcacp_match_tab *table, struct dcacp_epoch *epoch) {
 // 	struct dcacp_accept_hdr *ah;
@@ -526,31 +573,31 @@ void dcacp_epoch_destroy(struct dcacp_epoch *epoch) {
  * Return 2 if timer is setup.
  */
 
-int rtx_bytes_count(struct dcacp_sock* dsk, __u32 prev_grant_nxt) {
-	int retransmit_bytes = 0; 
-	if(dsk->receiver.rcv_nxt < prev_grant_nxt) {
-		int i = 0;
-		__u32 sum = 0;
-		// printk("prev_grant_nxt:%u\n", prev_grant_nxt);
-		while(i < dsk->num_sacks) {
-			__u32 start_seq = dsk->selective_acks[i].start_seq;
-			__u32 end_seq = dsk->selective_acks[i].end_seq;
-			// printk("start seq: %u\n", start_seq);
-			// printk("end seq:%u\n", end_seq);
-			if(start_seq > prev_grant_nxt)
-				goto next;
-			if(end_seq > prev_grant_nxt) {
-				end_seq = prev_grant_nxt;
-			}
-			sum += end_seq - start_seq;
-		next:
-			i++;
-		}
-		retransmit_bytes = prev_grant_nxt - dsk->receiver.rcv_nxt - sum;
-		// atomic_add_return(retransmit_bytes, &dcacp_epoch.remaining_tokens);
-	} 
-	return retransmit_bytes;
-}
+// int rtx_bytes_count(struct dcacp_sock* dsk, __u32 prev_grant_nxt) {
+// 	int retransmit_bytes = 0; 
+// 	if(dsk->receiver.rcv_nxt < prev_grant_nxt) {
+// 		int i = 0;
+// 		__u32 sum = 0;
+// 		// printk("prev_grant_nxt:%u\n", prev_grant_nxt);
+// 		while(i < dsk->num_sacks) {
+// 			__u32 start_seq = dsk->selective_acks[i].start_seq;
+// 			__u32 end_seq = dsk->selective_acks[i].end_seq;
+// 			// printk("start seq: %u\n", start_seq);
+// 			// printk("end seq:%u\n", end_seq);
+// 			if(start_seq > prev_grant_nxt)
+// 				goto next;
+// 			if(end_seq > prev_grant_nxt) {
+// 				end_seq = prev_grant_nxt;
+// 			}
+// 			sum += end_seq - start_seq;
+// 		next:
+// 			i++;
+// 		}
+// 		retransmit_bytes = prev_grant_nxt - dsk->receiver.rcv_nxt - sum;
+// 		// atomic_add_return(retransmit_bytes, &dcacp_epoch.remaining_tokens);
+// 	} 
+// 	return retransmit_bytes;
+// }
 
 /* Assume BH is disabled and epoch->lock is hold
  * Return true if we need to push back the flow to pq.

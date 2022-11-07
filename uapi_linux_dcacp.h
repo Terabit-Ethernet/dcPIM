@@ -159,14 +159,14 @@ struct dcacp_ack_hdr {
 // 		"dcacp_ack_header too large");
 struct dcacp_rts_hdr {
 	struct dcacphdr common;
-	__u8 iter;
+	__u8 round;
 	__be64 epoch;
 	__be32 remaining_sz;
 };
 
 struct dcacp_grant_hdr {
 	struct dcacphdr common;
-	__u8 iter;
+	__u8 round;
 	__be64 epoch;
 	__be32 remaining_sz;
 	__u8 prompt;
@@ -174,8 +174,9 @@ struct dcacp_grant_hdr {
 
 struct dcacp_accept_hdr {
 	struct dcacphdr common;
-	__u8 iter;
+	__u8 round;
 	__be64 epoch;
+	__be32 remaining_sz;
 	// __u8 accept;
 
 };

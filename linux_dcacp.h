@@ -158,38 +158,51 @@ struct xmit_core_table {
 struct dcacp_epoch {
 
 	uint64_t epoch;
+	uint64_t cur_epoch;
 	uint32_t round;
 	uint32_t cpu;
+	/* in ns */
 	int epoch_length;
+	/* in ns */
 	int round_length;
+	int k;
 	bool prompt;
-	__be32 match_src_addr;
-	__be32 match_dst_addr;
+	// __be32 match_src_addr;
+	// __be32 match_dst_addr;
+	struct spinlock lock;
+
+	struct spinlock rts_lock;
 	struct list_head rts_q;
+	int unmatched_grant_bytes;
+	int rts_size;
+
+	struct spinlock grant_lock;
 	struct list_head grants_q;
-	uint32_t grant_size;
-	uint32_t rts_size;
+	int unmatched_accept_bytes;
+	int grant_size;
+
+	int epoch_bytes_per_k;
+	int epoch_bytes;
+	int matched_bytes;
 	struct dcacp_rts *min_rts;
 	struct dcacp_grant *min_grant;
 	// struct rte_timer epoch_timer;
 	// struct rte_timer sender_iter_timers[10];
 	// struct rte_timer receiver_iter_timers[10];
 	// struct pim_timer_params pim_timer_params;
-	uint64_t start_cycle;
+	// uint64_t start_cycle;
 	/* remaining tokens */
-	atomic_t remaining_tokens;
+	// atomic_t remaining_tokens;
 	// atomic_t pending_flows;
-	struct hrtimer token_xmit_timer;
-	struct work_struct token_xmit_struct;
+	// struct hrtimer token_xmit_timer;
+	// struct work_struct token_xmit_struct;
 	/* for phost queue */
 	struct dcacp_pq flow_q;
 
 	// current epoch and address
-	uint64_t cur_epoch;
-	uint32_t cur_match_src_addr;
-	uint32_t cur_match_dst_addr;
+	// uint32_t cur_match_src_addr;
+	// uint32_t cur_match_dst_addr;
 
-	struct spinlock lock;
 	// thread for running Matching logic
 	// struct task_struct thread;
 	struct hrtimer epoch_timer;
@@ -206,14 +219,13 @@ struct dcacp_epoch {
 
 // dcacp matching logic data structure
 struct dcacp_rts {
-    struct dcacp_peer* peer;
+    struct dcacp_sock* dsk;
     int remaining_sz;
  	struct list_head list_link;
-
 };
 struct dcacp_grant {
     bool prompt;
-    struct dcacp_peer* peer;
+    struct dcacp_sock* dsk;
     int remaining_sz;
 	struct list_head list_link;
 };

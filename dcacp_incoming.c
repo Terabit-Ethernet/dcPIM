@@ -440,7 +440,7 @@ static void dcacp_rcv_nxt_update(struct dcacp_sock *dsk, u32 seq)
 	// printk("update the seq:%d\n", dsk->receiver.rcv_nxt);
 	token_bytes = dcacp_token_timer_defer_handler(sk);
 	if(token_bytes == 0 && dsk->receiver.rcv_nxt >= dsk->receiver.last_ack + dsk->receiver.token_batch) {
-		dcacp_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk, inet->inet_dport); 
+		dcacp_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk); 
 		dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
 	}
 }
