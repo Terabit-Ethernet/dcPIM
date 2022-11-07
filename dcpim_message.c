@@ -4,7 +4,7 @@
  *		operating system.  INET is implemented using the  BSD Socket
  *		interface as the means of communication with the user level.
  *
- *		DATACENTER ADMISSION CONTROL PROTOCOL(DCACP) 
+ *		DATACENTER ADMISSION CONTROL PROTOCOL(DCPIM) 
  *
  * Authors:	Ross Biro
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -13,7 +13,7 @@
  *		Hirokazu Takahashi, <taka@valinux.co.jp>
  */
 
-#define pr_fmt(fmt) "DCACP: " fmt
+#define pr_fmt(fmt) "DCPIM: " fmt
 
 #include <linux/uaccess.h>
 #include <asm/ioctls.h>
@@ -49,33 +49,33 @@
 #include <linux/static_key.h>
 #include <trace/events/skb.h>
 #include <net/busy_poll.h>
-#include "dcacp_impl.h"
+#include "dcpim_impl.h"
 #include <net/sock_reuseport.h>
 #include <net/addrconf.h>
 #include <net/udp_tunnel.h>
 
-// #include "linux_dcacp.h"
- #include "net_dcacp.h"
-// #include "net_dcacplite.h"
-#include "uapi_linux_dcacp.h"
-#include "dcacp_impl.h"
+// #include "linux_dcpim.h"
+ #include "net_dcpim.h"
+// #include "net_dcpimlite.h"
+#include "uapi_linux_dcpim.h"
+#include "dcpim_impl.h"
 
 
 /* Insert buff after skb on the write or rtx queue of sk.  */
-static void dcacp_insert_write_queue_after(struct sk_buff *skb,
+static void dcpim_insert_write_queue_after(struct sk_buff *skb,
 					 struct sk_buff *buff,
 					 struct sock *sk,
-					 enum dcacp_queue dcacp_queue)
+					 enum dcpim_queue dcpim_queue)
 {
-	if (dcacp_queue == DCACP_FRAG_IN_WRITE_QUEUE)
+	if (dcpim_queue == DCPIM_FRAG_IN_WRITE_QUEUE)
 		skb_append(skb, buff,&sk->sk_write_queue);
 	else
-		dcacp_rbtree_insert(&sk->tcp_rtx_queue, buff);
+		dcpim_rbtree_insert(&sk->tcp_rtx_queue, buff);
 }
 
 
 /* Initialize GSO segments for a packet. */
-static void dcacp_set_skb_gso_segs(struct sk_buff *skb, unsigned int mss_now)
+static void dcpim_set_skb_gso_segs(struct sk_buff *skb, unsigned int mss_now)
 {
 	// if (skb->len <= mss_now) {
 	// 	/* Avoid the costly divide in the normal
@@ -90,17 +90,17 @@ static void dcacp_set_skb_gso_segs(struct sk_buff *skb, unsigned int mss_now)
 	if(skb->len >= mss_now) {
 		skb_shinfo(skb)->gso_size = mss_now;
 		skb_shinfo(skb)->gso_type = SKB_GSO_TCPV4;
-		// WARN_ON(skb->len != DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq);
+		// WARN_ON(skb->len != DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq);
 		skb_shinfo(skb)->gso_segs = DIV_ROUND_UP(skb->len, mss_now);
 
 	}
 }
 
-struct sk_buff *dcacp_stream_alloc_skb(struct sock *sk, int size, gfp_t gfp,
+struct sk_buff *dcpim_stream_alloc_skb(struct sock *sk, int size, gfp_t gfp,
 				    bool force_schedule)
 {
 	struct sk_buff *skb;
-	/* The DCACP header must be at least 32-bit aligned.  */
+	/* The DCPIM header must be at least 32-bit aligned.  */
 	size = ALIGN(size, 4);
 
 	// if (unlikely(tcp_under_memory_pressure(sk)))
@@ -142,7 +142,7 @@ struct sk_buff *dcacp_stream_alloc_skb(struct sock *sk, int size, gfp_t gfp,
 }
 
 /* assume hold bh_sock_lock */
-int dcacp_fragment(struct sock *sk, enum dcacp_queue dcacp_queue,
+int dcpim_fragment(struct sock *sk, enum dcpim_queue dcpim_queue,
 		 struct sk_buff *skb, u32 len,
 		 unsigned int mss_now, gfp_t gfp)
 {
@@ -161,16 +161,16 @@ int dcacp_fragment(struct sock *sk, enum dcacp_queue dcacp_queue,
 	if (len >= skb->len)
 		return -EINVAL;
 
-	/* dcacp_sendmsg() can overshoot sk_wmem_queued by one full size skb.
+	/* dcpim_sendmsg() can overshoot sk_wmem_queued by one full size skb.
 	 * We need some allowance to not penalize applications setting small
 	 * SO_SNDBUF values.
 	 * Also allow first and last skb in retransmit queue to be split.
 	 */
 	limit = sk->sk_sndbuf + 2 * SKB_TRUESIZE(GSO_MAX_SIZE);
 	if (unlikely((sk->sk_wmem_queued >> 1) > limit &&
-		     dcacp_queue != DCACP_FRAG_IN_WRITE_QUEUE &&
-		     skb != dcacp_rtx_queue_head(sk) &&
-		     skb != dcacp_rtx_queue_tail(sk))) {
+		     dcpim_queue != DCPIM_FRAG_IN_WRITE_QUEUE &&
+		     skb != dcpim_rtx_queue_head(sk) &&
+		     skb != dcpim_rtx_queue_tail(sk))) {
 		// NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPWQUEUETOOBIG);
 		return -ENOMEM;
 	}
@@ -179,7 +179,7 @@ int dcacp_fragment(struct sock *sk, enum dcacp_queue dcacp_queue,
 		return -ENOMEM;
 
 	/* Get a new skb... force flag on. */
-	buff = dcacp_stream_alloc_skb(sk, skb->len - len, gfp, true);
+	buff = dcpim_stream_alloc_skb(sk, skb->len - len, gfp, true);
 	if (!buff)
 		return -ENOMEM; /* We'll just try again later. */
 	skb_copy_decrypted(buff, skb);
@@ -190,17 +190,17 @@ int dcacp_fragment(struct sock *sk, enum dcacp_queue dcacp_queue,
 	buff->truesize += nlen;
 	skb->truesize -= nlen;
 	printk("do fragment\n");
-	printk("new buff seq:%u\n", DCACP_SKB_CB(skb)->seq + len);
+	printk("new buff seq:%u\n", DCPIM_SKB_CB(skb)->seq + len);
 	/* Correct the sequence numbers. */
-	DCACP_SKB_CB(buff)->seq = DCACP_SKB_CB(skb)->seq + len;
-	DCACP_SKB_CB(buff)->end_seq = DCACP_SKB_CB(skb)->end_seq;
-	DCACP_SKB_CB(skb)->end_seq = DCACP_SKB_CB(buff)->seq;
+	DCPIM_SKB_CB(buff)->seq = DCPIM_SKB_CB(skb)->seq + len;
+	DCPIM_SKB_CB(buff)->end_seq = DCPIM_SKB_CB(skb)->end_seq;
+	DCPIM_SKB_CB(skb)->end_seq = DCPIM_SKB_CB(buff)->seq;
 
 	/* PSH and FIN should only be set in the second packet. */
-	// flags = DCACP_SKB_CB(skb)->tcp_flags;
-	// DCACP_SKB_CB(skb)->tcp_flags = flags & ~(TCPHDR_FIN | TCPHDR_PSH);
-	// DCACP_SKB_CB(buff)->tcp_flags = flags;
-	// DCACP_SKB_CB(buff)->sacked = DCACP_SKB_CB(skb)->sacked;
+	// flags = DCPIM_SKB_CB(skb)->tcp_flags;
+	// DCPIM_SKB_CB(skb)->tcp_flags = flags & ~(TCPHDR_FIN | TCPHDR_PSH);
+	// DCPIM_SKB_CB(buff)->tcp_flags = flags;
+	// DCPIM_SKB_CB(buff)->sacked = DCPIM_SKB_CB(skb)->sacked;
 	// tcp_skb_fragment_eor(skb, buff);
 	skb_split(skb, buff, len);
 
@@ -212,8 +212,8 @@ int dcacp_fragment(struct sock *sk, enum dcacp_queue dcacp_queue,
 	// old_factor = tcp_skb_pcount(skb);
 
 	/* Fix up tso_factor for both original and new SKB.  */
-	dcacp_set_skb_gso_segs(skb, mss_now);
-	dcacp_set_skb_gso_segs(buff, mss_now);
+	dcpim_set_skb_gso_segs(skb, mss_now);
+	dcpim_set_skb_gso_segs(buff, mss_now);
 
 	/* Update delivered info for the new segment */
 	// TCP_SKB_CB(buff)->tx = TCP_SKB_CB(skb)->tx;
@@ -232,33 +232,33 @@ int dcacp_fragment(struct sock *sk, enum dcacp_queue dcacp_queue,
 	/* Link BUFF into the send queue. */
 	// __skb_header_release(buff);
 
-	dcacp_insert_write_queue_after(skb, buff, sk, dcacp_queue);
+	dcpim_insert_write_queue_after(skb, buff, sk, dcpim_queue);
 	// if (tcp_queue == TCP_FRAG_IN_RTX_QUEUE)
 	// 	list_add(&buff->tcp_tsorted_anchor, &skb->tcp_tsorted_anchor);
 
 	return 0;
 }
 /**
- * dcacp_fill_packets() - Create one or more packets and fill them with
+ * dcpim_fill_packets() - Create one or more packets and fill them with
  * data from user space.
- * @homa:    Overall data about the DCACP protocol implementation.
+ * @homa:    Overall data about the DCPIM protocol implementation.
  * @peer:    Peer to which the packets will be sent (needed for things like
  *           the MTU).
  * @from:    Address of the user-space source buffer.
  * @len:     Number of bytes of user data.
  * 
  * Return:   Address of the first packet in a list of packets linked through
- *           dcacp_next_skb, or a negative errno if there was an error. No
+ *           dcpim_next_skb, or a negative errno if there was an error. No
  *           fields are set in the packet headers except for type, incoming,
- *           offset, and length information. dcacp_message_out_init will fill
+ *           offset, and length information. dcpim_message_out_init will fill
  *           in the other fields.
  */
-int dcacp_fill_packets(struct sock *sk,
+int dcpim_fill_packets(struct sock *sk,
 		struct msghdr *msg, size_t len)
 {
-	/* Note: this function is separate from dcacp_message_out_init
+	/* Note: this function is separate from dcpim_message_out_init
 	 * because it must be invoked without holding an RPC lock, and
-	 * dcacp_message_out_init must sometimes be called with the lock
+	 * dcpim_message_out_init must sometimes be called with the lock
 	 * held.
 	 */
 	int bytes_left, sent_len = 0;
@@ -267,7 +267,7 @@ int dcacp_fill_packets(struct sock *sk,
 	int err, mtu, max_pkt_data, gso_size, max_gso_data;
 	// struct sk_buff **last_link;
 	struct dst_entry *dst;
-	struct dcacp_sock* dsk = dcacp_sk(sk);
+	struct dcpim_sock* dsk = dcpim_sk(sk);
 	/* check socket has enough space */
 	if (unlikely(len == 0)) {
 		err = -EINVAL;
@@ -280,7 +280,7 @@ int dcacp_fill_packets(struct sock *sk,
 		return -ENOTCONN;
 	}
 	mtu = dst_mtu(dst);
-	max_pkt_data = mtu - sizeof(struct iphdr) - sizeof(struct dcacp_data_hdr);
+	max_pkt_data = mtu - sizeof(struct iphdr) - sizeof(struct dcpim_data_hdr);
 	bytes_left = len;
 
 
@@ -291,17 +291,17 @@ int dcacp_fill_packets(struct sock *sk,
 		int bufs_per_gso;
 		
 		gso_size = dst->dev->gso_max_size;
-		if (gso_size > dcacp_params.bdp)
-			gso_size = dcacp_params.bdp;
-		// if(gso_size > dcacp_params.gso_size)
-		// 	gso_size = dcacp_params.gso_size;
+		if (gso_size > dcpim_params.bdp)
+			gso_size = dcpim_params.bdp;
+		// if(gso_size > dcpim_params.gso_size)
+		// 	gso_size = dcpim_params.gso_size;
 		/* Round gso_size down to an even # of mtus. */
 		bufs_per_gso = gso_size / mtu;
 		if (bufs_per_gso == 0) {
 			bufs_per_gso = 1;
 			mtu = gso_size;
 			max_pkt_data = mtu - sizeof(struct iphdr)
-					- sizeof(struct dcacp_data_hdr);
+					- sizeof(struct dcpim_data_hdr);
 			WARN_ON(max_pkt_data < 0);
 		}
 		max_gso_data = bufs_per_gso * max_pkt_data;
@@ -320,14 +320,14 @@ int dcacp_fill_packets(struct sock *sk,
 	// ktime_t start, end;
 	// start = ktime_get();
 	for (; bytes_left > 0; ) {
-		// struct dcacp_data_hdr *h;
+		// struct dcpim_data_hdr *h;
 		struct data_segment *seg;
 		int available;
 		int current_len = 0;
 		 // last_pkt_length;
 		
-		/* The sizeof(void*) creates extra space for dcacp_next_skb. */
-		skb = dcacp_stream_alloc_skb(sk, gso_size, GFP_KERNEL, true);
+		/* The sizeof(void*) creates extra space for dcpim_next_skb. */
+		skb = dcpim_stream_alloc_skb(sk, gso_size, GFP_KERNEL, true);
 		// if(sk->sk_tx_skb_cache != NULL) {
 		// 	skb = sk->sk_tx_skb_cache;
 		// 	sk->sk_tx_skb_cache = NULL;
@@ -358,12 +358,12 @@ int dcacp_fill_packets(struct sock *sk,
 
 		// skb_reserve(skb, sizeof(struct iphdr));
 		// skb_reset_transport_header(skb);
-		// h = (struct dcacp_data_hdr *) skb_put(skb, sizeof(*h));
+		// h = (struct dcpim_data_hdr *) skb_put(skb, sizeof(*h));
 		available = max_gso_data;
 		current_len = available > bytes_left? bytes_left : available;
 		// h->message_id = 256;
-		WRITE_ONCE(DCACP_SKB_CB(skb)->seq, dsk->sender.write_seq + len - bytes_left);
-		WRITE_ONCE(DCACP_SKB_CB(skb)->end_seq, DCACP_SKB_CB(skb)->seq + current_len);
+		WRITE_ONCE(DCPIM_SKB_CB(skb)->seq, dsk->sender.write_seq + len - bytes_left);
+		WRITE_ONCE(DCPIM_SKB_CB(skb)->end_seq, DCPIM_SKB_CB(skb)->seq + current_len);
 		// if (!copy_from_iter_full(skb_put(skb, current_len),
 		// 		current_len, &msg->msg_iter)) {
 		// 	err = -EFAULT;
@@ -413,14 +413,14 @@ int dcacp_fill_packets(struct sock *sk,
 
 
 		// last_pkt_length = htonl(seg->segment_length) + sizeof(*h);
-		// if (unlikely(last_pkt_length < DCACP_HEADER_MAX_SIZE)){
-		// 	skb_put(skb, DCACP_HEADER_MAX_SIZE - last_pkt_length);
+		// if (unlikely(last_pkt_length < DCPIM_HEADER_MAX_SIZE)){
+		// 	skb_put(skb, DCPIM_HEADER_MAX_SIZE - last_pkt_length);
 		// }
 		// *last_link = skb;
-		// last_link = dcacp_next_skb(skb);
+		// last_link = dcpim_next_skb(skb);
 		// *last_link = NULL;
-		dcacp_set_skb_gso_segs(skb, max_pkt_data + sizeof(struct data_segment));
-		dcacp_add_write_queue_tail(sk, skb);
+		dcpim_set_skb_gso_segs(skb, max_pkt_data + sizeof(struct data_segment));
+		dcpim_add_write_queue_tail(sk, skb);
 		sk_wmem_queued_add(sk, skb->truesize);
 
 		// sk_mem_charge(sk, skb->truesize);
@@ -438,6 +438,6 @@ int dcacp_fill_packets(struct sock *sk,
 	return sent_len;
 	
 error:
-	// dcacp_free_skbs(first);
+	// dcpim_free_skbs(first);
 	return err;
 }

@@ -1,26 +1,26 @@
-#include "dcacp_impl.h"
+#include "dcpim_impl.h"
 // static void recevier_iter_event_handler(struct work_struct *work);
 // static void sender_iter_event_handler(struct work_struct *work);
 // __u64 js, je;
 
-struct dcacp_sock* fake_sk;
+struct dcpim_sock* fake_sk;
 
 static void recevier_matching_handler(struct work_struct *work) {
-	struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, receiver_matching_work);
+	struct dcpim_epoch *epoch = container_of(work, struct dcpim_epoch, receiver_matching_work);
 	// je = ktime_get_ns();
 	// spin_lock_bh(&epoch->lock);
- 	// if(dcacp_epoch.epoch % 100 == 0 && dcacp_epoch.iter == 1) {
+ 	// if(dcpim_epoch.epoch % 100 == 0 && dcpim_epoch.iter == 1) {
  	// 	printk("iter:%u time diff:%llu \n", iter, je - js);
  	// }
 	if(epoch->round == 0) {
-	//	dcacp_handle_all_accepts(&dcacp_match_table, epoch); 
+	//	dcpim_handle_all_accepts(&dcpim_match_table, epoch); 
 	}
-	// dcacp_handle_all_rts(&dcacp_match_table, epoch);
+	// dcpim_handle_all_rts(&dcpim_match_table, epoch);
 	// spin_unlock_bh(&epoch->lock);
 }
 
 static void epoch_start_handler(struct work_struct *work) {
-	struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, epoch_work);
+	struct dcpim_epoch *epoch = container_of(work, struct dcpim_epoch, epoch_work);
 	ktime_t now;
 	s64 time;
 	now = hrtimer_cb_get_time(&epoch->sender_round_timer);
@@ -30,124 +30,124 @@ static void epoch_start_handler(struct work_struct *work) {
 	hrtimer_start(&epoch->receiver_round_timer, ktime_set(0, time + epoch->round_length / 2), HRTIMER_MODE_ABS);
 	// je = ktime_get_ns();
 	// spin_lock_bh(&epoch->lock);
- 	// if(dcacp_epoch.epoch % 100 == 0 && dcacp_epoch.iter == 1) {
+ 	// if(dcpim_epoch.epoch % 100 == 0 && dcpim_epoch.iter == 1) {
  	// 	printk("iter:%u time diff:%llu \n", iter, je - js);
  	// }
 }
 
 static void sender_matching_handler(struct work_struct *work) {
-	struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, sender_matching_work);
+	struct dcpim_epoch *epoch = container_of(work, struct dcpim_epoch, sender_matching_work);
 	// spin_lock_bh(&epoch->lock);
 	if(epoch->round > 0) {
-		dcacp_handle_all_grants(epoch);
+		dcpim_handle_all_grants(epoch);
 	}
 	// advance rounds
 	epoch->round += 1;
-	if(epoch->round >= dcacp_params.num_rounds) {
+	if(epoch->round >= dcpim_params.num_rounds) {
 		// epoch->cur_match_src_addr = epoch->match_src_addr;
 		// epoch->cur_match_dst_addr = epoch->match_dst_addr;
 		epoch->cur_epoch = epoch->epoch;
 		epoch->round = 0;
 		epoch->epoch += 1;
-		// dcacp_epoch->min_grant = NULL;
-		// dcacp_epoch->grant_size = 0;
+		// dcpim_epoch->min_grant = NULL;
+		// dcpim_epoch->grant_size = 0;
 		// list_for_each_entry_safe(grant, temp, &epoch->grants_q, list_link) {
 		// 	kfree(grant);
 		// }
 	} 
-	dcacp_send_all_rts(epoch);
+	dcpim_send_all_rts(epoch);
 	// spin_unlock_bh(&epoch->lock);
 }
 
 /* Token */
-enum hrtimer_restart dcacp_token_xmit_event(struct hrtimer *timer) {
-	// struct dcacp_grant* grant, temp;
-	// struct dcacp_epoch *epoch = container_of(timer, struct dcacp_epoch, token_xmit_timer);
+enum hrtimer_restart dcpim_token_xmit_event(struct hrtimer *timer) {
+	// struct dcpim_grant* grant, temp;
+	// struct dcpim_epoch *epoch = container_of(timer, struct dcpim_epoch, token_xmit_timer);
 
 	// // printk("token timer handler is called 1\n");
 	// spin_lock(&epoch->lock);
 	// /* reset the remaining tokens to zero */
 	// // atomic_set(&epoch->remaining_tokens, 0);	
-	// dcacp_xmit_token(epoch);
+	// dcpim_xmit_token(epoch);
 	// spin_unlock(&epoch->lock);
 
- 	// queue_work(dcacp_epoch.wq, &dcacp_epoch.token_xmit_struct);
+ 	// queue_work(dcpim_epoch.wq, &dcpim_epoch.token_xmit_struct);
 	return HRTIMER_NORESTART;
 
 }
 
-enum hrtimer_restart dcacp_sender_round_timer_handler(struct hrtimer *timer) {
-	// struct dcacp_grant* grant, temp;
-	struct dcacp_epoch *epoch = container_of(timer, struct dcacp_epoch, sender_round_timer);
+enum hrtimer_restart dcpim_sender_round_timer_handler(struct hrtimer *timer) {
+	// struct dcpim_grant* grant, temp;
+	struct dcpim_epoch *epoch = container_of(timer, struct dcpim_epoch, sender_round_timer);
 	int forward_time = 0;
 	/* ToDo: add record mechansim for missing timers */
 	forward_time = hrtimer_forward_now(timer, ns_to_ktime(epoch->round_length));
 	if(forward_time > 1) {
 		epoch->round += forward_time - 1;
-		if(epoch->round >= dcacp_params.num_rounds) {
-			epoch->epoch += epoch->round / dcacp_params.num_rounds;
-			epoch->round = epoch->round %  dcacp_params.num_rounds;
+		if(epoch->round >= dcpim_params.num_rounds) {
+			epoch->epoch += epoch->round / dcpim_params.num_rounds;
+			epoch->round = epoch->round %  dcpim_params.num_rounds;
 		}
 	}
 	// if(epoch->epoch == 0 && epoch->round == 0 && hrtimer_get_expires_tv64(timer) % epoch->epoch_length != 0) {
 	// 	return 	HRTIMER_RESTART;
 	// }
 	queue_work_on(epoch->cpu, epoch->wq, &epoch->sender_matching_work);
- 	// queue_work(dcacp_epoch.wq, &dcacp_epoch.token_xmit_struct);
+ 	// queue_work(dcpim_epoch.wq, &dcpim_epoch.token_xmit_struct);
 	return HRTIMER_RESTART;
 }
 
-enum hrtimer_restart dcacp_receiver_round_timer_handler(struct hrtimer *timer) {
-	// struct dcacp_grant* grant, temp;
-	struct dcacp_epoch *epoch = container_of(timer, struct dcacp_epoch, receiver_round_timer);
+enum hrtimer_restart dcpim_receiver_round_timer_handler(struct hrtimer *timer) {
+	// struct dcpim_grant* grant, temp;
+	struct dcpim_epoch *epoch = container_of(timer, struct dcpim_epoch, receiver_round_timer);
 	/* ToDo: add record mechansim for missing timers */
 	hrtimer_forward_now(timer, ns_to_ktime(epoch->round_length));
 	queue_work_on(epoch->cpu, epoch->wq, &epoch->receiver_matching_work);
- 	// queue_work(dcacp_epoch.wq, &dcacp_epoch.token_xmit_struct);
+ 	// queue_work(dcpim_epoch.wq, &dcpim_epoch.token_xmit_struct);
 	return HRTIMER_RESTART;
 }
 
-void dcacp_match_entry_init(struct dcacp_match_entry* entry, __be32 addr, 
+void dcpim_match_entry_init(struct dcpim_match_entry* entry, __be32 addr, 
  bool(*comp)(const struct list_head*, const struct list_head*)) {
 	spin_lock_init(&entry->lock);
-	dcacp_pq_init(&entry->pq, comp);
+	dcpim_pq_init(&entry->pq, comp);
 	INIT_HLIST_NODE(&entry->hash_link);
 	INIT_LIST_HEAD(&entry->list_link);
-	// struct dcacp_peer *peer;
+	// struct dcpim_peer *peer;
 	entry->dst_addr = addr;
 }
 
-void dcacp_mattab_init(struct dcacp_match_tab *table,
+void dcpim_mattab_init(struct dcpim_match_tab *table,
 	bool(*comp)(const struct list_head*, const struct list_head*)) {
 	int i;
 	// int ret, opt;
-	// struct dcacp_peer *peer;
+	// struct dcpim_peer *peer;
 	// struct inet_sock *inet;
 	spin_lock_init(&table->lock);
 	INIT_LIST_HEAD(&table->hash_list);
 
 	table->comp = comp;
-	printk("size of match entry: %lu\n", sizeof(struct dcacp_match_entry));
-	table->buckets = kmalloc(sizeof(struct dcacp_match_slot) * DCACP_MATCH_BUCKETS, GFP_KERNEL);
-	for (i = 0; i < DCACP_MATCH_BUCKETS; i++) {
+	printk("size of match entry: %lu\n", sizeof(struct dcpim_match_entry));
+	table->buckets = kmalloc(sizeof(struct dcpim_match_slot) * DCPIM_MATCH_BUCKETS, GFP_KERNEL);
+	for (i = 0; i < DCPIM_MATCH_BUCKETS; i++) {
 		spin_lock_init(&table->buckets[i].lock);
 		INIT_HLIST_HEAD(&table->buckets[i].head);
 		table->buckets[i].count = 0;
 	}
 	// inet = inet_sk(table->sock->sk);
-	// peer =  dcacp_peer_find(&dcacp_peers_table, 167772169, inet);
-	// dcacp_xmit_control(construct_rts_pkt(table->sock->sk, 1, 2, 3), peer, table->sock->sk, 3000);
+	// peer =  dcpim_peer_find(&dcpim_peers_table, 167772169, inet);
+	// dcpim_xmit_control(construct_rts_pkt(table->sock->sk, 1, 2, 3), peer, table->sock->sk, 3000);
 
 	return;
 }
 
-void dcacp_mattab_destroy(struct dcacp_match_tab *table) {
+void dcpim_mattab_destroy(struct dcpim_match_tab *table) {
 	int i = 0, j = 0;
-	struct dcacp_match_slot *bucket = NULL;
-	struct dcacp_match_entry *entry;
+	struct dcpim_match_slot *bucket = NULL;
+	struct dcpim_match_entry *entry;
 	struct hlist_node *n;
 	printk("start to remove match table\n");
-	for (i = 0; i < DCACP_MATCH_BUCKETS; i++) {
+	for (i = 0; i < DCPIM_MATCH_BUCKETS; i++) {
 		bucket = &table->buckets[i];
 		spin_lock_bh(&bucket->lock);
 		for (j = 0; j < bucket->count; j++) {
@@ -167,17 +167,17 @@ void dcacp_mattab_destroy(struct dcacp_match_tab *table) {
 }
 
 // lock order: bucket_lock > other two locks
-void dcacp_mattab_add_new_sock(struct dcacp_match_tab *table, struct sock* sk) {
-	struct dcacp_sock *dsk = dcacp_sk(sk);
+void dcpim_mattab_add_new_sock(struct dcpim_match_tab *table, struct sock* sk) {
+	struct dcpim_sock *dsk = dcpim_sk(sk);
 	struct inet_sock *inet = inet_sk(sk); 
-	struct dcacp_match_slot *bucket = dcacp_match_bucket(table, inet->inet_daddr);
-	struct dcacp_match_entry *match_entry = NULL;
+	struct dcpim_match_slot *bucket = dcpim_match_bucket(table, inet->inet_daddr);
+	struct dcpim_match_entry *match_entry = NULL;
 	spin_lock_bh(&bucket->lock);
 	hlist_for_each_entry(match_entry, &bucket->head,
 			hash_link) {
 		if (match_entry->dst_addr == inet->inet_daddr) {
 			spin_lock(&match_entry->lock);
-			dcacp_pq_push(&match_entry->pq, &dsk->match_link);
+			dcpim_pq_push(&match_entry->pq, &dsk->match_link);
 			spin_unlock(&match_entry->lock);
 			spin_unlock_bh(&bucket->lock);
 			return;
@@ -186,9 +186,9 @@ void dcacp_mattab_add_new_sock(struct dcacp_match_tab *table, struct sock* sk) {
 	}
 
 	// create new match entry
-	match_entry = kmalloc(sizeof(struct dcacp_match_entry), GFP_KERNEL);
-	dcacp_match_entry_init(match_entry, inet->inet_daddr, table->comp);
-	dcacp_pq_push(&match_entry->pq, &dsk->match_link);
+	match_entry = kmalloc(sizeof(struct dcpim_match_entry), GFP_KERNEL);
+	dcpim_match_entry_init(match_entry, inet->inet_daddr, table->comp);
+	dcpim_pq_push(&match_entry->pq, &dsk->match_link);
 	hlist_add_head(&match_entry->hash_link, &bucket->head);
 	bucket->count += 1;
 	// add this entry to the hash list
@@ -199,11 +199,11 @@ void dcacp_mattab_add_new_sock(struct dcacp_match_tab *table, struct sock* sk) {
 	spin_unlock_bh(&bucket->lock);
 }
 
-void dcacp_mattab_delete_sock(struct dcacp_match_tab *table, struct sock* sk) {
-	struct dcacp_sock *dsk = dcacp_sk(sk);
+void dcpim_mattab_delete_sock(struct dcpim_match_tab *table, struct sock* sk) {
+	struct dcpim_sock *dsk = dcpim_sk(sk);
 	struct inet_sock *inet = inet_sk(sk); 
-	struct dcacp_match_slot *bucket = dcacp_match_bucket(table, inet->inet_daddr);
-	struct dcacp_match_entry *match_entry = NULL;
+	struct dcpim_match_slot *bucket = dcpim_match_bucket(table, inet->inet_daddr);
+	struct dcpim_match_entry *match_entry = NULL;
 	// bool empty = false;
 	spin_lock_bh(&bucket->lock);
 	hlist_for_each_entry(match_entry, &bucket->head,
@@ -216,7 +216,7 @@ void dcacp_mattab_delete_sock(struct dcacp_match_tab *table, struct sock* sk) {
 	if(match_entry != NULL) {
 		spin_lock(&match_entry->lock);
 		// assume the msg still in the list, which might not be true'
-		dcacp_pq_delete(&match_entry->pq, &dsk->match_link);
+		dcpim_pq_delete(&match_entry->pq, &dsk->match_link);
 		spin_unlock(&match_entry->lock);
 	}
 
@@ -224,16 +224,16 @@ void dcacp_mattab_delete_sock(struct dcacp_match_tab *table, struct sock* sk) {
 
 }
 
-void dcacp_mattab_delete_match_entry(struct dcacp_match_tab *table, struct dcacp_match_entry* entry) {
+void dcpim_mattab_delete_match_entry(struct dcpim_match_tab *table, struct dcpim_match_entry* entry) {
 	return;
 }
 
-void dcacp_epoch_init(struct dcacp_epoch *epoch) {
+void dcpim_epoch_init(struct dcpim_epoch *epoch) {
 	// int ret;
 	// ktime_t now;
 	// s64 time;
 	// struct inet_sock *inet;
-	// struct dcacp_peer* peer;
+	// struct dcpim_peer* peer;
 	epoch->epoch = 0;
 	epoch->round = 0;
 	epoch->k = 4;
@@ -247,9 +247,9 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 	epoch->rts_size = 0;
 	// epoch->min_rts = NULL;
 	// epoch->min_grant = NULL;
-	epoch->epoch_length = dcacp_params.epoch_length;
-	epoch->round_length = dcacp_params.round_length;
-	epoch->epoch_bytes_per_k = epoch->epoch_length * dcacp_params.bandwidth / 8 / epoch->k;
+	epoch->epoch_length = dcpim_params.epoch_length;
+	epoch->round_length = dcpim_params.round_length;
+	epoch->epoch_bytes_per_k = epoch->epoch_length * dcpim_params.bandwidth / 8 / epoch->k;
 	epoch->epoch_bytes = epoch->epoch_bytes_per_k * epoch->k;
 
 	// struct rte_timer epoch_timer;
@@ -263,9 +263,9 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 	// epoch->cur_match_src_addr = 0;
 	// epoch->cur_match_dst_addr = 0;
 	epoch->cpu = 28;
-	// ret = sock_create(AF_INET, SOCK_DGRAM, IPPROTO_DCACP, &epoch->sock);
+	// ret = sock_create(AF_INET, SOCK_DGRAM, IPPROTO_DCPIM, &epoch->sock);
 	// inet = inet_sk(epoch->sock->sk);
-	// peer =  dcacp_peer_find(&dcacp_peers_table, 167772169, inet);
+	// peer =  dcpim_peer_find(&dcpim_peers_table, 167772169, inet);
 
 	// if(ret) {
 	// 	printk("fail to create socket\n");
@@ -280,11 +280,11 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 	// atomic_set(&epoch->pending_flows, 0);
 
 	// hrtimer_init(&epoch->token_xmit_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
-	// epoch->token_xmit_timer.function = &dcacp_token_xmit_event;
+	// epoch->token_xmit_timer.function = &dcpim_token_xmit_event;
 
-	// INIT_WORK(&epoch->token_xmit_struct, dcacp_xmit_token_handler);
+	// INIT_WORK(&epoch->token_xmit_struct, dcpim_xmit_token_handler);
 	/* pHost Queue */
-	dcacp_pq_init(&epoch->flow_q, flow_compare);
+	dcpim_pq_init(&epoch->flow_q, flow_compare);
 
 
 
@@ -297,15 +297,15 @@ void dcacp_epoch_init(struct dcacp_epoch *epoch) {
 	// hrtimer_init(&epoch->epoch_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
 	hrtimer_init(&epoch->sender_round_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
 	hrtimer_init(&epoch->receiver_round_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
-	epoch->sender_round_timer.function = &dcacp_sender_round_timer_handler;
-	epoch->receiver_round_timer.function = &dcacp_receiver_round_timer_handler;
+	epoch->sender_round_timer.function = &dcpim_sender_round_timer_handler;
+	epoch->receiver_round_timer.function = &dcpim_receiver_round_timer_handler;
 	queue_work_on(epoch->cpu, epoch->wq, &epoch->epoch_work);
-	// epoch->epoch_timer.function = &dcacp_new_epoch;
+	// epoch->epoch_timer.function = &dcpim_new_epoch;
 }
 
-void dcacp_epoch_destroy(struct dcacp_epoch *epoch) {
-	struct dcacp_rts *rts, *temp;
-	struct dcacp_grant *grant, *temp2;
+void dcpim_epoch_destroy(struct dcpim_epoch *epoch) {
+	struct dcpim_rts *rts, *temp;
+	struct dcpim_grant *grant, *temp2;
 	// struct socket *sk;
 	// hrtimer_cancel(&epoch->epoch_timer);
 	hrtimer_cancel(&epoch->sender_round_timer);
@@ -322,27 +322,27 @@ void dcacp_epoch_destroy(struct dcacp_epoch *epoch) {
 		kfree(grant);
 	}
 	spin_unlock_bh(&epoch->lock);
-	/* dcacp_destroy_sock needs to hold the epoch lock */
+	/* dcpim_destroy_sock needs to hold the epoch lock */
     // sock_release(sk);
 
 }
-void dcacp_send_all_rts (struct dcacp_epoch* epoch) {
-	// struct dcacp_match_entry *entry = NULL;
- 	// struct dcacp_peer *peer;
+void dcpim_send_all_rts (struct dcpim_epoch* epoch) {
+	// struct dcpim_match_entry *entry = NULL;
+ 	// struct dcpim_peer *peer;
 	// struct inet_sock *inet;
 	// struct sk_buff* pkt;
 
 	// spin_lock(&table->lock);
 	// list_for_each_entry(entry, &table->hash_list, list_link) {
 	// 	struct list_head *list_head = NULL;
-	// 	struct dcacp_sock *dsk = NULL;
+	// 	struct dcpim_sock *dsk = NULL;
 	// 	spin_lock(&entry->lock);
-	// 	list_head = dcacp_pq_peek(&entry->pq);
+	// 	list_head = dcpim_pq_peek(&entry->pq);
 	// 	if(list_head != NULL) {
 			// don't need to hold dsk lock, beacuase holding the priority lock
-			// dsk = list_entry(list_head, struct dcacp_sock, match_link);
+			// dsk = list_entry(list_head, struct dcpim_sock, match_link);
 			// send rts
-			dcacp_xmit_control(construct_rts_pkt((struct sock*)fake_sk, 
+			dcpim_xmit_control(construct_rts_pkt((struct sock*)fake_sk, 
 				epoch->round, epoch->epoch, 50000), (struct sock*)fake_sk);
 		// }
 		// spin_unlock(&entry->lock);
@@ -350,9 +350,9 @@ void dcacp_send_all_rts (struct dcacp_epoch* epoch) {
 	// if(epoch->sock != NULL) {
 	// 	inet = inet_sk(epoch->sock->sk);
 	// 	// printk("inet is null: %d\n", inet == NULL);
-	// 	peer =  dcacp_peer_find(&dcacp_peers_table, 167772169, inet);
+	// 	peer =  dcpim_peer_find(&dcpim_peers_table, 167772169, inet);
 	// 	pkt = construct_rts_pkt(epoch->sock->sk, epoch->iter, epoch->epoch, 3);
-	// 	dcacp_xmit_control(pkt, peer, epoch->sock->sk, 3000);
+	// 	dcpim_xmit_control(pkt, peer, epoch->sock->sk, 3000);
 
 	// }
 
@@ -361,15 +361,15 @@ void dcacp_send_all_rts (struct dcacp_epoch* epoch) {
 
 }
 
-int dcacp_handle_rts (struct sk_buff *skb, struct dcacp_epoch *epoch) {
-	struct dcacp_rts *rts;
+int dcpim_handle_rts (struct sk_buff *skb, struct dcpim_epoch *epoch) {
+	struct dcpim_rts *rts;
 
-	struct dcacp_rts_hdr *rh;
+	struct dcpim_rts_hdr *rh;
 	// struct iphdr *iph;
 	struct sock* sk;
 	bool refcounted = false;
 	int sdif = inet_sdif(skb);
-	if (!pskb_may_pull(skb, sizeof(struct dcacp_rts_hdr)))
+	if (!pskb_may_pull(skb, sizeof(struct dcpim_rts_hdr)))
 		goto drop;		/* No space for header. */
 	// spin_lock_bh(&epoch->lock);
 	// if(epoch->sock == NULL) {
@@ -378,19 +378,19 @@ int dcacp_handle_rts (struct sk_buff *skb, struct dcacp_epoch *epoch) {
 	// }
 	if(!sk)
 		goto drop;
-	rh = dcacp_rts_hdr(skb);
-	sk = __inet_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&rh->common), rh->common.source,
+	rh = dcpim_rts_hdr(skb);
+	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&rh->common), rh->common.source,
             rh->common.dest, sdif, &refcounted);
 	if(!sk)
 		goto drop;
-	rts = kmalloc(sizeof(struct dcacp_rts), GFP_KERNEL);
+	rts = kmalloc(sizeof(struct dcpim_rts), GFP_KERNEL);
 	INIT_LIST_HEAD(&rts->list_link);
 	// iph = ip_hdr(skb);
 	rts->remaining_sz = rh->remaining_sz;
-	rts->dsk = dcacp_sk(sk);
+	rts->dsk = dcpim_sk(sk);
 	// rts->epoch = rh->epoch; 
 	// rts->iter = rh->iter;
-	// rts->peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet_sk(epoch->sock->sk));
+	// rts->peer = dcpim_peer_find(&dcpim_peers_table, iph->saddr, inet_sk(epoch->sock->sk));
 	// // spin_lock_bh(&epoch->lock);
 	// if (epoch->min_rts == NULL || epoch->min_rts->remaining_sz > rts->remaining_sz) {
 	// 	epoch->min_rts = rts;
@@ -406,8 +406,8 @@ drop:
 	return 0;
 }
 
-void dcacp_handle_all_rts(struct dcacp_epoch *epoch) {
-	struct dcacp_rts *rts, *temp;
+void dcpim_handle_all_rts(struct dcpim_epoch *epoch) {
+	struct dcpim_rts *rts, *temp;
 	uint32_t index = 0;
 	uint32_t i = 0;
 	int granted_bytes = 0;
@@ -415,10 +415,10 @@ void dcacp_handle_all_rts(struct dcacp_epoch *epoch) {
 	// spin_lock_bh(&epoch->lock);
 	// uint32_t iter = READ_ONCE(epoch->iter);
 	// if(epoch->match_dst_addr == 0  && epoch->rts_size > 0) {
-	// 	if (dcacp_params.fct_iter >= iter) {
-	// 		dcacp_xmit_control(construct_grant_pkt(epoch->sock->sk, 
+	// 	if (dcpim_params.fct_iter >= iter) {
+	// 		dcpim_xmit_control(construct_grant_pkt(epoch->sock->sk, 
 	// 			iter, epoch->epoch, epoch->min_rts->remaining_sz, epoch->cur_match_dst_addr == 0), 
-	// 			epoch->min_rts->peer, epoch->sock->sk, dcacp_params.match_socket_port);	
+	// 			epoch->min_rts->peer, epoch->sock->sk, dcpim_params.match_socket_port);	
 	// 	} else {
 	if(epoch->rts_size == 0)
 		return;
@@ -433,7 +433,7 @@ void dcacp_handle_all_rts(struct dcacp_epoch *epoch) {
 			if (i == index) {
 				cur_grant_bytes = min(epoch->unmatched_grant_bytes - granted_bytes, 
 					rts->remaining_sz / epoch->epoch_bytes_per_k * epoch->epoch_bytes_per_k);
-				dcacp_xmit_control(construct_grant_pkt((struct sock*)rts->dsk, 
+				dcpim_xmit_control(construct_grant_pkt((struct sock*)rts->dsk, 
 					epoch->round, epoch->epoch, cur_grant_bytes, 0), (struct sock*)rts->dsk);
 				granted_bytes += cur_grant_bytes;
 				rts->remaining_sz -= cur_grant_bytes;
@@ -453,17 +453,17 @@ void dcacp_handle_all_rts(struct dcacp_epoch *epoch) {
 }
 
 
-int dcacp_handle_grant(struct sk_buff *skb, struct dcacp_epoch *epoch) {
-	struct dcacp_grant *grant;
+int dcpim_handle_grant(struct sk_buff *skb, struct dcpim_epoch *epoch) {
+	struct dcpim_grant *grant;
 	struct sock* sk;
-	struct dcacp_grant_hdr *gh;
+	struct dcpim_grant_hdr *gh;
 	// struct iphdr *iph;
 	bool refcounted = false;
 	int sdif = inet_sdif(skb);
-	if (!pskb_may_pull(skb, sizeof(struct dcacp_grant_hdr)))
+	if (!pskb_may_pull(skb, sizeof(struct dcpim_grant_hdr)))
 		goto drop;		/* No space for header. */
-	gh = dcacp_grant_hdr(skb);
-	sk = __inet_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&gh->common), gh->common.source,
+	gh = dcpim_grant_hdr(skb);
+	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&gh->common), gh->common.source,
             gh->common.dest, sdif, &refcounted);
 	if(!sk)
 		goto drop;
@@ -472,14 +472,14 @@ int dcacp_handle_grant(struct sk_buff *skb, struct dcacp_epoch *epoch) {
 	// 	spin_unlock_bh(&epoch->lock);
 	// 	goto drop;
 	// }
-	grant = kmalloc(sizeof(struct dcacp_grant), GFP_KERNEL);
+	grant = kmalloc(sizeof(struct dcpim_grant), GFP_KERNEL);
 	INIT_LIST_HEAD(&grant->list_link);
 	// iph = ip_hdr(skb);
 	grant->remaining_sz = gh->remaining_sz;
 	// grant->epoch = gh->epoch; 
 	// grant->iter = gh->iter;
 	// grant->prompt = gh->prompt;
-	// grant->peer = dcacp_peer_find(&dcacp_peers_table, iph->saddr, inet_sk(epoch->sock->sk));
+	// grant->peer = dcpim_peer_find(&dcpim_peers_table, iph->saddr, inet_sk(epoch->sock->sk));
 	// if (epoch->min_grant == NULL || epoch->min_grant->remaining_sz > grant->remaining_sz) {
 	// 	epoch->min_grant = grant;
 	// }
@@ -495,8 +495,8 @@ drop:
 	return 0;
 }
 
-void dcacp_handle_all_grants(struct dcacp_epoch *epoch) {
-	struct dcacp_grant *grant, *temp, *resp = NULL;
+void dcpim_handle_all_grants(struct dcpim_epoch *epoch) {
+	struct dcpim_grant *grant, *temp, *resp = NULL;
 	uint32_t index = 0;
 	uint32_t i = 0;
 	int accepted_bytes = 0;
@@ -504,11 +504,11 @@ void dcacp_handle_all_grants(struct dcacp_epoch *epoch) {
 	// spin_lock_bh(&epoch->lock);
 	// uint32_t iter = READ_ONCE(epoch->iter);
 	// if(epoch->match_src_addr == 0 && epoch->grant_size > 0) {
-		// if (dcacp_params.fct_iter >= iter) {
+		// if (dcpim_params.fct_iter >= iter) {
 		// 	// printk("send accept pkt:%d\n", __LINE__);
-		// 	dcacp_xmit_control(construct_accept_pkt(epoch->sock->sk, 
+		// 	dcpim_xmit_control(construct_accept_pkt(epoch->sock->sk, 
 		// 		iter, epoch->epoch), 
-		// 		epoch->min_grant->peer, epoch->sock->sk, dcacp_params.match_socket_port);
+		// 		epoch->min_grant->peer, epoch->sock->sk, dcpim_params.match_socket_port);
 		// 	resp = epoch->min_grant;
 		// } else {
 	if (epoch->grant_size == 0) {
@@ -527,7 +527,7 @@ void dcacp_handle_all_grants(struct dcacp_epoch *epoch) {
 				// printk("send accept pkt:%d\n", __LINE__);
 				cur_accepted_bytes = min(epoch->unmatched_accept_bytes - accepted_bytes, 
 					(grant->remaining_sz / epoch->epoch_bytes_per_k) * epoch->epoch_bytes_per_k);
-				dcacp_xmit_control(construct_accept_pkt((struct sock*)grant->dsk, 
+				dcpim_xmit_control(construct_accept_pkt((struct sock*)grant->dsk, 
 					epoch->round, epoch->epoch, cur_accepted_bytes), (struct sock*)grant->dsk);
 				accepted_bytes += cur_accepted_bytes;
 				grant->remaining_sz -= cur_accepted_bytes;
@@ -546,14 +546,14 @@ void dcacp_handle_all_grants(struct dcacp_epoch *epoch) {
 	// spin_unlock_bh(&epoch->lock);
 }
 
-// int dcacp_handle_accept(struct sk_buff *skb, struct dcacp_match_tab *table, struct dcacp_epoch *epoch) {
-// 	struct dcacp_accept_hdr *ah;
+// int dcpim_handle_accept(struct sk_buff *skb, struct dcpim_match_tab *table, struct dcpim_epoch *epoch) {
+// 	struct dcpim_accept_hdr *ah;
 // 	struct iphdr *iph;
 
-// 	if (!pskb_may_pull(skb, sizeof(struct dcacp_accept_hdr)))
+// 	if (!pskb_may_pull(skb, sizeof(struct dcpim_accept_hdr)))
 // 		goto drop;		/* No space for header. */
 // 	iph = ip_hdr(skb);
-// 	ah = dcacp_accept_hdr(skb);
+// 	ah = dcpim_accept_hdr(skb);
 // 	printk("receive accept pkt: %llu\n", ah->epoch);
 // 	spin_lock_bh(&epoch->lock);
 // 	if(epoch->match_dst_addr == 0)
@@ -573,7 +573,7 @@ void dcacp_handle_all_grants(struct dcacp_epoch *epoch) {
  * Return 2 if timer is setup.
  */
 
-// int rtx_bytes_count(struct dcacp_sock* dsk, __u32 prev_grant_nxt) {
+// int rtx_bytes_count(struct dcpim_sock* dsk, __u32 prev_grant_nxt) {
 // 	int retransmit_bytes = 0; 
 // 	if(dsk->receiver.rcv_nxt < prev_grant_nxt) {
 // 		int i = 0;
@@ -594,7 +594,7 @@ void dcacp_handle_all_grants(struct dcacp_epoch *epoch) {
 // 			i++;
 // 		}
 // 		retransmit_bytes = prev_grant_nxt - dsk->receiver.rcv_nxt - sum;
-// 		// atomic_add_return(retransmit_bytes, &dcacp_epoch.remaining_tokens);
+// 		// atomic_add_return(retransmit_bytes, &dcpim_epoch.remaining_tokens);
 // 	} 
 // 	return retransmit_bytes;
 // }
@@ -605,27 +605,27 @@ void dcacp_handle_all_grants(struct dcacp_epoch *epoch) {
  // ktime_t start2,end2;
  // __u64 num_tokens = 0;
  // ktime_t total_time = 0;
-// void dcacp_xmit_token(struct dcacp_epoch *epoch) {
+// void dcpim_xmit_token(struct dcpim_epoch *epoch) {
 // 	struct list_head *match_link;
 // 	struct sock *sk;
-// 	struct dcacp_sock *dsk;
+// 	struct dcpim_sock *dsk;
 // 	struct inet_sock *inet;
 // 		// start2 = ktime_get();
-// 	// printk("dcacp xmit token\n");
-// 	while(!dcacp_pq_empty(&epoch->flow_q)) {
+// 	// printk("dcpim xmit token\n");
+// 	while(!dcpim_pq_empty(&epoch->flow_q)) {
 // 		bool not_push_bk = false;
-// 		if(atomic_read(&dcacp_epoch.remaining_tokens) >= dcacp_params.control_pkt_bdp / 2 
-// 			&& atomic_read(&dcacp_epoch.remaining_tokens) != 0) {
+// 		if(atomic_read(&dcpim_epoch.remaining_tokens) >= dcpim_params.control_pkt_bdp / 2 
+// 			&& atomic_read(&dcpim_epoch.remaining_tokens) != 0) {
 // 			// WARN_ON(true);
 // 			return;
 // 		}
-// 		match_link = dcacp_pq_peek(&epoch->flow_q);
-// 		dsk =  list_entry(match_link, struct dcacp_sock, match_link);
+// 		match_link = dcpim_pq_peek(&epoch->flow_q);
+// 		dsk =  list_entry(match_link, struct dcpim_sock, match_link);
 // 		sk = (struct sock*)dsk;
 // 		inet = inet_sk(sk);
-// 		dcacp_pq_pop(&epoch->flow_q);
+// 		dcpim_pq_pop(&epoch->flow_q);
 //  		bh_lock_sock(sk);
-//  		if(sk->sk_state == DCACP_ESTABLISHED) {
+//  		if(sk->sk_state == DCPIM_ESTABLISHED) {
 //  			dsk->receiver.prev_grant_bytes = 0;
 // 	 		if (!sock_owned_by_user(sk)) {
 // 	 			int grant_bytes = calc_grant_bytes(sk);
@@ -635,19 +635,19 @@ void dcacp_handle_all_grants(struct dcacp_epoch *epoch) {
 // 					dsk->prev_grant_nxt = dsk->grant_nxt;
 // 					dsk->grant_nxt = dsk->new_grant_nxt;
 // 		  			if (!not_push_bk){
-// 		  				dcacp_pq_push(&epoch->flow_q, &dsk->match_link);
+// 		  				dcpim_pq_push(&epoch->flow_q, &dsk->match_link);
 // 		  			}
 // 		 		}
 // 		 		else {
 // 	 				// xmit_batch_token(sk, grant_bytes, true);
-// 					// atomic_add(dsk->receiver.grant_batch, &dcacp_epoch.remaining_tokens);
+// 					// atomic_add(dsk->receiver.grant_batch, &dcpim_epoch.remaining_tokens);
 // 					// printk("set timer deferred 1\n");
-// 	 				test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+// 	 				test_and_set_bit(DCPIM_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
 // 		 		}
 
 // 	 		// 	if (grant_bytes < dsk->receiver.grant_batch) {
 // 				// 	printk("RMEM_LIMIT\n");
-// 			 //    	test_and_set_bit(DCACP_RMEM_CHECK_DEFERRED, &sk->sk_tsq_flags);
+// 			 //    	test_and_set_bit(DCPIM_RMEM_CHECK_DEFERRED, &sk->sk_tsq_flags);
 // 			 //    	goto unlock;
 // 				// } else {
 					
@@ -661,9 +661,9 @@ void dcacp_handle_all_grants(struct dcacp_epoch *epoch) {
 // 	 			// atomic_add(dsk->receiver.grant_batch, &epoch->remaining_tokens);
 // 	 			// atomic_add(dsk=>receiver.);
 // 	 			/* pre-assign the largest number of tokens; will be deleted later */
-// 				// atomic_add(dsk->receiver.grant_batch, &dcacp_epoch.remaining_tokens);
+// 				// atomic_add(dsk->receiver.grant_batch, &dcpim_epoch.remaining_tokens);
 // 				// printk("set timer deferred\n");
-// 	 			test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+// 	 			test_and_set_bit(DCPIM_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
 // 	 		}
 //  		} else {
 //  			goto unlock;
@@ -674,10 +674,10 @@ void dcacp_handle_all_grants(struct dcacp_epoch *epoch) {
 // unlock:
 //         bh_unlock_sock(sk);
 // 	}
-// 	if (!dcacp_pq_empty(&epoch->flow_q)) {
-// 		// printk("timer expire time:%d\n", dcacp_params.rtt * 10 * 1000);
-// 		// hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0, dcacp_params.rtt * 10 * 1000), HRTIMER_MODE_REL);
-// 		// dcacp_epoch.token_xmit_timer.function = &dcacp_token_xmit_event;
+// 	if (!dcpim_pq_empty(&epoch->flow_q)) {
+// 		// printk("timer expire time:%d\n", dcpim_params.rtt * 10 * 1000);
+// 		// hrtimer_start(&dcpim_epoch.token_xmit_timer, ktime_set(0, dcpim_params.rtt * 10 * 1000), HRTIMER_MODE_REL);
+// 		// dcpim_epoch.token_xmit_timer.function = &dcpim_token_xmit_event;
 // 	}
 	// end2 = ktime_get();
 	// total_time = ktime_add(total_time, ktime_sub(end2, start2));
@@ -689,17 +689,17 @@ void dcacp_handle_all_grants(struct dcacp_epoch *epoch) {
 	// }
 // }
 
-// void dcacp_xmit_token_handler(struct work_struct *work) {
-	// struct dcacp_epoch *epoch = container_of(work, struct dcacp_epoch, token_xmit_struct);
+// void dcpim_xmit_token_handler(struct work_struct *work) {
+	// struct dcpim_epoch *epoch = container_of(work, struct dcpim_epoch, token_xmit_struct);
 // }
 
 // enum hrtimer_restart receiver_iter_event(struct hrtimer *timer) {
-// 	// struct dcacp_grant* grant, temp;
+// 	// struct dcpim_grant* grant, temp;
 //  	uint32_t iter;
-//  	hrtimer_forward(timer, hrtimer_cb_get_time(timer), ktime_set(0, dcacp_params.iter_size));
-//  	queue_work(dcacp_epoch.wq, &dcacp_epoch.receiver_iter_struct);
-//  	iter = READ_ONCE(dcacp_epoch.iter);
-//  	if(iter >= dcacp_params.num_iters) {
+//  	hrtimer_forward(timer, hrtimer_cb_get_time(timer), ktime_set(0, dcpim_params.iter_size));
+//  	queue_work(dcpim_epoch.wq, &dcpim_epoch.receiver_iter_struct);
+//  	iter = READ_ONCE(dcpim_epoch.iter);
+//  	if(iter >= dcpim_params.num_iters) {
 //  		return HRTIMER_NORESTART;
 //  	}
 // 	return HRTIMER_RESTART;
@@ -708,31 +708,31 @@ void dcacp_handle_all_grants(struct dcacp_epoch *epoch) {
 
 // enum hrtimer_restart sender_iter_event(struct hrtimer *timer) {
 //  	uint32_t iter;
-//  	hrtimer_forward(timer,hrtimer_cb_get_time(timer),ktime_set(0, dcacp_params.iter_size));
-//  	queue_work(dcacp_epoch.wq, &dcacp_epoch.sender_iter_struct);
+//  	hrtimer_forward(timer,hrtimer_cb_get_time(timer),ktime_set(0, dcpim_params.iter_size));
+//  	queue_work(dcpim_epoch.wq, &dcpim_epoch.sender_iter_struct);
 
 //  	// js = ktime_get_ns();
-//  	iter = READ_ONCE(dcacp_epoch.iter);
+//  	iter = READ_ONCE(dcpim_epoch.iter);
 
-//  	if(iter >= dcacp_params.num_iters) {
+//  	if(iter >= dcpim_params.num_iters) {
 //  		return HRTIMER_NORESTART;
 //  	}
 // 	return HRTIMER_RESTART;
 
 // }
 
-// enum hrtimer_restart dcacp_new_epoch(struct hrtimer *timer) {
+// enum hrtimer_restart dcpim_new_epoch(struct hrtimer *timer) {
 
-//  	hrtimer_forward(timer,hrtimer_cb_get_time(timer),ktime_set(0,dcacp_params.epoch_size));
-// 	dcacp_epoch.epoch += 1;
-// 	WRITE_ONCE(dcacp_epoch.iter, 0);
-// 	dcacp_epoch.match_src_addr = 0;
-// 	dcacp_epoch.match_dst_addr = 0;
-// 	dcacp_epoch.prompt = false;
-// 	hrtimer_start(&dcacp_epoch.receiver_iter_timer, ktime_set(0, 0), HRTIMER_MODE_ABS);
-// 	dcacp_epoch.receiver_iter_timer.function = &receiver_iter_event;
-// 	hrtimer_start(&dcacp_epoch.sender_iter_timer, ktime_set(0, dcacp_params.iter_size / 2), HRTIMER_MODE_ABS);
-// 	dcacp_epoch.sender_iter_timer.function = &sender_iter_event;
+//  	hrtimer_forward(timer,hrtimer_cb_get_time(timer),ktime_set(0,dcpim_params.epoch_size));
+// 	dcpim_epoch.epoch += 1;
+// 	WRITE_ONCE(dcpim_epoch.iter, 0);
+// 	dcpim_epoch.match_src_addr = 0;
+// 	dcpim_epoch.match_dst_addr = 0;
+// 	dcpim_epoch.prompt = false;
+// 	hrtimer_start(&dcpim_epoch.receiver_iter_timer, ktime_set(0, 0), HRTIMER_MODE_ABS);
+// 	dcpim_epoch.receiver_iter_timer.function = &receiver_iter_event;
+// 	hrtimer_start(&dcpim_epoch.sender_iter_timer, ktime_set(0, dcpim_params.iter_size / 2), HRTIMER_MODE_ABS);
+// 	dcpim_epoch.sender_iter_timer.function = &sender_iter_event;
 
 // 	return HRTIMER_RESTART;
 // }

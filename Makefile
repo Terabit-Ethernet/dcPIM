@@ -1,23 +1,23 @@
 # Makefile to build DCACP as a Linux module.
 
-obj-m += dcacp_module.o
-dcacp_module-y = dcacp_sock.o\
-				 dcacp_hashtables.o \
-				 dcacp_pq.o \
-				 dcacp_message.o\
-				 dcacp_matching.o\
-				 dcacp_incoming.o\
-				 dcacp_outgoing.o \
-				 dcacp.o \
-				 dcacp_scheduling.o\
-				 dcacp_offload.o\
-				 dcacp_plumbing.o
+obj-m += dcpim_module.o
+dcpim_module-y = dcpim_sock.o\
+				 dcpim_hashtables.o \
+				 dcpim_pq.o \
+				 dcpim_message.o\
+				 dcpim_matching.o\
+				 dcpim_incoming.o\
+				 dcpim_outgoing.o \
+				 dcpim.o \
+				 dcpim_scheduling.o\
+				 dcpim_offload.o\
+				 dcpim_plumbing.o
 
-# dcacp.o \
-#             dcacplite.o \
-#             dcacp_offload.o \
-#             dcacp_tunnel.o \
-#  			/dcacp_diag.o
+# dcpim.o \
+#             dcpimlite.o \
+#             dcpim_offload.o \
+#             dcpim_tunnel.o \
+#  			/dcpim_diag.o
 MY_CFLAGS += -g
 ccflags-y += ${MY_CFLAGS}
 CC += ${MY_CFLAGS}
@@ -26,7 +26,7 @@ all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 	
 check:
-	../dcacpLinux/scripts/kernel-doc -none *.c
+	../dcpimLinux/scripts/kernel-doc -none *.c
 
 clean:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean

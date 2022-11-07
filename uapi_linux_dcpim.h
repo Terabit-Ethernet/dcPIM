@@ -4,9 +4,9 @@
  *		operating system.  INET is implemented using the  BSD Socket
  *		interface as the means of communication with the user level.
  *
- *		Definitions for the DCACP protocol.
+ *		Definitions for the DCPIM protocol.
  *
- * Version:	@(#)dcacp.h	1.0.2	04/28/93
+ * Version:	@(#)dcpim.h	1.0.2	04/28/93
  *
  * Author:	Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
  *
@@ -15,21 +15,21 @@
  *		as published by the Free Software Foundation; either version
  *		2 of the License, or (at your option) any later version.
  */
-#ifndef _UAPI_LINUX_DCACP_H
-#define _UAPI_LINUX_DCACP_H
+#ifndef _UAPI_LINUX_DCPIM_H
+#define _UAPI_LINUX_DCPIM_H
 
 #include <linux/types.h>
 
-/* include all headers not just DCACP */
-#define DCACP_HEADER_MAX_SIZE 128 +  MAX_HEADER
+/* include all headers not just DCPIM */
+#define DCPIM_HEADER_MAX_SIZE 128 +  MAX_HEADER
 
-#define DCACP_MAX_MESSAGE_LENGTH 1000000
+#define DCPIM_MAX_MESSAGE_LENGTH 1000000
 /**
- * enum dcacp_packet_type - Defines the possible types of DCACP packets.
+ * enum dcpim_packet_type - Defines the possible types of DCPIM packets.
  * 
  * See the xxx_header structs below for more information about each type.
  */
-enum dcacp_packet_type {
+enum dcpim_packet_type {
 	// For Phost
 	DATA               = 20,
 	TOKEN              = 21,
@@ -43,12 +43,12 @@ enum dcacp_packet_type {
 	FIN              = 27,
 };
 
-struct dcacphdr {
+struct dcpimhdr {
 	__be16	source;
 	__be16	dest;
 	/**
 	 * @unused1: corresponds to the sequence number field in TCP headers;
-	 * must not be used by DCACP, in case it gets incremented during TCP
+	 * must not be used by DCPIM, in case it gets incremented during TCP
 	 * offload.
 	 */
 	__be32 seq;
@@ -67,7 +67,7 @@ struct dcacphdr {
 
 	/**
 	 * @gro_count: value on the wire is undefined. Used only by
-	 * dcacp_offload.c (it counts the total number of packets aggregated
+	 * dcpim_offload.c (it counts the total number of packets aggregated
 	 * into this packet, including the top-level packet). Unused for now
 	 */
 	__u16 gro_count;
@@ -108,8 +108,8 @@ struct data_segment {
 	char data[0];
 } __attribute__((packed));
 
-struct dcacp_data_hdr {
-	struct dcacphdr common;
+struct dcpim_data_hdr {
+	struct dcpimhdr common;
 	__u8 free_token;
 	/* padding*/
 	__u8 unused1;
@@ -122,16 +122,16 @@ struct dcacp_data_hdr {
     struct data_segment seg;
 } __attribute__((packed));
 
-// _Static_assert(sizeof(struct dcacp_data_hdr) <= DCACP_HEADER_MAX_SIZE,
+// _Static_assert(sizeof(struct dcpim_data_hdr) <= DCPIM_HEADER_MAX_SIZE,
 // 		"data_header too large");
 
-// _Static_assert(((sizeof(struct dcacp_data_hdr) - sizeof(struct data_segment))
+// _Static_assert(((sizeof(struct dcpim_data_hdr) - sizeof(struct data_segment))
 // 		& 0x3) == 0,
 // 		" data_header length not a multiple of 4 bytes (required "
 // 		"for TCP/TSO compatibility");
 
-struct dcacp_token_hdr {
-	struct dcacphdr common;
+struct dcpim_token_hdr {
+	struct dcpimhdr common;
 	__be32 rcv_nxt;
 	__be32 token_nxt;
 	__u8 priority;
@@ -139,41 +139,41 @@ struct dcacp_token_hdr {
 	/* token seq number */
 }__attribute__((packed));
 
-// _Static_assert(sizeof(struct dcacp_token_hdr) <= DCACP_HEADER_MAX_SIZE,
+// _Static_assert(sizeof(struct dcpim_token_hdr) <= DCPIM_HEADER_MAX_SIZE,
 // 		"token_header too large");
 
-struct dcacp_flow_sync_hdr {
-	struct dcacphdr common;
+struct dcpim_flow_sync_hdr {
+	struct dcpimhdr common;
 	__be64 flow_id;
 	__be32 flow_size;
 	__be64 start_time;
 };
-// _Static_assert(sizeof(struct dcacp_flow_sync_hdr) <= DCACP_HEADER_MAX_SIZE,
+// _Static_assert(sizeof(struct dcpim_flow_sync_hdr) <= DCPIM_HEADER_MAX_SIZE,
 // 		"flow_sync_header too large");
 
-struct dcacp_ack_hdr {
-	struct dcacphdr common;
+struct dcpim_ack_hdr {
+	struct dcpimhdr common;
 	__be32 rcv_nxt;
 };
-// _Static_assert(sizeof(struct dcacp_ack_hdr) <= DCACP_HEADER_MAX_SIZE,
-// 		"dcacp_ack_header too large");
-struct dcacp_rts_hdr {
-	struct dcacphdr common;
+// _Static_assert(sizeof(struct dcpim_ack_hdr) <= DCPIM_HEADER_MAX_SIZE,
+// 		"dcpim_ack_header too large");
+struct dcpim_rts_hdr {
+	struct dcpimhdr common;
 	__u8 round;
 	__be64 epoch;
 	__be32 remaining_sz;
 };
 
-struct dcacp_grant_hdr {
-	struct dcacphdr common;
+struct dcpim_grant_hdr {
+	struct dcpimhdr common;
 	__u8 round;
 	__be64 epoch;
 	__be32 remaining_sz;
 	__u8 prompt;
 };
 
-struct dcacp_accept_hdr {
-	struct dcacphdr common;
+struct dcpim_accept_hdr {
+	struct dcpimhdr common;
 	__u8 round;
 	__be64 epoch;
 	__be32 remaining_sz;
@@ -182,34 +182,34 @@ struct dcacp_accept_hdr {
 };
 
 enum {
-	SKB_GSO_DCACP = 1 << 19,
-	SKB_GSO_DCACP_L4 = 1 << 20,
+	SKB_GSO_DCPIM = 1 << 19,
+	SKB_GSO_DCPIM_L4 = 1 << 20,
 };
 
-#define SOL_DCACP 18
-// #define SOL_DCACPLITE 19
+#define SOL_DCPIM 18
+// #define SOL_DCPIMLITE 19
 
-/* DCACP's protocol number within the IP protocol space (this is not an
+/* DCPIM's protocol number within the IP protocol space (this is not an
  * officially allocated slot).
  */
-#define IPPROTO_DCACP 18
-// #define IPPROTO_DCACPLITE 19
+#define IPPROTO_DCPIM 18
+// #define IPPROTO_DCPIMLITE 19
 
-/* DCACP socket options */
-#define DCACP_CORK	1	/* Never send partially complete segments */
-#define DCACP_ENCAP	100	/* Set the socket to accept encapsulated packets */
-#define DCACP_NO_CHECK6_TX 101	/* Disable sending checksum for DCACP6X */
-#define DCACP_NO_CHECK6_RX 102	/* Disable accpeting checksum for DCACP6 */
-#define DCACP_SEGMENT	103	/* Set GSO segmentation size */
-#define DCACP_GRO		104	/* This socket can receive DCACP GRO packets */
+/* DCPIM socket options */
+#define DCPIM_CORK	1	/* Never send partially complete segments */
+#define DCPIM_ENCAP	100	/* Set the socket to accept encapsulated packets */
+#define DCPIM_NO_CHECK6_TX 101	/* Disable sending checksum for DCPIM6X */
+#define DCPIM_NO_CHECK6_RX 102	/* Disable accpeting checksum for DCPIM6 */
+#define DCPIM_SEGMENT	103	/* Set GSO segmentation size */
+#define DCPIM_GRO		104	/* This socket can receive DCPIM GRO packets */
 
-/* DCACP encapsulation types */
-#define DCACP_ENCAP_ESPINDCACP_NON_IKE	1 /* draft-ietf-ipsec-nat-t-ike-00/01 */
-#define DCACP_ENCAP_ESPINDCACP	2 /* draft-ietf-ipsec-dcacp-encaps-06 */
-#define DCACP_ENCAP_L2TPINDCACP	3 /* rfc2661 */
-#define DCACP_ENCAP_GTP0		4 /* GSM TS 09.60 */
-#define DCACP_ENCAP_GTP1U		5 /* 3GPP TS 29.060 */
-#define DCACP_ENCAP_RXRPC		6
+/* DCPIM encapsulation types */
+#define DCPIM_ENCAP_ESPINDCPIM_NON_IKE	1 /* draft-ietf-ipsec-nat-t-ike-00/01 */
+#define DCPIM_ENCAP_ESPINDCPIM	2 /* draft-ietf-ipsec-dcpim-encaps-06 */
+#define DCPIM_ENCAP_L2TPINDCPIM	3 /* rfc2661 */
+#define DCPIM_ENCAP_GTP0		4 /* GSM TS 09.60 */
+#define DCPIM_ENCAP_GTP1U		5 /* 3GPP TS 29.060 */
+#define DCPIM_ENCAP_RXRPC		6
 #define TCP_ENCAP_ESPINTCP	7 /* Yikes, this is really xfrm encap types. */
 
-#endif /* _UAPI_LINUX_DCACP_H */
+#endif /* _UAPI_LINUX_DCPIM_H */

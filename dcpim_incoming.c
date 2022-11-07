@@ -5,7 +5,7 @@
  *		operating system.  INET is implemented using the  BSD Socket
  *		interface as the means of communication with the user level.
  *
- *		DATACENTER ADMISSION CONTROL PROTOCOL(DCACP) 
+ *		DATACENTER ADMISSION CONTROL PROTOCOL(DCPIM) 
  *
  * Authors:	Ross Biro
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -14,7 +14,7 @@
  *		Hirokazu Takahashi, <taka@valinux.co.jp>
  */
 
-#define pr_fmt(fmt) "DCACP: " fmt
+#define pr_fmt(fmt) "DCPIM: " fmt
 
 #include <linux/uaccess.h>
 #include <asm/ioctls.h>
@@ -50,32 +50,32 @@
 #include <linux/static_key.h>
 #include <trace/events/skb.h>
 #include <net/busy_poll.h>
-#include "dcacp_impl.h"
+#include "dcpim_impl.h"
 #include <net/sock_reuseport.h>
 #include <net/addrconf.h>
 #include <net/udp_tunnel.h>
 
-// #include "linux_dcacp.h"
- #include "net_dcacp.h"
-// #include "net_dcacplite.h"
-#include "uapi_linux_dcacp.h"
-#include "dcacp_impl.h"
-// #include "dcacp_hashtables.h"
+// #include "linux_dcpim.h"
+ #include "net_dcpim.h"
+// #include "net_dcpimlite.h"
+#include "uapi_linux_dcpim.h"
+#include "dcpim_impl.h"
+// #include "dcpim_hashtables.h"
 
-// static inline struct sock *__dcacp4_lib_lookup_skb(struct sk_buff *skb,
+// static inline struct sock *__dcpim4_lib_lookup_skb(struct sk_buff *skb,
 // 						 __be16 sport, __be16 dport,
-// 						 struct udp_table *dcacptable)
+// 						 struct udp_table *dcpimtable)
 // {
 // 	const struct iphdr *iph = ip_hdr(skb);
 
-// 	return __dcacp4_lib_lookup(dev_net(skb->dev), iph->saddr, sport,
+// 	return __dcpim4_lib_lookup(dev_net(skb->dev), iph->saddr, sport,
 // 				 iph->daddr, dport, inet_iif(skb),
-// 				 inet_sdif(skb), dcacptable, skb);
+// 				 inet_sdif(skb), dcpimtable, skb);
 // }
 
 
 
-static inline bool dcacp_sack_extend(struct dcacp_sack_block *sp, u32 seq,
+static inline bool dcpim_sack_extend(struct dcpim_sack_block *sp, u32 seq,
 				  u32 end_seq)
 {
 	if (!after(seq, sp->end_seq) && !after(sp->start_seq, end_seq)) {
@@ -91,17 +91,17 @@ static inline bool dcacp_sack_extend(struct dcacp_sack_block *sp, u32 seq,
 /* These routines update the SACK block as out-of-order packets arrive or
  * in-order packets close up the sequence space.
  */
-static void dcacp_sack_maybe_coalesce(struct dcacp_sock *dsk)
+static void dcpim_sack_maybe_coalesce(struct dcpim_sock *dsk)
 {
 	int this_sack;
-	struct dcacp_sack_block *sp = &dsk->selective_acks[0];
-	struct dcacp_sack_block *swalk = sp + 1;
+	struct dcpim_sack_block *sp = &dsk->selective_acks[0];
+	struct dcpim_sack_block *swalk = sp + 1;
 
 	/* See if the recent change to the first SACK eats into
 	 * or hits the sequence space of other SACK blocks, if so coalesce.
 	 */
 	for (this_sack = 1; this_sack < dsk->num_sacks;) {
-		if (dcacp_sack_extend(sp, swalk->start_seq, swalk->end_seq)) {
+		if (dcpim_sack_extend(sp, swalk->start_seq, swalk->end_seq)) {
 			int i;
 
 			/* Zap SWALK, by moving every further SACK up by one slot.
@@ -116,10 +116,10 @@ static void dcacp_sack_maybe_coalesce(struct dcacp_sock *dsk)
 	}
 }
 
-static void dcacp_sack_new_ofo_skb(struct sock *sk, u32 seq, u32 end_seq)
+static void dcpim_sack_new_ofo_skb(struct sock *sk, u32 seq, u32 end_seq)
 {
-	struct dcacp_sock *dsk = dcacp_sk(sk);
-	struct dcacp_sack_block *sp = &dsk->selective_acks[0];
+	struct dcpim_sock *dsk = dcpim_sk(sk);
+	struct dcpim_sack_block *sp = &dsk->selective_acks[0];
 	int cur_sacks = dsk->num_sacks;
 	int this_sack;
 
@@ -127,12 +127,12 @@ static void dcacp_sack_new_ofo_skb(struct sock *sk, u32 seq, u32 end_seq)
 		goto new_sack;
 
 	for (this_sack = 0; this_sack < cur_sacks; this_sack++, sp++) {
-		if (dcacp_sack_extend(sp, seq, end_seq)) {
+		if (dcpim_sack_extend(sp, seq, end_seq)) {
 			/* Rotate this_sack to the first one. */
 			for (; this_sack > 0; this_sack--, sp--)
 				swap(*sp, *(sp - 1));
 			if (cur_sacks > 1)
-				dcacp_sack_maybe_coalesce(dsk);
+				dcpim_sack_maybe_coalesce(dsk);
 			return;
 		}
 	}
@@ -143,7 +143,7 @@ static void dcacp_sack_new_ofo_skb(struct sock *sk, u32 seq, u32 end_seq)
 	 *
 	 * If the sack array is full, forget about the last one.
 	 */
-	if (this_sack > DCACP_NUM_SACKS) {
+	if (this_sack > DCPIM_NUM_SACKS) {
 		// if (tp->compressed_ack > TCP_FASTRETRANS_THRESH)
 		// 	tcp_send_ack(sk);
 		WARN_ON(true);
@@ -163,9 +163,9 @@ new_sack:
 
 /* RCV.NXT advances, some SACKs should be eaten. */
 
-static void dcacp_sack_remove(struct dcacp_sock *dsk)
+static void dcpim_sack_remove(struct dcpim_sock *dsk)
 {
-	struct dcacp_sack_block *sp = &dsk->selective_acks[0];
+	struct dcpim_sack_block *sp = &dsk->selective_acks[0];
 	int num_sacks = dsk->num_sacks;
 	int this_sack;
 
@@ -196,17 +196,17 @@ static void dcacp_sack_remove(struct dcacp_sock *dsk)
 }
 
 /* read sack info */
-void dcacp_get_sack_info(struct sock *sk, struct sk_buff *skb) {
-	struct dcacp_sock *dsk = dcacp_sk(sk);
+void dcpim_get_sack_info(struct sock *sk, struct sk_buff *skb) {
+	struct dcpim_sock *dsk = dcpim_sk(sk);
 	const unsigned char *ptr = (skb_transport_header(skb) +
-				    sizeof(struct dcacp_token_hdr));
-	struct dcacp_token_hdr *th = dcacp_token_hdr(skb);
-	struct dcacp_sack_block_wire *sp_wire = (struct dcacp_sack_block_wire *)(ptr);
-	struct dcacp_sack_block *sp = dsk->selective_acks;
+				    sizeof(struct dcpim_token_hdr));
+	struct dcpim_token_hdr *th = dcpim_token_hdr(skb);
+	struct dcpim_sack_block_wire *sp_wire = (struct dcpim_sack_block_wire *)(ptr);
+	struct dcpim_sack_block *sp = dsk->selective_acks;
 	// struct sk_buff *skb;
 	int used_sacks;
 	int i, j;
-	if (!pskb_may_pull(skb, sizeof(struct dcacp_token_hdr) + sizeof(struct dcacp_sack_block_wire) * th->num_sacks)) {
+	if (!pskb_may_pull(skb, sizeof(struct dcpim_token_hdr) + sizeof(struct dcpim_sack_block_wire) * th->num_sacks)) {
 		return;		/* No space for header. */
 	}
 	dsk->num_sacks = th->num_sacks;
@@ -230,8 +230,8 @@ void dcacp_get_sack_info(struct sock *sk, struct sk_buff *skb) {
 }
 
 /* assume hold the socket spinlock*/
-void dcacp_flow_wait_handler(struct sock *sk) {
-	// struct dcacp_sock *dsk = dcacp_sk(sk);
+void dcpim_flow_wait_handler(struct sock *sk) {
+	// struct dcpim_sock *dsk = dcpim_sk(sk);
 	// struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
 
 	// atomic_sub(atomic_read(&dsk->receiver.inflight_bytes), &entry->remaining_tokens);
@@ -242,28 +242,28 @@ void dcacp_flow_wait_handler(struct sock *sk) {
 	// // printk("flow_wait_timer");
 	// // printk("entry remaining_tokens:%d\n", atomic_read(&entry->remaining_tokens));
 	// // printk("inet dport:%d\n",  ntohs(inet->inet_dport));
-	// if(test_and_clear_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
+	// if(test_and_clear_bit(DCPIM_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
 	// 	// atomic_sub(dsk->receiver.grant_batch,  &entry->remaining_tokens);
 	// }
 	// if(!dsk->receiver.finished_at_receiver)
-	// 	dcacp_update_and_schedule_sock(dsk);
+	// 	dcpim_update_and_schedule_sock(dsk);
 	// bh_unlock_sock(sk);
 	// flowlet_done_event(&entry->flowlet_done_timer);
 	// bh_lock_sock(sk);
 }
 /* ToDO: should be protected by user lock called inside softIRQ context */
-enum hrtimer_restart dcacp_flow_wait_event(struct hrtimer *timer) {
-	// struct dcacp_grant* grant, temp;
-	// struct dcacp_sock *dsk = container_of(timer, struct dcacp_sock, receiver.flow_wait_timer);
+enum hrtimer_restart dcpim_flow_wait_event(struct hrtimer *timer) {
+	// struct dcpim_grant* grant, temp;
+	// struct dcpim_sock *dsk = container_of(timer, struct dcpim_sock, receiver.flow_wait_timer);
 	// struct sock *sk = (struct sock*)dsk;
 	// // struct inet_sock* inet = inet_sk(sk);
 	// WARN_ON(!in_softirq());
 	// // printk("call flow wait\n");
 	// bh_lock_sock(sk);
 	// if(!sock_owned_by_user(sk)) {
-	// 	dcacp_flow_wait_handler(sk);
+	// 	dcpim_flow_wait_handler(sk);
 	// } else {
-	// 	test_and_set_bit(DCACP_WAIT_DEFERRED, &sk->sk_tsq_flags);
+	// 	test_and_set_bit(DCPIM_WAIT_DEFERRED, &sk->sk_tsq_flags);
 	// }
 	// bh_unlock_sock(sk);
 	return HRTIMER_NORESTART;
@@ -272,30 +272,30 @@ enum hrtimer_restart dcacp_flow_wait_event(struct hrtimer *timer) {
 /* Called inside release_cb or by flow_wait_event; BH is disabled by the caller and lock_sock is hold by caller.
  * Either read buffer is limited or all toknes has been sent but some pkts are dropped.
  */
-void dcacp_rem_check_handler(struct sock *sk) {
-	// struct dcacp_sock* dsk = dcacp_sk(sk);
+void dcpim_rem_check_handler(struct sock *sk) {
+	// struct dcpim_sock* dsk = dcpim_sk(sk);
 	// printk("handle rmem checker\n");
 	// // printk("dsk->receiver.copied_seq:%u\n", dsk->receiver.copied_seq);
 	// if(sk->sk_rcvbuf - atomic_read(&sk->sk_rmem_alloc) == 0) {
- //    	test_and_set_bit(DCACP_RMEM_CHECK_DEFERRED, &sk->sk_tsq_flags);
+ //    	test_and_set_bit(DCPIM_RMEM_CHECK_DEFERRED, &sk->sk_tsq_flags);
  //    	return;
 	// }
 	// /* Deadlock won't happen because flow is not in flow_q. */
-	// spin_lock(&dcacp_epoch.lock);
-	// dcacp_pq_push(&dcacp_epoch.flow_q, &dsk->match_link);
-	// if(atomic_read(&dcacp_epoch.remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
+	// spin_lock(&dcpim_epoch.lock);
+	// dcpim_pq_push(&dcpim_epoch.flow_q, &dsk->match_link);
+	// if(atomic_read(&dcpim_epoch.remaining_tokens) <= dcpim_params.control_pkt_bdp / 2) {
 	// 	/* this part may change latter. */
-	// 	hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0, 0), HRTIMER_MODE_REL_PINNED_SOFT);
+	// 	hrtimer_start(&dcpim_epoch.token_xmit_timer, ktime_set(0, 0), HRTIMER_MODE_REL_PINNED_SOFT);
 	// }
-	// spin_unlock(&dcacp_epoch.lock);
+	// spin_unlock(&dcpim_epoch.lock);
 
 }
 
-// void dcacp_token_timer_defer_handler(struct sock *sk) {
+// void dcpim_token_timer_defer_handler(struct sock *sk) {
 // 	// bool pq_empty = false;
 // 	// int grant_bytes = calc_grant_bytes(sk);
 // 	bool not_push_bk = false;
-// 	struct dcacp_sock* dsk = dcacp_sk(sk);
+// 	struct dcpim_sock* dsk = dcpim_sk(sk);
 // 	// struct inet_sock *inet = inet_sk(sk);
 // 	struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
 // 	__u32 prev_token_nxt = dsk->receiver.prev_token_nxt;
@@ -319,23 +319,23 @@ void dcacp_rem_check_handler(struct sock *sk) {
 // 	// 	not_push_bk = xmit_batch_token(sk, grant_bytes, true);
 // 	// } else {
 // 	// 	int rtx_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
-// 	// 	if(rtx_bytes && sk->sk_state == DCACP_RECEIVER) {
-// 	// 		dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->new_grant_nxt, true),
+// 	// 	if(rtx_bytes && sk->sk_state == DCPIM_RECEIVER) {
+// 	// 		dcpim_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->new_grant_nxt, true),
 // 	// 	 	dsk->peer, sk, inet->inet_dport);
-// 	// 		atomic_add(rtx_bytes, &dcacp_epoch.remaining_tokens);
+// 	// 		atomic_add(rtx_bytes, &dcpim_epoch.remaining_tokens);
 // 	// 		dsk->receiver.prev_grant_bytes += rtx_bytes;
 // 	// 	}
 // 	// 	if(dsk->new_grant_nxt == dsk->total_length) {
 // 	// 		not_push_bk = true;
 // 	// 		/* TO DO: setup a timer here */
 // 	// 		/* current set timer to be 10 RTT */
-// 	// 		hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 10 * 1000), 
+// 	// 		hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcpim_params.rtt * 10 * 1000), 
 // 	// 			HRTIMER_MODE_REL_PINNED_SOFT);
 // 	// 	}
 // 	// }
 // 	/* Deadlock won't happen because flow is not in flow_q. */
 // 	if(!not_push_bk) {
-// 		dcacp_update_and_schedule_sock(dsk);
+// 		dcpim_update_and_schedule_sock(dsk);
 // 	}
 // 	bh_unlock_sock(sk);
 // 	flowlet_done_event(&entry->flowlet_done_timer);
@@ -367,15 +367,15 @@ void sk_stream_write_space(struct sock *sk)
  * is before the ack sequence we can discard it as it's confirmed to have
  * arrived at the other end.
  */
-int dcacp_clean_rtx_queue(struct sock *sk)
+int dcpim_clean_rtx_queue(struct sock *sk)
 {
-	struct dcacp_sock *dsk = dcacp_sk(sk);
+	struct dcpim_sock *dsk = dcpim_sk(sk);
 	struct sk_buff *skb, *next;
 	bool fully_acked = true;
 	int flag = 0;
 
 	for (skb = skb_rb_first(&sk->tcp_rtx_queue); skb; skb = next) {
-		struct dcacp_skb_cb *scb = DCACP_SKB_CB(skb);
+		struct dcpim_skb_cb *scb = DCPIM_SKB_CB(skb);
 		/* Determine how many packets and what bytes were acked, tso and else */
 		if (after(scb->end_seq, dsk->sender.snd_una)) {
 			fully_acked = false;
@@ -384,14 +384,14 @@ int dcacp_clean_rtx_queue(struct sock *sk)
 			break;
 
 		next = skb_rb_next(skb);
-		dcacp_rtx_queue_unlink_and_free(skb, sk);
+		dcpim_rtx_queue_unlink_and_free(skb, sk);
 		sk_stream_write_space(sk);
 	}
 	return flag;
 }
 
 // check flow finished at receiver; assuming holding user lock and local bh is disabled
-// static void dcacp_check_flow_finished_at_receiver(struct dcacp_sock *dsk) {
+// static void dcpim_check_flow_finished_at_receiver(struct dcpim_sock *dsk) {
 // 	if(!dsk->receiver.finished_at_receiver && dsk->receiver.rcv_nxt == dsk->total_length) {
 // 		struct sock* sk = (struct sock*) dsk;
 // 		struct inet_sock *inet = inet_sk(sk);
@@ -400,7 +400,7 @@ int dcacp_clean_rtx_queue(struct sock *sk)
 // 		dsk->receiver.finished_at_receiver = true;
 // 		if(dsk->receiver.flow_finish_wait) {
 // 			hrtimer_cancel(&dsk->receiver.flow_wait_timer);
-// 			test_and_clear_bit(DCACP_WAIT_DEFERRED, &sk->sk_tsq_flags);
+// 			test_and_clear_bit(DCPIM_WAIT_DEFERRED, &sk->sk_tsq_flags);
 // 			dsk->receiver.flow_finish_wait = false;
 // 		} 
 // 		// printk("send fin pkt\n");
@@ -417,9 +417,9 @@ int dcacp_clean_rtx_queue(struct sock *sk)
 // 			printk("cannot put port\n");
 // 		}
 // 		/* remove the socket from scheduing */
-// 		dcacp_unschedule_sock(dsk);
-// 		dcacp_xmit_control(construct_fin_pkt(sk), sk, inet->inet_dport); 
-// 		if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
+// 		dcpim_unschedule_sock(dsk);
+// 		dcpim_xmit_control(construct_fin_pkt(sk), sk, inet->inet_dport); 
+// 		if(atomic_read(&entry->remaining_tokens) <= dcpim_params.control_pkt_bdp / 2) {
 // 			flowlet_done_event(&entry->flowlet_done_timer);
 // 		}
 // 	}
@@ -427,7 +427,7 @@ int dcacp_clean_rtx_queue(struct sock *sk)
 // }
 /* If we update dsk->receiver.rcv_nxt, also update dsk->receiver.bytes_received 
  * and send ack pkt if the flow is finished */
-static void dcacp_rcv_nxt_update(struct dcacp_sock *dsk, u32 seq)
+static void dcpim_rcv_nxt_update(struct dcpim_sock *dsk, u32 seq)
 {
 	struct sock *sk = (struct sock*) dsk;
 	struct inet_sock *inet = inet_sk(sk);
@@ -438,32 +438,32 @@ static void dcacp_rcv_nxt_update(struct dcacp_sock *dsk, u32 seq)
 	dsk->receiver.bytes_received += delta;
 	WRITE_ONCE(dsk->receiver.rcv_nxt, seq);
 	// printk("update the seq:%d\n", dsk->receiver.rcv_nxt);
-	token_bytes = dcacp_token_timer_defer_handler(sk);
+	token_bytes = dcpim_token_timer_defer_handler(sk);
 	if(token_bytes == 0 && dsk->receiver.rcv_nxt >= dsk->receiver.last_ack + dsk->receiver.token_batch) {
-		dcacp_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk); 
+		dcpim_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk); 
 		dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
 	}
 }
 
-static void dcacp_drop(struct sock *sk, struct sk_buff *skb)
+static void dcpim_drop(struct sock *sk, struct sk_buff *skb)
 {
         sk_drops_add(sk, skb);
         // __kfree_skb(skb);
 }
 
-static void dcacp_v4_fill_cb(struct sk_buff *skb, const struct iphdr *iph,
-                           const struct dcacp_data_hdr *dh)
+static void dcpim_v4_fill_cb(struct sk_buff *skb, const struct iphdr *iph,
+                           const struct dcpim_data_hdr *dh)
 {
         /* This is tricky : We move IPCB at its correct location into TCP_SKB_CB()
          * barrier() makes sure compiler wont play fool^Waliasing games.
          */
-        memmove(&DCACP_SKB_CB(skb)->header.h4, IPCB(skb),
+        memmove(&DCPIM_SKB_CB(skb)->header.h4, IPCB(skb),
                 sizeof(struct inet_skb_parm));
         barrier();
-        DCACP_SKB_CB(skb)->seq = ntohl(dh->seg.offset);
+        DCPIM_SKB_CB(skb)->seq = ntohl(dh->seg.offset);
         // printk("skb len:%d\n", skb->len);
         // printk("segment length:%d\n", ntohl(dh->seg.segment_length));
-        DCACP_SKB_CB(skb)->end_seq = (DCACP_SKB_CB(skb)->seq + skb->len - (dh->common.doff / 4 + sizeof(struct data_segment)));
+        DCPIM_SKB_CB(skb)->end_seq = (DCPIM_SKB_CB(skb)->seq + skb->len - (dh->common.doff / 4 + sizeof(struct data_segment)));
         // TCP_SKB_CB(skb)->ack_seq = ntohl(th->ack_seq);
         // TCP_SKB_CB(skb)->tcp_flags = tcp_flag_byte(th);
         // TCP_SKB_CB(skb)->tcp_tw_isn = 0;
@@ -475,7 +475,7 @@ static void dcacp_v4_fill_cb(struct sk_buff *skb, const struct iphdr *iph,
 
 
 /**
- * dcacp_try_coalesce - try to merge skb to prior one
+ * dcpim_try_coalesce - try to merge skb to prior one
  * @sk: socket
  * @dest: destination queue
  * @to: prior buffer
@@ -488,7 +488,7 @@ static void dcacp_v4_fill_cb(struct sk_buff *skb, const struct iphdr *iph,
  * Better try to coalesce them right now to avoid future collapses.
  * Returns true if caller should free @from instead of queueing it
  */
-static bool dcacp_try_coalesce(struct sock *sk,
+static bool dcpim_try_coalesce(struct sock *sk,
 			     struct sk_buff *to,
 			     struct sk_buff *from,
 			     bool *fragstolen)
@@ -498,7 +498,7 @@ static bool dcacp_try_coalesce(struct sock *sk,
 	*fragstolen = false;
 
 	/* Its possible this segment overlaps with prior segment in queue */
-	if (DCACP_SKB_CB(from)->seq != DCACP_SKB_CB(to)->end_seq)
+	if (DCPIM_SKB_CB(from)->seq != DCPIM_SKB_CB(to)->end_seq)
 		return false;
 
 	if (!skb_try_coalesce(to, from, fragstolen, &delta))
@@ -508,11 +508,11 @@ static bool dcacp_try_coalesce(struct sock *sk,
 	atomic_add(delta, &sk->sk_rmem_alloc);
 	// sk_mem_charge(sk, delta);
 	// NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPRCVCOALESCE);
-	DCACP_SKB_CB(to)->end_seq = DCACP_SKB_CB(from)->end_seq;
-	// DCACP_SKB_CB(to)->ack_seq = DCACP_SKB_CB(from)->ack_seq;
-	// DCACP_SKB_CB(to)->tcp_flags |= DCACP_SKB_CB(from)->tcp_flags;
+	DCPIM_SKB_CB(to)->end_seq = DCPIM_SKB_CB(from)->end_seq;
+	// DCPIM_SKB_CB(to)->ack_seq = DCPIM_SKB_CB(from)->ack_seq;
+	// DCPIM_SKB_CB(to)->tcp_flags |= DCPIM_SKB_CB(from)->tcp_flags;
 
-	// if (DCACP_SKB_CB(from)->has_rxtstamp) {
+	// if (DCPIM_SKB_CB(from)->has_rxtstamp) {
 	// 	TCP_SKB_CB(to)->has_rxtstamp = true;
 	// 	to->tstamp = from->tstamp;
 	// 	skb_hwtstamps(to)->hwtstamp = skb_hwtstamps(from)->hwtstamp;
@@ -522,9 +522,9 @@ static bool dcacp_try_coalesce(struct sock *sk,
 }
 
 
-static int dcacp_data_queue_ofo(struct sock *sk, struct sk_buff *skb)
+static int dcpim_data_queue_ofo(struct sock *sk, struct sk_buff *skb)
 {
-	struct dcacp_sock *dsk = dcacp_sk(sk);
+	struct dcpim_sock *dsk = dcpim_sk(sk);
 	struct rb_node **p, *parent;
 	struct sk_buff *skb1;
 	u32 seq, end_seq;
@@ -534,8 +534,8 @@ static int dcacp_data_queue_ofo(struct sock *sk, struct sk_buff *skb)
 
 	// tp->rcv_ooopack += max_t(u16, 1, skb_shinfo(skb)->gso_segs);
 	// NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPOFOQUEUE);
-	seq = DCACP_SKB_CB(skb)->seq;
-	end_seq = DCACP_SKB_CB(skb)->end_seq;
+	seq = DCPIM_SKB_CB(skb)->seq;
+	end_seq = DCPIM_SKB_CB(skb)->end_seq;
 
 	// printk("insert to data queue ofo:%d\n", seq);
 
@@ -576,21 +576,21 @@ static int dcacp_data_queue_ofo(struct sock *sk, struct sk_buff *skb)
 	while (*p) {
 		parent = *p;
 		skb1 = rb_to_skb(parent);
-		if (before(seq, DCACP_SKB_CB(skb1)->seq)) {
+		if (before(seq, DCPIM_SKB_CB(skb1)->seq)) {
 			p = &parent->rb_left;
 			continue;
 		}
-		if (before(seq, DCACP_SKB_CB(skb1)->end_seq)) {
-			if (!after(end_seq, DCACP_SKB_CB(skb1)->end_seq)) {
+		if (before(seq, DCPIM_SKB_CB(skb1)->end_seq)) {
+			if (!after(end_seq, DCPIM_SKB_CB(skb1)->end_seq)) {
 				/* All the bits are present. Drop. */
-				dcacp_rmem_free_skb(sk, skb);
-				dcacp_drop(sk, skb);
+				dcpim_rmem_free_skb(sk, skb);
+				dcpim_drop(sk, skb);
 				skb = NULL;
 
 				// tcp_dsack_set(sk, seq, end_seq);
 				goto add_sack;
 			}
-			if (after(seq, DCACP_SKB_CB(skb1)->seq)) {
+			if (after(seq, DCPIM_SKB_CB(skb1)->seq)) {
 				/* Partial overlap. */
 				// tcp_dsack_set(sk, seq, TCP_SKB_CB(skb1)->end_seq);
 			} else {
@@ -604,8 +604,8 @@ static int dcacp_data_queue_ofo(struct sock *sk, struct sk_buff *skb)
 				// 		 TCP_SKB_CB(skb1)->end_seq);
 				// NET_INC_STATS(sock_net(sk),
 				// 	      LINUX_MIB_TCPOFOMERGE);
-				dcacp_rmem_free_skb(sk, skb1);
-				dcacp_drop(sk, skb1);
+				dcpim_rmem_free_skb(sk, skb1);
+				dcpim_drop(sk, skb1);
 				goto merge_right;
 			}
 		} 
@@ -622,9 +622,9 @@ static int dcacp_data_queue_ofo(struct sock *sk, struct sk_buff *skb)
 merge_right:
 	/* Remove other segments covered by skb. */
 	while ((skb1 = skb_rb_next(skb)) != NULL) {
-		if (!after(end_seq, DCACP_SKB_CB(skb1)->seq))
+		if (!after(end_seq, DCPIM_SKB_CB(skb1)->seq))
 			break;
-		if (before(end_seq, DCACP_SKB_CB(skb1)->end_seq)) {
+		if (before(end_seq, DCPIM_SKB_CB(skb1)->end_seq)) {
 			// tcp_dsack_extend(sk, TCP_SKB_CB(skb1)->seq,
 			// 		 end_seq);
 			break;
@@ -633,8 +633,8 @@ merge_right:
 		// tcp_dsack_extend(sk, TCP_SKB_CB(skb1)->seq,
 		// 		 TCP_SKB_CB(skb1)->end_seq);
 		// NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPOFOMERGE);
-		dcacp_rmem_free_skb(sk, skb1);
-		dcacp_drop(sk, skb1);
+		dcpim_rmem_free_skb(sk, skb1);
+		dcpim_drop(sk, skb1);
 
 	}
 	/* If there is no skb after us, we are the last_skb ! */
@@ -642,7 +642,7 @@ merge_right:
 	// 	tp->ooo_last_skb = skb;
 add_sack:
 	// if (tcp_is_sack(tp))
-	dcacp_sack_new_ofo_skb(sk, seq, end_seq);
+	dcpim_sack_new_ofo_skb(sk, seq, end_seq);
 end:
 	return 0;
 	// if (skb) {
@@ -652,10 +652,10 @@ end:
 	// }
 }
 
-static void dcacp_ofo_queue(struct sock *sk)
+static void dcpim_ofo_queue(struct sock *sk)
 {
-	struct dcacp_sock *dsk = dcacp_sk(sk);
-	// __u32 dsack_high = dcacp->receiver.rcv_nxt;
+	struct dcpim_sock *dsk = dcpim_sk(sk);
+	// __u32 dsack_high = dcpim->receiver.rcv_nxt;
 	bool fragstolen, eaten;
 	// bool fin;
 	struct sk_buff *skb, *tail;
@@ -664,10 +664,10 @@ static void dcacp_ofo_queue(struct sock *sk)
 	p = rb_first(&dsk->out_of_order_queue);
 	while (p) {
 		skb = rb_to_skb(p);
-		if (after(DCACP_SKB_CB(skb)->seq, dsk->receiver.rcv_nxt))
+		if (after(DCPIM_SKB_CB(skb)->seq, dsk->receiver.rcv_nxt))
 			break;
 
-		// if (before(DCACP_SKB_CB(skb)->seq, dsack_high)) {
+		// if (before(DCPIM_SKB_CB(skb)->seq, dsack_high)) {
 		// 	// __u32 dsack = dsack_high;
 		// 	// if (before(TCP_SKB_CB(skb)->end_seq, dsack_high))
 		// 	// 	dsack_high = TCP_SKB_CB(skb)->end_seq;
@@ -676,15 +676,15 @@ static void dcacp_ofo_queue(struct sock *sk)
 		p = rb_next(p);
 		rb_erase(&skb->rbnode, &dsk->out_of_order_queue);
 
-		if (unlikely(!after(DCACP_SKB_CB(skb)->end_seq, dsk->receiver.rcv_nxt))) {
-			dcacp_rmem_free_skb(sk, skb);
-			dcacp_drop(sk, skb);
+		if (unlikely(!after(DCPIM_SKB_CB(skb)->end_seq, dsk->receiver.rcv_nxt))) {
+			dcpim_rmem_free_skb(sk, skb);
+			dcpim_drop(sk, skb);
 			continue;
 		}
 
 		tail = skb_peek_tail(&sk->sk_receive_queue);
-		eaten = tail && dcacp_try_coalesce(sk, tail, skb, &fragstolen);
-		dcacp_rcv_nxt_update(dsk, DCACP_SKB_CB(skb)->end_seq);
+		eaten = tail && dcpim_try_coalesce(sk, tail, skb, &fragstolen);
+		dcpim_rcv_nxt_update(dsk, DCPIM_SKB_CB(skb)->end_seq);
 		// fin = TCP_SKB_CB(skb)->tcp_flags & TCPHDR_FIN;
 		if (!eaten)
 			__skb_queue_tail(&sk->sk_receive_queue, skb);
@@ -701,9 +701,9 @@ static void dcacp_ofo_queue(struct sock *sk)
 	}
 }
 
-void dcacp_data_ready(struct sock *sk)
+void dcpim_data_ready(struct sock *sk)
 {
-        const struct dcacp_sock *dsk = dcacp_sk(sk);
+        const struct dcpim_sock *dsk = dcpim_sk(sk);
         int avail = dsk->receiver.rcv_nxt - dsk->receiver.copied_seq;
 
         if ((avail < sk->sk_rcvlowat) && !sock_flag(sk, SOCK_DONE)) {
@@ -712,33 +712,33 @@ void dcacp_data_ready(struct sock *sk)
         sk->sk_data_ready(sk);
 }
 
-int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
-	struct dcacp_sock *dsk;
+int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
+	struct dcpim_sock *dsk;
 	// struct inet_sock *inet;
-	// struct dcacp_peer *peer;
+	// struct dcpim_peer *peer;
 	// struct iphdr *iph;
 	// struct message_hslot* slot;
-	struct dcacp_flow_sync_hdr *fh;
+	struct dcpim_flow_sync_hdr *fh;
 	struct sock *sk, *child;
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
-	if (!pskb_may_pull(skb, sizeof(struct dcacp_flow_sync_hdr))) {
+	if (!pskb_may_pull(skb, sizeof(struct dcpim_flow_sync_hdr))) {
 		goto drop;		/* No space for header. */
 	}
-	fh =  dcacp_flow_sync_hdr(skb);
+	fh =  dcpim_flow_sync_hdr(skb);
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
-	sk = __inet_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&fh->common), fh->common.source,
+	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&fh->common), fh->common.source,
             fh->common.dest, sdif, &refcounted);
-		// sk = __dcacp4_lib_lookup_skb(skb, fh->common.source, fh->common.dest, &dcacp_table);
+		// sk = __dcpim4_lib_lookup_skb(skb, fh->common.source, fh->common.dest, &dcpim_table);
 	// }
 	if(sk) {
 		bh_lock_sock(sk);
 		if(!sock_owned_by_user(sk)) {
-			if(sk->sk_state == DCACP_LISTEN) {
-				child = dcacp_conn_request(sk, skb);
+			if(sk->sk_state == DCPIM_LISTEN) {
+				child = dcpim_conn_request(sk, skb);
 				if(child) {
-					dsk = dcacp_sk(child);
+					dsk = dcpim_sk(child);
 					printk("dsk address:%p\n", dsk);
 					/* this line needed to change later */
 					if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
@@ -749,7 +749,7 @@ int dcacp_handle_flow_sync_pkt(struct sk_buff *skb) {
 			}
 			kfree_skb(skb);
 		} else {
-			dcacp_add_backlog(sk, skb, true);
+			dcpim_add_backlog(sk, skb, true);
 		}
 		bh_unlock_sock(sk);
 	} else {
@@ -766,25 +766,25 @@ drop:
 }
 // ktime_t start, end;
 // __u32 backlog_time = 0;
-int dcacp_handle_token_pkt(struct sk_buff *skb) {
-	struct dcacp_sock *dsk;
+int dcpim_handle_token_pkt(struct sk_buff *skb) {
+	struct dcpim_sock *dsk;
 	// struct inet_sock *inet;
-	// struct dcacp_peer *peer;
+	// struct dcpim_peer *peer;
 	// struct iphdr *iph;
-	struct dcacp_token_hdr *th;
+	struct dcpim_token_hdr *th;
 	struct sock *sk;
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
 
-	if (!pskb_may_pull(skb, sizeof(struct dcacp_token_hdr))) {
+	if (!pskb_may_pull(skb, sizeof(struct dcpim_token_hdr))) {
 		kfree_skb(skb);
 		return 0;
 	}
-	th = dcacp_token_hdr(skb);
-	sk = __inet_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&th->common), th->common.source,
+	th = dcpim_token_hdr(skb);
+	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&th->common), th->common.source,
             th->common.dest, sdif, &refcounted);
 	if(sk) {
- 		dsk = dcacp_sk(sk);
+ 		dsk = dcpim_sk(sk);
  		bh_lock_sock(sk);
  		skb->sk = sk;
  		// if (!sock_owned_by_user(sk)) {
@@ -792,27 +792,27 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
 		/* add token */
  		// dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
  	// 	/* add sack info */
- 	// 	dcacp_get_sack_info(sk, skb);
+ 	// 	dcpim_get_sack_info(sk, skb);
 		// /* start doing transmission (this part may move to different places later)*/
 	    if(!sock_owned_by_user(sk)) {
-			if(sk->sk_state == DCACP_ESTABLISHED) {
+			if(sk->sk_state == DCPIM_ESTABLISHED) {
 				sock_rps_save_rxhash(sk, skb);
 				if(th->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
 					dsk->sender.snd_una = th->rcv_nxt;
 				if(th->token_nxt - dsk->sender.token_seq <= sk->sk_sndbuf)
 					dsk->sender.token_seq = th->token_nxt;
-				dcacp_write_timer_handler(sk);
-				dcacp_clean_rtx_queue(sk);
+				dcpim_write_timer_handler(sk);
+				dcpim_clean_rtx_queue(sk);
 			}
 			kfree_skb(skb);
 	    } else {
-			dcacp_add_backlog(sk, skb, true);
-	 		// test_and_set_bit(DCACP_CLEAN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+			dcpim_add_backlog(sk, skb, true);
+	 		// test_and_set_bit(DCPIM_CLEAN_TIMER_DEFERRED, &sk->sk_tsq_flags);
 	    }
 	 //    if(!sock_owned_by_user(sk) || dsk->num_sacks == 0) {
-	 // 		dcacp_write_timer_handler(sk);
+	 // 		dcpim_write_timer_handler(sk);
 	 //    } else {
-	 // 		test_and_set_bit(DCACP_RTX_DEFERRED, &sk->sk_tsq_flags);
+	 // 		test_and_set_bit(DCPIM_RTX_DEFERRED, &sk->sk_tsq_flags);
 	 //    }
 
         // } else {
@@ -821,7 +821,7 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
         // 		// printk("time diff:%llu\n", ktime_to_us(ktime_sub(end, start)));
         // 		// printk("num of backlog_time:%d\n", backlog_time);
         // 	// }
-        //     dcacp_add_backlog(sk, skb, true);
+        //     dcpim_add_backlog(sk, skb, true);
         // }
         bh_unlock_sock(sk);
 		// xmit_handle_new_token(&xmit_core_tab, skb);
@@ -836,40 +836,40 @@ int dcacp_handle_token_pkt(struct sk_buff *skb) {
 	return 0;
 }
 
-int dcacp_handle_ack_pkt(struct sk_buff *skb) {
-	struct dcacp_sock *dsk;
+int dcpim_handle_ack_pkt(struct sk_buff *skb) {
+	struct dcpim_sock *dsk;
 	// struct inet_sock *inet;
-	// struct dcacp_peer *peer;
+	// struct dcpim_peer *peer;
 	// struct iphdr *iph;
-	// struct dcacphdr *dh;
-	struct dcacp_ack_hdr *ah;
+	// struct dcpimhdr *dh;
+	struct dcpim_ack_hdr *ah;
 	struct sock *sk;
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
 
-	if (!pskb_may_pull(skb, sizeof(struct dcacp_ack_hdr))) {
+	if (!pskb_may_pull(skb, sizeof(struct dcpim_ack_hdr))) {
 		kfree_skb(skb);		/* No space for header. */
 		return 0;
 	}
-	ah = dcacp_ack_hdr(skb);
+	ah = dcpim_ack_hdr(skb);
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
-	sk = __inet_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&ah->common), ah->common.source,
+	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&ah->common), ah->common.source,
             ah->common.dest, sdif, &refcounted);
     // }
 
 	if(sk) {
  		bh_lock_sock(sk);
-		dsk = dcacp_sk(sk);
+		dsk = dcpim_sk(sk);
 		if (!sock_owned_by_user(sk)) {
-			if(sk->sk_state == DCACP_ESTABLISHED) {
+			if(sk->sk_state == DCPIM_ESTABLISHED) {
 				if(ah->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
 					dsk->sender.snd_una = ah->rcv_nxt;
-				dcacp_clean_rtx_queue(sk);
+				dcpim_clean_rtx_queue(sk);
 			}
 			kfree_skb(skb);
         } else {
-			dcacp_add_backlog(sk, skb, true);
+			dcpim_add_backlog(sk, skb, true);
 	    }
         bh_unlock_sock(sk);
 	   
@@ -886,39 +886,39 @@ int dcacp_handle_ack_pkt(struct sk_buff *skb) {
 	return 0;
 }
 
-int dcacp_handle_fin_pkt(struct sk_buff *skb) {
-	struct dcacp_sock *dsk;
+int dcpim_handle_fin_pkt(struct sk_buff *skb) {
+	struct dcpim_sock *dsk;
 	// struct inet_sock *inet;
-	// struct dcacp_peer *peer;
+	// struct dcpim_peer *peer;
 	// struct iphdr *iph;
-	struct dcacphdr *dh;
+	struct dcpimhdr *dh;
 	struct sock *sk;
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
 
-	// if (!pskb_may_pull(skb, sizeof(struct dcacp_ack_hdr))) {
+	// if (!pskb_may_pull(skb, sizeof(struct dcpim_ack_hdr))) {
 	// 	kfree_skb(skb);		/* No space for header. */
 	// 	return 0;
 	// }
-	dh = dcacp_hdr(skb);
+	dh = dcpim_hdr(skb);
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
-	sk = __inet_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(dh), dh->source,
+	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(dh), dh->source,
             dh->dest, sdif, &refcounted);
     // }
 	if(sk) {
  		bh_lock_sock(sk);
-		dsk = dcacp_sk(sk);
+		dsk = dcpim_sk(sk);
 		if (!sock_owned_by_user(sk)) {
 			// printk("reach here:%d", __LINE__);
-			if(sk->sk_state == DCACP_ESTABLISHED) {
-				dcacp_set_state(sk, DCACP_CLOSE);
-				// dcacp_write_queue_purge(sk);
+			if(sk->sk_state == DCPIM_ESTABLISHED) {
+				dcpim_set_state(sk, DCPIM_CLOSE);
+				// dcpim_write_queue_purge(sk);
 				sk->sk_data_ready(sk);
 			}
 	        kfree_skb(skb);
         } else {
-            dcacp_add_backlog(sk, skb, true);
+            dcpim_add_backlog(sk, skb, true);
         }
         bh_unlock_sock(sk);
 
@@ -937,34 +937,34 @@ int dcacp_handle_fin_pkt(struct sk_buff *skb) {
 }
 
 
-static int  dcacp_queue_rcv(struct sock *sk, struct sk_buff *skb,  bool *fragstolen)
+static int  dcpim_queue_rcv(struct sock *sk, struct sk_buff *skb,  bool *fragstolen)
 {
 	int eaten;
 	struct sk_buff *tail = skb_peek_tail(&sk->sk_receive_queue);
 
 	eaten = (tail &&
-		 dcacp_try_coalesce(sk, tail,
+		 dcpim_try_coalesce(sk, tail,
 				  skb, fragstolen)) ? 1 : 0;
 	if (!eaten) {
 		__skb_queue_tail(&sk->sk_receive_queue, skb);
 		// skb_set_owner_r(skb, sk);
 	}
-	dcacp_rcv_nxt_update(dcacp_sk(sk), DCACP_SKB_CB(skb)->end_seq);
+	dcpim_rcv_nxt_update(dcpim_sk(sk), DCPIM_SKB_CB(skb)->end_seq);
 	return eaten;
 }
 
-int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
+int dcpim_data_queue(struct sock *sk, struct sk_buff *skb)
 {
-	struct dcacp_sock *dsk = dcacp_sk(sk);
+	struct dcpim_sock *dsk = dcpim_sk(sk);
 	bool fragstolen;
 	int eaten;
-	if (DCACP_SKB_CB(skb)->seq == DCACP_SKB_CB(skb)->end_seq) {
-		dcacp_rmem_free_skb(sk, skb);
+	if (DCPIM_SKB_CB(skb)->seq == DCPIM_SKB_CB(skb)->end_seq) {
+		dcpim_rmem_free_skb(sk, skb);
 		return 0;
 	}
 	// if(atomic_read(&sk->sk_rmem_alloc) > sk->sk_rcvbuf) {
 	// 	struct inet_sock *inet = inet_sk(sk);
-	//     printk("seq num:%u\n", DCACP_SKB_CB(skb)->seq);
+	//     printk("seq num:%u\n", DCPIM_SKB_CB(skb)->seq);
 	//     printk("inet sk dport:%d\n", ntohs(inet->inet_dport));
 	//     printk("discard packet due to memory:%d\n", __LINE__);
 	// 	sk_drops_add(sk, skb);
@@ -974,14 +974,14 @@ int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
 	atomic_add(skb->truesize, &sk->sk_rmem_alloc);
 
 	// skb_dst_drop(skb);
-	__skb_pull(skb, (dcacp_hdr(skb)->doff >> 2)+ sizeof(struct data_segment));
-	// printk("handle packet data queue?:%d\n", DCACP_SKB_CB(skb)->seq);
+	__skb_pull(skb, (dcpim_hdr(skb)->doff >> 2)+ sizeof(struct data_segment));
+	// printk("handle packet data queue?:%d\n", DCPIM_SKB_CB(skb)->seq);
 
 	/*  Queue data for delivery to the user.
 	 *  Packets in sequence go to the receive queue.
 	 *  Out of sequence packets to the out_of_order_queue.
 	 */
-	if (DCACP_SKB_CB(skb)->seq == dsk->receiver.rcv_nxt) {
+	if (DCPIM_SKB_CB(skb)->seq == dsk->receiver.rcv_nxt) {
 		// if (tcp_receive_window(tp) == 0) {
 		// 	NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPZEROWINDOWDROP);
 		// 	goto out_of_window;
@@ -996,10 +996,10 @@ int dcacp_data_queue(struct sock *sk, struct sk_buff *skb)
 		// }
 		// __skb_queue_tail(&sk->sk_receive_queue, skb);
 queue_and_out:
-		eaten = dcacp_queue_rcv(sk, skb, &fragstolen);
+		eaten = dcpim_queue_rcv(sk, skb, &fragstolen);
 
 		if (!RB_EMPTY_ROOT(&dsk->out_of_order_queue)) {
-			dcacp_ofo_queue(sk);
+			dcpim_ofo_queue(sk);
 		}
 
 		// 	/* RFC5681. 4.2. SHOULD send immediate ACK, when
@@ -1010,32 +1010,32 @@ queue_and_out:
 		// }
 
 		if (dsk->num_sacks)
-			dcacp_sack_remove(dsk);
+			dcpim_sack_remove(dsk);
 
 		// tcp_fast_path_check(sk);
 
 		if (eaten > 0)
 			kfree_skb_partial(skb, fragstolen);
 		if (!sock_flag(sk, SOCK_DEAD)) {
-			dcacp_data_ready(sk);
+			dcpim_data_ready(sk);
 		}
 		return 0;
 	}
-	if (!after(DCACP_SKB_CB(skb)->end_seq, dsk->receiver.rcv_nxt)) {
+	if (!after(DCPIM_SKB_CB(skb)->end_seq, dsk->receiver.rcv_nxt)) {
 		printk("duplicate drop\n");
-		printk("duplicate seq:%u\n", DCACP_SKB_CB(skb)->seq);
-		dcacp_rmem_free_skb(sk, skb);
-		dcacp_drop(sk, skb);
+		printk("duplicate seq:%u\n", DCPIM_SKB_CB(skb)->seq);
+		dcpim_rmem_free_skb(sk, skb);
+		dcpim_drop(sk, skb);
 		return 0;
 	}
 
 	/* Out of window. F.e. zero window probe. */
-	// if (!before(DCACP_SKB_CB(skb)->seq, dsk->rcv_nxt + tcp_receive_window(dsk)))
+	// if (!before(DCPIM_SKB_CB(skb)->seq, dsk->rcv_nxt + tcp_receive_window(dsk)))
 	// 	goto out_of_window;
 
-	if (unlikely(before(DCACP_SKB_CB(skb)->seq, dsk->receiver.rcv_nxt))) {
+	if (unlikely(before(DCPIM_SKB_CB(skb)->seq, dsk->receiver.rcv_nxt))) {
 		/* Partial packet, seq < rcv_next < end_seq; unlikely */
-		// tcp_dsack_set(sk, DCACP_SKB_CB(skb)->seq, dsk->rcv_nxt);
+		// tcp_dsack_set(sk, DCPIM_SKB_CB(skb)->seq, dsk->rcv_nxt);
 
 
 		/* If window is closed, drop tail of packet. But after
@@ -1048,13 +1048,13 @@ queue_and_out:
 		goto queue_and_out;
 	}
 
-	dcacp_data_queue_ofo(sk, skb);
+	dcpim_data_queue_ofo(sk, skb);
 	return 0;
 }
 
-bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check)
+bool dcpim_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check)
 {
-		struct dcacp_sock *dsk = dcacp_sk(sk);
+		struct dcpim_sock *dsk = dcpim_sk(sk);
         u32 limit = READ_ONCE(sk->sk_rcvbuf) + READ_ONCE(sk->sk_sndbuf);
         // skb_condense(skb);
 
@@ -1077,7 +1077,7 @@ bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check)
 
  }
 /**
- * dcacp_data_pkt() - Handler for incoming DATA packets
+ * dcpim_data_pkt() - Handler for incoming DATA packets
  * @skb:     Incoming packet; size known to be large enough for the header.
  *           This function now owns the packet.
  * @rpc:     Information about the RPC corresponding to this packet.
@@ -1089,10 +1089,10 @@ bool dcacp_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check)
  */
  ktime_t start,end;
  __u64 total_bytes;
-int dcacp_handle_data_pkt(struct sk_buff *skb)
+int dcpim_handle_data_pkt(struct sk_buff *skb)
 {
-	struct dcacp_sock *dsk;
-	struct dcacp_data_hdr *dh;
+	struct dcpim_sock *dsk;
+	struct dcpim_data_hdr *dh;
 	struct sock *sk;
 	struct iphdr *iph;
 	int sdif = inet_sdif(skb);
@@ -1100,19 +1100,19 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	bool refcounted = false;
 	bool discard = false;
 	// printk("receive data pkt\n");
-	if (!pskb_may_pull(skb, sizeof(struct dcacp_data_hdr)))
+	if (!pskb_may_pull(skb, sizeof(struct dcpim_data_hdr)))
 		goto drop;		/* No space for header. */
-	dh =  dcacp_data_hdr(skb);
+	dh =  dcpim_data_hdr(skb);
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
-	sk = __inet_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&dh->common), dh->common.source,
+	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&dh->common), dh->common.source,
             dh->common.dest, sdif, &refcounted);
     if(!sk)
     	goto drop;
 
-	dcacp_v4_fill_cb(skb, iph, dh);
+	dcpim_v4_fill_cb(skb, iph, dh);
 	if(sk) {
-		dsk = dcacp_sk(sk);
+		dsk = dcpim_sk(sk);
 		iph = ip_hdr(skb);
  		bh_lock_sock(sk);
  		/* inflight_bytes for now is best-effort estimation */
@@ -1121,18 +1121,18 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
         if (!sock_owned_by_user(sk)) {
 			/* current place to set rxhash for RFS/RPS */
 			// printk("skb->hash:%u\n", skb->hash);
-			if(sk->sk_state == DCACP_ESTABLISHED) {
-				atomic_sub(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq, &dsk->receiver.inflight_bytes);
+			if(sk->sk_state == DCPIM_ESTABLISHED) {
+				atomic_sub(DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq, &dsk->receiver.inflight_bytes);
 				if(atomic_read(&dsk->receiver.inflight_bytes) < 0) {
 					atomic_set(&dsk->receiver.inflight_bytes, 0);
 				}
 				sock_rps_save_rxhash(sk, skb);
-				dcacp_data_queue(sk, skb);
+				dcpim_data_queue(sk, skb);
 			}
-			// dcacp_check_flow_finished_at_receiver(dsk);;
+			// dcpim_check_flow_finished_at_receiver(dsk);;
         } else {
         	// printk("add to backlog\n");
-            if (dcacp_add_backlog(sk, skb, true)) {
+            if (dcpim_add_backlog(sk, skb, true)) {
             	discard = true;
 				goto discard_skb;
                 // goto discard_and_relse;
@@ -1144,7 +1144,7 @@ int dcacp_handle_data_pkt(struct sk_buff *skb)
 	}
 discard_skb:
 	if (discard) {
-	    printk("seq num:%u\n", DCACP_SKB_CB(skb)->seq);
+	    printk("seq num:%u\n", DCPIM_SKB_CB(skb)->seq);
 	    printk("discard packet:%d\n", __LINE__);
 		sk_drops_add(sk, skb);
 		kfree_skb(skb);
@@ -1163,7 +1163,7 @@ drop:
     return 0;
 
 // discard_and_relse:
-//     printk("seq num:%u\n", DCACP_SKB_CB(skb)->seq);
+//     printk("seq num:%u\n", DCPIM_SKB_CB(skb)->seq);
 //     printk("discard packet due to memory:%d\n", __LINE__);
 //     sk_drops_add(sk, skb);
 //     if (refcounted)
@@ -1175,55 +1175,55 @@ drop:
 /* should hold the lock, before calling this function；
  * This function is only called for backlog handling from the release_sock()
  */
-int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
-	struct dcacphdr* dh;
-	struct dcacp_sock *dsk = dcacp_sk(sk);
-	dh = dcacp_hdr(skb);
+int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
+	struct dcpimhdr* dh;
+	struct dcpim_sock *dsk = dcpim_sk(sk);
+	dh = dcpim_hdr(skb);
 	atomic_sub(skb->truesize, &dsk->receiver.backlog_len);
 	/* current place to set rxhash for RFS/RPS */
  	sock_rps_save_rxhash(sk, skb);
 	// printk("backlog rcv\n");
-	if(sk->sk_state == DCACP_ESTABLISHED) {
+	if(sk->sk_state == DCPIM_ESTABLISHED) {
 		if(dh->type == DATA) {
-			atomic_sub(DCACP_SKB_CB(skb)->end_seq - DCACP_SKB_CB(skb)->seq, &dsk->receiver.inflight_bytes);
+			atomic_sub(DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq, &dsk->receiver.inflight_bytes);
 			if(atomic_read(&dsk->receiver.inflight_bytes) < 0) {
 				atomic_set(&dsk->receiver.inflight_bytes, 0);
 			}
-			dcacp_data_queue(sk, skb);
+			dcpim_data_queue(sk, skb);
 			return 0;
-			// return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
+			// return __dcpim4_lib_rcv(skb, &dcpim_table, IPPROTO_DCPIM);
 		} else if (dh->type == FIN) {
 			// printk("reach here:%d", __LINE__);
 
-			dcacp_set_state(sk, DCACP_CLOSE);
-			// dcacp_write_queue_purge(sk);
+			dcpim_set_state(sk, DCPIM_CLOSE);
+			// dcpim_write_queue_purge(sk);
 			// atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 			sk->sk_data_ready(sk);
 		} else if (dh->type == ACK) {
-			struct dcacp_ack_hdr *ah = dcacp_ack_hdr(skb);
+			struct dcpim_ack_hdr *ah = dcpim_ack_hdr(skb);
 			if(ah->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
 				dsk->sender.snd_una = ah->rcv_nxt;
-			dcacp_clean_rtx_queue(sk);
+			dcpim_clean_rtx_queue(sk);
 		}
 		else if (dh->type == TOKEN) {
 			/* clean rtx queue */
-			struct dcacp_token_hdr *th = dcacp_token_hdr(skb);
+			struct dcpim_token_hdr *th = dcpim_token_hdr(skb);
 			if(th->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
 				dsk->sender.snd_una = th->rcv_nxt;
 			if(th->token_nxt - dsk->sender.token_seq <= sk->sk_sndbuf)
 				dsk->sender.token_seq = th->token_nxt;
-			dcacp_write_timer_handler(sk);
-			dcacp_clean_rtx_queue(sk);
+			dcpim_write_timer_handler(sk);
+			dcpim_clean_rtx_queue(sk);
 		}
 	}
-	if(sk->sk_state == DCACP_LISTEN) {
+	if(sk->sk_state == DCPIM_LISTEN) {
 		if(dh->type == NOTIFICATION) {
-			struct dcacp_flow_sync_hdr *fh;
+			struct dcpim_flow_sync_hdr *fh;
 			struct sock* child;
-			fh =  dcacp_flow_sync_hdr(skb);
-			child = dcacp_conn_request(sk, skb);
+			fh =  dcpim_flow_sync_hdr(skb);
+			child = dcpim_conn_request(sk, skb);
 			if(child) {
-				dsk = dcacp_sk(child);
+				dsk = dcpim_sk(child);
 				/* this line needed to change later */
 				if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
 					hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
@@ -1231,7 +1231,7 @@ int dcacp_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 					// printk(" call hrtimer at:%d %d\n", __LINE__, refcount_read(&sk->sk_refcnt));	
 				}
 			}
-			// return __dcacp4_lib_rcv(skb, &dcacp_table, IPPROTO_DCACP);
+			// return __dcpim4_lib_rcv(skb, &dcpim_table, IPPROTO_DCPIM);
 		} 
 	}
 

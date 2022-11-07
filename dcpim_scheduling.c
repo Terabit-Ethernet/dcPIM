@@ -1,4 +1,4 @@
-#include "dcacp_impl.h"
+#include "dcpim_impl.h"
 
 #define MAX_ACTIVE_CORE 4
 
@@ -8,10 +8,10 @@ struct rcv_core_table rcv_core_tab;
 extern uint32_t backlog_rcv;
 
 int calc_grant_bytes(struct sock *sk) {
-	    // struct dcacp_sock* dsk = dcacp_sk(sk);
+	    // struct dcpim_sock* dsk = dcpim_sk(sk);
 	    // int max_gso_data = (int)dsk->receiver.max_gso_data;
-        // int free_space = dcacp_space(sk);
-        // int allowed_space = dcacp_full_space(sk);
+        // int free_space = dcpim_space(sk);
+        // int allowed_space = dcpim_full_space(sk);
         // int full_space = min_t(int, dsk->receiver.grant_batch, allowed_space);
         // int grant_bytes = dsk->receiver.grant_batch;
 		// int grant_bytes;
@@ -38,9 +38,9 @@ int calc_grant_bytes(struct sock *sk) {
 }
 
 bool flow_compare(const struct list_head* node1, const struct list_head* node2) {
-    struct dcacp_sock *e1, *e2;
-    // e1 = list_entry(node1, struct dcacp_sock, match_link);
-    // e2 = list_entry(node2, struct dcacp_sock, match_link);
+    struct dcpim_sock *e1, *e2;
+    // e1 = list_entry(node1, struct dcpim_sock, match_link);
+    // e2 = list_entry(node2, struct dcpim_sock, match_link);
     // if(e1->total_length > e2->total_length)
     //     return true;
     // if(ktime_compare(e1->start_time, e2->start_time) > 0)
@@ -55,15 +55,15 @@ void rcv_core_entry_init(struct rcv_core_entry *entry, int core_id) {
 	atomic_set(&entry->remaining_tokens, 0);
 	// atomic_set(&epoch->pending_flows, 0);
 	entry->core_id = core_id;
-	entry->state = DCACP_IDLE;
+	entry->state = DCPIM_IDLE;
 	hrtimer_init(&entry->flowlet_done_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
 	entry->flowlet_done_timer.function = &flowlet_done_event;
 
 	/* pHost Queue */
-	dcacp_pq_init(&entry->flow_q, flow_compare);
+	dcpim_pq_init(&entry->flow_q, flow_compare);
 
 	INIT_LIST_HEAD(&entry->list_link);
-	INIT_WORK(&entry->token_xmit_struct, dcacp_xmit_token_event);
+	INIT_WORK(&entry->token_xmit_struct, dcpim_xmit_token_event);
 
 
 }
@@ -74,7 +74,7 @@ int rcv_core_table_init(struct rcv_core_table *tab) {
 	tab->num_active_cores = 0;
 	spin_lock_init(&tab->lock);
 	INIT_LIST_HEAD(&tab->sche_list);
-	tab->wq = alloc_workqueue("dcacp-rcv-wq",
+	tab->wq = alloc_workqueue("dcpim-rcv-wq",
 		WQ_MEM_RECLAIM | WQ_HIGHPRI, 0);
 	if(!tab->wq)
 		return -ENOMEM;
@@ -105,12 +105,12 @@ void rcv_invoke_next(struct rcv_core_table* tab) {
 	}
 }
 
-#define DCACP_RMEM_LIMIT 1
-#define DCACP_TIMER_SETUP 2
+#define DCPIM_RMEM_LIMIT 1
+#define DCPIM_TIMER_SETUP 2
 
 int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 	return true;
-	// struct dcacp_sock *dsk = dcacp_sk(sk);
+	// struct dcpim_sock *dsk = dcpim_sk(sk);
 	// struct rcv_core_entry* entry = &rcv_core_tab.table[dsk->core_id];
 	// int grant_len = 0;
 	// struct inet_sock *inet;
@@ -126,7 +126,7 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 	// // printk("xmit token cpu:%d\n", dsk->core_id);
 	// if (dsk->receiver.flow_finish_wait) {
 	// 	// printk("flow wait\n");
-	// 	return DCACP_TIMER_SETUP;
+	// 	return DCPIM_TIMER_SETUP;
 	// }
 	// /* this is only exception for retransmission*/
 	// if (grant_bytes < 0)
@@ -144,8 +144,8 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 	// 	dsk->receiver.last_rtx_time = ktime_get();
 	// 	retransmit_bytes = rtx_bytes_count(dsk, prev_grant_nxt);
 	// 	grant_len += retransmit_bytes;
-	// 	// atomic_add_return(retransmit_bytes, &dcacp_epoch.remaining_tokens);
-	// 	if (retransmit_bytes > dcacp_params.control_pkt_bdp / 2)
+	// 	// atomic_add_return(retransmit_bytes, &dcpim_epoch.remaining_tokens);
+	// 	if (retransmit_bytes > dcpim_params.control_pkt_bdp / 2)
 	// 		grant_bytes = 0;
 	// 	// for debugging purpose now; should remove this later
 	// 	handle_rtx = false;
@@ -174,17 +174,17 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 	// 	dsk->receiver.rmem_exhausted += 1;
 	// }
 	// if(dsk->new_grant_nxt == dsk->total_length) {
-	// 	push_bk = DCACP_TIMER_SETUP;
+	// 	push_bk = DCPIM_TIMER_SETUP;
 	// 	/* TO DO: setup a timer here */
 	// 	/* current set timer to be 10 RTT */
 	// 	dsk->receiver.flow_finish_wait = true;
 	// 	// printk("set up flow wait timer\n");
-	// 	hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 40 * 1000), 
+	// 	hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcpim_params.rtt * 40 * 1000), 
 	// 		HRTIMER_MODE_REL_PINNED_SOFT);
 	// } else {
 	// 	// printk("setup flow wait timer\n");
-	// 	// printk("expire time:%d\n", dcacp_params.rtt * 10 * 1000);
-	// 	hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcacp_params.rtt * 40 * 1000), 
+	// 	// printk("expire time:%d\n", dcpim_params.rtt * 10 * 1000);
+	// 	hrtimer_start(&dsk->receiver.flow_wait_timer, ns_to_ktime(dcpim_params.rtt * 40 * 1000), 
 	// 		HRTIMER_MODE_REL_PINNED_SOFT);
 	// }
 	// // printk("xmit token grant next:%u\n", dsk->new_grant_nxt);
@@ -196,38 +196,38 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx) {
 	// // atomic_add(grant_len, &dsk->receiver.in_flight_bytes);
 	// // printk("send token");
 	// if(handle_rtx || grant_len != 0)
-	// 	dcacp_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->new_grant_nxt, handle_rtx),
+	// 	dcpim_xmit_control(construct_token_pkt((struct sock*)dsk, 3, prev_grant_nxt, dsk->new_grant_nxt, handle_rtx),
 	//  	sk, inet->inet_dport);
 	// return push_bk;
 }
 
 /* assume entry lock is hold and bh is disabled */
-bool dcacp_xmit_token_single_core(struct rcv_core_entry *entry) {
+bool dcpim_xmit_token_single_core(struct rcv_core_entry *entry) {
 // 	bool find_flow = false;
 // 	struct list_head *match_link;
-// 	struct dcacp_sock *dsk;
+// 	struct dcpim_sock *dsk;
 // 	struct inet_sock *inet;
 // 	struct sock* sk;
 
-// 	while(!dcacp_pq_empty(&entry->flow_q)) {
+// 	while(!dcpim_pq_empty(&entry->flow_q)) {
 // 		int not_push_bk = 0;
 // 		bool handle_rtx = false;
-// 		// printk("pq size:%d\n", dcacp_pq_size(&entry->flow_q));
-// 		match_link = dcacp_pq_peek(&entry->flow_q);
-// 		dsk =  list_entry(match_link, struct dcacp_sock, match_link);
+// 		// printk("pq size:%d\n", dcpim_pq_size(&entry->flow_q));
+// 		match_link = dcpim_pq_peek(&entry->flow_q);
+// 		dsk =  list_entry(match_link, struct dcpim_sock, match_link);
 // 		sk = (struct sock*)dsk;
 // 		inet = inet_sk(sk);
-// 		dcacp_pq_pop(&entry->flow_q);
+// 		dcpim_pq_pop(&entry->flow_q);
 //  		bh_lock_sock(sk);
 //  		dsk->receiver.in_pq = false;
 //  		// printk("xmit token for socket:%d\n", ntohs(inet->inet_dport));
-//  		if(sk->sk_state == DCACP_ESTABLISHED && !dsk->receiver.finished_at_receiver) {
+//  		if(sk->sk_state == DCPIM_ESTABLISHED && !dsk->receiver.finished_at_receiver) {
 // 			// int retransmit_bytes;
 // 			// dsk->receiver.prev_grant_bytes = 0;
 // 			// if(ntohs(inet->inet_dport) == 1000) {
 // 				// printk("port:%d", ntohs(inet->inet_dport));
 // 				// printk(" grant bytes:%d", grant_bytes);
-// 				// printk(" space: %d\n", dcacp_space(sk));
+// 				// printk(" space: %d\n", dcpim_space(sk));
 
 // 			// }
 // 			// retransmit_bytes = rtx_bytes_count(dsk, dsk->prev_grant_nxt);
@@ -257,20 +257,20 @@ bool dcacp_xmit_token_single_core(struct rcv_core_entry *entry) {
 // 					}
 // 					dsk->prev_grant_nxt = dsk->grant_nxt;
 // 					dsk->grant_nxt = dsk->new_grant_nxt;
-// 	  				dcacp_pq_push(&entry->flow_q, &dsk->match_link);
+// 	  				dcpim_pq_push(&entry->flow_q, &dsk->match_link);
 // 	  				dsk->receiver.in_pq = true;
 // 					dsk->receiver.prev_grant_bytes = 0;
 // 					dsk->receiver.grant_batch = min_t(uint32_t, dsk->total_length - dsk->grant_nxt,
 // 		 				dsk->receiver.max_grant_batch);
 // 	  			} 
 // 	  			if (!dsk->receiver.flow_finish_wait && grant_bytes == 0) {
-// 	  				test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+// 	  				test_and_set_bit(DCPIM_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
 // 	  			}
 //   				// printk("reach here:%d\n", __LINE__);
 // 	 		}
-// 	 		else if(!test_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
+// 	 		else if(!test_bit(DCPIM_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
 //   				// printk("token timer deferred set\n");
-//  				test_and_set_bit(DCACP_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
+//  				test_and_set_bit(DCPIM_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags);
 // 	 		}
 //  		} else {
 //  			goto unlock;
@@ -281,14 +281,14 @@ bool dcacp_xmit_token_single_core(struct rcv_core_entry *entry) {
 // unlock:
 //         bh_unlock_sock(sk);
 // 	}
-// 	if (!dcacp_pq_empty(&entry->flow_q)) {
+// 	if (!dcpim_pq_empty(&entry->flow_q)) {
 // 	}
 // 	return find_flow;
 	return true;
 }
 
 /* Assume local bh is disabled */
-// void dcacp_update_and_schedule_sock(struct dcacp_sock *dsk) {
+// void dcpim_update_and_schedule_sock(struct dcpim_sock *dsk) {
 // 	// struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
 // 	// WARN_ON(dsk->receiver.in_pq);
 // 	// spin_lock(&entry->lock);
@@ -303,46 +303,46 @@ bool dcacp_xmit_token_single_core(struct rcv_core_entry *entry) {
 // 	// dsk->receiver.grant_batch = min_t(uint32_t, dsk->total_length - dsk->grant_nxt,
 // 	// 	 dsk->receiver.max_grant_batch);
 // 	// if(!dsk->receiver.in_pq) {
-// 	// 	dcacp_pq_push(&entry->flow_q, &dsk->match_link);
+// 	// 	dcpim_pq_push(&entry->flow_q, &dsk->match_link);
 // 	// 	dsk->receiver.in_pq = true;
 // 	// }
 // 	// spin_unlock(&entry->lock);
 // }
 
 /* Assume local bh is disabled */
-void dcacp_unschedule_sock(struct dcacp_sock *dsk) {
+void dcpim_unschedule_sock(struct dcpim_sock *dsk) {
 	// struct rcv_core_entry *entry = &rcv_core_tab.table[dsk->core_id];
 	// // WARN_ON(!dsk->receiver.in_pq);
 	// spin_lock(&entry->lock);
 	// if(dsk->receiver.in_pq) {
-	// 	dcacp_pq_delete(&entry->flow_q, &dsk->match_link);
+	// 	dcpim_pq_delete(&entry->flow_q, &dsk->match_link);
 	// 	dsk->receiver.in_pq = false;
 	// }
 	// spin_unlock(&entry->lock);
 }
 
 /* Process Context */
-void dcacp_xmit_token_event(struct work_struct *w) {
+void dcpim_xmit_token_event(struct work_struct *w) {
 // 	struct rcv_core_entry *entry = container_of(w, struct rcv_core_entry, token_xmit_struct);
 // 	bool find_flow = false;
 // 		// start2 = ktime_get();
-// 	// printk("dcacp xmit token\n");
+// 	// printk("dcpim xmit token\n");
 // 	spin_lock_bh(&entry->lock);
 // 	// WARN_ON(entry->is_active);
-// 	WARN_ON(entry->state != DCACP_IN_QUEUE);
-// 	if(entry->state == DCACP_ACTIVE) {
+// 	WARN_ON(entry->state != DCPIM_IN_QUEUE);
+// 	if(entry->state == DCPIM_ACTIVE) {
 // 		// WARN_ON(true);
 // 		goto not_find_flow;
 // 	}
-// 	entry->state = DCACP_ACTIVE;
+// 	entry->state = DCPIM_ACTIVE;
 // 	// printk("reach here:%d\n", __LINE__);
-// 	find_flow = dcacp_xmit_token_single_core(entry);
+// 	find_flow = dcpim_xmit_token_single_core(entry);
 // 	if(!find_flow)
-// 		entry->state = DCACP_IDLE;
+// 		entry->state = DCPIM_IDLE;
 
 // 	/* not enough pkt is granted */
-// 	if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
-// 		entry->state = DCACP_IDLE;
+// 	if(atomic_read(&entry->remaining_tokens) <= dcpim_params.control_pkt_bdp / 2) {
+// 		entry->state = DCPIM_IDLE;
 // 		find_flow = false;
 // 	}
 
@@ -356,7 +356,7 @@ void dcacp_xmit_token_event(struct work_struct *w) {
 // 	}
 }
 
-void rcv_handle_new_flow(struct dcacp_sock* dsk) {
+void rcv_handle_new_flow(struct dcpim_sock* dsk) {
 // 	int core_id = dsk->core_id;
 // 	// bool is_empty = false;
 // 	struct rcv_core_entry* entry = &rcv_core_tab.table[core_id];
@@ -364,7 +364,7 @@ void rcv_handle_new_flow(struct dcacp_sock* dsk) {
 // 	spin_lock(&entry->lock);
 
 // 	/* push the long flow to the control plane for scheduling*/
-// 	dcacp_pq_push(&entry->flow_q, &dsk->match_link);
+// 	dcpim_pq_push(&entry->flow_q, &dsk->match_link);
 // 	dsk->receiver.in_pq = true;
 // 	dsk->receiver.prev_token_nxt = 0;
 // 	dsk->receiver.token_nxt = 0;
@@ -372,30 +372,30 @@ void rcv_handle_new_flow(struct dcacp_sock* dsk) {
 // 		dsk->receiver.max_grant_batch);
 // 	// printk("dsk->address:%p\n", dsk);
 // 	// printk("dsk->match_link:%p\n", &dsk->match_link);
-// 	// printk("pq peek:%p\n", dcacp_pq_peek(&entry->flow_q));
-// 	// printk("pq size:%d\n", dcacp_pq_size(&entry->flow_q));
+// 	// printk("pq peek:%p\n", dcpim_pq_peek(&entry->flow_q));
+// 	// printk("pq size:%d\n", dcpim_pq_size(&entry->flow_q));
 // 	// printk("handle new flow flow wait:%d\n", dsk->receiver.flow_wait);
-// 	// if(dcacp_pq_size(&entry->flow_q) == 1) {
+// 	// if(dcpim_pq_size(&entry->flow_q) == 1) {
 // 	// 	is_empty = true;
 // 	// }
 // 	// printk("handle new flow core id:%d\n", core_id);
 // 	// printk("entry state:%d\n", entry->state);f
 // 	// printk("handle new flow\n");
-// 	if(entry->state == DCACP_IDLE) {
+// 	if(entry->state == DCPIM_IDLE) {
 // 		spin_lock(&rcv_core_tab.lock);
 // 		// printk("entry state:%d\n", entry->state);
 
 // 		/* list empty*/
 // 		if(rcv_core_tab.num_active_cores < MAX_ACTIVE_CORE) {
 // 			rcv_core_tab.num_active_cores += 1;
-// 			entry->state = DCACP_ACTIVE;
+// 			entry->state = DCPIM_ACTIVE;
 // 			// printk("reach here:%d\n", __LINE__);
 // 			spin_unlock(&rcv_core_tab.lock);
 // 			// printk("reach here:%d\n", __LINE__);
-// 			dcacp_xmit_token_single_core(entry);
+// 			dcpim_xmit_token_single_core(entry);
 // 			goto end;
 // 		} else {
-// 			entry->state = DCACP_IN_QUEUE;
+// 			entry->state = DCPIM_IN_QUEUE;
 // 			list_add_tail(&entry->list_link, &rcv_core_tab.sche_list);
 // 		}
 // 		spin_unlock(&rcv_core_tab.lock);
@@ -407,13 +407,13 @@ void rcv_handle_new_flow(struct dcacp_sock* dsk) {
 /* entry lock is hold and bh is disabled */
 void rcv_flowlet_done(struct rcv_core_entry *entry) {
 
-// 	bool pq_empty = dcacp_pq_empty(&entry->flow_q);
-// 	if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2 
-// 		&& entry->state == DCACP_ACTIVE) {
+// 	bool pq_empty = dcpim_pq_empty(&entry->flow_q);
+// 	if(atomic_read(&entry->remaining_tokens) <= dcpim_params.control_pkt_bdp / 2 
+// 		&& entry->state == DCPIM_ACTIVE) {
 // 		spin_lock(&rcv_core_tab.lock);
-// 		// printk("control pkt bdp / 2:%d\n", dcacp_params.control_pkt_bdp / 2);
+// 		// printk("control pkt bdp / 2:%d\n", dcpim_params.control_pkt_bdp / 2);
 // 		if(pq_empty) {
-// 			entry->state = DCACP_IDLE;
+// 			entry->state = DCPIM_IDLE;
 // 			rcv_core_tab.num_active_cores -= 1;
 // 			// printk("pq empty reach here:%d\n", __LINE__);
 // 			rcv_invoke_next(&rcv_core_tab);
@@ -423,28 +423,28 @@ void rcv_flowlet_done(struct rcv_core_entry *entry) {
 // 			spin_unlock(&rcv_core_tab.lock);
 // 			// printk("reach here:%d\n", __LINE__);
 
-// 			find_flow = dcacp_xmit_token_single_core(entry);
+// 			find_flow = dcpim_xmit_token_single_core(entry);
 // 			// if(!find_flow) {
-// 			// 	entry->state = DCACP_IDLE;
+// 			// 	entry->state = DCPIM_IDLE;
 // 			// 	printk("reach here:%d\n", __LINE__);
 // 			// 	goto not_find_flow;
 // 			// }
 // 			/* not enough pkt is granted */
-// 			if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
-// 				entry->state = DCACP_IDLE;
+// 			if(atomic_read(&entry->remaining_tokens) <= dcpim_params.control_pkt_bdp / 2) {
+// 				entry->state = DCPIM_IDLE;
 // 				// printk("reach here:%d\n", __LINE__);
 // 				goto not_find_flow;
 // 			}
 // 			goto end;
 // 		} else {
-// 			entry->state = DCACP_IN_QUEUE;
+// 			entry->state = DCPIM_IN_QUEUE;
 // 			rcv_core_tab.num_active_cores -= 1;
 // 			// printk("reach here:%d\n", __LINE__);
 // 			list_add_tail(&entry->list_link, &rcv_core_tab.sche_list);
 // 			rcv_invoke_next(&rcv_core_tab);
 // 		}
 // 		spin_unlock(&rcv_core_tab.lock);
-// 		// hrtimer_start(&dcacp_epoch.token_xmit_timer, ktime_set(0, 0), HRTIMER_MODE_REL_PINNED_SOFT);
+// 		// hrtimer_start(&dcpim_epoch.token_xmit_timer, ktime_set(0, 0), HRTIMER_MODE_REL_PINNED_SOFT);
 // 	}
 // end:
 // 	return;
@@ -458,47 +458,47 @@ void rcv_flowlet_done(struct rcv_core_entry *entry) {
 
 /* handle flowlet done, flow came back after timeour or retranmission; */
 enum hrtimer_restart flowlet_done_event(struct hrtimer *timer) {
-	// struct dcacp_grant* grant, temp;
+	// struct dcpim_grant* grant, temp;
 // 	struct rcv_core_entry *entry = container_of(timer, struct rcv_core_entry, flowlet_done_timer);
 // 	WARN_ON(!in_softirq());
 // 	// printk("flowlet done timer is called\n");
 
 // 	spin_lock(&entry->lock);
 // 	/* reset the remaining tokens to zero */
-// 	if(entry->state == DCACP_ACTIVE) {
+// 	if(entry->state == DCPIM_ACTIVE) {
 // 		rcv_flowlet_done(entry);
-// 	} else if(entry->state == DCACP_IDLE && !dcacp_pq_empty(&entry->flow_q)) {
+// 	} else if(entry->state == DCPIM_IDLE && !dcpim_pq_empty(&entry->flow_q)) {
 // 		bool find_flow = false;
 // 		spin_lock(&rcv_core_tab.lock);
 // 		/* list empty*/
 // 		if(rcv_core_tab.num_active_cores < MAX_ACTIVE_CORE) {
 // 			rcv_core_tab.num_active_cores += 1;
-// 			entry->state = DCACP_ACTIVE;
+// 			entry->state = DCPIM_ACTIVE;
 // 			spin_unlock(&rcv_core_tab.lock);
 // 			// printk("reach here:%d\n", __LINE__);
-// 			find_flow = dcacp_xmit_token_single_core(entry);
+// 			find_flow = dcpim_xmit_token_single_core(entry);
 // 			// if(!find_flow) {
-// 			// 	entry->state = DCACP_IDLE;
+// 			// 	entry->state = DCPIM_IDLE;
 // 			// 	printk("reach here:%d\n", __LINE__);
 
 // 			// 	goto not_find_flow;
 // 			// }
 // 			/* not enough pkt is granted */
-// 			if(atomic_read(&entry->remaining_tokens) <= dcacp_params.control_pkt_bdp / 2) {
-// 				entry->state = DCACP_IDLE;
+// 			if(atomic_read(&entry->remaining_tokens) <= dcpim_params.control_pkt_bdp / 2) {
+// 				entry->state = DCPIM_IDLE;
 // 				// printk("reach here:%d\n", __LINE__);
 // 				goto not_find_flow;
 // 			}
 // 			goto end;
 // 		} else {
-// 			entry->state = DCACP_IN_QUEUE;
+// 			entry->state = DCPIM_IN_QUEUE;
 // 			list_add_tail(&entry->list_link, &rcv_core_tab.sche_list);
 // 		}
 // 		spin_unlock(&rcv_core_tab.lock);
 // 	}
 // end:
 // 	spin_unlock(&entry->lock);
-//  	// queue_work(dcacp_epoch.wq, &dcacp_epoch.token_xmit_struct);
+//  	// queue_work(dcpim_epoch.wq, &dcpim_epoch.token_xmit_struct);
 // 	return HRTIMER_NORESTART;
 
 // not_find_flow:
@@ -518,13 +518,13 @@ void xmit_core_entry_init(struct xmit_core_entry *entry, int core_id) {
 	// atomic_set(&epoch->pending_flows, 0);
 	entry->core_id = core_id;
 	// hrtimer_init(&entry->token_xmit_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
-	// entry->token_xmit_timer.function = &dcacp_token_xmit_event;
+	// entry->token_xmit_timer.function = &dcpim_token_xmit_event;
 	// hrtimer_init(&entry->data_xmit_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
-	// entry->data_xmit_timer.function = &dcacp_xmit_data_event;
+	// entry->data_xmit_timer.function = &dcpim_xmit_data_event;
 	skb_queue_head_init(&entry->token_q);
 
 	INIT_LIST_HEAD(&entry->list_link);
-	INIT_WORK(&entry->data_xmit_struct, dcacp_xmit_data_event);
+	INIT_WORK(&entry->data_xmit_struct, dcpim_xmit_data_event);
 }
 
 int xmit_core_table_init(struct xmit_core_table *tab) {
@@ -532,7 +532,7 @@ int xmit_core_table_init(struct xmit_core_table *tab) {
 	tab->num_active_cores = 0;
 	spin_lock_init(&tab->lock);
 	INIT_LIST_HEAD(&tab->sche_list);
-	tab->wq = alloc_workqueue("dcacp-xmit-wq",
+	tab->wq = alloc_workqueue("dcpim-xmit-wq",
 		WQ_MEM_RECLAIM | WQ_HIGHPRI, 0);
 	if(!tab->wq) 
 		return -ENOMEM;
@@ -548,30 +548,30 @@ void xmit_core_table_destory(struct xmit_core_table *tab) {
 	destroy_workqueue(tab->wq);
 }
 int xmit_use_token(struct sk_buff* skb) {
-// 	struct dcacp_token_hdr *th;
+// 	struct dcpim_token_hdr *th;
 // 	struct sock* sk;
-// 	struct dcacp_sock *dsk;
+// 	struct dcpim_sock *dsk;
 // 	// int sdif = inet_sdif(skb);
 // 	// bool refcounted = false;
 // 	int sent_bytes = 0;
 
-// 	th = dcacp_token_hdr(skb);
-// 	// sk = __dcacp_lookup_skb(&dcacp_hashinfo, skb, __dcacp_hdrlen(&th->common), th->common.source,
+// 	th = dcpim_token_hdr(skb);
+// 	// sk = __dcpim_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&th->common), th->common.source,
 //  //            th->common.dest, sdif, &refcounted);
 // 	sk = skb->sk;
 // 	if(sk) {
 // 		// printk("reach here:%d\n", __LINE__);
 // 		// printk("use token\n");
-// 	 	dsk = dcacp_sk(sk);
+// 	 	dsk = dcpim_sk(sk);
 //  		bh_lock_sock(sk);
 // 		/* add token */
 //  		dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
 //  		/* add sack info */
-//  		dcacp_get_sack_info(sk, skb);
+//  		dcpim_get_sack_info(sk, skb);
 // 	    if(!sock_owned_by_user(sk) || dsk->num_sacks == 0) {
-// 	 		sent_bytes += dcacp_write_timer_handler(sk);
+// 	 		sent_bytes += dcpim_write_timer_handler(sk);
 // 	    } else {
-// 	 		test_and_set_bit(DCACP_RTX_DEFERRED, &sk->sk_tsq_flags);
+// 	 		test_and_set_bit(DCPIM_RTX_DEFERRED, &sk->sk_tsq_flags);
 // 	    }
 // 	    bh_unlock_sock(sk);
 // 	}
@@ -600,7 +600,7 @@ void xmit_invoke_next(struct xmit_core_table *tab) {
 void xmit_handle_new_token(struct xmit_core_table *tab, struct sk_buff* skb) {
 	bool send_now = false;
 	bool is_empty = false;
-	int core_id = dcacp_sk(skb->sk)->core_id;
+	int core_id = dcpim_sk(skb->sk)->core_id;
 	struct xmit_core_entry *entry = &tab->table[core_id];
 	struct sk_buff* new_skb;
 	spin_lock(&entry->lock);
@@ -639,8 +639,8 @@ void xmit_handle_new_token(struct xmit_core_table *tab, struct sk_buff* skb) {
 }
 
 /* In Process Context */
-void dcacp_xmit_data_event(struct work_struct *w) {
-	// struct dcacp_grant* grant, temp;
+void dcpim_xmit_data_event(struct work_struct *w) {
+	// struct dcpim_grant* grant, temp;
 	int num_bytes_sent;
 	struct xmit_core_entry *entry = container_of(w, struct xmit_core_entry, data_xmit_struct);
 
@@ -652,7 +652,7 @@ start_sent:
 	while(1) {
 		struct sk_buff* skb;
 		spin_lock_bh(&entry->lock);
-		if(num_bytes_sent > dcacp_params.data_budget) {
+		if(num_bytes_sent > dcpim_params.data_budget) {
 			goto stop;
 		}
 		if(skb_queue_empty(&entry->token_q)) {
@@ -686,7 +686,7 @@ start_sent:
 	xmit_invoke_next(&xmit_core_tab);
 	spin_unlock_bh(&xmit_core_tab.lock);
 	spin_unlock_bh(&entry->lock);
- 	// queue_work(dcacp_epoch.wq, &dcacp_epoch.token_xmit_struct);
+ 	// queue_work(dcpim_epoch.wq, &dcpim_epoch.token_xmit_struct);
 	return;
 
 }

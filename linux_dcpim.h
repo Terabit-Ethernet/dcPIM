@@ -4,71 +4,71 @@
  *		operating system.  INET is implemented using the  BSD Socket
  *		interface as the means of communication with the user level.
  *
- *		Definitions for the DCACP protocol.
+ *		Definitions for the DCPIM protocol.
  *
- * Version:	@(#)dcacp.h	1.0.2	04/28/93
+ * Version:	@(#)dcpim.h	1.0.2	04/28/93
  *
  * Author:	Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
  */
-#ifndef _LINUX_DCACP_H
-#define _LINUX_DCACP_H
+#ifndef _LINUX_DCPIM_H
+#define _LINUX_DCPIM_H
 
 #include <net/inet_sock.h>
 #include <linux/skbuff.h>
 #include <net/netns/hash.h>
-#include "uapi_linux_dcacp.h"
+#include "uapi_linux_dcpim.h"
 
-struct dcacp_sock;
+struct dcpim_sock;
 
 enum {
 	/* Core State */
-	DCACP_IDLE = 1,
-	DCACP_IN_QUEUE,
-	DCACP_ACTIVE,
+	DCPIM_IDLE = 1,
+	DCPIM_IN_QUEUE,
+	DCPIM_ACTIVE,
 };
 
 enum {
 	/* The initial state is TCP_CLOSE */
 	/* Sender and receiver state are easier to debug.*/
-	DCACP_ESTABLISHED = TCP_ESTABLISHED,
+	DCPIM_ESTABLISHED = TCP_ESTABLISHED,
 	/* to match TCP_LISTEN */
-	DCACP_LISTEN = TCP_LISTEN,
-	DCACP_CLOSE = TCP_CLOSE,
+	DCPIM_LISTEN = TCP_LISTEN,
+	DCPIM_CLOSE = TCP_CLOSE,
 	/* use TCP_CLOSE because of inet_bind use TCP_CLOSE to
 	 check whether the port should be assigned TCP CLOSE = 7;*/ 
 	// RCP_CLOSE,
 };
 
 enum {
-	// DCACPF_NEW = (1 << DCACP_NEW),
-	DCACPF_ESTABLISHED = (1 << DCACP_ESTABLISHED),
-	DCACPF_LISTEN	 = (1 << DCACP_LISTEN),
-	DCACPF_CLOSE = (1 << DCACP_CLOSE),
+	// DCPIMF_NEW = (1 << DCPIM_NEW),
+	DCPIMF_ESTABLISHED = (1 << DCPIM_ESTABLISHED),
+	DCPIMF_LISTEN	 = (1 << DCPIM_LISTEN),
+	DCPIMF_CLOSE = (1 << DCPIM_CLOSE),
 };
 
-enum dcacpcsq_enum {
+enum dcpimcsq_enum {
 	// TSQ_THROTTLED, 
 	// TSQ_QUEUED, /* this twos are defined in tcp.h*/
-	DCACP_TSQ_DEFERRED = 2,	   /* tcp_tasklet_func() found socket was owned */
-	DCACP_CLEAN_TIMER_DEFERRED,  /* dcacp_handle_token_pkts() found socket was owned */
-	DCACP_TOKEN_TIMER_DEFERRED, /* dcacp_xmit_token() found socket was owned */
-	DCACP_RMEM_CHECK_DEFERRED,  /* Read Memory Check once release sock */
-	DCACP_RTX_DEFERRED,
-	DCACP_WAIT_DEFERRED,
+	DCPIM_TSQ_DEFERRED = 2,	   /* tcp_tasklet_func() found socket was owned */
+	DCPIM_CLEAN_TIMER_DEFERRED,  /* dcpim_handle_token_pkts() found socket was owned */
+	DCPIM_TOKEN_TIMER_DEFERRED, /* dcpim_xmit_token() found socket was owned */
+	DCPIM_RMEM_CHECK_DEFERRED,  /* Read Memory Check once release sock */
+	DCPIM_RTX_DEFERRED,
+	DCPIM_WAIT_DEFERRED,
 };
 
-enum dcacpcsq_flags {
+enum dcpimcsq_flags {
 	// TSQF_THROTTLED			= (1UL << TSQ_THROTTLED),
 	// TSQF_QUEUED			= (1UL << TSQ_QUEUED),
-	DCACPF_TSQ_DEFERRED		= (1UL << DCACP_TSQ_DEFERRED),
-	DCACPF_CLEAN_TIMER_DEFERRED	= (1UL << DCACP_CLEAN_TIMER_DEFERRED),
-	DCACPF_TOKEN_TIMER_DEFERRED	= (1UL << DCACP_TOKEN_TIMER_DEFERRED),
-	DCACPF_RMEM_CHECK_DEFERRED	= (1UL << DCACP_RMEM_CHECK_DEFERRED),
-	DCACPF_RTX_DEFERRED	= (1UL << DCACP_RTX_DEFERRED),
-	DCACPF_WAIT_DEFERRED = (1UL << DCACP_WAIT_DEFERRED),
+	DCPIMF_TSQ_DEFERRED		= (1UL << DCPIM_TSQ_DEFERRED),
+	DCPIMF_CLEAN_TIMER_DEFERRED	= (1UL << DCPIM_CLEAN_TIMER_DEFERRED),
+	DCPIMF_TOKEN_TIMER_DEFERRED	= (1UL << DCPIM_TOKEN_TIMER_DEFERRED),
+	DCPIMF_RMEM_CHECK_DEFERRED	= (1UL << DCPIM_RMEM_CHECK_DEFERRED),
+	DCPIMF_RTX_DEFERRED	= (1UL << DCPIM_RTX_DEFERRED),
+	DCPIMF_WAIT_DEFERRED = (1UL << DCPIM_WAIT_DEFERRED),
 };
 
-struct dcacp_params {
+struct dcpim_params {
 	int clean_match_sock;
 	int fct_round;
 	int match_socket_port;
@@ -94,7 +94,7 @@ struct dcacp_params {
 
 };
 
-struct dcacp_pq {
+struct dcpim_pq {
 	struct list_head list;
 	// struct spinlock lock;
 	int count;
@@ -105,7 +105,7 @@ struct dcacp_pq {
 // 	struct message_hslot* hash;
 // };
 
-#define DCACP_MATCH_BUCKETS 1024
+#define DCPIM_MATCH_BUCKETS 1024
 
 
 struct rcv_core_entry {
@@ -121,7 +121,7 @@ struct rcv_core_entry {
 	// struct hrtimer token_xmit_timer;
 	// struct work_struct token_xmit_struct;
 	/* for phost queue */
-	struct dcacp_pq flow_q;
+	struct dcpim_pq flow_q;
 	struct list_head list_link;
 	struct work_struct token_xmit_struct;
 
@@ -155,7 +155,7 @@ struct xmit_core_table {
 
 }; 
 
-struct dcacp_epoch {
+struct dcpim_epoch {
 
 	uint64_t epoch;
 	uint64_t cur_epoch;
@@ -184,8 +184,8 @@ struct dcacp_epoch {
 	int epoch_bytes_per_k;
 	int epoch_bytes;
 	int matched_bytes;
-	struct dcacp_rts *min_rts;
-	struct dcacp_grant *min_grant;
+	struct dcpim_rts *min_rts;
+	struct dcpim_grant *min_grant;
 	// struct rte_timer epoch_timer;
 	// struct rte_timer sender_iter_timers[10];
 	// struct rte_timer receiver_iter_timers[10];
@@ -197,7 +197,7 @@ struct dcacp_epoch {
 	// struct hrtimer token_xmit_timer;
 	// struct work_struct token_xmit_struct;
 	/* for phost queue */
-	struct dcacp_pq flow_q;
+	struct dcpim_pq flow_q;
 
 	// current epoch and address
 	// uint32_t cur_match_src_addr;
@@ -217,36 +217,36 @@ struct dcacp_epoch {
 
 };
 
-// dcacp matching logic data structure
-struct dcacp_rts {
-    struct dcacp_sock* dsk;
+// dcpim matching logic data structure
+struct dcpim_rts {
+    struct dcpim_sock* dsk;
     int remaining_sz;
  	struct list_head list_link;
 };
-struct dcacp_grant {
+struct dcpim_grant {
     bool prompt;
-    struct dcacp_sock* dsk;
+    struct dcpim_sock* dsk;
     int remaining_sz;
 	struct list_head list_link;
 };
 
-struct dcacp_match_entry {
+struct dcpim_match_entry {
 	struct spinlock lock;
-	struct dcacp_pq pq;
+	struct dcpim_pq pq;
 	struct hlist_node hash_link;
 	struct list_head list_link;
-	// struct dcacp_peer *peer;
+	// struct dcpim_peer *peer;
 	__be32 dst_addr;
 };
 
-struct dcacp_match_slot {
+struct dcpim_match_slot {
 	struct hlist_head head;
 	int	count;
 	struct spinlock	lock;
 };
-struct dcacp_match_tab {
+struct dcpim_match_tab {
 	/* hash table: matching ip_address => list pointer*/
-	struct dcacp_match_slot *buckets;
+	struct dcpim_match_slot *buckets;
 
 	/* the lock is for the hash_list, not for buckets.*/
 	struct spinlock lock;
@@ -260,86 +260,86 @@ struct dcacp_match_tab {
 	// struct list_node *current_entry;
 	// struct list_node
 };
-/* DCACP match table slot */
-static inline struct dcacp_match_slot *dcacp_match_bucket(
-		struct dcacp_match_tab *table, __be32 addr)
+/* DCPIM match table slot */
+static inline struct dcpim_match_slot *dcpim_match_bucket(
+		struct dcpim_match_tab *table, __be32 addr)
 {
-	return &table->buckets[addr & (DCACP_MATCH_BUCKETS - 1)];
+	return &table->buckets[addr & (DCPIM_MATCH_BUCKETS - 1)];
 }
 
 
-static inline struct dcacphdr *dcacp_hdr(const struct sk_buff *skb)
+static inline struct dcpimhdr *dcpim_hdr(const struct sk_buff *skb)
 {
-	return (struct dcacphdr *)skb_transport_header(skb);
+	return (struct dcpimhdr *)skb_transport_header(skb);
 }
 
-static inline struct dcacp_data_hdr *dcacp_data_hdr(const struct sk_buff *skb)
+static inline struct dcpim_data_hdr *dcpim_data_hdr(const struct sk_buff *skb)
 {
-	return (struct dcacp_data_hdr *)skb_transport_header(skb);
+	return (struct dcpim_data_hdr *)skb_transport_header(skb);
 }
 
-static inline struct dcacp_ack_hdr *dcacp_ack_hdr(const struct sk_buff *skb)
+static inline struct dcpim_ack_hdr *dcpim_ack_hdr(const struct sk_buff *skb)
 {
-	return (struct dcacp_ack_hdr *)skb_transport_header(skb);
+	return (struct dcpim_ack_hdr *)skb_transport_header(skb);
 }
 
 
-static inline struct dcacp_flow_sync_hdr *dcacp_flow_sync_hdr(const struct sk_buff *skb)
+static inline struct dcpim_flow_sync_hdr *dcpim_flow_sync_hdr(const struct sk_buff *skb)
 {
-	return (struct dcacp_flow_sync_hdr *)skb_transport_header(skb);
+	return (struct dcpim_flow_sync_hdr *)skb_transport_header(skb);
 }
 
-static inline struct dcacp_token_hdr *dcacp_token_hdr(const struct sk_buff *skb)
+static inline struct dcpim_token_hdr *dcpim_token_hdr(const struct sk_buff *skb)
 {
-	return (struct dcacp_token_hdr *)skb_transport_header(skb);
+	return (struct dcpim_token_hdr *)skb_transport_header(skb);
 }
 
-static inline struct dcacp_rts_hdr *dcacp_rts_hdr(const struct sk_buff *skb)
+static inline struct dcpim_rts_hdr *dcpim_rts_hdr(const struct sk_buff *skb)
 {
-	return (struct dcacp_rts_hdr *)skb_transport_header(skb);
+	return (struct dcpim_rts_hdr *)skb_transport_header(skb);
 }
 
-static inline struct dcacp_grant_hdr *dcacp_grant_hdr(const struct sk_buff *skb)
+static inline struct dcpim_grant_hdr *dcpim_grant_hdr(const struct sk_buff *skb)
 {
-	return (struct dcacp_grant_hdr *)skb_transport_header(skb);
+	return (struct dcpim_grant_hdr *)skb_transport_header(skb);
 }
 
-static inline struct dcacp_accept_hdr *dcacp_accept_hdr(const struct sk_buff *skb)
+static inline struct dcpim_accept_hdr *dcpim_accept_hdr(const struct sk_buff *skb)
 {
-	return (struct dcacp_accept_hdr *)skb_transport_header(skb);
+	return (struct dcpim_accept_hdr *)skb_transport_header(skb);
 }
 
 /**
- * dcacp_set_doff() - Fills in the doff TCP header field for a Homa packet.
+ * dcpim_set_doff() - Fills in the doff TCP header field for a Homa packet.
  * @h:   Packet header whose doff field is to be set.
  */
-static inline void dcacp_set_doff(struct dcacp_data_hdr *h)
+static inline void dcpim_set_doff(struct dcpim_data_hdr *h)
 {
-        h->common.doff = (sizeof(struct dcacp_data_hdr) - sizeof(struct data_segment)) << 2;
+        h->common.doff = (sizeof(struct dcpim_data_hdr) - sizeof(struct data_segment)) << 2;
 }
 
-static inline unsigned int __dcacp_hdrlen(const struct dcacphdr *dh)
+static inline unsigned int __dcpim_hdrlen(const struct dcpimhdr *dh)
 {
 	return dh->doff * 4;
 }
 
-#define DCACP_HTABLE_SIZE_MIN		(CONFIG_BASE_SMALL ? 128 : 256)
+#define DCPIM_HTABLE_SIZE_MIN		(CONFIG_BASE_SMALL ? 128 : 256)
 
 /* This defines a selective acknowledgement block. */
-struct dcacp_sack_block_wire {
+struct dcpim_sack_block_wire {
 	__be32	start_seq;
 	__be32	end_seq;
 };
 
-struct dcacp_sack_block {
+struct dcpim_sack_block {
 	u32	start_seq;
 	u32	end_seq;
 };
 
-struct dcacp_sock {
-	/* inet_connection_sock has to be the first member of dcacp_sock */
+struct dcpim_sock {
+	/* inet_connection_sock has to be the first member of dcpim_sock */
 	struct inet_connection_sock	dccps_inet_connection;
-	/* GRO functions for DCACP socket */
+	/* GRO functions for DCPIM socket */
 	struct sk_buff *	(*gro_receive)(struct sock *sk,
 					       struct list_head *head,
 					       struct sk_buff *skb);
@@ -347,7 +347,7 @@ struct dcacp_sock {
 						struct sk_buff *skb,
 						int nhoff);
 
-	/* dcacp_recvmsg try to use this before splicing sk_receive_queue */
+	/* dcpim_recvmsg try to use this before splicing sk_receive_queue */
 	
 	/**
 	 * flow id
@@ -362,12 +362,12 @@ struct dcacp_sock {
 	
 	/* protected by socket user lock*/
     uint32_t num_sacks;
-	struct dcacp_sack_block selective_acks[16]; /* The SACKS themselves*/
+	struct dcpim_sack_block selective_acks[16]; /* The SACKS themselves*/
 
     // ktime_t start_time;
 	struct list_head match_link;
     /* sender */
-    struct dcacp_sender {
+    struct dcpim_sender {
 		uint32_t token_seq;
 	    /* next sequence from the user; Also equals total bytes written by user. */
 	    uint32_t write_seq;
@@ -381,14 +381,14 @@ struct dcacp_sock {
 	    // uint32_t bytes_from_user;
 	    int remaining_pkts_at_sender;
 
-		/* DCACP metric */
+		/* DCPIM metric */
 	    // uint64_t first_byte_send_time;
 	    // uint64_t start_time;
 	    // uint64_t finish_time;
 	    // double latest_data_pkt_sent_time;
     } sender;
-    struct dcacp_receiver {
-		// link for DCACP matching table
+    struct dcpim_receiver {
+		// link for DCPIM matching table
 		// struct list_head match_link;
 	    bool flow_sync_received;
 		/* protected by user lock */
@@ -404,11 +404,11 @@ struct dcacp_sock {
 	    /* current received bytes + 1*/
 	    uint32_t rcv_nxt;
 	    uint32_t last_ack;
-	    // struct dcacp_sack_block duplicate_sack[1]; /* D-SACK block */
+	    // struct dcpim_sack_block duplicate_sack[1]; /* D-SACK block */
 	    // uint32_t max_seq_no_recv;
 		/** @priority: Priority level to include in future GRANTS. */
 		int priority;
-		/* DCACP metric */
+		/* DCPIM metric */
 	    // uint64_t latest_token_sent_time;
 	    // uint64_t first_byte_receive_time;
 		// struct list_head ready_link;
@@ -429,7 +429,7 @@ struct dcacp_sock {
 	// atomic64_t next_outgoing_id;
 };
 
-struct dcacp_request_sock {
+struct dcpim_request_sock {
 	struct inet_request_sock 	req;
 	// const struct tcp_request_sock_ops *af_specific;
 	// u64				snt_synack;  first SYNACK sent time 
@@ -447,10 +447,10 @@ struct dcacp_request_sock {
 };
 
 
-#define DCACP_MAX_SEGMENTS	(1 << 6UL)
+#define DCPIM_MAX_SEGMENTS	(1 << 6UL)
 
-static inline struct dcacp_sock *dcacp_sk(const struct sock *sk)
+static inline struct dcpim_sock *dcpim_sk(const struct sock *sk)
 {
-	return (struct dcacp_sock *)sk;
+	return (struct dcpim_sock *)sk;
 }
-#endif	/* _LINUX_DCACP_H */
+#endif	/* _LINUX_DCPIM_H */

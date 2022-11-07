@@ -13,32 +13,32 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-/* This file manages dcacp_peertab objects and is responsible for creating
- * and deleting dcacp_peer objects.
+/* This file manages dcpim_peertab objects and is responsible for creating
+ * and deleting dcpim_peer objects.
  */
 
-#include "dcacp_impl.h"
+#include "dcpim_impl.h"
 
-void dcacp_pq_init(struct dcacp_pq* pq, bool(*comp)(const struct list_head*, const struct list_head*)) {
+void dcpim_pq_init(struct dcpim_pq* pq, bool(*comp)(const struct list_head*, const struct list_head*)) {
 	// spin_lock_init(&pq->lock);
 	INIT_LIST_HEAD(&pq->list);
 	pq->count = 0;
 	pq->comp = comp;
 }
 
-bool dcacp_pq_empty(struct dcacp_pq* pq) {
+bool dcpim_pq_empty(struct dcpim_pq* pq) {
 	// spin_lock_bh(&pq->lock);
 	// spin_unlock_bh(&pq->lock);
 	return pq->count == 0;
 }
 
-bool dcacp_pq_empty_lockless(struct dcacp_pq* pq) {
+bool dcpim_pq_empty_lockless(struct dcpim_pq* pq) {
 	return READ_ONCE(pq->list.next) == (const struct list_head *) (&pq->list);
 }
-int dcacp_pq_size(struct dcacp_pq* pq) {
+int dcpim_pq_size(struct dcpim_pq* pq) {
 	return pq->count;
 }
-void dcacp_pq_delete(struct dcacp_pq* pq, struct list_head* node) {
+void dcpim_pq_delete(struct dcpim_pq* pq, struct list_head* node) {
 	// spin_lock_bh(&pq->lock);
 	/* list empty use is not traditional use of the function; 
 	it is checked whether this node has already been removed before */
@@ -52,7 +52,7 @@ void dcacp_pq_delete(struct dcacp_pq* pq, struct list_head* node) {
 	// spin_unlock_bh(&pq->lock);
 	return; 
 }
-struct list_head* dcacp_pq_pop(struct dcacp_pq* pq) {
+struct list_head* dcpim_pq_pop(struct dcpim_pq* pq) {
 	struct list_head *head = NULL;
 	// spin_lock_bh(&pq->lock);
 	if(pq->count > 0) {
@@ -67,7 +67,7 @@ struct list_head* dcacp_pq_pop(struct dcacp_pq* pq) {
 	return head;
 }
 
-void dcacp_pq_push(struct dcacp_pq* pq, struct list_head* node) {
+void dcpim_pq_push(struct dcpim_pq* pq, struct list_head* node) {
 	// spin_lock_bh(&pq->lock);
 	struct list_head* pos;
 	list_for_each(pos, &pq->list) {
@@ -83,7 +83,7 @@ void dcacp_pq_push(struct dcacp_pq* pq, struct list_head* node) {
 	return;
 }
 
-struct list_head* dcacp_pq_peek(struct dcacp_pq* pq) {
+struct list_head* dcpim_pq_peek(struct dcpim_pq* pq) {
 	if(pq->count == 0)
 		return NULL;
 	return pq->list.next;

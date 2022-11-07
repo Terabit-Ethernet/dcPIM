@@ -24,9 +24,9 @@
 #include <net/ip.h>
 // #include <net/tcp.h>
 #include <net/sock_reuseport.h>
-#include "dcacp_hashtables.h"
-#include "linux_dcacp.h"
-#include "dcacp_impl.h"
+#include "dcpim_hashtables.h"
+#include "linux_dcpim.h"
+#include "dcpim_impl.h"
 
 void* allocate_hash_table(const char *tablename,
 				     unsigned long bucketsize,
@@ -72,11 +72,11 @@ void* allocate_hash_table(const char *tablename,
 	return table;
 }
 
-void dcacp_hashtable_init(struct inet_hashinfo* hashinfo, unsigned long thash_entries) {
+void dcpim_hashtable_init(struct inet_hashinfo* hashinfo, unsigned long thash_entries) {
 		int i = 0;
         inet_hashinfo2_init_mod(hashinfo);
         hashinfo->bind_bucket_cachep =
-                kmem_cache_create("dcacp_bind_bucket",
+                kmem_cache_create("dcpim_bind_bucket",
                                   sizeof(struct inet_bind_bucket), 0,
                                   SLAB_HWCACHE_ALIGN|SLAB_PANIC, NULL);
 
@@ -87,7 +87,7 @@ void dcacp_hashtable_init(struct inet_hashinfo* hashinfo, unsigned long thash_en
          * The methodology is similar to that of the buffer cache.
          */
         hashinfo->ehash =
-                allocate_hash_table("DCACP established",
+                allocate_hash_table("DCPIM established",
                                         sizeof(struct inet_ehash_bucket),
                                         thash_entries ? thash_entries : 524288 ,
                                         17, /* one slot per 128 KB of memory */
@@ -100,9 +100,9 @@ void dcacp_hashtable_init(struct inet_hashinfo* hashinfo, unsigned long thash_en
                 INIT_HLIST_NULLS_HEAD(&hashinfo->ehash[i].chain, i);
 
         if (inet_ehash_locks_alloc(hashinfo))
-                panic("DCACP: failed to alloc ehash_locks");
+                panic("DCPIM: failed to alloc ehash_locks");
         hashinfo->bhash =
-                allocate_hash_table("DCACP bind",
+                allocate_hash_table("DCPIM bind",
                                         sizeof(struct inet_bind_hashbucket),
                                         hashinfo->ehash_mask + 1,
                                         17, /* one slot per 128 KB of memory */
@@ -119,11 +119,11 @@ void dcacp_hashtable_init(struct inet_hashinfo* hashinfo, unsigned long thash_en
 	/* TO DO: Add memory error handling logic */
 }
 
-void dcacp_hashtable_destroy(struct inet_hashinfo* hashinfo) {
+void dcpim_hashtable_destroy(struct inet_hashinfo* hashinfo) {
 	vfree(hashinfo->bhash);
 	kvfree(hashinfo->ehash_locks);
 	kmem_cache_destroy(hashinfo->bind_bucket_cachep);
 	vfree(hashinfo->ehash);
-	inet_hashinfo2_free_mod(&dcacp_hashinfo);
+	inet_hashinfo2_free_mod(&dcpim_hashinfo);
 	printk("hash table destroy finish\n");
 }

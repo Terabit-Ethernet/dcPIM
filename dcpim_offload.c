@@ -3,7 +3,7 @@
  *	IPV4 GSO/GRO offload support
  *	Linux INET implementation
  *
- *	DCACPv4 GSO support
+ *	DCPIMv4 GSO support
  */
 
 #include <linux/skbuff.h>
@@ -12,7 +12,7 @@
 #include <net/protocol.h>
 #include <net/inet_common.h>
 
-#include "net_dcacp.h"
+#include "net_dcpim.h"
 
 /* copy from net/gro.c since this function is not exported to module. */
 int skb_gro_receive(struct sk_buff *p, struct sk_buff *skb)
@@ -143,13 +143,13 @@ done:
 	return 0;
 }
 
-struct sk_buff *dcacp_gso_segment(struct sk_buff *skb,
+struct sk_buff *dcpim_gso_segment(struct sk_buff *skb,
 				netdev_features_t features)
 {
 	struct sk_buff *segs = ERR_PTR(-EINVAL);
 	// unsigned int sum_truesize = 0;
-	struct dcacphdr *dh;
-	// struct dcacp_data_hdr *data_hdr;
+	struct dcpimhdr *dh;
+	// struct dcpim_data_hdr *data_hdr;
 	unsigned int dhlen;
 	unsigned int seq;
 	__be32 delta;
@@ -159,7 +159,7 @@ struct sk_buff *dcacp_gso_segment(struct sk_buff *skb,
 	// struct sk_buff *gso_skb = skb;
 	// __sum16 newcheck;
 	// bool ooo_okay, copy_destructor;
-	dh = dcacp_hdr(skb);
+	dh = dcpim_hdr(skb);
 	dhlen = dh->doff / 4;
 	if (dh->type != DATA) {
 		goto out;
@@ -208,7 +208,7 @@ struct sk_buff *dcacp_gso_segment(struct sk_buff *skb,
 	delta = htonl(oldlen + (dhlen + mss));
 
 	skb = segs;
-	dh = dcacp_hdr(skb);
+	dh = dcpim_hdr(skb);
 	seq = ntohl(dh->seq);
 
 	// if (unlikely(skb_shinfo(gso_skb)->tx_flags & SKBTX_SW_TSTAMP))
@@ -236,7 +236,7 @@ struct sk_buff *dcacp_gso_segment(struct sk_buff *skb,
 		// 	// sum_truesize += skb->truesize;
 		// }
 		skb = skb->next;
-		dh = dcacp_hdr(skb);
+		dh = dcpim_hdr(skb);
 
 		// dh->seq = htonl(seq);
 		// th->cwr = 0;
@@ -279,13 +279,13 @@ out:
 	return segs;
 }
 
-static struct sk_buff *dcacp4_gso_segment(struct sk_buff *skb,
+static struct sk_buff *dcpim4_gso_segment(struct sk_buff *skb,
 					netdev_features_t features)
 {
-	if (!(skb_shinfo(skb)->gso_type & SKB_GSO_DCACP))
+	if (!(skb_shinfo(skb)->gso_type & SKB_GSO_DCPIM))
 		return ERR_PTR(-EINVAL);
 
-	if (!pskb_may_pull(skb, sizeof(struct dcacphdr)))
+	if (!pskb_may_pull(skb, sizeof(struct dcpimhdr)))
 		return ERR_PTR(-EINVAL);
 
 	// if (unlikely(skb->ip_summed != CHECKSUM_PARTIAL)) {
@@ -300,21 +300,21 @@ static struct sk_buff *dcacp4_gso_segment(struct sk_buff *skb,
 	// 	skb->ip_summed = CHECKSUM_PARTIAL;
 	// 	__tcp_v4_send_check(skb, iph->saddr, iph->daddr);
 	// }
-	return dcacp_gso_segment(skb, features);
+	return dcpim_gso_segment(skb, features);
 }
 
 
 
-#define DCACP_GRO_CNT_MAX 64
+#define DCPIM_GRO_CNT_MAX 64
 
-struct sk_buff *dcacp_gro_receive(struct list_head *head, struct sk_buff *skb)
+struct sk_buff *dcpim_gro_receive(struct list_head *head, struct sk_buff *skb)
 {
 	struct sk_buff *pp = NULL;
 	struct sk_buff *p;
-	struct dcacphdr *dh;
-	// struct dcacphdr *dh2;
-	struct dcacp_data_hdr *data_h;
-	struct dcacp_data_hdr *data_h2;
+	struct dcpimhdr *dh;
+	// struct dcpimhdr *dh2;
+	struct dcpim_data_hdr *data_h;
+	struct dcpim_data_hdr *data_h2;
 	unsigned int len;
 	unsigned int dhlen;
 	// __be32 flags;
@@ -339,7 +339,7 @@ struct sk_buff *dcacp_gro_receive(struct list_head *head, struct sk_buff *skb)
 		goto out;
 
 	hlen = off + dhlen;
-	data_h = (struct dcacp_data_hdr*)dh;
+	data_h = (struct dcpim_data_hdr*)dh;
 	if (skb_gro_header_hard(skb, hlen)) {
 		data_h = skb_gro_header_slow(skb, hlen, off);
 		if (unlikely(!data_h))
@@ -353,7 +353,7 @@ struct sk_buff *dcacp_gro_receive(struct list_head *head, struct sk_buff *skb)
 		if (!NAPI_GRO_CB(p)->same_flow)
 			continue;
 
-		data_h2 = dcacp_data_hdr(p);
+		data_h2 = dcpim_data_hdr(p);
 
 		if (*(u32 *)&data_h->common.source ^ *(u32 *)&data_h2->common.source) {
 			NAPI_GRO_CB(p)->same_flow = 0;
@@ -419,15 +419,15 @@ out:
 	return pp;
 }
 
-int dcacp_gro_complete(struct sk_buff *skb, int dhoff)
+int dcpim_gro_complete(struct sk_buff *skb, int dhoff)
 {
-	struct dcacphdr *dh = dcacp_hdr(skb);
+	struct dcpimhdr *dh = dcpim_hdr(skb);
 	// const u32 ports = (((u32)dh->source) << 16) | (__force u32)dh->dest;
 
 	skb->csum_start = (unsigned char *)dh - skb->head;
-	skb->csum_offset = offsetof(struct dcacphdr, check);
+	skb->csum_offset = offsetof(struct dcpimhdr, check);
 	skb->ip_summed = CHECKSUM_PARTIAL;
-	skb_shinfo(skb)->gso_type |= SKB_GSO_DCACP;
+	skb_shinfo(skb)->gso_type |= SKB_GSO_DCPIM;
 	skb_shinfo(skb)->gso_segs = NAPI_GRO_CB(skb)->count;
 	
 	// printk("skb queue mapping:%d\n", skb->queue_mapping);
@@ -446,20 +446,20 @@ int dcacp_gro_complete(struct sk_buff *skb, int dhoff)
 
 	return 0;
 }
-// struct sk_buff *dcacp_gro_receive(struct list_head *head, struct sk_buff *skb,
-// 				struct dcacphdr *uh, struct sock *sk)
+// struct sk_buff *dcpim_gro_receive(struct list_head *head, struct sk_buff *skb,
+// 				struct dcpimhdr *uh, struct sock *sk)
 // {
 // 	struct sk_buff *pp = NULL;
 // 	struct sk_buff *p;
-// 	struct dcacphdr *uh2;
+// 	struct dcpimhdr *uh2;
 // 	unsigned int off = skb_gro_offset(skb);
 // 	int flush = 1;
 
 // 	if (skb->dev->features & NETIF_F_GRO_FRAGLIST)
-// 		NAPI_GRO_CB(skb)->is_flist = sk ? !dcacp_sk(sk)->gro_enabled: 1;
+// 		NAPI_GRO_CB(skb)->is_flist = sk ? !dcpim_sk(sk)->gro_enabled: 1;
 
-// 	if ((sk && dcacp_sk(sk)->gro_enabled) || NAPI_GRO_CB(skb)->is_flist) {
-// 		pp = call_gro_receive(dcacp_gro_receive_segment, head, skb);
+// 	if ((sk && dcpim_sk(sk)->gro_enabled) || NAPI_GRO_CB(skb)->is_flist) {
+// 		pp = call_gro_receive(dcpim_gro_receive_segment, head, skb);
 // 		return pp;
 // 	}
 
@@ -467,7 +467,7 @@ int dcacp_gro_complete(struct sk_buff *skb, int dhoff)
 // 	    (skb->ip_summed != CHECKSUM_PARTIAL &&
 // 	     NAPI_GRO_CB(skb)->csum_cnt == 0 &&
 // 	     !NAPI_GRO_CB(skb)->csum_valid) ||
-// 	    !dcacp_sk(sk)->gro_receive)
+// 	    !dcpim_sk(sk)->gro_receive)
 // 		goto out;
 
 // 	/* mark that this skb passed once through the tunnel gro layer */
@@ -479,7 +479,7 @@ int dcacp_gro_complete(struct sk_buff *skb, int dhoff)
 // 		if (!NAPI_GRO_CB(p)->same_flow)
 // 			continue;
 
-// 		uh2 = (struct dcacphdr   *)(p->data + off);
+// 		uh2 = (struct dcpimhdr   *)(p->data + off);
 
 // 		/* Match ports and either checksums are either both zero
 // 		 * or nonzero.
@@ -491,20 +491,20 @@ int dcacp_gro_complete(struct sk_buff *skb, int dhoff)
 // 		}
 // 	}
 
-// 	skb_gro_pull(skb, sizeof(struct dcacphdr)); /* pull encapsulating dcacp header */
-// 	skb_gro_postpull_rcsum(skb, uh, sizeof(struct dcacphdr));
-// 	pp = call_gro_receive_sk(dcacp_sk(sk)->gro_receive, sk, head, skb);
+// 	skb_gro_pull(skb, sizeof(struct dcpimhdr)); /* pull encapsulating dcpim header */
+// 	skb_gro_postpull_rcsum(skb, uh, sizeof(struct dcpimhdr));
+// 	pp = call_gro_receive_sk(dcpim_sk(sk)->gro_receive, sk, head, skb);
 
 // out:
 // 	skb_gro_flush_final(skb, pp, flush);
 // 	return pp;
 // }
-// EXPORT_SYMBOL(dcacp_gro_receive);
+// EXPORT_SYMBOL(dcpim_gro_receive);
 
 // INDIRECT_CALLABLE_SCOPE
-// struct sk_buff *dcacp4_gro_receive(struct list_head *head, struct sk_buff *skb)
+// struct sk_buff *dcpim4_gro_receive(struct list_head *head, struct sk_buff *skb)
 // {
-// 	struct dcacphdr *uh = dcacp_gro_dcacphdr(skb);
+// 	struct dcpimhdr *uh = dcpim_gro_dcpimhdr(skb);
 // 	struct sk_buff *pp;
 // 	struct sock *sk;
 
@@ -515,17 +515,17 @@ int dcacp_gro_complete(struct sk_buff *skb, int dhoff)
 // 	if (NAPI_GRO_CB(skb)->flush)
 // 		goto skip;
 
-// 	if (skb_gro_checksum_validate_zero_check(skb, IPPROTO_DCACP, uh->check,
+// 	if (skb_gro_checksum_validate_zero_check(skb, IPPROTO_DCPIM, uh->check,
 // 						 inet_gro_compute_pseudo))
 // 		goto flush;
 // 	else if (uh->check)
-// 		skb_gro_checksum_try_convert(skb, IPPROTO_DCACP,
+// 		skb_gro_checksum_try_convert(skb, IPPROTO_DCPIM,
 // 					     inet_gro_compute_pseudo);
 // skip:
 // 	NAPI_GRO_CB(skb)->is_ipv6 = 0;
 // 	rcu_read_lock();
-// 	sk = static_branch_unlikely(&dcacp_encap_needed_key) ? dcacp4_lib_lookup_skb(skb, uh->source, uh->dest) : NULL;
-// 	pp = dcacp_gro_receive(head, skb, uh, sk);
+// 	sk = static_branch_unlikely(&dcpim_encap_needed_key) ? dcpim4_lib_lookup_skb(skb, uh->source, uh->dest) : NULL;
+// 	pp = dcpim_gro_receive(head, skb, uh, sk);
 // 	rcu_read_unlock();
 // 	return pp;
 
@@ -534,12 +534,12 @@ int dcacp_gro_complete(struct sk_buff *skb, int dhoff)
 // 	return NULL;
 // }
 
-// static int dcacp_gro_complete_segment(struct sk_buff *skb)
+// static int dcpim_gro_complete_segment(struct sk_buff *skb)
 // {
-// 	struct dcacphdr *uh = dcacp_hdr(skb);
+// 	struct dcpimhdr *uh = dcpim_hdr(skb);
 
 // 	skb->csum_start = (unsigned char *)uh - skb->head;
-// 	skb->csum_offset = offsetof(struct dcacphdr, check);
+// 	skb->csum_offset = offsetof(struct dcpimhdr, check);
 // 	skb->ip_summed = CHECKSUM_PARTIAL;
 
 // 	skb_shinfo(skb)->gso_segs = NAPI_GRO_CB(skb)->count;
@@ -547,11 +547,11 @@ int dcacp_gro_complete(struct sk_buff *skb, int dhoff)
 // 	return 0;
 // }
 
-// int dcacp_gro_complete(struct sk_buff *skb, int nhoff,
-// 		     dcacp_lookup_t lookup)
+// int dcpim_gro_complete(struct sk_buff *skb, int nhoff,
+// 		     dcpim_lookup_t lookup)
 // {
 // 	__be16 newlen = htons(skb->len - nhoff);
-// 	struct dcacphdr *uh = (struct dcacphdr *)(skb->data + nhoff);
+// 	struct dcpimhdr *uh = (struct dcpimhdr *)(skb->data + nhoff);
 // 	int err = -ENOSYS;
 // 	struct sock *sk;
 
@@ -559,8 +559,8 @@ int dcacp_gro_complete(struct sk_buff *skb, int dhoff)
 
 // 	rcu_read_lock();
 // 	sk = INDIRECT_CALL_INET(lookup, udp6_lib_lookup_skb,
-// 				dcacp4_lib_lookup_skb, skb, uh->source, uh->dest);
-// 	if (sk && dcacp_sk(sk)->gro_complete) {
+// 				dcpim4_lib_lookup_skb, skb, uh->source, uh->dest);
+// 	if (sk && dcpim_sk(sk)->gro_complete) {
 // 		skb_shinfo(skb)->gso_type = uh->check ? SKB_GSO_UDP_TUNNEL_CSUM
 // 					: SKB_GSO_UDP_TUNNEL;
 
@@ -568,10 +568,10 @@ int dcacp_gro_complete(struct sk_buff *skb, int dhoff)
 // 		 * functions to make them set up the inner offsets.
 // 		 */
 // 		skb->encapsulation = 1;
-// 		err = dcacp_sk(sk)->gro_complete(sk, skb,
-// 				nhoff + sizeof(struct dcacphdr));
+// 		err = dcpim_sk(sk)->gro_complete(sk, skb,
+// 				nhoff + sizeof(struct dcpimhdr));
 // 	} else {
-// 		err = dcacp_gro_complete_segment(skb);
+// 		err = dcpim_gro_complete_segment(skb);
 // 	}
 // 	rcu_read_unlock();
 
@@ -580,13 +580,13 @@ int dcacp_gro_complete(struct sk_buff *skb, int dhoff)
 
 // 	return err;
 // }
-// EXPORT_SYMBOL(dcacp_gro_complete);
+// EXPORT_SYMBOL(dcpim_gro_complete);
 
-// INDIRECT_CALLABLE_SCOPE int dcacp4_gro_complete(struct sk_buff *skb, int nhoff)
+// INDIRECT_CALLABLE_SCOPE int dcpim4_gro_complete(struct sk_buff *skb, int nhoff)
 // {
 // 	const struct iphdr *iph = ip_hdr(skb);
-// 	struct dcacphdr *uh = (struct dcacphdr *)(skb->data + nhoff);
-// 	printk("dcacp gro complete\n");
+// 	struct dcpimhdr *uh = (struct dcpimhdr *)(skb->data + nhoff);
+// 	printk("dcpim gro complete\n");
 // 	if (NAPI_GRO_CB(skb)->is_flist) {
 // 		uh->len = htons(skb->len - nhoff);
 
@@ -605,26 +605,26 @@ int dcacp_gro_complete(struct sk_buff *skb, int dhoff)
 // 	}
 
 // 	if (uh->check)
-// 		uh->check = ~dcacp_v4_check(skb->len - nhoff, iph->saddr,
+// 		uh->check = ~dcpim_v4_check(skb->len - nhoff, iph->saddr,
 // 					  iph->daddr, 0);
 
-// 	return dcacp_gro_complete(skb, nhoff, dcacp4_lib_lookup_skb);
+// 	return dcpim_gro_complete(skb, nhoff, dcpim4_lib_lookup_skb);
 // }
 
-static const struct net_offload dcacpv4_offload = {
+static const struct net_offload dcpimv4_offload = {
 	.callbacks = {
-		.gso_segment = dcacp4_gso_segment,
-		.gro_receive  =	dcacp_gro_receive,
-		.gro_complete =	dcacp_gro_complete,
+		.gso_segment = dcpim4_gso_segment,
+		.gro_receive  =	dcpim_gro_receive,
+		.gro_complete =	dcpim_gro_complete,
 	},
 };
 
-int __init dcacpv4_offload_init(void)
+int __init dcpimv4_offload_init(void)
 {
-	return inet_add_offload(&dcacpv4_offload, IPPROTO_DCACP);
+	return inet_add_offload(&dcpimv4_offload, IPPROTO_DCPIM);
 }
 
-int dcacpv4_offload_end(void)
+int dcpimv4_offload_end(void)
 {
-        return inet_del_offload(&dcacpv4_offload, IPPROTO_DCACP);
+        return inet_del_offload(&dcpimv4_offload, IPPROTO_DCPIM);
 }

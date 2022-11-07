@@ -7,8 +7,8 @@
  * Authors:	Lotsa people, from code originally in tcp
  */
 
-#ifndef _DCACP_HASHTABLES_H
-#define _DCACP_HASHTABLES_H
+#ifndef _DCPIM_HASHTABLES_H
+#define _DCPIM_HASHTABLES_H
 
 
 #include <linux/interrupt.h>
@@ -32,6 +32,6 @@
 #include <asm/byteorder.h>
 #include <net/inet_hashtables.h>
 
-void dcacp_hashtable_init(struct inet_hashinfo* hashinfo, unsigned long thash_entries);
-void dcacp_hashtable_destroy(struct inet_hashinfo* hashinfo);
-#endif /* _DCACP_HASHTABLES_H */
+void dcpim_hashtable_init(struct inet_hashinfo* hashinfo, unsigned long thash_entries);
+void dcpim_hashtable_destroy(struct inet_hashinfo* hashinfo);
+#endif /* _DCPIM_HASHTABLES_H */

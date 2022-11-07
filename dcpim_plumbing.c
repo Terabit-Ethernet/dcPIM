@@ -2,31 +2,31 @@
 #include <net/protocol.h>
 #include <net/inet_common.h>
 
-//#include "include/net/dcacp.h"
-//#include "dcacp_impl.h"
+//#include "include/net/dcpim.h"
+//#include "dcpim_impl.h"
 #include <linux/socket.h>
 #include <net/sock.h>
 #include <net/udp.h>
-#include "dcacp_impl.h"
+#include "dcpim_impl.h"
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Qizhe");
-MODULE_DESCRIPTION("DCACP transport protocol");
+MODULE_DESCRIPTION("DCPIM transport protocol");
 MODULE_VERSION("0.01");
 
-#include "net_dcacp.h"
+#include "net_dcpim.h"
 
-DEFINE_PER_CPU(int, dcacp_memory_per_cpu_fw_alloc);
-EXPORT_PER_CPU_SYMBOL_GPL(dcacp_memory_per_cpu_fw_alloc);
+DEFINE_PER_CPU(int, dcpim_memory_per_cpu_fw_alloc);
+EXPORT_PER_CPU_SYMBOL_GPL(dcpim_memory_per_cpu_fw_alloc);
 
-/* True means that the DCACP module is in the process of unloading itself,
+/* True means that the DCPIM module is in the process of unloading itself,
  * so everyone should clean up.
  */
 
 static bool exiting = false;
-int sysctl_dcacp_rmem_min __read_mostly;
-int sysctl_dcacp_wmem_min __read_mostly;
+int sysctl_dcpim_rmem_min __read_mostly;
+int sysctl_dcpim_wmem_min __read_mostly;
 
-/* DCACP's protocol number within the IP protocol space (this is not an
+/* DCPIM's protocol number within the IP protocol space (this is not an
  * officially allocated slot).
  */
 
@@ -44,9 +44,9 @@ int sysctl_dcacp_wmem_min __read_mostly;
 //     return false;
 
 // }
-// #define IPPROTO_DCACP 200
+// #define IPPROTO_DCPIM 200
 
-const struct proto_ops dcacp_dgram_ops = {
+const struct proto_ops dcpim_dgram_ops = {
     .family        = PF_INET,
     .owner         = THIS_MODULE,
     .release       = inet_release,
@@ -58,7 +58,7 @@ const struct proto_ops dcacp_dgram_ops = {
     .poll          = udp_poll,
     .ioctl         = inet_ioctl,
     .gettstamp     = sock_gettstamp,
-    .listen        = dcacp_listen,
+    .listen        = dcpim_listen,
     .shutdown      = inet_shutdown,
     .setsockopt    = sock_common_setsockopt,
     .getsockopt    = sock_common_getsockopt,
@@ -75,91 +75,91 @@ const struct proto_ops dcacp_dgram_ops = {
 };
 // EXPORT_SYMBOL(inet_dgram_ops);
 
-struct proto dcacp_prot = {
-    .name           = "DCACP",
+struct proto dcpim_prot = {
+    .name           = "DCPIM",
     .owner          = THIS_MODULE,
-    .close          = dcacp_lib_close,
+    .close          = dcpim_lib_close,
     .pre_connect    = NULL,
-    .connect        = dcacp_v4_connect,
-    .disconnect     = dcacp_disconnect,
+    .connect        = dcpim_v4_connect,
+    .disconnect     = dcpim_disconnect,
     .accept         = inet_csk_accept,
-    .ioctl          = dcacp_ioctl,
-    .init           = dcacp_init_sock,
-    .destroy        = dcacp_destroy_sock,
-    .setsockopt     = dcacp_setsockopt,
-    .getsockopt     = dcacp_getsockopt,
-    .sendmsg        = dcacp_sendmsg,
-    .recvmsg        = dcacp_recvmsg,
-    .sendpage       = dcacp_sendpage,
-    .backlog_rcv    = dcacp_v4_do_rcv,
-    .release_cb     = dcacp_release_cb,
+    .ioctl          = dcpim_ioctl,
+    .init           = dcpim_init_sock,
+    .destroy        = dcpim_destroy_sock,
+    .setsockopt     = dcpim_setsockopt,
+    .getsockopt     = dcpim_getsockopt,
+    .sendmsg        = dcpim_sendmsg,
+    .recvmsg        = dcpim_recvmsg,
+    .sendpage       = dcpim_sendpage,
+    .backlog_rcv    = dcpim_v4_do_rcv,
+    .release_cb     = dcpim_release_cb,
     .hash           = inet_hash,
     .unhash         = inet_unhash,
-    // .rehash         = dcacp_v4_rehash,
+    // .rehash         = dcpim_v4_rehash,
     .get_port       = inet_csk_get_port,
-    .memory_allocated   = &dcacp_memory_allocated,
-    .per_cpu_fw_alloc	= &dcacp_memory_per_cpu_fw_alloc,
-    .sysctl_mem     = sysctl_dcacp_mem,
-    .sysctl_wmem = &sysctl_dcacp_wmem_min,
-    .sysctl_rmem = &sysctl_dcacp_rmem_min,
-    .obj_size       = sizeof(struct dcacp_sock),
-    .rsk_prot       = &dcacp_request_sock_ops,
-    .h.hashinfo     = &dcacp_hashinfo,
-    // .h.udp_table        = &dcacp_table,
-    .max_header     = DCACP_HEADER_MAX_SIZE,
-    .diag_destroy       = dcacp_abort,
+    .memory_allocated   = &dcpim_memory_allocated,
+    .per_cpu_fw_alloc	= &dcpim_memory_per_cpu_fw_alloc,
+    .sysctl_mem     = sysctl_dcpim_mem,
+    .sysctl_wmem = &sysctl_dcpim_wmem_min,
+    .sysctl_rmem = &sysctl_dcpim_rmem_min,
+    .obj_size       = sizeof(struct dcpim_sock),
+    .rsk_prot       = &dcpim_request_sock_ops,
+    .h.hashinfo     = &dcpim_hashinfo,
+    // .h.udp_table        = &dcpim_table,
+    .max_header     = DCPIM_HEADER_MAX_SIZE,
+    .diag_destroy       = dcpim_abort,
 };
-// EXPORT_SYMBOL(dcacp_prot);
+// EXPORT_SYMBOL(dcpim_prot);
 
-/* Top-level structure describing the DCACP protocol. */
+/* Top-level structure describing the DCPIM protocol. */
 
-struct inet_protosw dcacp_protosw = {
+struct inet_protosw dcpim_protosw = {
         .type              = SOCK_DGRAM,
-        .protocol          = IPPROTO_DCACP,
-        .prot              = &dcacp_prot,
-        .ops               = &dcacp_dgram_ops,
+        .protocol          = IPPROTO_DCPIM,
+        .prot              = &dcpim_prot,
+        .ops               = &dcpim_dgram_ops,
         .flags             = INET_PROTOSW_REUSE,
 };
 
 /* thinking of making this const? Don't.
  * early_demux can change based on sysctl.
  */
-static struct net_protocol dcacp_protocol = {
-        .handler =      dcacp_rcv,
-        .err_handler =  dcacp_err,
+static struct net_protocol dcpim_protocol = {
+        .handler =      dcpim_rcv,
+        .err_handler =  dcpim_err,
         .no_policy =    1,
 };
 
 /* Used to configure sysctl access to Homa configuration parameters.*/
-static struct ctl_table dcacp_ctl_table[] = {
+static struct ctl_table dcpim_ctl_table[] = {
         {
                 // this is only being called when unloading the module
                 .procname       = "clean_match_sock",
-                .data           = &dcacp_params.clean_match_sock,
+                .data           = &dcpim_params.clean_match_sock,
                 .maxlen         = sizeof(int),
                 .mode           = 0644,
-                .proc_handler   = dcacp_dointvec
+                .proc_handler   = dcpim_dointvec
         },
         {
                 .procname       = "rmem_default",
-                .data           = &dcacp_params.rmem_default,
+                .data           = &dcpim_params.rmem_default,
                 .maxlen         = sizeof(int),
                 .mode           = 0644,
-                .proc_handler   = dcacp_dointvec
+                .proc_handler   = dcpim_dointvec
         },
         {
                 .procname       = "wmem_default",
-                .data           = &dcacp_params.wmem_default,
+                .data           = &dcpim_params.wmem_default,
                 .maxlen         = sizeof(int),
                 .mode           = 0644,
-                .proc_handler   = dcacp_dointvec
+                .proc_handler   = dcpim_dointvec
         },
         {
                 .procname       = "short_flow_size",
-                .data           = &dcacp_params.short_flow_size,
+                .data           = &dcpim_params.short_flow_size,
                 .maxlen         = sizeof(int),
                 .mode           = 0644,
-                .proc_handler   = dcacp_dointvec
+                .proc_handler   = dcpim_dointvec
         },
         {}
 };
@@ -167,7 +167,7 @@ static struct ctl_table dcacp_ctl_table[] = {
 /*
  *      IPv4 request_sock destructor.
  */
-static void dcacp_v4_reqsk_destructor(struct request_sock *req)
+static void dcpim_v4_reqsk_destructor(struct request_sock *req)
 {
 
         printk("call reqsk destructor\n");
@@ -175,21 +175,21 @@ static void dcacp_v4_reqsk_destructor(struct request_sock *req)
         kfree(rcu_dereference_protected(inet_rsk(req)->ireq_opt, 1));
 }
 
-struct request_sock_ops dcacp_request_sock_ops __read_mostly = {
+struct request_sock_ops dcpim_request_sock_ops __read_mostly = {
         .family         =       PF_INET,
-        .obj_size       =       sizeof(struct dcacp_request_sock),
+        .obj_size       =       sizeof(struct dcpim_request_sock),
         .rtx_syn_ack    =       NULL,
         .send_ack       =       NULL,
-        .destructor     =       dcacp_v4_reqsk_destructor,
+        .destructor     =       dcpim_v4_reqsk_destructor,
         .send_reset     =       NULL,
         .syn_ack_timeout =      NULL,
 };
 
 
 /* Used to remove sysctl values when the module is unloaded. */
-static struct ctl_table_header *dcacp_ctl_header;
+static struct ctl_table_header *dcpim_ctl_header;
 
-void dcacp_params_init(struct dcacp_params* params) {
+void dcpim_params_init(struct dcpim_params* params) {
     params->clean_match_sock = 0;
     params->match_socket_port = 3000;
     params->bandwidth = 100;
@@ -215,7 +215,7 @@ void dcacp_params_init(struct dcacp_params* params) {
     printk("params->epoch_length:%d\n", params->epoch_length);
 }
 /**
- * dcacp_dointvec() - This function is a wrapper around proc_dointvec. It is
+ * dcpim_dointvec() - This function is a wrapper around proc_dointvec. It is
  * invoked to read and write sysctl values and also update other values
  * that depend on the modified value.
  * @table:    sysctl table describing value to be read or written.
@@ -226,7 +226,7 @@ void dcacp_params_init(struct dcacp_params* params) {
  * 
  * Return: 0 for success, nonzero for error. 
  */
-int dcacp_dointvec(struct ctl_table *table, int write,
+int dcpim_dointvec(struct ctl_table *table, int write,
                 void __user *buffer, size_t *lenp, loff_t *ppos)
 {
         int result;
@@ -235,7 +235,7 @@ int dcacp_dointvec(struct ctl_table *table, int write,
                 /* Don't worry which particular value changed; update
                  * all info that is dependent on any sysctl value.
                  */
-                dcacp_sysctl_changed(&dcacp_params);
+                dcpim_sysctl_changed(&dcpim_params);
 
                 // /* For this value, only call the method when this
                 //  * particular value was written (don't want to increment
@@ -250,11 +250,11 @@ int dcacp_dointvec(struct ctl_table *table, int write,
 }
 
 /**
- * dcacp_sysctl_changed() - Invoked whenever a sysctl value is changed;
+ * dcpim_sysctl_changed() - Invoked whenever a sysctl value is changed;
  * any output-related parameters that depend on sysctl-settable values.
- * @params:    Overall data about the DCACP protocol implementation.
+ * @params:    Overall data about the DCPIM protocol implementation.
  */
-void dcacp_sysctl_changed(struct dcacp_params *params)
+void dcpim_sysctl_changed(struct dcpim_params *params)
 {
         // __u64 tmp;
 
@@ -267,62 +267,62 @@ void dcacp_sysctl_changed(struct dcacp_params *params)
         // tmp = (tmp*cpu_khz)/1000000;
         // homa->max_nic_queue_cycles = tmp;
     if(params->clean_match_sock == 1) {
-        // sock_release(dcacp_match_table.sock);
-        // dcacp_match_table.sock = NULL;
-        // dcacp_epoch_destroy(&dcacp_epoch);
+        // sock_release(dcpim_match_table.sock);
+        // dcpim_match_table.sock = NULL;
+        // dcpim_epoch_destroy(&dcpim_epoch);
         params->clean_match_sock = 0;
     }
 }
 /**
- * dcacp_load() - invoked when this module is loaded into the Linux kernel
+ * dcpim_load() - invoked when this module is loaded into the Linux kernel
  * Return: 0 on success, otherwise a negative errno.
  */
-static int __init dcacp_load(void) {
+static int __init dcpim_load(void) {
         int status;
         // struct timespec ts;
         // struct test_element e1, e2, e3, e4, e5;
         // struct test_element *temp;
-        // struct dcacp_pq pq;
+        // struct dcpim_pq pq;
         // e1.value = 1;
         // e2.value = 6;
         // e3.value = 3;
         // e4.value = 4;
         // e5.value = 5;
-        // dcacp_pq_init(&pq, test_compare);
-        // dcacp_pq_push(&pq, &e5.node);
-        // dcacp_pq_push(&pq, &e4.node);
-        // dcacp_pq_push(&pq, &e3.node);
-        // dcacp_pq_push(&pq, &e2.node);
-        // dcacp_pq_push(&pq, &e1.node);
+        // dcpim_pq_init(&pq, test_compare);
+        // dcpim_pq_push(&pq, &e5.node);
+        // dcpim_pq_push(&pq, &e4.node);
+        // dcpim_pq_push(&pq, &e3.node);
+        // dcpim_pq_push(&pq, &e2.node);
+        // dcpim_pq_push(&pq, &e1.node);
         //     printk("e5 pos:%p\n", &e5.node);
-        // while(!dcacp_pq_empty(&pq)) {
+        // while(!dcpim_pq_empty(&pq)) {
         //     struct list_head *head;
         //     printk("num element:%d\n", pq.count);
-        //     head = dcacp_pq_pop(&pq);
+        //     head = dcpim_pq_pop(&pq);
         //     temp = list_entry(head, struct test_element, node);
         //     printk("value: %d\n", temp->value);
         // }   
-        printk(KERN_NOTICE "DCACP module loading\n");
-        dcacp_params_init(&dcacp_params);
+        printk(KERN_NOTICE "DCPIM module loading\n");
+        dcpim_params_init(&dcpim_params);
 
-        dcacp_init();
-        // dcacp_mattab_init(&dcacp_match_table, NULL);
+        dcpim_init();
+        // dcpim_mattab_init(&dcpim_match_table, NULL);
 
-        status = proto_register(&dcacp_prot, 1);
+        status = proto_register(&dcpim_prot, 1);
         if (status != 0) {
-                printk(KERN_ERR "proto_register failed in dcacp_init: %d\n",
+                printk(KERN_ERR "proto_register failed in dcpim_init: %d\n",
                     status);
                 goto out;
         }
-        inet_register_protosw(&dcacp_protosw);
-        status = inet_add_protocol(&dcacp_protocol, IPPROTO_DCACP);
+        inet_register_protosw(&dcpim_protosw);
+        status = inet_add_protocol(&dcpim_protocol, IPPROTO_DCPIM);
 
         if (status != 0) {
-                printk(KERN_ERR "inet_add_protocol failed in dcacp_load: %d\n",
+                printk(KERN_ERR "inet_add_protocol failed in dcpim_load: %d\n",
                     status);
                 goto out_cleanup;
         }
-        dcacp_epoch_init(&dcacp_epoch);
+        dcpim_epoch_init(&dcpim_epoch);
         /* initialize rcv_core table and xmit_core table */
         status = rcv_core_table_init(&rcv_core_tab);
         if(status != 0) {
@@ -334,7 +334,7 @@ static int __init dcacp_load(void) {
         }
         // if (status)
         //         goto out_cleanup;
-        // dcacplite4_register();
+        // dcpimlite4_register();
         // metrics_dir_entry = proc_create("homa_metrics", S_IRUGO,
         //                 init_net.proc_net, &homa_metrics_fops);
         // if (!metrics_dir_entry) {
@@ -343,18 +343,18 @@ static int __init dcacp_load(void) {
         //         goto out_cleanup;
         // }
 
-        dcacp_ctl_header = register_net_sysctl(&init_net, "net/dcacp",
-                        dcacp_ctl_table);
-        if (!dcacp_ctl_header) {
-                printk(KERN_ERR "couldn't register DCACP sysctl parameters\n");
+        dcpim_ctl_header = register_net_sysctl(&init_net, "net/dcpim",
+                        dcpim_ctl_table);
+        if (!dcpim_ctl_header) {
+                printk(KERN_ERR "couldn't register DCPIM sysctl parameters\n");
                 status = -ENOMEM;
                 goto out_cleanup;
         }
         
-        status = dcacpv4_offload_init();
+        status = dcpimv4_offload_init();
         printk("init the offload\n");
         if (status != 0) {
-                printk(KERN_ERR "DCACP couldn't init offloads\n");
+                printk(KERN_ERR "DCPIM couldn't init offloads\n");
                 goto out_cleanup;
         }
         // tasklet_init(&timer_tasklet, homa_tasklet_handler, 0);
@@ -371,29 +371,29 @@ static int __init dcacp_load(void) {
 out_cleanup:
         // unregister_net_sysctl_table(homa_ctl_header);
         // proc_remove(metrics_dir_entry);
-        if (dcacpv4_offload_end() != 0)
-            printk(KERN_ERR "DCACP couldn't stop offloads\n");
-        dcacp_epoch_destroy(&dcacp_epoch);
+        if (dcpimv4_offload_end() != 0)
+            printk(KERN_ERR "DCPIM couldn't stop offloads\n");
+        dcpim_epoch_destroy(&dcpim_epoch);
         rcv_core_table_destory(&rcv_core_tab);
         xmit_core_table_destory(&xmit_core_tab);
-        unregister_net_sysctl_table(dcacp_ctl_header);
-        dcacp_destroy();
-        inet_del_protocol(&dcacp_protocol, IPPROTO_DCACP);
+        unregister_net_sysctl_table(dcpim_ctl_header);
+        dcpim_destroy();
+        inet_del_protocol(&dcpim_protocol, IPPROTO_DCPIM);
         printk("inet delete protocol\n");
-        inet_unregister_protosw(&dcacp_protosw);
+        inet_unregister_protosw(&dcpim_protosw);
         printk("inet unregister protosw");
-        proto_unregister(&dcacp_prot);
+        proto_unregister(&dcpim_prot);
         printk("unregister protocol\n");
-        // proto_unregister(&dcacplite_prot);
+        // proto_unregister(&dcpimlite_prot);
 out:
         return status;
 }
 
 /**
- * dcacp_unload() - invoked when this module is unloaded from the Linux kernel.
+ * dcpim_unload() - invoked when this module is unloaded from the Linux kernel.
  */
-static void __exit dcacp_unload(void) {
-        printk(KERN_NOTICE "DCACP module unloading\n");
+static void __exit dcpim_unload(void) {
+        printk(KERN_NOTICE "DCPIM module unloading\n");
         exiting = true;
         
         // tt_destroy();
@@ -412,31 +412,31 @@ static void __exit dcacp_unload(void) {
         //         printk(KERN_ERR "Homa couldn't stop offloads\n");
         // unregister_net_sysctl_table(homa_ctl_header);
         // proc_remove(metrics_dir_entry);
-        if (dcacpv4_offload_end() != 0)
-            printk(KERN_ERR "DCACP couldn't stop offloads\n");
+        if (dcpimv4_offload_end() != 0)
+            printk(KERN_ERR "DCPIM couldn't stop offloads\n");
         printk("start to unload\n");
-        dcacp_epoch_destroy(&dcacp_epoch);
-        unregister_net_sysctl_table(dcacp_ctl_header);
+        dcpim_epoch_destroy(&dcpim_epoch);
+        unregister_net_sysctl_table(dcpim_ctl_header);
         printk("unregister sysctl table\n");
         rcv_core_table_destory(&rcv_core_tab);
         xmit_core_table_destory(&xmit_core_tab);
 
-        // dcacp_mattab_destroy(&dcacp_match_table);
+        // dcpim_mattab_destroy(&dcpim_match_table);
         // printk("remove match table\n");
 
-        dcacp_destroy();
-        printk("remove dcacp table\n");
+        dcpim_destroy();
+        printk("remove dcpim table\n");
 
-        inet_del_protocol(&dcacp_protocol, IPPROTO_DCACP);
+        inet_del_protocol(&dcpim_protocol, IPPROTO_DCPIM);
         printk("reach here:%d\n", __LINE__);
-        inet_unregister_protosw(&dcacp_protosw);
+        inet_unregister_protosw(&dcpim_protosw);
         printk("reach here:%d\n", __LINE__);
-        proto_unregister(&dcacp_prot);
+        proto_unregister(&dcpim_prot);
         printk("reach here:%d\n", __LINE__);
 
 
-        // proto_unregister(&dcacplite_prot);
+        // proto_unregister(&dcpimlite_prot);
 }
 
-module_init(dcacp_load);
-module_exit(dcacp_unload);
+module_init(dcpim_load);
+module_exit(dcpim_unload);
