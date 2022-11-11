@@ -128,8 +128,8 @@ void dcpim_mattab_init(struct dcpim_match_tab *table,
 
 	table->comp = comp;
 	printk("size of match entry: %lu\n", sizeof(struct dcpim_match_entry));
-	table->buckets = kmalloc(sizeof(struct dcpim_match_slot) * DCPIM_MATCH_BUCKETS, GFP_KERNEL);
-	for (i = 0; i < DCPIM_MATCH_BUCKETS; i++) {
+	table->buckets = kmalloc(sizeof(struct dcpim_match_slot) * DCPIM_BUCKETS, GFP_KERNEL);
+	for (i = 0; i < DCPIM_BUCKETS; i++) {
 		spin_lock_init(&table->buckets[i].lock);
 		INIT_HLIST_HEAD(&table->buckets[i].head);
 		table->buckets[i].count = 0;
@@ -147,7 +147,7 @@ void dcpim_mattab_destroy(struct dcpim_match_tab *table) {
 	struct dcpim_match_entry *entry;
 	struct hlist_node *n;
 	printk("start to remove match table\n");
-	for (i = 0; i < DCPIM_MATCH_BUCKETS; i++) {
+	for (i = 0; i < DCPIM_BUCKETS; i++) {
 		bucket = &table->buckets[i];
 		spin_lock_bh(&bucket->lock);
 		for (j = 0; j < bucket->count; j++) {

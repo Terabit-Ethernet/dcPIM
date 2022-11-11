@@ -79,6 +79,10 @@ EXPORT_SYMBOL(dcpim_epoch);
 
 struct inet_hashinfo dcpim_hashinfo;
 EXPORT_SYMBOL(dcpim_hashinfo);
+
+struct dcpim_message_bucket dcpim_tx_messages[DCPIM_BUCKETS];
+struct dcpim_message_bucket dcpim_rx_messages[DCPIM_BUCKETS];
+
 #define MAX_DCPIM_PORTS 65536
 #define PORTS_PER_CHAIN (MAX_DCPIM_PORTS / DCPIM_HTABLE_SIZE_MIN)
 

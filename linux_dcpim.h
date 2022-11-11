@@ -39,6 +39,12 @@ enum {
 	// RCP_CLOSE,
 };
 
+/* dcPIM short message state */
+enum {
+	DCPIM_WAIT_FOR_FIN = 1,
+	DCPIM_ENTER_MATCH,
+};
+
 enum {
 	// DCPIMF_NEW = (1 << DCPIM_NEW),
 	DCPIMF_ESTABLISHED = (1 << DCPIM_ESTABLISHED),
@@ -94,6 +100,95 @@ struct dcpim_params {
 
 };
 
+/* dcPIM message for holding data strucutre of short flows */
+struct dcpim_message {
+	// /**
+	//  * @dsk: dcPIM socket that creates this message
+	//  */
+	// struct dcpim_sock *dsk;
+	
+	/** @state: dcPIM message state
+	 */
+	 int state;
+	
+	/** @id: ID of the message.
+	 */
+	uint64_t id;
+	
+	/** @lock: Used to synchronize modifications to this structure;
+	 */
+	spinlock_t lock;
+
+	/** @saddr: source IP address
+	 */
+	uint32_t saddr;
+
+	/** @sport: source port number
+	 */
+	uint16_t sport;
+
+	/** @daddr: dest IP address
+	 */
+	uint32_t daddr;
+
+	/** @sk_dport: dest port number
+	 */
+	uint16_t dport;
+
+	/**
+	 * @pkt_queue: DATA packets received for this message so far. The list
+	 * is sorted in order of offset (head is lowest offset), but
+	 * packets can be received out of order, so there may be times
+	 * when there are holes in the list. Packets in this list contain
+	 * exactly one data_segment.
+	 */
+	struct sk_buff_head pkt_queue;
+
+	/**
+	 * @total_len: Size of the entire message, in bytes. A value
+	 * less than 0 means this structure is uninitialized and therefore
+	 * not in use.
+	 */
+	uint32_t total_len;
+	
+	/**
+	 * @remaining_len: Amount of data for this message that has
+	 * not yet been received; will determine the message's priority.
+	 */
+	uint32_t remaining_len;
+	
+	/**
+	 * @rtx_timer: Retransmission timer. Handling the case when packet drops happen and
+	 * sender needs to perform retransmission.
+	 */
+	struct hrtimer rtx_timer;
+
+	/* Belows are attributes not protected by the lock */
+	
+	/**
+	 * @hash_link: Used to link this object into a hash bucket for
+	 * dcpim message hash table.
+	 */
+	struct hlist_node hash_link;
+
+	/** @hash: hash of five tuples + id.
+	 */
+	uint32_t hash;
+
+	/**
+	 * @match_link: Used to link this object into
+	 * &dcpim_match_list (sender) or &dcpim_socket.message_list (receiver).
+	 */
+	struct list_head table_link;
+
+	/**
+	 * @refcnt: The reference count of dcPIM message. When the count is 0,
+	 * the message should be destroyed.
+	 */
+	refcount_t	refcnt;
+
+};
+
 struct dcpim_pq {
 	struct list_head list;
 	// struct spinlock lock;
@@ -105,7 +200,17 @@ struct dcpim_pq {
 // 	struct message_hslot* hash;
 // };
 
-#define DCPIM_MATCH_BUCKETS 1024
+#define DCPIM_BUCKETS 1024
+
+struct dcpim_message_bucket {
+	/**
+	 * @lock: for adding/removing new message
+	 */
+	spinlock_t lock;
+	
+	/** @bucket: list of messages that hash to this slot. */
+	struct hlist_head slot;
+};
 
 
 struct rcv_core_entry {
@@ -169,14 +274,14 @@ struct dcpim_epoch {
 	bool prompt;
 	// __be32 match_src_addr;
 	// __be32 match_dst_addr;
-	struct spinlock lock;
+	spinlock_t lock;
 
-	struct spinlock rts_lock;
+	spinlock_t rts_lock;
 	struct list_head rts_q;
 	int unmatched_grant_bytes;
 	int rts_size;
 
-	struct spinlock grant_lock;
+	spinlock_t grant_lock;
 	struct list_head grants_q;
 	int unmatched_accept_bytes;
 	int grant_size;
@@ -214,18 +319,17 @@ struct dcpim_epoch {
 	struct work_struct receiver_matching_work;
 	struct work_struct epoch_work;
 
-
 };
 
 // dcpim matching logic data structure
 struct dcpim_rts {
-    struct dcpim_sock* dsk;
+    struct dcpim_sock *dsk;
     int remaining_sz;
  	struct list_head list_link;
 };
 struct dcpim_grant {
     bool prompt;
-    struct dcpim_sock* dsk;
+    struct dcpim_sock *dsk;
     int remaining_sz;
 	struct list_head list_link;
 };
@@ -264,7 +368,7 @@ struct dcpim_match_tab {
 static inline struct dcpim_match_slot *dcpim_match_bucket(
 		struct dcpim_match_tab *table, __be32 addr)
 {
-	return &table->buckets[addr & (DCPIM_MATCH_BUCKETS - 1)];
+	return &table->buckets[addr & (DCPIM_BUCKETS - 1)];
 }
 
 

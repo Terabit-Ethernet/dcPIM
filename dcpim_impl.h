@@ -19,6 +19,9 @@ extern struct request_sock_ops dcpim_request_sock_ops;
 
 extern struct xmit_core_table xmit_core_tab;
 extern struct rcv_core_table rcv_core_tab;
+extern struct dcpim_message_bucket dcpim_tx_messages[DCPIM_BUCKETS];
+extern struct dcpim_message_bucket dcpim_rx_messages[DCPIM_BUCKETS];
+
 void* allocate_hash_table(const char *tablename,
 				     unsigned long bucketsize,
 				     unsigned long numentries,
