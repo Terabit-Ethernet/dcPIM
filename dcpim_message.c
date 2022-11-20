@@ -76,6 +76,7 @@ static inline int dcpim_hash_slot(uint32_t hash)
         return hash & (DCPIM_BUCKETS - 1);
 }
 
+/* laddr, lport: src address and src port. faddr, fport: dst address and dst port. */
 static inline unsigned int dcpim_message_hash(__be32 laddr, __u16 lport,
 		__be32 faddr, __be16 fport, uint64_t id)
 {
@@ -99,7 +100,7 @@ static inline bool dcpim_message_match(struct dcpim_message* msg, __be32 saddr, 
  * @length:       Total number of bytes in message.
  */
 
-bool dcpim_message_new(struct dcpim_sock* dsk, uint64_t id, uint32_t length) {
+struct dcpim_message* dcpim_message_new(struct dcpim_sock* dsk, uint64_t id, uint32_t length) {
 	struct dcpim_message* msg = NULL;
 	struct sock* sk = (struct sock*)dsk;
 
@@ -112,6 +113,9 @@ bool dcpim_message_new(struct dcpim_sock* dsk, uint64_t id, uint32_t length) {
 
 	// WRITE_ONCE(msg->dsk, dsk);
 	msg->id = id;
+	msg->dsk = dsk;
+	sock_hold(sk);
+	/* For now, we initialize wait for fin, assuming we can always burst short flows. */
 	msg->state = DCPIM_WAIT_FOR_FIN;
 	msg->hash = 0;
 	spin_lock_init(&msg->lock);
@@ -127,14 +131,66 @@ bool dcpim_message_new(struct dcpim_sock* dsk, uint64_t id, uint32_t length) {
 	msg->sport = sk->sk_num; 
 	msg->daddr = sk->sk_daddr;
 	msg->dport =sk->sk_dport;
-	msg->hash = dcpim_message_hash(msg->saddr, msg->sport, msg->daddr, msg->dport , msg->id);
+	msg->hash = dcpim_message_hash(sk->sk_rcv_saddr, sk->sk_num, sk->sk_daddr, sk->sk_dport, msg->id);
 	return msg;
 }
 
+ /**
+ * dcpim_message_hold() - increment msg refcnt by 1.
+ * @msg:	The dcpim_message. 
+ */
+void dcpim_message_hold(struct dcpim_message *msg) {
+	if(!refcount_inc_not_zero(&msg->refcnt)) 
+		WARN_ON(true);
+	return;
+}
+
+ /**
+ * dcpim_message_put() - decrement msg refcnt by 1.
+ * @msg:	The dcpim_message. 
+ */
+void dcpim_message_put(struct dcpim_message *msg) {
+	if(refcount_dec_and_test(&msg->refcnt)) 
+		dcpim_message_destroy(msg);
+	return;
+}
+
+ /**
+ * dcpim_message_finish() - set msg to finish, remove msgs from any table, and cancel hrtimer.
+ *  @hashinfo:	msg table. 
+ *  @msg:	The dcpim_message. 
+ */
+void dcpim_message_finish(struct dcpim_message_bucket *hashinfo, struct dcpim_message *msg) {
+	/* first cancel the timer to avoid race condition */
+	hrtimer_cancel(&msg->rtx_timer);
+	spin_lock_bh(&msg->lock);
+	msg->state = DCPIM_FINISH;
+	/* TO DO: may need to remove message from matching table depending on the old state at sender side */
+	spin_unlock_bh(&msg->lock);
+	dcpim_remove_message(hashinfo, msg);
+	return;
+}
+
+ /**
+ * dcpim_message_destroy() - Destroy msg: the last fucntion of msg lifecycle.
+  @msg:	The dcpim_message that will be destroyed. 
+ */
+void dcpim_message_destroy(struct dcpim_message *msg) {
+	struct sk_buff *skb, *n;
+	struct sock *sk = (struct sock*)(msg->dsk);
+	spin_lock_bh(&msg->lock);
+	skb_queue_walk_safe(&msg->pkt_queue, skb, n) {
+		kfree_skb(skb);
+	}
+	skb_queue_head_init(&msg->pkt_queue);
+	spin_unlock_bh(&msg->lock);
+	kfree(msg);
+	sock_put(sk);
+	return;
+}
 /**
  * dcpim_message_table_init() - Constructor for dcpim_message_table.
  */
-
 void dcpim_message_table_init(void) {
 	int i = 0;
 	for (i = 0; i < DCPIM_BUCKETS; i++) {
@@ -156,7 +212,7 @@ struct dcpim_message* dcpim_lookup_message(struct dcpim_message_bucket *hashinfo
 {
 	struct dcpim_message *msg;
 
-	unsigned int hash = dcpim_message_hash(daddr, dport, saddr, sport, id);
+	unsigned int hash = dcpim_message_hash(saddr, sport, daddr, dport, id);
 	unsigned int slot = dcpim_hash_slot(hash);
 	struct dcpim_message_bucket *head = &hashinfo[slot];
 
@@ -210,5 +266,6 @@ void dcpim_remove_message(struct dcpim_message_bucket *hashinfo, struct dcpim_me
 	}
 	hlist_del_rcu(&msg->hash_link);
 	spin_unlock(lock);
+	dcpim_message_put(msg);
 	return;
 }

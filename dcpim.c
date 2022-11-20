@@ -200,7 +200,6 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	int sent_len = 0;
 	long timeo;
 	int flags;
-
 	flags = msg->msg_flags;
 	if (sk->sk_state != DCPIM_ESTABLISHED) {
 		return -ENOTCONN;
@@ -252,12 +251,86 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	return sent_len;
 }
 
+int dcpim_sendmsg_short_locked(struct sock *sk, struct msghdr *msg, size_t len) {
+	// DECLARE_SOCKADDR(struct sockaddr_in *, usin, msg->msg_name);
+	// int corkreq = up->corkflag || msg->msg_flags&MSG_MORE;
+	struct dcpim_sock *dsk = dcpim_sk(sk);
+	int sent_len = 0;
+	// long timeo;
+	int flags;
+	struct dcpim_message *dcpim_msg = dcpim_message_new(dsk, dsk->short_message_id, len);
+
+
+	flags = msg->msg_flags;
+	if (sk->sk_state != DCPIM_ESTABLISHED) {
+		return -ENOTCONN;
+	}
+
+	// if(sk_stream_wspace(sk) <= 0) {
+	// 	timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
+	// 	sk_stream_wait_memory(sk, &timeo);
+	// }
+
+	sent_len = dcpim_fill_packets_message(sk, dcpim_msg, msg, len);
+	if(sent_len <= 0) {
+		dcpim_message_put(dcpim_msg);
+		goto sent_done;
+
+	} else if(sent_len != dcpim_msg->total_len) {
+		dcpim_msg->total_len = sent_len;
+		dcpim_msg->remaining_len = sent_len;
+		WARN_ON_ONCE(true);
+	}
+ 	dsk->short_message_id++;
+	/* add msg into sender_msg_table */
+	dcpim_insert_message(dcpim_tx_messages, dcpim_msg);
+	/* burst packets of short flows
+	 * No need to hold the lock because we just initialize the message.
+	 * Flow sync packet currently doesn't 
+	 */
+	dcpim_xmit_control(construct_flow_sync_pkt(sk, dcpim_msg->id, dcpim_msg->total_len, 0), sk); 
+	dcpim_xmit_data_whole_message(dcpim_msg, dsk, true);
+	/* TODO: intiiate hrtimer for retransmission */
+sent_done:
+	return sent_len;
+	// if(sent_len == 0) {
+	// 	timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
+	// 	sk_stream_wait_memory(sk, &timeo);
+	// }
+	// if(dsk->total_length < dcpim_params.short_flow_size) {
+	// 	struct sk_buff *skb;
+	// 	dsk->sender.token_seq = dsk->total_length;
+	// 	while((skb = skb_dequeue(&sk->sk_write_queue)) != NULL) {
+	// 		dcpim_xmit_data(skb, dsk, false);
+	// 	}
+	// }
+
+	// if(sent_len == -ENOMEM) {
+	// 	timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
+	// 	sk_stream_wait_memory(sk, &timeo);
+	// }
+	/*temporary solution */
+	// local_bh_disable();
+	// bh_lock_sock(sk);
+	// if(!skb_queue_empty(&sk->sk_write_queue) && 
+	// 	dsk->sender.token_seq >= DCPIM_SKB_CB(dcpim_send_head(sk))->end_seq) {
+ 	// 	dcpim_write_timer_handler(sk);
+	// } 
+	// bh_unlock_sock(sk);
+	// local_bh_enable();
+	return sent_len;
+}
+
 int dcpim_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 {
 	int ret;
 	lock_sock(sk);
 	dcpim_rps_record_flow(sk);
-	ret = dcpim_sendmsg_locked(sk, msg, len);
+	if(sk->sk_priority != 7)
+		ret = dcpim_sendmsg_locked(sk, msg, len);
+	else 
+		/* send short flow message */
+		ret = dcpim_sendmsg_short_locked(sk, msg, len);
 	release_sock(sk);
 	return ret;
 }
@@ -419,6 +492,7 @@ int dcpim_init_sock(struct sock *sk)
 	// atomic64_set(&dsk->next_outgoing_id, 1);
 	// initialize the ready queue and its lock
 	sk->sk_destruct = dcpim_destruct_sock;
+	dsk->short_message_id = 0;
 	WRITE_ONCE(dsk->num_sacks, 0);
 
 	WRITE_ONCE(dsk->sender.token_seq, 0);
@@ -474,7 +548,7 @@ EXPORT_SYMBOL(dcpim_ioctl);
 
 bool dcpim_try_send_token(struct sock *sk) {
 	struct dcpim_sock *dsk = dcpim_sk(sk);
-	struct inet_sock *inet = inet_sk(sk);
+	// struct inet_sock *inet = inet_sk(sk);
 	uint32_t token_bytes = 0;
 	token_bytes = dcpim_token_timer_defer_handler(sk);
 	if(token_bytes > 0)
@@ -807,29 +881,32 @@ out:
 
 int dcpim_disconnect(struct sock *sk, int flags)
 {
-	struct inet_sock *inet = inet_sk(sk);
- 	/*
- 	 *	1003.1g - break association.
- 	 */
-	if(sk->sk_state == DCPIM_LISTEN)
-		inet_csk_listen_stop(sk);
- 	sk->sk_state = DCPIM_CLOSE;
- 	inet->inet_daddr = 0;
- 	inet->inet_dport = 0;
- 	sock_rps_reset_rxhash(sk);
- 	sk->sk_bound_dev_if = 0;
- 	if (!(sk->sk_userlocks & SOCK_BINDADDR_LOCK)) {
- 		inet_reset_saddr(sk);
- 		if (sk->sk_prot->rehash &&
- 		    (sk->sk_userlocks & SOCK_BINDPORT_LOCK))
- 			sk->sk_prot->rehash(sk);
- 	}
+	printk(KERN_WARNING "unimplemented dcpim_disconnect");
+	return 0;
+	// struct inet_sock *inet = inet_sk(sk);
+ 	// /*
+ 	//  *	1003.1g - break association.
+ 	//  */
+	// printk("call disconnect");
+	// if(sk->sk_state == DCPIM_LISTEN)
+	// 	inet_csk_listen_stop(sk);
+ 	// sk->sk_state = DCPIM_CLOSE;
+ 	// inet->inet_daddr = 0;
+ 	// inet->inet_dport = 0;
+ 	// sock_rps_reset_rxhash(sk);
+ 	// sk->sk_bound_dev_if = 0;
+ 	// if (!(sk->sk_userlocks & SOCK_BINDADDR_LOCK)) {
+ 	// 	inet_reset_saddr(sk);
+ 	// 	if (sk->sk_prot->rehash &&
+ 	// 	    (sk->sk_userlocks & SOCK_BINDPORT_LOCK))
+ 	// 		sk->sk_prot->rehash(sk);
+ 	// }
 
- 	if (!(sk->sk_userlocks & SOCK_BINDPORT_LOCK)) {
- 		sk->sk_prot->unhash(sk);
- 		inet->inet_sport = 0;
- 	}
- 	sk_dst_reset(sk);
+ 	// if (!(sk->sk_userlocks & SOCK_BINDPORT_LOCK)) {
+ 	// 	sk->sk_prot->unhash(sk);
+ 	// 	inet->inet_sport = 0;
+ 	// }
+ 	// sk_dst_reset(sk);
  	return 0;
 }
 EXPORT_SYMBOL(dcpim_disconnect);
@@ -927,7 +1004,7 @@ void dcpim_destroy_sock(struct sock *sk)
 	// struct udp_hslot* hslot = udp_hashslot(sk->sk_prot->h.udp_table, sock_net(sk),
 	// 				     dcpim_sk(sk)->dcpim_port_hash);
 	struct dcpim_sock *dsk = dcpim_sk(sk);
-	struct inet_sock *inet = inet_sk(sk);
+	// struct inet_sock *inet = inet_sk(sk);
 	struct rcv_core_entry *entry = &rcv_core_tab.table[raw_smp_processor_id()];
 	printk("destroy dsk address: %d %p\n", refcount_read(&sk->sk_refcnt), dsk);
 	lock_sock(sk);

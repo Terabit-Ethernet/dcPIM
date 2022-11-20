@@ -245,29 +245,148 @@ int dcpim_fragment(struct sock *sk, enum dcpim_queue dcpim_queue,
 
 	return 0;
 }
+
+/**
+ * dcpim_fill_packets_message() - Create one or more packets and fill them with
+ * data from user space, and link them to the corresponding message.
+ * @sk:   socket which invokes the sendmsg.
+ * @dcpim_msg:   Short message that holds the created packets.
+ * @msg:         Address of the user-space source buffer.
+ * @len:         Number of bytes of user data.
+ * 
+ * Return:   Return the length (bytes) that has been moved to the kernel space
+ *           from user space, or a negative errno if there was an error. 
+ */
+int dcpim_fill_packets_message(struct sock* sk, struct dcpim_message *dcpim_msg,
+		struct msghdr *msg, size_t len)
+{
+	int bytes_left, sent_len = 0;
+	uint32_t write_seq = 0;
+	struct sk_buff *skb;
+	// struct sk_buff *first = NULL;
+	int err, mtu, max_pkt_data, gso_size, max_gso_data;
+	// struct sk_buff **last_link;
+	struct dst_entry *dst;
+	// struct dcpim_sock* dsk = dcpim_sk(sk);
+	/* check socket has enough space */
+	if (unlikely(len == 0)) {
+		err = -EINVAL;
+		goto error;
+	}
+
+	dst = sk_dst_get(sk);
+	if(dst == NULL) {
+		printk("dst is NULL\n");
+		return -ENOTCONN;
+	}
+	mtu = dst_mtu(dst);
+	max_pkt_data = mtu - sizeof(struct iphdr) - sizeof(struct dcpim_data_hdr);
+	bytes_left = len;
+
+
+	if (len <= max_pkt_data ) {
+		max_gso_data = len;
+		gso_size = mtu;
+	} else {
+		int bufs_per_gso;
+		
+		gso_size = dst->dev->gso_max_size;
+		if (gso_size > dcpim_params.bdp)
+			gso_size = dcpim_params.bdp;
+		// if(gso_size > dcpim_params.gso_size)
+		// 	gso_size = dcpim_params.gso_size;
+		/* Round gso_size down to an even # of mtus. */
+		bufs_per_gso = gso_size / mtu;
+		if (bufs_per_gso == 0) {
+			bufs_per_gso = 1;
+			mtu = gso_size;
+			max_pkt_data = mtu - sizeof(struct iphdr)
+					- sizeof(struct dcpim_data_hdr);
+			WARN_ON(max_pkt_data < 0);
+		}
+		max_gso_data = bufs_per_gso * max_pkt_data;
+		gso_size = bufs_per_gso * mtu;
+	}
+	/* Copy message data from user space and form sk_buffs. Each
+	 * sk_buff may contain multiple data_segments, each of which will
+	 * turn into a separate packet, using either TSO in the NIC or
+	 * GSO in software.
+	 */
+	// ktime_t start, end;
+	// start = ktime_get();
+	for (; bytes_left > 0; ) {
+		// struct dcpim_data_hdr *h;
+		struct data_segment *seg;
+		int available;
+		int current_len = 0;
+		 // last_pkt_length;
+		
+		/* The sizeof(void*) creates extra space for dcpim_next_skb. */
+		skb = dcpim_stream_alloc_skb(sk, gso_size, GFP_KERNEL, true);
+		/* this is a temp solution; will remove after adding split buffer mechanism */
+		if (unlikely(!skb)) {
+			// goto finish;
+			err = -ENOMEM;
+			goto error;
+		}
+		if ((max_gso_data > bytes_left)) {
+			// if(!sk->sk_tx_skb_cache)
+			// 	sk->sk_tx_skb_cache = skb;
+			// else
+			kfree_skb(skb);
+			break;
+		}
+		available = max_gso_data;
+		current_len = available > bytes_left? bytes_left : available;
+		// h->message_id = 256;
+		WRITE_ONCE(DCPIM_SKB_CB(skb)->seq, write_seq + len - bytes_left);
+		WRITE_ONCE(DCPIM_SKB_CB(skb)->end_seq, DCPIM_SKB_CB(skb)->seq + current_len);
+		/* Each iteration of the following loop adds one segment
+		 * to the buffer.
+		 */
+		do {
+			int seg_size;
+			seg = (struct data_segment *) skb_put(skb, sizeof(*seg));
+			seg->offset = htonl(len - bytes_left + write_seq);
+
+			if (bytes_left <= max_pkt_data)
+				seg_size = bytes_left;
+			else
+				seg_size = max_pkt_data;
+			seg->segment_length = htonl(seg_size);
+			if (!copy_from_iter_full(skb_put(skb, seg_size),
+					seg_size, &msg->msg_iter)) {
+				err = -EFAULT;
+				kfree_skb(skb);
+				goto error;
+			}
+			bytes_left -= seg_size;
+			available -= seg_size;
+		} while ((available > 0) && (bytes_left > 0));
+		sent_len += current_len;
+		dcpim_set_skb_gso_segs(skb, max_pkt_data + sizeof(struct data_segment));
+		dcpim_add_write_queue_tail(sk, skb);
+	}
+	WRITE_ONCE(write_seq, write_seq + sent_len);
+	return sent_len;
+	
+error:
+	return err;
+}
+
 /**
  * dcpim_fill_packets() - Create one or more packets and fill them with
  * data from user space.
- * @homa:    Overall data about the DCPIM protocol implementation.
- * @peer:    Peer to which the packets will be sent (needed for things like
- *           the MTU).
- * @from:    Address of the user-space source buffer.
+ * @sk:      Socket that performs data copy.
+ * @msg:     Address of the user-space source buffer.
  * @len:     Number of bytes of user data.
  * 
- * Return:   Address of the first packet in a list of packets linked through
- *           dcpim_next_skb, or a negative errno if there was an error. No
- *           fields are set in the packet headers except for type, incoming,
- *           offset, and length information. dcpim_message_out_init will fill
- *           in the other fields.
+ * Return:   Return the length (bytes) that has been moved to the kernel space
+ *           from user space, or a negative errno if there was an error. 
  */
 int dcpim_fill_packets(struct sock *sk,
 		struct msghdr *msg, size_t len)
 {
-	/* Note: this function is separate from dcpim_message_out_init
-	 * because it must be invoked without holding an RPC lock, and
-	 * dcpim_message_out_init must sometimes be called with the lock
-	 * held.
-	 */
 	int bytes_left, sent_len = 0;
 	struct sk_buff *skb;
 	// struct sk_buff *first = NULL;
@@ -549,8 +668,8 @@ struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id,
 	dh = (struct dcpimhdr*) (&fh->common);
 	dh->len = htons(sizeof(struct dcpim_flow_sync_hdr));
 	dh->type = NOTIFICATION;
-	fh->flow_id = message_id;
-	fh->flow_size = htonl(message_size);
+	fh->message_id = message_id;
+	fh->message_size = htonl(message_size);
 	fh->start_time = start_time;
 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
 	// if (extra_bytes > 0)
@@ -821,7 +940,7 @@ go_to_next:
  * Return:     Either zero (for success), or a negative errno value if there
  *             was a problem.
  */
-int dcpim_xmit_control(struct sk_buff* skb, struct sock *sk)
+int dcpim_xmit_control(struct sk_buff* skb, struct sock* sk)
 {
 	// struct dcpim_hdr *h;
 	int result;
@@ -867,7 +986,7 @@ int dcpim_xmit_control(struct sk_buff* skb, struct sock *sk)
 /**
  *
  */
-void dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool free_token)
+void dcpim_xmit_data(struct sk_buff* skb, struct dcpim_sock* dsk, bool free_token)
 {
 	struct sock* sk = (struct sock*)(dsk);
 	struct sk_buff* oskb;
@@ -927,7 +1046,33 @@ void dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool free_toke
 	// }
 }
 
-void dcpim_retransmit_data(struct sk_buff *skb, struct dcpim_sock* dsk)
+/** dcpim_xmit_data_message - send skb of a short message
+ * 
+ */
+void dcpim_xmit_data_message(struct sk_buff* skb, struct dcpim_sock* dsk, bool free_token)
+{
+	struct sock* sk = (struct sock*)(dsk);
+	struct sk_buff* oskb;
+	oskb = skb;
+	if (unlikely(skb_cloned(oskb))) 
+		skb = pskb_copy(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
+	else
+		skb = skb_clone(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
+	__dcpim_xmit_data(skb, dsk, free_token);
+}
+
+/** dcpim_xmit_data_message - send the whole short message. Assume caller holds the lock.
+ * 
+ */
+void dcpim_xmit_data_whole_message(struct dcpim_message* msg, struct dcpim_sock* dsk, bool free_token)
+{
+	struct sk_buff* skb;
+	skb_queue_walk(&msg->pkt_queue, skb) {
+		dcpim_xmit_data_message(skb, dsk, free_token);
+	}
+}
+
+void dcpim_retransmit_data(struct sk_buff* skb, struct dcpim_sock* dsk)
 {
 	struct sock* sk = (struct sock*)(dsk);
 	struct sk_buff* oskb;

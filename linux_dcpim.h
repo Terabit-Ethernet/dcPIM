@@ -41,8 +41,10 @@ enum {
 
 /* dcPIM short message state */
 enum {
-	DCPIM_WAIT_FOR_FIN = 1,
+	DCPIM_INIT = 0,
+	DCPIM_WAIT_FOR_FIN,
 	DCPIM_ENTER_MATCH,
+	DCPIM_FINISH,
 };
 
 enum {
@@ -107,6 +109,10 @@ struct dcpim_message {
 	//  */
 	// struct dcpim_sock *dsk;
 	
+	/** @dsk: dcPIM socket corresponds to the socket
+	 */
+	struct dcpim_sock *dsk;
+
 	/** @state: dcPIM message state
 	 */
 	 int state;
@@ -457,7 +463,10 @@ struct dcpim_sock {
 	 * flow id
 	 */
     int core_id;
-
+	/**
+	 * Monotonically increment
+	 */
+	uint64_t short_message_id;
 	struct rb_root	out_of_order_queue;
 	/**
 	 * size of flow in bytes

@@ -14,6 +14,7 @@
  *		Hirokazu Takahashi, <taka@valinux.co.jp>
  */
 
+
 #define pr_fmt(fmt) "DCPIM: " fmt
 
 #include <linux/uaccess.h>
@@ -719,9 +720,10 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 	// struct iphdr *iph;
 	// struct message_hslot* slot;
 	struct dcpim_flow_sync_hdr *fh;
-	struct sock *sk, *child;
+	struct sock *sk, *child, *msg_sock;
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
+	struct dcpim_message *msg;
 	if (!pskb_may_pull(skb, sizeof(struct dcpim_flow_sync_hdr))) {
 		goto drop;		/* No space for header. */
 	}
@@ -739,19 +741,33 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 				child = dcpim_conn_request(sk, skb);
 				if(child) {
 					dsk = dcpim_sk(child);
+					msg_sock = child;
 					printk("dsk address:%p\n", dsk);
-					/* this line needed to change later */
-					if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
-						hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
-						// sock_hold(child);
+					if(ntohl(fh->message_size) == UINT_MAX) {
+						/* this line needed to change later */
+						if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
+							hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
+							// sock_hold(child);
+						}
+					} else {
+						/* TODO: short flow logic for handling race conditions */
 					}
 				}
+			} else if(sk->sk_state == DCPIM_ESTABLISHED) {
+				msg_sock = sk;
+				/* TODO: short flow logic for handling race conditions */
 			}
 			kfree_skb(skb);
 		} else {
 			dcpim_add_backlog(sk, skb, true);
 		}
 		bh_unlock_sock(sk);
+
+		/* TODO: create short message */
+		// if(ntohl(fh->message_size) != UINT_MAX && msg_sock != NULL) {
+		// 	msg = dcpim_lookup_message();
+		// }
+
 	} else {
 		kfree_skb(skb);
 	}
@@ -1239,3 +1255,7 @@ free_skb:
 	kfree_skb(skb);
 	return 0;
 }
+
+/* Short message socket handling logic */
+
+/* To Do: Redundancy check of short message for extreme case (Sync packet + flow destroy in hash table race condition) */

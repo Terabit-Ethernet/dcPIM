@@ -167,6 +167,27 @@ int dcpim_sendpage(struct sock *sk, struct page *page, int offset, size_t size,
 		 int flags);
 void dcpim_destroy_sock(struct sock *sk);
 
+/* dcpim message functions */
+struct dcpim_message* dcpim_message_new(struct dcpim_sock* dsk, uint64_t id, uint32_t length);
+void dcpim_message_hold(struct dcpim_message *msg);
+void dcpim_message_put(struct dcpim_message *msg);
+void dcpim_message_finish(struct dcpim_message_bucket *hashinfo, struct dcpim_message *msg);
+void dcpim_message_destroy(struct dcpim_message *msg);
+
+int dcpim_fill_packets_message(struct sock* sk, struct dcpim_message *dcpim_msg,
+		struct msghdr *msg, size_t len);
+void dcpim_xmit_data_message(struct sk_buff* skb, struct dcpim_sock* dsk, bool free_token);
+void dcpim_xmit_data_whole_message(struct dcpim_message* msg, struct dcpim_sock* dsk, bool free_token);
+
+/* dcpim message hash table functions */
+void dcpim_message_table_init(void);
+struct dcpim_message* dcpim_lookup_message(struct dcpim_message_bucket *hashinfo,
+				  const __be32 saddr, const __be16 sport,
+				  const __be32 daddr, const u16 dport,
+				  const uint64_t id);
+bool dcpim_insert_message(struct dcpim_message_bucket *hashinfo, struct dcpim_message* msg);
+void dcpim_remove_message(struct dcpim_message_bucket *hashinfo, struct dcpim_message* msg);
+
 #ifdef CONFIG_PROC_FS
 int udp4_seq_show(struct seq_file *seq, void *v);
 #endif
