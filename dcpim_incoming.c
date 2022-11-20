@@ -431,7 +431,7 @@ int dcpim_clean_rtx_queue(struct sock *sk)
 static void dcpim_rcv_nxt_update(struct dcpim_sock *dsk, u32 seq)
 {
 	struct sock *sk = (struct sock*) dsk;
-	struct inet_sock *inet = inet_sk(sk);
+	// struct inet_sock *inet = inet_sk(sk);
 	u32 delta = seq - dsk->receiver.rcv_nxt;
 	uint32_t token_bytes = 0;
 	// int grant_bytes = calc_grant_bytes(sk);
@@ -723,7 +723,7 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 	struct sock *sk, *child, *msg_sock;
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
-	struct dcpim_message *msg;
+	// struct dcpim_message *msg;
 	if (!pskb_may_pull(skb, sizeof(struct dcpim_flow_sync_hdr))) {
 		goto drop;		/* No space for header. */
 	}
@@ -1123,8 +1123,9 @@ int dcpim_handle_data_pkt(struct sk_buff *skb)
 	// if(!sk) {
 	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&dh->common), dh->common.source,
             dh->common.dest, sdif, &refcounted);
-    if(!sk)
+    if(!sk) {
     	goto drop;
+	}
 
 	dcpim_v4_fill_cb(skb, iph, dh);
 	if(sk) {
@@ -1251,7 +1252,6 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 		} 
 	}
 
-free_skb:
 	kfree_skb(skb);
 	return 0;
 }

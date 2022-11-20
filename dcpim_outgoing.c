@@ -1189,7 +1189,7 @@ int dcpim_write_timer_handler(struct sock *sk)
 
 
 uint32_t dcpim_xmit_token(struct dcpim_sock* dsk, uint32_t token_bytes) {
-	struct inet_sock *inet = inet_sk((struct sock*)dsk);
+	// struct inet_sock *inet = inet_sk((struct sock*)dsk);
 	struct sock *sk = (struct sock*)dsk;
 	if(token_bytes == 0) {
 		return token_bytes;

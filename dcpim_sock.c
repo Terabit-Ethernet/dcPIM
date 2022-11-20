@@ -75,7 +75,7 @@ void inet_sk_state_store(struct sock *sk, int newstate)
 
 
 void dcpim_set_state(struct sock* sk, int state) {
-	struct inet_sock* inet = inet_sk(sk);
+	// struct inet_sock* inet = inet_sk(sk);
 	switch (state) {
 	case DCPIM_ESTABLISHED:
 		break;
@@ -102,7 +102,7 @@ void dcpim_set_state(struct sock* sk, int state) {
 /* This will initiate an outgoing connection. */
 int dcpim_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 {
-	struct dcpim_sock *dsk = dcpim_sk(sk);
+	// struct dcpim_sock *dsk = dcpim_sk(sk);
 	struct sockaddr_in *usin = (struct sockaddr_in *)uaddr;
 	struct inet_sock *inet = inet_sk(sk);
 	// struct dcpim_sock *tp = dcpim_sk(sk);
@@ -529,7 +529,7 @@ struct sock *dcpim_create_con_sock(struct sock *sk, struct sk_buff *skb,
 	struct sock *newsk;
 	struct dcpim_sock *dsk;
 	struct ip_options_rcu *inet_opt;
-	struct dcpim_flow_sync_hdr *fhdr = dcpim_flow_sync_hdr(skb);
+	// struct dcpim_flow_sync_hdr *fhdr = dcpim_flow_sync_hdr(skb);
 	bool state;
 	if (sk_acceptq_is_full(sk))
 		goto exit_overflow;

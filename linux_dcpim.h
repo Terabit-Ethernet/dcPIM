@@ -125,21 +125,21 @@ struct dcpim_message {
 	 */
 	spinlock_t lock;
 
-	/** @saddr: source IP address
-	 */
-	uint32_t saddr;
+	// /** @saddr: source IP address
+	//  */
+	// uint32_t saddr;
 
-	/** @sport: source port number
-	 */
-	uint16_t sport;
+	// /** @sport: source port number
+	//  */
+	// uint16_t sport;
 
-	/** @daddr: dest IP address
-	 */
-	uint32_t daddr;
+	// /** @daddr: dest IP address
+	//  */
+	// uint32_t daddr;
 
-	/** @sk_dport: dest port number
-	 */
-	uint16_t dport;
+	// /** @sk_dport: dest port number
+	//  */
+	// uint16_t dport;
 
 	/**
 	 * @pkt_queue: DATA packets received for this message so far. The list

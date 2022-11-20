@@ -88,8 +88,9 @@ static inline unsigned int dcpim_message_hash(__be32 laddr, __u16 lport,
 static inline bool dcpim_message_match(struct dcpim_message* msg, __be32 saddr, __u16 sport,
 		__be32 daddr, __be16 dport, uint64_t id)
 {
-	if(msg->id == id && msg->saddr == saddr 
-		&& msg->sport == sport && msg->daddr == daddr && msg->dport == dport)
+	struct sock* sk = (struct sock*)msg->dsk;
+	if(msg->id == id && sk->sk_rcv_saddr == saddr 
+		&& sk->sk_num == sport && sk->sk_daddr == daddr && sk->sk_dport == dport)
 		return true;
 	return false;
 }
@@ -125,12 +126,9 @@ struct dcpim_message* dcpim_message_new(struct dcpim_sock* dsk, uint64_t id, uin
 	hrtimer_init(&msg->rtx_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
 	INIT_HLIST_NODE(&msg->hash_link);
 	INIT_LIST_HEAD(&msg->table_link);
+
+	/* new message will be added to the hash table later*/
 	refcount_set(&msg->refcnt, 1);
-	
-	msg->saddr = sk->sk_rcv_saddr;
-	msg->sport = sk->sk_num; 
-	msg->daddr = sk->sk_daddr;
-	msg->dport =sk->sk_dport;
 	msg->hash = dcpim_message_hash(sk->sk_rcv_saddr, sk->sk_num, sk->sk_daddr, sk->sk_dport, msg->id);
 	return msg;
 }

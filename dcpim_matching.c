@@ -496,7 +496,7 @@ drop:
 }
 
 void dcpim_handle_all_grants(struct dcpim_epoch *epoch) {
-	struct dcpim_grant *grant, *temp, *resp = NULL;
+	struct dcpim_grant *grant, *temp;
 	uint32_t index = 0;
 	uint32_t i = 0;
 	int accepted_bytes = 0;
