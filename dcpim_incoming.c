@@ -721,7 +721,9 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 	// struct message_hslot* slot;
 	struct dcpim_flow_sync_hdr *fh;
 	struct sock *sk, *child, *msg_sock;
+	struct dcpim_message *msg;
 	int sdif = inet_sdif(skb);
+	const struct iphdr *iph = ip_hdr(skb);
 	bool refcounted = false;
 	// struct dcpim_message *msg;
 	if (!pskb_may_pull(skb, sizeof(struct dcpim_flow_sync_hdr))) {
@@ -743,19 +745,14 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 					dsk = dcpim_sk(child);
 					msg_sock = child;
 					printk("dsk address:%p\n", dsk);
-					if(ntohl(fh->message_size) == UINT_MAX) {
+					if(fh->message_size == UINT_MAX) {
 						/* this line needed to change later */
 						if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
 							hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
 							// sock_hold(child);
 						}
-					} else {
-						/* TODO: short flow logic for handling race conditions */
 					}
 				}
-			} else if(sk->sk_state == DCPIM_ESTABLISHED) {
-				msg_sock = sk;
-				/* TODO: short flow logic for handling race conditions */
 			}
 			kfree_skb(skb);
 		} else {
@@ -763,10 +760,20 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 		}
 		bh_unlock_sock(sk);
 
-		/* TODO: create short message */
-		// if(ntohl(fh->message_size) != UINT_MAX && msg_sock != NULL) {
-		// 	msg = dcpim_lookup_message();
-		// }
+		/* create short message */
+		if(fh->message_size != UINT_MAX) {
+			msg = dcpim_lookup_message(dcpim_rx_messages,  iph->daddr, 
+				fh->common.dest, iph->saddr, fh->common.source, fh->message_id);
+			if(msg != NULL) {
+				goto drop;
+			} else {
+				msg = dcpim_message_new(dcpim_sk(msg_sock), fh->message_id, fh->message_size);
+				if(msg_sock == NULL) {
+					msg->hash = dcpim_message_hash(iph->daddr, fh->common.dest, iph->saddr, fh->common.source, fh->message_id);
+				}
+				dcpim_insert_message(dcpim_rx_messages, msg);
+			}
+		}
 
 	} else {
 		kfree_skb(skb);
@@ -1231,7 +1238,7 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 				dsk->sender.token_seq = th->token_nxt;
 			dcpim_write_timer_handler(sk);
 			dcpim_clean_rtx_queue(sk);
-		}
+		} 
 	}
 	if(sk->sk_state == DCPIM_LISTEN) {
 		if(dh->type == NOTIFICATION) {
@@ -1241,17 +1248,17 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 			child = dcpim_conn_request(sk, skb);
 			if(child) {
 				dsk = dcpim_sk(child);
-				/* this line needed to change later */
-				if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
-					hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
-					// sock_hold(child);	
-					// printk(" call hrtimer at:%d %d\n", __LINE__, refcount_read(&sk->sk_refcnt));	
-				}
-			}
+				if(fh->message_size == UINT_MAX) {
+					/* this line needed to change later */
+					if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
+						hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
+						// sock_hold(child);
+					}
+				} 
+			}  
 			// return __dcpim4_lib_rcv(skb, &dcpim_table, IPPROTO_DCPIM);
 		} 
 	}
-
 	kfree_skb(skb);
 	return 0;
 }

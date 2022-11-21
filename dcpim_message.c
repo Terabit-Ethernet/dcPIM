@@ -77,7 +77,7 @@ static inline int dcpim_hash_slot(uint32_t hash)
 }
 
 /* laddr, lport: src address and src port. faddr, fport: dst address and dst port. */
-static inline unsigned int dcpim_message_hash(__be32 laddr, __u16 lport,
+unsigned int dcpim_message_hash(__be32 laddr, __u16 lport,
 		__be32 faddr, __be16 fport, uint64_t id)
 {
 	return jhash_3words((__force __u32) (laddr + (id >> 32)),
@@ -105,17 +105,21 @@ struct dcpim_message* dcpim_message_new(struct dcpim_sock* dsk, uint64_t id, uin
 	struct dcpim_message* msg = NULL;
 	struct sock* sk = (struct sock*)dsk;
 
-	/* require message correlates to dsk */
-	if(dsk == NULL)
-		return msg;
 	msg = kmalloc(sizeof(struct dcpim_message), GFP_KERNEL);
 	if(msg == NULL)
 		return msg;
 
 	// WRITE_ONCE(msg->dsk, dsk);
 	msg->id = id;
-	msg->dsk = dsk;
-	sock_hold(sk);
+	if(!dsk) {
+		msg->dsk = dsk;
+		sock_hold(sk);
+		msg->hash = dcpim_message_hash(sk->sk_rcv_saddr, sk->sk_num, sk->sk_daddr, sk->sk_dport, msg->id);
+	} else {
+		msg->dsk = NULL;
+		msg->hash = 0;
+	}
+
 	/* For now, we initialize wait for fin, assuming we can always burst short flows. */
 	msg->state = DCPIM_WAIT_FOR_FIN;
 	msg->hash = 0;
@@ -129,7 +133,6 @@ struct dcpim_message* dcpim_message_new(struct dcpim_sock* dsk, uint64_t id, uin
 
 	/* new message will be added to the hash table later*/
 	refcount_set(&msg->refcnt, 1);
-	msg->hash = dcpim_message_hash(sk->sk_rcv_saddr, sk->sk_num, sk->sk_daddr, sk->sk_dport, msg->id);
 	return msg;
 }
 
@@ -170,9 +173,9 @@ void dcpim_message_finish(struct dcpim_message_bucket *hashinfo, struct dcpim_me
 }
 
  /**
- * dcpim_message_destroy() - Destroy msg: the last fucntion of msg lifecycle.
-  @msg:	The dcpim_message that will be destroyed. 
- */
+  * dcpim_message_destroy() - Destroy msg: the last fucntion of msg lifecycle.
+  * @msg:	The dcpim_message that will be destroyed. 
+  */
 void dcpim_message_destroy(struct dcpim_message *msg) {
 	struct sk_buff *skb, *n;
 	struct sock *sk = (struct sock*)(msg->dsk);
@@ -183,9 +186,87 @@ void dcpim_message_destroy(struct dcpim_message *msg) {
 	skb_queue_head_init(&msg->pkt_queue);
 	spin_unlock_bh(&msg->lock);
 	kfree(msg);
-	sock_put(sk);
+	if(sk)
+		sock_put(sk);
 	return;
 }
+
+ /**
+  * dcpim_message_destroy() - Destroy msg: the last fucntion of msg lifecycle.
+  * Assume bh is disabled.
+  * @msg:	The dcpim_message that are receiving pkts. 
+  * @skb:	The data packets
+  * Return whether the message is finished or not.
+  */
+bool dcpim_message_receive_data(struct dcpim_message *msg, struct sk_buff *skb) {
+	struct sk_buff *iter, *tmp;
+	bool is_insert = false, is_complete = false;
+	__skb_pull(skb, (dcpim_hdr(skb)->doff >> 2)+ sizeof(struct data_segment));
+
+	spin_lock(&msg->lock);
+	if(msg->remaining_len == 0){
+		kfree_skb(skb);
+		goto unlock_return;
+	}
+	/* reverse traversing */
+	skb_queue_reverse_walk_safe(&msg->pkt_queue, iter, tmp) {
+		if (DCPIM_SKB_CB(skb)->end_seq > DCPIM_SKB_CB(iter)->end_seq) {
+			if(DCPIM_SKB_CB(skb)->seq > DCPIM_SKB_CB(iter)->seq) {
+				__skb_queue_after(&msg->pkt_queue, iter, skb);
+				is_insert = true;
+				/* shrink skb as needed */
+				if(DCPIM_SKB_CB(skb)->seq < DCPIM_SKB_CB(iter)->end_seq) {
+					__skb_pull(skb, DCPIM_SKB_CB(iter)->end_seq - DCPIM_SKB_CB(skb)->seq);
+					DCPIM_SKB_CB(skb)->seq = DCPIM_SKB_CB(iter)->end_seq;
+				}
+				msg->remaining_len -= DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq;
+				break;
+			} else {
+				/* iter is covered by skb; remove it */
+				msg->remaining_len += DCPIM_SKB_CB(iter)->end_seq - DCPIM_SKB_CB(iter)->seq;
+				kfree_skb(iter);
+			} 
+		} else if (DCPIM_SKB_CB(skb)->end_seq < DCPIM_SKB_CB(iter)->end_seq) {
+			if(DCPIM_SKB_CB(skb)->seq >= DCPIM_SKB_CB(iter)->seq) {
+				/* skb is covered by iter; remove it */
+				kfree_skb(skb);
+				skb = NULL;
+				break;
+			} else {
+				if(DCPIM_SKB_CB(skb)->end_seq >= DCPIM_SKB_CB(iter)->seq) {
+					/* pull iter due to overlapping */
+					__skb_pull(iter, DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(iter)->seq);
+					msg->remaining_len += DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(iter)->seq;
+					DCPIM_SKB_CB(iter)->seq = DCPIM_SKB_CB(skb)->end_seq;
+				}
+				continue;
+			}
+		} else {
+			if(DCPIM_SKB_CB(skb)->seq >= DCPIM_SKB_CB(iter)->seq) {
+				kfree_skb(skb);
+				skb = NULL;
+				break;
+			} else {
+				/* iter is covered by skb; remove it */
+				msg->remaining_len += DCPIM_SKB_CB(iter)->end_seq - DCPIM_SKB_CB(iter)->seq;
+				kfree_skb(iter);
+				continue;
+			} 
+		}		
+	}
+	if(skb != NULL && !is_insert) {
+		__skb_queue_head(&msg->pkt_queue, skb);
+		msg->remaining_len -= DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq;
+	}
+	if(msg->remaining_len == 0) {
+		is_complete = true;
+		msg->state = DCPIM_FINISH;
+	}
+unlock_return:
+	spin_unlock(&msg->lock);
+	return is_complete;
+}
+
 /**
  * dcpim_message_table_init() - Constructor for dcpim_message_table.
  */

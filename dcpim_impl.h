@@ -168,6 +168,7 @@ int dcpim_sendpage(struct sock *sk, struct page *page, int offset, size_t size,
 void dcpim_destroy_sock(struct sock *sk);
 
 /* dcpim message functions */
+unsigned int dcpim_message_hash(__be32 laddr, __u16 lport, __be32 faddr, __be16 fport, uint64_t id);
 struct dcpim_message* dcpim_message_new(struct dcpim_sock* dsk, uint64_t id, uint32_t length);
 void dcpim_message_hold(struct dcpim_message *msg);
 void dcpim_message_put(struct dcpim_message *msg);

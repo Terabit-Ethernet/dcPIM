@@ -669,7 +669,7 @@ struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id,
 	dh->len = htons(sizeof(struct dcpim_flow_sync_hdr));
 	dh->type = NOTIFICATION;
 	fh->message_id = message_id;
-	fh->message_size = htonl(message_size);
+	fh->message_size = message_size;
 	fh->start_time = start_time;
 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
 	// if (extra_bytes > 0)
