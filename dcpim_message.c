@@ -130,7 +130,7 @@ struct dcpim_message* dcpim_message_new(struct dcpim_sock* dsk, uint64_t id, uin
 	hrtimer_init(&msg->rtx_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
 	INIT_HLIST_NODE(&msg->hash_link);
 	INIT_LIST_HEAD(&msg->table_link);
-
+	msg->flow_sync_skb = NULL;
 	/* new message will be added to the hash table later*/
 	refcount_set(&msg->refcnt, 1);
 	return msg;
@@ -267,6 +267,27 @@ unlock_return:
 	return is_complete;
 }
 
+
+ /**
+  * dcpim_message_pass_to_sock() - pass the message to the socket.
+  * Assume bh is disabled.
+  * @msg:	The dcpim_message 
+  * Return whether the message is finished or not.
+  */
+void dcpim_message_pass_to_sock(struct dcpim_message *msg) {
+	if(unlikely(msg->dsk == NULL)) {
+		WARN_ON(true);
+		/* find established socket */
+		/* if no estabilied socket, find listen socket */
+		return;
+	}
+	bh_lock_sock((struct sock*)msg->dsk);
+	// if(msg->dsk == DCPIM_ESTABLISHED) {
+		
+	// }
+	bh_unlock_sock((struct sock*)msg->dsk);
+
+}
 /**
  * dcpim_message_table_init() - Constructor for dcpim_message_table.
  */

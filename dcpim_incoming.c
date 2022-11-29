@@ -770,6 +770,8 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 				msg = dcpim_message_new(dcpim_sk(msg_sock), fh->message_id, fh->message_size);
 				if(msg_sock == NULL) {
 					msg->hash = dcpim_message_hash(iph->daddr, fh->common.dest, iph->saddr, fh->common.source, fh->message_id);
+					msg->flow_sync_skb = skb;
+					skb_get(skb);
 				}
 				dcpim_insert_message(dcpim_rx_messages, msg);
 			}

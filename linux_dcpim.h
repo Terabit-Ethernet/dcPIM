@@ -193,6 +193,11 @@ struct dcpim_message {
 	 */
 	refcount_t	refcnt;
 
+	/**
+	 * @flow_sync_skb: The skb for holding flow_sync packet.
+	 */
+	struct sk_buff* flow_sync_skb;
+
 };
 
 struct dcpim_pq {
@@ -282,14 +287,14 @@ struct dcpim_epoch {
 	// __be32 match_dst_addr;
 	spinlock_t lock;
 
-	spinlock_t rts_lock;
+	spinlock_t receiver_lock;
 	struct list_head rts_q;
-	int unmatched_grant_bytes;
+	int unmatched_recv_bytes;
 	int rts_size;
 
-	spinlock_t grant_lock;
+	spinlock_t sender_lock;
 	struct list_head grants_q;
-	int unmatched_accept_bytes;
+	int unmatched_sent_bytes;
 	int grant_size;
 
 	int epoch_bytes_per_k;
@@ -535,6 +540,10 @@ struct dcpim_sock {
 		atomic_t inflight_bytes;
 		struct hrtimer token_pace_timer;
 		atomic_t matched_bw;
+		/* protected by bh_lock_sock */
+		struct list_head message_backlog;
+		/* protected by user socket lock */
+		struct list_head message_list;
 		// struct work_struct token_xmit_struct;
     } receiver;
 
