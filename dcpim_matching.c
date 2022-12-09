@@ -385,8 +385,12 @@ int dcpim_handle_rts (struct sk_buff *skb, struct dcpim_epoch *epoch) {
 		goto drop;
 	rts_index = atomic_inc_return(&epoch->rts_size);
 	// iph = ip_hdr(skb);
-	epoch->rts_array[rts_index].remaining_sz = rh->remaining_sz;
-	epoch->rts_array[rts_index].dsk = dcpim_sk(sk);
+	if(rts_index <= epoch->max_array_size) {
+		epoch->rts_array[rts_index].remaining_sz = rh->remaining_sz;
+		epoch->rts_array[rts_index].dsk = dcpim_sk(sk);
+	} else {
+		atomic_dec(&epoch->rts_size);
+	}
 	// rts->epoch = rh->epoch; 
 	// rts->iter = rh->iter;
 	// rts->peer = dcpim_peer_find(&dcpim_peers_table, iph->saddr, inet_sk(epoch->sock->sk));
@@ -411,7 +415,10 @@ void dcpim_handle_all_rts(struct dcpim_epoch *epoch) {
 	int cur_recv_bytes = 0;
 	int unmatched_recv_bytes = atomic_read(&epoch->unmatched_recv_bytes);
 	int rts_size = atomic_read(&epoch->rts_size);
-	int remaining_rts_size = rts_size;
+	int remaining_rts_size;
+	if(rts_size > epoch->max_array_size)
+		rts_size = epoch->max_array_size;
+	remaining_rts_size = rts_size;
 	// spin_lock_bh(&epoch->lock);
 	// uint32_t iter = READ_ONCE(epoch->iter);
 	// if(epoch->match_dst_addr == 0  && epoch->rts_size > 0) {
@@ -468,8 +475,12 @@ int dcpim_handle_grant(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 	// INIT_LIST_HEAD(&grant->entry);
 	// iph = ip_hdr(skb);
 	grant_index = atomic_inc_return(&epoch->grant_size);
-	epoch->grants_array[grant_index - 1].remaining_sz = gh->remaining_sz;
-	epoch->grants_array[grant_index - 1].dsk = dcpim_sk(sk);
+	if(grant_index <= epoch->max_array_size) {
+		epoch->grants_array[grant_index - 1].remaining_sz = gh->remaining_sz;
+		epoch->grants_array[grant_index - 1].dsk = dcpim_sk(sk);
+	} else {
+		atomic_dec(&epoch->grant_size);
+	}
 	// grant->epoch = gh->epoch; 
 	// grant->iter = gh->iter;
 	// grant->prompt = gh->prompt;
@@ -494,8 +505,10 @@ void dcpim_handle_all_grants(struct dcpim_epoch *epoch) {
 	int sent_bytes = 0;
 	int cur_sent_bytes = 0;
 	int grant_size = atomic_read(&epoch->grant_size);
-	int remaining_grant_size = grant_size;
-
+	int remaining_grant_size;
+	if(grant_size > epoch->max_array_size)
+		grant_size = epoch->max_array_size;
+	remaining_grant_size = grant_size;
 	while(1) {
 		if(remaining_grant_size <= 0 || epoch->unmatched_sent_bytes <= sent_bytes)
 			break;
