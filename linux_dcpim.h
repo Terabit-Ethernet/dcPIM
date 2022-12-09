@@ -283,19 +283,22 @@ struct dcpim_epoch {
 	int round_length;
 	int k;
 	bool prompt;
+	int max_array_size;
 	// __be32 match_src_addr;
 	// __be32 match_dst_addr;
 	spinlock_t lock;
 
 	spinlock_t receiver_lock;
-	struct list_head rts_q;
-	int unmatched_recv_bytes;
-	int rts_size;
+	struct dcpim_rts *rts_array;
+	atomic_t unmatched_recv_bytes;
+	atomic_t rts_size;
+	// int rts_size;
 
 	spinlock_t sender_lock;
-	struct list_head grants_q;
+	struct dcpim_grant *grants_array;
 	int unmatched_sent_bytes;
-	int grant_size;
+	atomic_t grant_size;
+	// int grant_size;
 
 	int epoch_bytes_per_k;
 	int epoch_bytes;
@@ -336,13 +339,15 @@ struct dcpim_epoch {
 struct dcpim_rts {
     struct dcpim_sock *dsk;
     int remaining_sz;
- 	struct list_head list_link;
+ 	// struct list_head entry;
+	// struct llist_node lentry;
 };
 struct dcpim_grant {
-    bool prompt;
+    // bool prompt;
     struct dcpim_sock *dsk;
     int remaining_sz;
-	struct list_head list_link;
+	// struct list_head entry;
+	// struct llist_node lentry;
 };
 
 struct dcpim_match_entry {

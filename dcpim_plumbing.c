@@ -8,6 +8,7 @@
 #include <net/sock.h>
 #include <net/udp.h>
 #include "dcpim_impl.h"
+#include "dcpim_unittest.h"
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Qizhe");
 MODULE_DESCRIPTION("DCPIM transport protocol");
@@ -357,6 +358,8 @@ static int __init dcpim_load(void) {
                 printk(KERN_ERR "DCPIM couldn't init offloads\n");
                 goto out_cleanup;
         }
+        // printk("in_softirq():%lu\n", in_softirq());
+        test_main();
         // tasklet_init(&timer_tasklet, homa_tasklet_handler, 0);
         // hrtimer_init(&hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
         // hrtimer.function = &homa_hrtimer;
