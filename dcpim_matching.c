@@ -1,3 +1,4 @@
+#include <linux/etherdevice.h>
 #include "dcpim_impl.h"
 // static void recevier_iter_event_handler(struct work_struct *work);
 // static void sender_iter_event_handler(struct work_struct *work);
@@ -365,6 +366,7 @@ int dcpim_handle_rts (struct sk_buff *skb, struct dcpim_epoch *epoch) {
 	struct dcpim_rts_hdr *rh;
 	// struct iphdr *iph;
 	struct sock* sk;
+	struct dcpim_rts *rts;
 	bool refcounted = false;
 	int sdif = inet_sdif(skb);
 	int rts_index;
@@ -386,8 +388,12 @@ int dcpim_handle_rts (struct sk_buff *skb, struct dcpim_epoch *epoch) {
 	rts_index = atomic_inc_return(&epoch->rts_size);
 	// iph = ip_hdr(skb);
 	if(rts_index <= epoch->max_array_size) {
-		epoch->rts_array[rts_index].remaining_sz = rh->remaining_sz;
-		epoch->rts_array[rts_index].dsk = dcpim_sk(sk);
+		rts = &epoch->rts_array[rts_index];
+		rts->remaining_sz = rh->remaining_sz;
+		rts->dsk = dcpim_sk(sk);
+		smp_wmb();
+		WRITE_ONCE(rts->epoch, READ_ONCE(epoch->epoch));
+		WRITE_ONCE(rts->round, READ_ONCE(epoch->round));
 	} else {
 		atomic_dec(&epoch->rts_size);
 	}
@@ -435,6 +441,11 @@ void dcpim_handle_all_rts(struct dcpim_epoch *epoch) {
 		if(rts->remaining_sz <= 0) {
 			continue;
 		}	
+		if(READ_ONCE(rts->epoch) != READ_ONCE(epoch->epoch) || READ_ONCE(rts->round) != READ_ONCE(epoch->round)) {
+			remaining_rts_size -= 1;
+			rts->remaining_sz = 0;
+			WARN_ON(true);
+		}
 		cur_recv_bytes = max(rts->remaining_sz, epoch->epoch_bytes_per_k);
 		// printk("send accept pkt:%d\n", __LINE__);
 		cur_recv_bytes = min(unmatched_recv_bytes - recv_bytes, 
@@ -453,8 +464,11 @@ void dcpim_handle_all_rts(struct dcpim_epoch *epoch) {
 
 
 int dcpim_handle_grant(struct sk_buff *skb, struct dcpim_epoch *epoch) {
-	struct sock* sk;
+	struct sock *sk;
 	struct dcpim_grant_hdr *gh;
+	struct iphdr *iphdr;
+	struct ethhdr *ethhdr;
+	struct dcpim_grant *grant;
 	// struct iphdr *iph;
 	bool refcounted = false;
 	int sdif = inet_sdif(skb);
@@ -467,6 +481,8 @@ int dcpim_handle_grant(struct sk_buff *skb, struct dcpim_epoch *epoch) {
             gh->common.dest, sdif, &refcounted);
 	if(!sk)
 		goto drop;
+	iphdr = ip_hdr(skb);
+	ethhdr = eth_hdr(skb);
 	// if(epoch->sock == NULL) {
 	// 	spin_unlock_bh(&epoch->lock);
 	// 	goto drop;
@@ -476,11 +492,23 @@ int dcpim_handle_grant(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 	// iph = ip_hdr(skb);
 	grant_index = atomic_inc_return(&epoch->grant_size);
 	if(grant_index <= epoch->max_array_size) {
-		epoch->grants_array[grant_index - 1].remaining_sz = gh->remaining_sz;
+		grant = &epoch->grants_array[grant_index - 1];
+		grant->remaining_sz = gh->remaining_sz;
 		epoch->grants_array[grant_index - 1].dsk = dcpim_sk(sk);
+		// ether_addr_copy(grant->h_dest, ethhdr->h_source);
+		// ether_addr_copy(grant->h_source, ethhdr->h_dest);
+		// grant->saddr = iphdr->daddr;
+		// grant->daddr = iphdr->saddr;
+		// grant->sport = gh->common.dest;
+		// grant->dport = gh->common.source;
+		smp_wmb();
+		WRITE_ONCE(grant->epoch, READ_ONCE(epoch->epoch));
+		WRITE_ONCE(grant->round, READ_ONCE(epoch->round));
 	} else {
 		atomic_dec(&epoch->grant_size);
 	}
+	/* Make sure the change of grant array is visiable */
+
 	// grant->epoch = gh->epoch; 
 	// grant->iter = gh->iter;
 	// grant->prompt = gh->prompt;
@@ -506,6 +534,7 @@ void dcpim_handle_all_grants(struct dcpim_epoch *epoch) {
 	int cur_sent_bytes = 0;
 	int grant_size = atomic_read(&epoch->grant_size);
 	int remaining_grant_size;
+	struct sk_buff *head_skb = NULL, *skb;
 	if(grant_size > epoch->max_array_size)
 		grant_size = epoch->max_array_size;
 	remaining_grant_size = grant_size;
@@ -516,18 +545,38 @@ void dcpim_handle_all_grants(struct dcpim_epoch *epoch) {
 		if (grant->remaining_sz <= 0) {
 			continue;
 		}
+		if(READ_ONCE(grant->epoch) != READ_ONCE(epoch->epoch) || READ_ONCE(grant->round) != READ_ONCE(epoch->round)) {
+			remaining_grant_size -= 1;
+			grant->remaining_sz = 0;
+			WARN_ON(true);
+		}
 		cur_sent_bytes = max(grant->remaining_sz, epoch->epoch_bytes_per_k);
 		// printk("send accept pkt:%d\n", __LINE__);
 		cur_sent_bytes = min(epoch->unmatched_sent_bytes - sent_bytes, 
 			(cur_sent_bytes / epoch->epoch_bytes_per_k) * epoch->epoch_bytes_per_k);
+		/*construct accept pkt */
+		// skb = construct_accept_pkt((struct sock*)grant->dsk, epoch->round, epoch->epoch, 
+		// 	min(grant->remaining_sz, cur_sent_bytes));
+		// dcpim_fill_dcpim_header(skb, grant->sport, grant->dport);
+		// dcpim_fill_ip_header(skb, grant->saddr, grant->daddr);
+		// dcpim_fill_eth_header(skb, grant->h_source, grant->h_dest);
+		// if(!head_skb) {
+		// 	head_skb = skb;
+		// } else {
+		// 	skb->next = head_skb;
+		// 	head_skb = skb;
+		// }
 		dcpim_xmit_control(construct_accept_pkt((struct sock*)grant->dsk, 
-			epoch->round, epoch->epoch, min(grant->remaining_sz, cur_sent_bytes)), (struct sock*)grant->dsk);
+            epoch->round, epoch->epoch, min(grant->remaining_sz, cur_sent_bytes)), (struct sock*)grant->dsk);
+		// kfree_skb(skb);
 		sent_bytes += cur_sent_bytes;
 		grant->remaining_sz -= cur_sent_bytes;
-		if(grant->remaining_sz <= 0)
+		if(grant->remaining_sz <= 0) {
 			remaining_grant_size -= 1;
+		}
 	}
 	epoch->unmatched_sent_bytes -= sent_bytes;
+	// dev_queue_xmit(head_skb);
 	// epoch->grant_size = 0;
 	// epoch->min_grant = NULL;
 	atomic_set(&epoch->grant_size, 0);

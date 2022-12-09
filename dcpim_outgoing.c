@@ -17,6 +17,7 @@
 
 #include <linux/uaccess.h>
 #include <asm/ioctls.h>
+#include <linux/etherdevice.h>
 #include <linux/memblock.h>
 #include <linux/highmem.h>
 #include <linux/swap.h>
@@ -80,6 +81,44 @@ static void dcpim_insert_write_queue_after(struct sk_buff *skb,
 		dcpim_rbtree_insert(&sk->tcp_rtx_queue, buff);
 }
 
+void dcpim_fill_dcpim_header(struct sk_buff *skb, __be16 sport, __be16 dport) {
+	struct dcpimhdr* dh;
+	dh = dcpim_hdr(skb);
+	dh->source = sport;
+	dh->dest = dport;
+	dh->check = 0;
+	dh->doff = (sizeof(struct dcpimhdr)) << 2;
+}
+
+void dcpim_fill_ip_header(struct sk_buff *skb, __be32 saddr, __be32 daddr) {
+    struct iphdr* iph;
+    skb_push(skb, sizeof(struct iphdr));
+	skb_reset_network_header(skb);
+	iph = ip_hdr(skb);
+
+    iph->ihl = 5;
+    iph->version = 4;
+    iph->tos = 0;
+    iph->tot_len= htons(skb->len); 
+    iph->frag_off = 0; 
+    iph->ttl = 64;
+    iph->protocol = IPPROTO_DCPIM;
+    iph->saddr = saddr;
+    iph->daddr = daddr;
+	ip_send_check(iph);
+    skb->pkt_type = PACKET_OUTGOING;
+	skb->no_fcs = 1;
+}
+
+void dcpim_fill_eth_header(struct sk_buff *skb, const void *saddr, const void *daddr) {
+    struct ethhdr* eth;
+    eth = (struct ethhdr*)skb_push(skb, sizeof (struct ethhdr));
+	skb_reset_mac_header(skb);
+    skb->protocol = eth->h_proto = htons(ETH_P_IP);
+    ether_addr_copy(eth->h_source, saddr);
+    ether_addr_copy(eth->h_dest, daddr);
+	skb->dev = dev_get_by_name(&init_net, "ens2f0");
+}
 
 /* Initialize GSO segments for a packet. */
 static void dcpim_set_skb_gso_segs(struct sk_buff *skb, unsigned int mss_now)

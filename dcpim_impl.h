@@ -74,7 +74,9 @@ int dcpim_handle_grant(struct sk_buff *skb, struct dcpim_epoch *epoch);
 void dcpim_handle_all_grants(struct dcpim_epoch *epoch);
 int dcpim_handle_accept(struct sk_buff *skb, struct dcpim_epoch *epoch);
 
-
+void dcpim_fill_eth_header(struct sk_buff *skb, const void *saddr, const void *daddr);
+void dcpim_fill_ip_header(struct sk_buff *skb, __be32 saddr, __be32 daddr);
+void dcpim_fill_dcpim_header(struct sk_buff *skb, __be16 sport, __be16 dport); 
 /* scheduling */
 bool flow_compare(const struct list_head* node1, const struct list_head* node2);
 void rcv_core_entry_init(struct rcv_core_entry *entry, int core_id);
