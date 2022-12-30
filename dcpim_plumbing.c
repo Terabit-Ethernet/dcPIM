@@ -7,6 +7,11 @@
 #include <linux/socket.h>
 #include <net/sock.h>
 #include <net/udp.h>
+#include <linux/fs.h>
+#include <linux/cdev.h>
+#include <linux/device.h>
+#include <linux/sched.h>
+#include <asm/uaccess.h>
 #include "dcpim_impl.h"
 #include "dcpim_unittest.h"
 MODULE_LICENSE("GPL");
@@ -15,6 +20,9 @@ MODULE_DESCRIPTION("DCPIM transport protocol");
 MODULE_VERSION("0.01");
 
 #include "net_dcpim.h"
+
+#define DCPIM_ADD_FLOW 0xFFAB
+#define DCPIM_REMOVE_FLOW 0xFFAC
 
 DEFINE_PER_CPU(int, dcpim_memory_per_cpu_fw_alloc);
 EXPORT_PER_CPU_SYMBOL_GPL(dcpim_memory_per_cpu_fw_alloc);
@@ -46,6 +54,126 @@ int sysctl_dcpim_wmem_min __read_mostly;
 
 // }
 // #define IPPROTO_DCPIM 200
+
+struct _dcpimdevice_data {
+	struct cdev cdev;
+	uint8_t data;
+};
+typedef struct _dcpimdevice_data dcpim_data;
+
+static dcpim_data dcpimdevice_data;
+static struct class *cl;
+static dev_t dev;
+
+
+static int dcpimdevice_open(struct inode *inode, struct file *file) {
+	// cd_data *customdevice_data = container_of(inode->i_cdev, cd_data, cdev);
+	return 0;
+}
+
+static int dcpimdevice_release(struct inode *inode, struct file *file) {
+	// cd_data *customdevice_data = container_of(inode->i_cdev, cd_data, cdev);
+	return 0;
+}
+
+static long dcpimdevice_ioctl(struct file *file,
+			       unsigned int cmd,
+			       unsigned long arg) {
+        int fd = arg, err;
+        struct dcpim_flow *flow = NULL, *ftemp;
+        struct socket* sock;
+	switch(cmd) {
+                case DCPIM_ADD_FLOW:
+                        sock = sockfd_lookup(fd, &err);
+                        if(sock) {
+                                /* add socket into the flow matching table */
+                                flow = kmalloc(sizeof(struct dcpim_flow), GFP_KERNEL);
+                                flow->sock = sock->sk;
+                                sock_hold(sock->sk);
+                                INIT_LIST_HEAD(&flow->entry);
+                                spin_lock_bh(&dcpim_epoch.sender_lock);
+                                list_add_tail_rcu(&flow->entry, &dcpim_epoch.flow_list);
+                                spin_unlock_bh(&dcpim_epoch.sender_lock);
+                        }
+                        break;
+                case DCPIM_REMOVE_FLOW:
+                        sock = sockfd_lookup(fd, &err);
+                        if(sock) {
+                                rcu_read_lock();
+                                list_for_each_entry_rcu(ftemp, &dcpim_epoch.flow_list, entry) {
+                                        if(ftemp->sock == sock->sk) {
+                                                flow = ftemp;
+                                                break;
+                                        }
+                                }
+                                rcu_read_unlock();
+                                /* remove socket from the flow matching table */ 
+                                if(flow) {
+                                        spin_lock_bh(&dcpim_epoch.sender_lock);
+                                        list_del_rcu(&flow->entry);
+                                        spin_unlock_bh(&dcpim_epoch.sender_lock);
+                                        synchronize_rcu();
+                                        sock_put(flow->sock);
+                                        kfree(flow);
+                                } 
+                        }
+                        break;
+	}
+	return 0;
+}
+
+const struct file_operations dcpimdevice_fops = {
+    .owner = THIS_MODULE,
+    .open = dcpimdevice_open,
+    .release = dcpimdevice_release,
+    .unlocked_ioctl = dcpimdevice_ioctl
+};
+
+static int dcpimdevice_init(void) {
+	int ret;
+	struct device *dev_ret;
+
+	// Create character device region
+	ret = alloc_chrdev_region(&dev, 0, 1, "dcpimdevice");
+	if (ret < 0) {
+		return ret;
+	}
+
+	// Create class for sysfs
+	cl = class_create(THIS_MODULE, "chardrv");
+	if (IS_ERR(cl)) {
+		unregister_chrdev_region(dev, 1);
+		return PTR_ERR(cl);
+	}
+
+	// Create device for sysfs
+	dev_ret = device_create(cl, NULL, dev, NULL, "dcpimdevice");
+	if (IS_ERR(dev_ret)) {
+		class_destroy(cl);
+		unregister_chrdev_region(dev, 1);
+		return PTR_ERR(dev_ret);
+	}
+
+	// Create character device
+	cdev_init(&dcpimdevice_data.cdev, &dcpimdevice_fops);
+	ret = cdev_add(&dcpimdevice_data.cdev, dev, 1);
+	if (ret < 0) {
+		device_destroy(cl, dev);
+		class_destroy(cl);
+		unregister_chrdev_region(dev, 1);
+		return ret;
+	}
+
+	printk(KERN_INFO "Custom device initialized");
+	return 0;
+}
+
+static void dcpimdevice_exit(void) {
+	device_destroy(cl, dev);
+	class_destroy(cl);
+	cdev_del(&dcpimdevice_data.cdev);
+	unregister_chrdev_region(dev, 1);
+}
 
 const struct proto_ops dcpim_dgram_ops = {
     .family        = PF_INET,
@@ -358,6 +486,9 @@ static int __init dcpim_load(void) {
                 printk(KERN_ERR "DCPIM couldn't init offloads\n");
                 goto out_cleanup;
         }
+       status = dcpimdevice_init();
+       if(status != 0)
+                goto out_cleanup;
         // printk("in_softirq():%lu\n", in_softirq());
         test_main();
         // tasklet_init(&timer_tasklet, homa_tasklet_handler, 0);
@@ -398,7 +529,7 @@ out:
 static void __exit dcpim_unload(void) {
         printk(KERN_NOTICE "DCPIM module unloading\n");
         exiting = true;
-
+        dcpimdevice_exit();
         /* Stopping the hrtimer and tasklet is tricky, because each
          * reschedules the other. This means that the timer could get
          * invoked again after executing tasklet_disable. So, we stop

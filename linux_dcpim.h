@@ -271,6 +271,11 @@ struct xmit_core_table {
 
 }; 
 
+struct dcpim_flow {
+	/* the sock of the corresponding flow */
+	struct sock* sock;
+	struct list_head entry;
+};
 struct dcpim_epoch {
 
 	uint64_t epoch;
@@ -295,6 +300,7 @@ struct dcpim_epoch {
 	// int rts_size;
 
 	spinlock_t sender_lock;
+	struct list_head flow_list;
 	struct dcpim_grant *grants_array;
 	int unmatched_sent_bytes;
 	atomic_t grant_size;
@@ -316,7 +322,7 @@ struct dcpim_epoch {
 	// struct hrtimer token_xmit_timer;
 	// struct work_struct token_xmit_struct;
 	/* for phost queue */
-	struct dcpim_pq flow_q;
+	// struct dcpim_pq flow_q;
 
 	// current epoch and address
 	// uint32_t cur_match_src_addr;
@@ -363,42 +369,42 @@ struct dcpim_grant {
 	// struct llist_node lentry;
 };
 
-struct dcpim_match_entry {
-	struct spinlock lock;
-	struct dcpim_pq pq;
-	struct hlist_node hash_link;
-	struct list_head list_link;
-	// struct dcpim_peer *peer;
-	__be32 dst_addr;
-};
+// struct dcpim_match_entry {
+// 	struct spinlock lock;
+// 	struct dcpim_pq pq;
+// 	struct hlist_node hash_link;
+// 	struct list_head list_link;
+// 	// struct dcpim_peer *peer;
+// 	__be32 dst_addr;
+// };
 
-struct dcpim_match_slot {
-	struct hlist_head head;
-	int	count;
-	struct spinlock	lock;
-};
-struct dcpim_match_tab {
-	/* hash table: matching ip_address => list pointer*/
-	struct dcpim_match_slot *buckets;
+// struct dcpim_match_slot {
+// 	struct hlist_head head;
+// 	int	count;
+// 	struct spinlock	lock;
+// };
+// struct dcpim_match_tab {
+// 	/* hash table: matching ip_address => list pointer*/
+// 	struct dcpim_match_slot *buckets;
 
-	/* the lock is for the hash_list, not for buckets.*/
-	struct spinlock lock;
-	/* list of current active hash entry for iteration*/
-	struct list_head hash_list;
-	bool (*comp)(const struct list_head*, const struct list_head*);
+// 	/* the lock is for the hash_list, not for buckets.*/
+// 	struct spinlock lock;
+// 	/* list of current active hash entry for iteration*/
+// 	struct list_head hash_list;
+// 	bool (*comp)(const struct list_head*, const struct list_head*);
 
-	// struct list_node rts_list;
-	// struct list_node grant_list;
+// 	// struct list_node rts_list;
+// 	// struct list_node grant_list;
 
-	// struct list_node *current_entry;
-	// struct list_node
-};
-/* DCPIM match table slot */
-static inline struct dcpim_match_slot *dcpim_match_bucket(
-		struct dcpim_match_tab *table, __be32 addr)
-{
-	return &table->buckets[addr & (DCPIM_BUCKETS - 1)];
-}
+// 	// struct list_node *current_entry;
+// 	// struct list_node
+// };
+// /* DCPIM match table slot */
+// static inline struct dcpim_match_slot *dcpim_match_bucket(
+// 		struct dcpim_match_tab *table, __be32 addr)
+// {
+// 	return &table->buckets[addr & (DCPIM_BUCKETS - 1)];
+// }
 
 
 static inline struct dcpimhdr *dcpim_hdr(const struct sk_buff *skb)

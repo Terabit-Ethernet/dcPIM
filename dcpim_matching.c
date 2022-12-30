@@ -114,126 +114,126 @@ enum hrtimer_restart dcpim_receiver_round_timer_handler(struct hrtimer *timer) {
 	return HRTIMER_RESTART;
 }
 
-void dcpim_match_entry_init(struct dcpim_match_entry* entry, __be32 addr, 
- bool(*comp)(const struct list_head*, const struct list_head*)) {
-	spin_lock_init(&entry->lock);
-	dcpim_pq_init(&entry->pq, comp);
-	INIT_HLIST_NODE(&entry->hash_link);
-	INIT_LIST_HEAD(&entry->list_link);
-	// struct dcpim_peer *peer;
-	entry->dst_addr = addr;
-}
+// void dcpim_match_entry_init(struct dcpim_match_entry* entry, __be32 addr, 
+//  bool(*comp)(const struct list_head*, const struct list_head*)) {
+// 	spin_lock_init(&entry->lock);
+// 	dcpim_pq_init(&entry->pq, comp);
+// 	INIT_HLIST_NODE(&entry->hash_link);
+// 	INIT_LIST_HEAD(&entry->list_link);
+// 	// struct dcpim_peer *peer;
+// 	entry->dst_addr = addr;
+// }
 
-void dcpim_mattab_init(struct dcpim_match_tab *table,
-	bool(*comp)(const struct list_head*, const struct list_head*)) {
-	int i;
-	// int ret, opt;
-	// struct dcpim_peer *peer;
-	// struct inet_sock *inet;
-	spin_lock_init(&table->lock);
-	INIT_LIST_HEAD(&table->hash_list);
+// void dcpim_mattab_init(struct dcpim_match_tab *table,
+// 	bool(*comp)(const struct list_head*, const struct list_head*)) {
+// 	int i;
+// 	// int ret, opt;
+// 	// struct dcpim_peer *peer;
+// 	// struct inet_sock *inet;
+// 	spin_lock_init(&table->lock);
+// 	INIT_LIST_HEAD(&table->hash_list);
 
-	table->comp = comp;
-	printk("size of match entry: %lu\n", sizeof(struct dcpim_match_entry));
-	table->buckets = kmalloc(sizeof(struct dcpim_match_slot) * DCPIM_BUCKETS, GFP_KERNEL);
-	for (i = 0; i < DCPIM_BUCKETS; i++) {
-		spin_lock_init(&table->buckets[i].lock);
-		INIT_HLIST_HEAD(&table->buckets[i].head);
-		table->buckets[i].count = 0;
-	}
-	// inet = inet_sk(table->sock->sk);
-	// peer =  dcpim_peer_find(&dcpim_peers_table, 167772169, inet);
-	// dcpim_xmit_control(construct_rts_pkt(table->sock->sk, 1, 2, 3), peer, table->sock->sk, 3000);
+// 	table->comp = comp;
+// 	printk("size of match entry: %lu\n", sizeof(struct dcpim_match_entry));
+// 	table->buckets = kmalloc(sizeof(struct dcpim_match_slot) * DCPIM_BUCKETS, GFP_KERNEL);
+// 	for (i = 0; i < DCPIM_BUCKETS; i++) {
+// 		spin_lock_init(&table->buckets[i].lock);
+// 		INIT_HLIST_HEAD(&table->buckets[i].head);
+// 		table->buckets[i].count = 0;
+// 	}
+// 	// inet = inet_sk(table->sock->sk);
+// 	// peer =  dcpim_peer_find(&dcpim_peers_table, 167772169, inet);
+// 	// dcpim_xmit_control(construct_rts_pkt(table->sock->sk, 1, 2, 3), peer, table->sock->sk, 3000);
 
-	return;
-}
+// 	return;
+// }
 
-void dcpim_mattab_destroy(struct dcpim_match_tab *table) {
-	int i = 0, j = 0;
-	struct dcpim_match_slot *bucket = NULL;
-	struct dcpim_match_entry *entry;
-	struct hlist_node *n;
-	printk("start to remove match table\n");
-	for (i = 0; i < DCPIM_BUCKETS; i++) {
-		bucket = &table->buckets[i];
-		spin_lock_bh(&bucket->lock);
-		for (j = 0; j < bucket->count; j++) {
-			hlist_for_each_entry_safe(entry, n, &bucket->head, hash_link) {
-				printk("kfree an entry\n");
+// void dcpim_mattab_destroy(struct dcpim_match_tab *table) {
+// 	int i = 0, j = 0;
+// 	struct dcpim_match_slot *bucket = NULL;
+// 	struct dcpim_match_entry *entry;
+// 	struct hlist_node *n;
+// 	printk("start to remove match table\n");
+// 	for (i = 0; i < DCPIM_BUCKETS; i++) {
+// 		bucket = &table->buckets[i];
+// 		spin_lock_bh(&bucket->lock);
+// 		for (j = 0; j < bucket->count; j++) {
+// 			hlist_for_each_entry_safe(entry, n, &bucket->head, hash_link) {
+// 				printk("kfree an entry\n");
 
-				kfree(entry);
-			}
-		}
-		spin_unlock_bh(&bucket->lock);
-	}
-	printk("finish remove match table\n");
+// 				kfree(entry);
+// 			}
+// 		}
+// 		spin_unlock_bh(&bucket->lock);
+// 	}
+// 	printk("finish remove match table\n");
 
-	// sock_release(table->sock);
-	kfree(table->buckets);
-	return;
-}
+// 	// sock_release(table->sock);
+// 	kfree(table->buckets);
+// 	return;
+// }
 
-// lock order: bucket_lock > other two locks
-void dcpim_mattab_add_new_sock(struct dcpim_match_tab *table, struct sock* sk) {
-	struct dcpim_sock *dsk = dcpim_sk(sk);
-	struct inet_sock *inet = inet_sk(sk); 
-	struct dcpim_match_slot *bucket = dcpim_match_bucket(table, inet->inet_daddr);
-	struct dcpim_match_entry *match_entry = NULL;
-	spin_lock_bh(&bucket->lock);
-	hlist_for_each_entry(match_entry, &bucket->head,
-			hash_link) {
-		if (match_entry->dst_addr == inet->inet_daddr) {
-			spin_lock(&match_entry->lock);
-			dcpim_pq_push(&match_entry->pq, &dsk->match_link);
-			spin_unlock(&match_entry->lock);
-			spin_unlock_bh(&bucket->lock);
-			return;
-		}
-		// INC_METRIC(peer_hash_links, 1);
-	}
+// // lock order: bucket_lock > other two locks
+// void dcpim_mattab_add_new_sock(struct dcpim_match_tab *table, struct sock* sk) {
+// 	struct dcpim_sock *dsk = dcpim_sk(sk);
+// 	struct inet_sock *inet = inet_sk(sk); 
+// 	struct dcpim_match_slot *bucket = dcpim_match_bucket(table, inet->inet_daddr);
+// 	struct dcpim_match_entry *match_entry = NULL;
+// 	spin_lock_bh(&bucket->lock);
+// 	hlist_for_each_entry(match_entry, &bucket->head,
+// 			hash_link) {
+// 		if (match_entry->dst_addr == inet->inet_daddr) {
+// 			spin_lock(&match_entry->lock);
+// 			dcpim_pq_push(&match_entry->pq, &dsk->match_link);
+// 			spin_unlock(&match_entry->lock);
+// 			spin_unlock_bh(&bucket->lock);
+// 			return;
+// 		}
+// 		// INC_METRIC(peer_hash_links, 1);
+// 	}
 
-	// create new match entry
-	match_entry = kmalloc(sizeof(struct dcpim_match_entry), GFP_KERNEL);
-	dcpim_match_entry_init(match_entry, inet->inet_daddr, table->comp);
-	dcpim_pq_push(&match_entry->pq, &dsk->match_link);
-	hlist_add_head(&match_entry->hash_link, &bucket->head);
-	bucket->count += 1;
-	// add this entry to the hash list
-	spin_lock(&table->lock);
-	list_add_tail(&match_entry->list_link, &table->hash_list);
-	spin_unlock(&table->lock);
+// 	// create new match entry
+// 	match_entry = kmalloc(sizeof(struct dcpim_match_entry), GFP_KERNEL);
+// 	dcpim_match_entry_init(match_entry, inet->inet_daddr, table->comp);
+// 	dcpim_pq_push(&match_entry->pq, &dsk->match_link);
+// 	hlist_add_head(&match_entry->hash_link, &bucket->head);
+// 	bucket->count += 1;
+// 	// add this entry to the hash list
+// 	spin_lock(&table->lock);
+// 	list_add_tail(&match_entry->list_link, &table->hash_list);
+// 	spin_unlock(&table->lock);
 
-	spin_unlock_bh(&bucket->lock);
-}
+// 	spin_unlock_bh(&bucket->lock);
+// }
 
-void dcpim_mattab_delete_sock(struct dcpim_match_tab *table, struct sock* sk) {
-	struct dcpim_sock *dsk = dcpim_sk(sk);
-	struct inet_sock *inet = inet_sk(sk); 
-	struct dcpim_match_slot *bucket = dcpim_match_bucket(table, inet->inet_daddr);
-	struct dcpim_match_entry *match_entry = NULL;
-	// bool empty = false;
-	spin_lock_bh(&bucket->lock);
-	hlist_for_each_entry(match_entry, &bucket->head,
-			hash_link) {
-		if (match_entry->dst_addr == inet->inet_daddr) {
-			break;
-		}
-		// INC_METRIC(peer_hash_links, 1);
-	}
-	if(match_entry != NULL) {
-		spin_lock(&match_entry->lock);
-		// assume the msg still in the list, which might not be true'
-		dcpim_pq_delete(&match_entry->pq, &dsk->match_link);
-		spin_unlock(&match_entry->lock);
-	}
+// void dcpim_mattab_delete_sock(struct dcpim_match_tab *table, struct sock* sk) {
+// 	struct dcpim_sock *dsk = dcpim_sk(sk);
+// 	struct inet_sock *inet = inet_sk(sk); 
+// 	struct dcpim_match_slot *bucket = dcpim_match_bucket(table, inet->inet_daddr);
+// 	struct dcpim_match_entry *match_entry = NULL;
+// 	// bool empty = false;
+// 	spin_lock_bh(&bucket->lock);
+// 	hlist_for_each_entry(match_entry, &bucket->head,
+// 			hash_link) {
+// 		if (match_entry->dst_addr == inet->inet_daddr) {
+// 			break;
+// 		}
+// 		// INC_METRIC(peer_hash_links, 1);
+// 	}
+// 	if(match_entry != NULL) {
+// 		spin_lock(&match_entry->lock);
+// 		// assume the msg still in the list, which might not be true'
+// 		dcpim_pq_delete(&match_entry->pq, &dsk->match_link);
+// 		spin_unlock(&match_entry->lock);
+// 	}
 
-	spin_unlock_bh(&bucket->lock);
+// 	spin_unlock_bh(&bucket->lock);
 
-}
+// }
 
-void dcpim_mattab_delete_match_entry(struct dcpim_match_tab *table, struct dcpim_match_entry* entry) {
-	return;
-}
+// void dcpim_mattab_delete_match_entry(struct dcpim_match_tab *table, struct dcpim_match_entry* entry) {
+// 	return;
+// }
 
 void dcpim_epoch_init(struct dcpim_epoch *epoch) {
 	// int ret;
@@ -289,7 +289,8 @@ void dcpim_epoch_init(struct dcpim_epoch *epoch) {
 
 	// INIT_WORK(&epoch->token_xmit_struct, dcpim_xmit_token_handler);
 	/* pHost Queue */
-	dcpim_pq_init(&epoch->flow_q, flow_compare);
+	// dcpim_pq_init(&epoch->flow_q, flow_compare);
+	INIT_LIST_HEAD(&epoch->flow_list);
 
 
 
@@ -332,7 +333,9 @@ void dcpim_send_all_rts (struct dcpim_epoch* epoch) {
  	// struct dcpim_peer *peer;
 	// struct inet_sock *inet;
 	// struct sk_buff* pkt;
-
+	struct dcpim_flow *ftemp;
+	struct tcp_sock* tsk;
+	int flow_size;
 	// spin_lock(&table->lock);
 	// list_for_each_entry(entry, &table->hash_list, list_link) {
 	// 	struct list_head *list_head = NULL;
@@ -343,11 +346,21 @@ void dcpim_send_all_rts (struct dcpim_epoch* epoch) {
 			// don't need to hold dsk lock, beacuase holding the priority lock
 			// dsk = list_entry(list_head, struct dcpim_sock, match_link);
 			// send rts
-			dcpim_xmit_control(construct_rts_pkt((struct sock*)fake_sk, 
-				epoch->round, epoch->epoch, 50000), (struct sock*)fake_sk);
+
 		// }
 		// spin_unlock(&entry->lock);
 	// }
+	rcu_read_lock();
+	list_for_each_entry_rcu(ftemp, &dcpim_epoch.flow_list, entry) {
+			if(READ_ONCE(ftemp->sock->sk_state) == TCP_ESTABLISHED) {
+					flow_size = READ_ONCE(ftemp->sock->sk_wmem_queued);
+					if(flow_size > 0) {
+						dcpim_xmit_control(construct_rts_pkt((struct sock*)fake_sk, 
+							epoch->round, epoch->epoch, flow_size), (struct sock*)fake_sk);
+					}
+			}
+	}
+	rcu_read_unlock();
 	// if(epoch->sock != NULL) {
 	// 	inet = inet_sk(epoch->sock->sk);
 	// 	// printk("inet is null: %d\n", inet == NULL);

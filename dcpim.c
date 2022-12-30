@@ -68,8 +68,8 @@ EXPORT_SYMBOL(sysctl_dcpim_mem);
 atomic_long_t dcpim_memory_allocated;
 EXPORT_SYMBOL(dcpim_memory_allocated);
 
-struct dcpim_match_tab dcpim_match_table;
-EXPORT_SYMBOL(dcpim_match_table);
+// struct dcpim_match_tab dcpim_match_table;
+// EXPORT_SYMBOL(dcpim_match_table);
 
 struct dcpim_params dcpim_params;
 EXPORT_SYMBOL(dcpim_params);

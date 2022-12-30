@@ -51,16 +51,16 @@ struct list_head* dcpim_pq_peek(struct dcpim_pq* pq);
 void dcpim_pq_delete(struct dcpim_pq* pq, struct list_head* node);
 int dcpim_pq_size(struct dcpim_pq* pq);
 
-void dcpim_match_entry_init(struct dcpim_match_entry* entry, __be32 addr, 
- bool(*comp)(const struct list_head*, const struct list_head*));
-void dcpim_mattab_init(struct dcpim_match_tab *table,
-	bool(*comp)(const struct list_head*, const struct list_head*));
+// void dcpim_match_entry_init(struct dcpim_match_entry* entry, __be32 addr, 
+//  bool(*comp)(const struct list_head*, const struct list_head*));
+// void dcpim_mattab_init(struct dcpim_match_tab *table,
+// 	bool(*comp)(const struct list_head*, const struct list_head*));
 
 void dcpim_mattab_destroy(struct dcpim_match_tab *table);
 void dcpim_mattab_add_new_sock(struct dcpim_match_tab *table, struct sock *sk);
 void dcpim_mattab_delete_sock(struct dcpim_match_tab *table, struct sock *sk);
 
-void dcpim_mattab_delete_match_entry(struct dcpim_match_tab *table, struct dcpim_match_entry* entry);
+// void dcpim_mattab_delete_match_entry(struct dcpim_match_tab *table, struct dcpim_match_entry* entry);
 
 
 void dcpim_epoch_init(struct dcpim_epoch *epoch);
