@@ -170,7 +170,7 @@ struct dcpim_grant_hdr {
 	__u8 round;
 	__be64 epoch;
 	__be32 remaining_sz;
-	__u8 prompt;
+	// __u8 prompt;
 };
 
 struct dcpim_accept_hdr {

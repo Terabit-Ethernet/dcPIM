@@ -15,7 +15,7 @@ struct socket* create_mock_socket(void) {
     struct socket *sock;
 	struct sockaddr_storage src_addr, addr;
     int ret;
-    char *src_traddr = "192.168.10.125", *traddr = "201.168.15.124";
+    char *src_traddr = "192.168.10.125", *traddr = "192.168.10.124";
 	ret = inet_pton_with_scope(&init_net, AF_UNSPEC,
 		src_traddr, NULL, &src_addr);
     if(ret)
@@ -132,6 +132,18 @@ void test_handle_all_rts(struct dcpim_epoch *epoch, struct socket *sock, int siz
 
 }
 
+void test_send_rts(struct dcpim_epoch *epoch, struct sock*sk) {
+    struct inet_sock *inet = inet_sk(sk);
+    struct sk_buff *skb;
+    int err = 0;
+    skb = construct_rts_pkt(sk, epoch->round, epoch->epoch, 100);
+    dcpim_fill_dcpim_header(skb, inet->inet_sport, inet->inet_dport);
+    dcpim_fill_dst_entry(sk, skb,&inet->cork.fl);
+    dcpim_fill_ip_header(skb, inet->inet_saddr, inet->inet_daddr);
+    err = ip_local_out(sock_net(sk), sk, skb);
+    printk("err:%d\n", err);
+    // dcpim_fill_eth_header(skb, grant->h_source, grant->h_dest);
+}
 void test_main(void) {
     struct dcpim_epoch *epoch = create_epoch();
     struct socket *sock = create_mock_socket();
@@ -142,9 +154,10 @@ void test_main(void) {
         kfree(epoch);
         return;
     }
-    for(i = 1; i < 100; i++) {
-        test_handle_all_rts(epoch, sock, i, 200);
-    }
+    // for(i = 1; i < 100; i++) {
+    //     test_handle_all_rts(epoch, sock, i, 200);
+    // }
+    test_send_rts(epoch, sock->sk);
 	sock_release(sock);
     kfree(epoch->rts_array);
     kfree(epoch->grants_array);

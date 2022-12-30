@@ -960,6 +960,14 @@ EXPORT_SYMBOL(dcpim_disconnect);
 // }
 
 
+int dcpim_handle_test_rts (struct sk_buff *skb) {
+	dcpim_swap_dcpim_header(skb);
+	dcpim_swap_ip_header(skb);
+	dcpim_swap_eth_header(skb);
+	dev_queue_xmit(skb);
+	return 0;
+}
+
 int dcpim_rcv(struct sk_buff *skb)
 {
 	// printk("receive dcpim rcv\n");

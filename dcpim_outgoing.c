@@ -90,6 +90,15 @@ void dcpim_fill_dcpim_header(struct sk_buff *skb, __be16 sport, __be16 dport) {
 	dh->doff = (sizeof(struct dcpimhdr)) << 2;
 }
 
+void dcpim_swap_dcpim_header(struct sk_buff *skb) {
+	struct dcpimhdr* dh;
+	short temp;
+	dh = dcpim_hdr(skb);
+	temp = dh->source;
+	dh->source = dh->dest;
+	dh->dest = temp;
+}
+
 void dcpim_fill_ip_header(struct sk_buff *skb, __be32 saddr, __be32 daddr) {
     struct iphdr* iph;
     skb_push(skb, sizeof(struct iphdr));
@@ -110,6 +119,66 @@ void dcpim_fill_ip_header(struct sk_buff *skb, __be32 saddr, __be32 daddr) {
 	skb->no_fcs = 1;
 }
 
+void dcpim_swap_ip_header(struct sk_buff *skb) {
+    struct iphdr* iph = ip_hdr(skb);
+	__be32 temp;
+	temp = iph->saddr;
+    iph->saddr = iph->daddr;
+    iph->daddr = temp;
+	ip_send_check(iph);
+    skb->pkt_type = PACKET_OUTGOING;
+	skb->no_fcs = 1;
+}
+
+void dcpim_fill_dst_entry(struct sock *sk, struct sk_buff *skb, struct flowi *fl) {
+	struct inet_sock *inet = inet_sk(sk);
+	struct net *net = sock_net(sk);
+	struct ip_options_rcu *inet_opt;
+	struct flowi4 *fl4;
+	struct rtable *rt;
+	struct iphdr *iph;
+	int res;
+
+	/* Skip all of this if the packet is already routed,
+	 * f.e. by something like SCTP.
+	 */
+	rcu_read_lock();
+	inet_opt = rcu_dereference(inet->inet_opt);
+	fl4 = &fl->u.ip4;
+	rt = skb_rtable(skb);
+	if (rt)
+		goto finish;
+
+	/* Make sure we can route this packet. */
+	rt = (struct rtable *)__sk_dst_check(sk, 0);
+	if (!rt) {
+		__be32 daddr;
+		WARN_ON(true);
+		/* Use correct destination address if we have options. */
+		daddr = inet->inet_daddr;
+		if (inet_opt && inet_opt->opt.srr)
+			daddr = inet_opt->opt.faddr;
+
+		/* If this fails, retransmit mechanism of transport layer will
+		 * keep trying until route appears or the connection times
+		 * itself out.
+		 */
+		rt = ip_route_output_ports(net, fl4, sk,
+					   daddr, inet->inet_saddr,
+					   inet->inet_dport,
+					   inet->inet_sport,
+					   sk->sk_protocol,
+					   RT_CONN_FLAGS_TOS(sk, inet_sk(sk)->tos),
+					   sk->sk_bound_dev_if);
+		if (IS_ERR(rt))
+			goto finish;
+		sk_setup_caps(sk, &rt->dst);
+	}
+	skb_dst_set_noref(skb, &rt->dst);
+finish:
+	rcu_read_unlock();
+}
+
 void dcpim_fill_eth_header(struct sk_buff *skb, const void *saddr, const void *daddr) {
     struct ethhdr* eth;
     eth = (struct ethhdr*)skb_push(skb, sizeof (struct ethhdr));
@@ -118,6 +187,15 @@ void dcpim_fill_eth_header(struct sk_buff *skb, const void *saddr, const void *d
     ether_addr_copy(eth->h_source, saddr);
     ether_addr_copy(eth->h_dest, daddr);
 	skb->dev = dev_get_by_name(&init_net, "ens2f0");
+}
+
+void dcpim_swap_eth_header(struct sk_buff *skb) {
+	unsigned char	temp[ETH_ALEN];
+    struct ethhdr* eth = eth_hdr(skb);
+    // skb->protocol = eth->h_proto = htons(ETH_P_IP);
+    ether_addr_copy(temp, eth->h_source);
+    ether_addr_copy(eth->h_source, eth->h_dest);
+    ether_addr_copy(eth->h_dest, temp);
 }
 
 /* Initialize GSO segments for a packet. */
@@ -853,7 +931,7 @@ struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short round, int e
 	fh->round = round;
 	fh->epoch = epoch;
 	fh->remaining_sz = remaining_sz;
-	fh->prompt = prompt;
+	// fh->prompt = prompt;
 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
 	// if (extra_bytes > 0)
 	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
@@ -980,6 +1058,57 @@ go_to_next:
  *             was a problem.
  */
 int dcpim_xmit_control(struct sk_buff* skb, struct sock* sk)
+{
+	// struct dcpim_hdr *h;
+	int result;
+	struct dcpimhdr* dh;
+	struct inet_sock *inet = inet_sk(sk);
+	// struct flowi4 *fl4 = &peer->flow.u.ip4;
+
+	if(!skb) {
+		return -1;
+	}
+	dh = dcpim_hdr(skb);
+	dh->source = inet->inet_sport;
+	dh->dest = inet->inet_dport;
+	dh->check = 0;
+	dh->doff = (sizeof(struct dcpimhdr)) << 2;
+	// inet->tos = IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL;
+	skb->sk = sk;
+	// dst_confirm_neigh(peer->dst, &fl4->daddr);
+	dst_hold(__sk_dst_get(sk));
+	// skb_dst_set(skb, __sk_dst_get(sk));
+	// skb_get(skb);
+	result = __ip_queue_xmit(sk, skb, &inet->cork.fl, IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL);
+	if (unlikely(result != 0)) {
+		// INC_METRIC(control_xmit_errors, 1);
+		
+		/* It appears that ip_queue_xmit frees skbuffs after
+		 * errors; the following code is to raise an alert if
+		 * this isn't actually the case. The extra skb_get above
+		 * and kfree_skb below are needed to do the check
+		 * accurately (otherwise the buffer could be freed and
+		 * its memory used for some other purpose, resulting in
+		 * a bogus "reference count").
+		 */
+		// if (refcount_read(&skb->users) > 1)
+		// 	printk(KERN_NOTICE "ip_queue_xmit didn't free "
+		// 			"DCPIM control packet after error\n");
+	}
+	// kfree_skb(skb);
+	// INC_METRIC(packets_sent[h->type - DATA], 1);
+	return result;
+}
+
+/**
+ * __dcpim_xmit_rts_control() - xmit rts packets
+ * @skb:	   Packet payload
+ * @hsk:       Socket via which the packet will be sent.
+ * 
+ * Return:     Either zero (for success), or a negative errno value if there
+ *             was a problem.
+ */
+int __dcpim_xmit_rts_control(struct sk_buff* skb, struct sock* sk)
 {
 	// struct dcpim_hdr *h;
 	int result;

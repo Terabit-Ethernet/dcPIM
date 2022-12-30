@@ -390,8 +390,6 @@ int dcpim_handle_rts (struct sk_buff *skb, struct dcpim_epoch *epoch) {
 		// spin_unlock_bh(&epoch->lock);
 		// goto drop;
 	// }
-	if(!sk)
-		goto drop;
 	rh = dcpim_rts_hdr(skb);
 	/* TO DO: check round number and epoch number */
 	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&rh->common), rh->common.source,
@@ -427,6 +425,7 @@ drop:
 	kfree_skb(skb);
 	return 0;
 }
+
 
 void dcpim_handle_all_rts(struct dcpim_epoch *epoch) {
 	struct dcpim_rts *rts;
