@@ -85,6 +85,11 @@ struct dcpim_message_bucket dcpim_rx_messages[DCPIM_BUCKETS];
 
 #define MAX_DCPIM_PORTS 65536
 #define PORTS_PER_CHAIN (MAX_DCPIM_PORTS / DCPIM_HTABLE_SIZE_MIN)
+static inline bool before(__u32 seq1, __u32 seq2)
+{
+        return (__s32)(seq1-seq2) < 0;
+}
+#define after(seq2, seq1) 	before(seq1, seq2)
 
 
 void dcpim_rbtree_insert(struct rb_root *root, struct sk_buff *skb)
@@ -970,7 +975,7 @@ int dcpim_handle_test_rts (struct sk_buff *skb) {
 
 int dcpim_rcv(struct sk_buff *skb)
 {
-	// printk("receive dcpim rcv\n");
+	printk("receive dcpim rcv\n");
 	// skb_dump(KERN_WARNING, skb, false);
 	struct dcpimhdr* dh;
 	// printk("skb->len:%d\n", skb->len);
@@ -991,8 +996,10 @@ int dcpim_rcv(struct sk_buff *skb)
 	} else if (dh->type == ACK) {
 		return dcpim_handle_ack_pkt(skb);
 	} 
-	// else if (dh->type == RTS) {
-	// 	return dcpim_handle_rts(skb, &dcpim_match_table, &dcpim_epoch);
+	else if (dh->type == RTS) {
+		printk("receive rts\n");
+	}
+		// 	return dcpim_handle_rts(skb, &dcpim_match_table, &dcpim_epoch);
 	// } else if (dh->type == GRANT) {
 	// 	return dcpim_handle_grant(skb, &dcpim_match_table, &dcpim_epoch);
 	// } else if (dh->type == ACCEPT) {

@@ -343,19 +343,21 @@ struct dcpim_epoch {
 
 // dcpim matching logic data structure
 struct dcpim_rts {
-    struct dcpim_sock *dsk;
+    // struct dcpim_sock *dsk;
 	uint64_t epoch;
 	uint32_t round;
     int remaining_sz;
+	struct sk_buff *skb;
  	// struct list_head entry;
 	// struct llist_node lentry;
 };
 struct dcpim_grant {
     // bool prompt;
-    struct dcpim_sock *dsk;
+    // struct dcpim_sock *dsk;
 	uint64_t epoch;
 	uint32_t round;
     int remaining_sz;
+	struct sk_buff *skb;
 	/* ether hdr */
 	// unsigned char	h_dest[ETH_ALEN];	/* destination eth addr	*/
 	// unsigned char	h_source[ETH_ALEN];	/* source ether addr	*/

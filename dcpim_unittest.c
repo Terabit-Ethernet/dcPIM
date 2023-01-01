@@ -77,7 +77,7 @@ void prepare_grants(struct dcpim_epoch *epoch, struct socket *sock, int size) {
     for (i = 0; i < size; i++) {
         // iph = ip_hdr(skb);
         epoch->grants_array[i].remaining_sz = 100;
-        epoch->grants_array[i].dsk = (struct dcpim_sock*)sock->sk;
+        // epoch->grants_array[i].dsk = (struct dcpim_sock*)sock->sk;
         // epoch->grants_array[i].dport = htons(10000);
         // epoch->grants_array[i].sport = htons(20000);
         // epoch->grants_array[i].daddr = htonl(3232238205);
@@ -93,7 +93,7 @@ void prepare_rts(struct dcpim_epoch *epoch, struct socket *sock, int size) {
     for (i = 0; i < size; i++) {
         // iph = ip_hdr(skb);
         epoch->rts_array[i].remaining_sz = 100;
-        epoch->rts_array[i].dsk = (struct dcpim_sock*)sock->sk;
+        // epoch->rts_array[i].dsk = (struct dcpim_sock*)sock->sk;
         atomic_inc_return(&epoch->rts_size);
     }
 }
@@ -140,6 +140,7 @@ void test_send_rts(struct dcpim_epoch *epoch, struct sock*sk) {
     dcpim_fill_dcpim_header(skb, inet->inet_sport, inet->inet_dport);
     dcpim_fill_dst_entry(sk, skb,&inet->cork.fl);
     dcpim_fill_ip_header(skb, inet->inet_saddr, inet->inet_daddr);
+    skb_dump(KERN_WARNING, skb, true);
     err = ip_local_out(sock_net(sk), sk, skb);
     printk("err:%d\n", err);
     // dcpim_fill_eth_header(skb, grant->h_source, grant->h_dest);

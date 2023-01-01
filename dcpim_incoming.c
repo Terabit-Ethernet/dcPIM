@@ -74,6 +74,11 @@
 // 				 inet_sdif(skb), dcpimtable, skb);
 // }
 
+static inline bool before(__u32 seq1, __u32 seq2)
+{
+        return (__s32)(seq1-seq2) < 0;
+}
+#define after(seq2, seq1) 	before(seq1, seq2)
 
 
 static inline bool dcpim_sack_extend(struct dcpim_sack_block *sp, u32 seq,

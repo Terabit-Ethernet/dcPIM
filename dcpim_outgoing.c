@@ -69,6 +69,13 @@
 			  DCPIMF_RTX_DEFERRED | \
 			  DCPIMF_WAIT_DEFERRED)
 
+static inline bool before(__u32 seq1, __u32 seq2)
+{
+        return (__s32)(seq1-seq2) < 0;
+}
+#define after(seq2, seq1) 	before(seq1, seq2)
+
+
 /* Insert buff after skb on the write or rtx queue of sk.  */
 static void dcpim_insert_write_queue_after(struct sk_buff *skb,
 					 struct sk_buff *buff,
@@ -92,7 +99,7 @@ void dcpim_fill_dcpim_header(struct sk_buff *skb, __be16 sport, __be16 dport) {
 
 void dcpim_swap_dcpim_header(struct sk_buff *skb) {
 	struct dcpimhdr* dh;
-	short temp;
+	__be16 temp;
 	dh = dcpim_hdr(skb);
 	temp = dh->source;
 	dh->source = dh->dest;
