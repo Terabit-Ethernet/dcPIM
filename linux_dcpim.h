@@ -274,8 +274,27 @@ struct xmit_core_table {
 struct dcpim_flow {
 	/* the sock of the corresponding flow */
 	struct sock* sock;
+	bool matched;
+	int cur_matched_bytes;
+	int next_matched_bytes;
 	struct list_head entry;
 };
+
+// struct dcpim_matched_flow {
+// 	/* the sock of the corresponding flow */
+// 	struct sock* sock;
+// 	int matched_bytes;
+// 	struct net *net;
+//  	/* ip hdr */
+// 	__be32 saddr;
+// 	__be32 daddr;
+// 	/* tcp port number */
+// 	__be16 sport;
+// 	__be16 dport;
+// 	int dif;
+// 	int sdif;
+// };
+
 struct dcpim_epoch {
 
 	uint64_t epoch;
@@ -291,6 +310,10 @@ struct dcpim_epoch {
 	int max_array_size;
 	// __be32 match_src_addr;
 	// __be32 match_dst_addr;
+	struct dcpim_flow** cur_matched_arr;
+	struct dcpim_flow** next_matched_arr;
+	int cur_matched_flows;
+	int next_matched_flows;
 	spinlock_t lock;
 
 	spinlock_t receiver_lock;
@@ -361,12 +384,12 @@ struct dcpim_grant {
 	/* ether hdr */
 	// unsigned char	h_dest[ETH_ALEN];	/* destination eth addr	*/
 	// unsigned char	h_source[ETH_ALEN];	/* source ether addr	*/
-	// /* ip hdr */
-	// __be32 saddr;
-	// __be32 daddr;
-	// /* tcp port number */
-	// __be16 sport;
-	// __be16 dport;
+	/* ip hdr */
+	__be32 saddr;
+	__be32 daddr;
+	/* tcp port number */
+	__be16 sport;
+	__be16 dport;
 	// struct list_head entry;
 	// struct llist_node lentry;
 };
