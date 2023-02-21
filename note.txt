@@ -1,0 +1,5 @@
+1. READ_ONCE(o), WRITE_ONCE(o); READ_ONCE(o) provides a version of o (not fusing, either old copy or new copy, but not something in between), if
+    1. The object o is not crossed cachelines/pages.
+    2. READ/WRITE is to whole object o
+    3. The object size should be no more than one word (equal to native word, 1byte, 2 byte, 4 byte, 8 byte only). 
+    4. It also prevent compiler optimization which changes the behavior of codes.
