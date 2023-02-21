@@ -1,24 +1,22 @@
-# RDP
-CPU Efficient Transport Protocol Design 
+# dcPIM Kernel IMplementation
 
 ## Install Kernel
-The default versoin is 5.6.0. 
-Our patch is based on Linux 5.6.0. On Ubuntu 20.04, you can use the following instructions to build and install the kernel.
+The default versoin is 6.0.3
+Our patch is based on Linux 6.0.3. On Ubuntu 20.04, you can use the following instructions to build and install the kernel.
 
 1. Download Linux kernel source tree.
 
 ```
 cd ~
-wget https://mirrors.edge.kernel.org/pub/linux/kernel/v5.x/linux-5.6.0.tar.gz
-tar xzvf linux-5.6.0.tar.gz
+wget https://mirrors.edge.kernel.org/pub/linux/kernel/v6.x/linux-6.0.3.tar.gz
+tar xzvf linux-6.0.3.tar.gz
 ```
 
 2. Download and apply the patch to the kernel source.
 
 ```
-git clone https://github.com/qizhe/RDP.git
-cd ~/linux-5.6.0/
-git apply ../RDP/patch
+git clone https://github.com/qizhe/dcpim_kernel.git
+cd ~/linux-6.0.3/
 ```
 
 3. Update kernel configuration.
@@ -33,15 +31,15 @@ scripts/config --disable DEBUG_INFO # Disables building debugging related files
 4. Compile and install. The `LOCALVERSION=-profiling` option can be replaced by any custom marker. Remember to replace `profiling` with your own definition in the rest of the instructions.
 
 ```
-sudo make -j24 bzImage
-sudo make -j24 modules
+sudo make -j32 bzImage
+sudo make -j32 modules
 sudo make modules_install
 sudo make install
 ```
 ## Install Module 
 1. Enter the directory, compile the module and install the module.
 ```
-cd RDP
+cd dcpim_kernel
 make
 sudo insmod dcacp_module.ko
 ```
