@@ -975,7 +975,7 @@ int dcpim_handle_test_rts (struct sk_buff *skb) {
 
 int dcpim_rcv(struct sk_buff *skb)
 {
-	printk("receive dcpim rcv\n");
+	// printk("receive dcpim rcv\n");
 	// skb_dump(KERN_WARNING, skb, false);
 	struct dcpimhdr* dh;
 	// printk("skb->len:%d\n", skb->len);
