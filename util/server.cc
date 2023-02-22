@@ -46,7 +46,7 @@
 #include <vector>
 // #include "homa.h"
 #include "test_utils.h"
-#include "../uapi_linux_dcacp.h"
+#include "../uapi_linux_dcpim.h"
 /* Log events to standard output. */
 bool verbose = false;
 
@@ -346,12 +346,12 @@ void tcp_server(int port)
 }
 
 /**
- * dcacp_connection() - Handles messages arriving on a given socket.
+ * dcpim_connection() - Handles messages arriving on a given socket.
  * @fd:           File descriptor for the socket over which messages
  *                will arrive.
  * @client_addr:  Information about the client (for messages).
  */
-void dcacp_connection(int fd, struct sockaddr_in source)
+void dcpim_connection(int fd, struct sockaddr_in source)
 {
 	// int flag = 1;
 	char buffer[2000000];
@@ -364,7 +364,7 @@ void dcacp_connection(int fd, struct sockaddr_in source)
 	socklen_t len = sizeof(sin);
 	// int *int_buffer = reinterpret_cast<int*>(buffer);
 	if (verbose)
-		printf("New DCACP socket from %s\n", print_address(&source));
+		printf("New DCPIM socket from %s\n", print_address(&source));
 	// setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
 	if (getsockname(fd, (struct sockaddr *)&sin, &len) == -1)
 	    perror("getsockname");
@@ -395,7 +395,7 @@ void dcacp_connection(int fd, struct sockaddr_in source)
 		// 	double rate = ((double) total_length)/ to_seconds(
 		// 		end_cycle - start_cycle);
 		// 	// if(count != 0) {
-		// 	// 	printf("DCACP throughput: "
+		// 	// 	printf("DCPIM throughput: "
 		// 	// 	"%.2f Gbps, bytes: %f, time: %f\n", rate * 1e-09 * 8, (double) total_length, to_seconds(
 		// 	// 	end_cycle - start_cycle));
 		// 	// }
@@ -527,17 +527,17 @@ void udp_server(int port)
 }
 
 /**
- * dcacp_server()
+ * dcpim_server()
  *
  */
-void dcacp_server(int port)
+void dcpim_server(int port)
 {
 	// char buffer[1000000];
 	// int result = 0;
 	// uint64_t start_cycle = 0, end_cycle = 0;
 	// uint64_t total_length = 0;
 	// int count = 0;
-	int listen_fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCACP);
+	int listen_fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCPIM);
 	if (listen_fd == -1) {
 		printf("Couldn't open server socket: %s\n", strerror(errno));
 		exit(1);
@@ -577,7 +577,7 @@ void dcacp_server(int port)
 				strerror(errno));
 			exit(1);
 		}
-		std::thread thread(dcacp_connection, stream, client_addr);
+		std::thread thread(dcpim_connection, stream, client_addr);
 		thread.detach();
 	}
 	// while (1) {
@@ -607,7 +607,7 @@ void dcacp_server(int port)
 
 	// 		start_cycle = rdtsc();
 	// 		if(count != 0) {
-	// 			printf("DCACP throughput: "
+	// 			printf("DCPIM throughput: "
 	// 			"%.2f Gbps\n", rate * 1e-09 * 8);
 	// 		}
 	// 	}
@@ -675,7 +675,7 @@ int main(int argc, char** argv) {
 	// }
 	workers.push_back(std::thread(tcp_server, port));
 	workers.push_back(std::thread(udp_server, port));
-	workers.push_back(std::thread(dcacp_server, port));
+	workers.push_back(std::thread(dcpim_server, port));
 	workers.push_back(std::thread(aggre_thread, &agg_stats));
 	for(int i = 0; i < num_ports; i++) {
 		workers[i].join();
