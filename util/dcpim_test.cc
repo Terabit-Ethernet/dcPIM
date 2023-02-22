@@ -834,17 +834,19 @@ void test_dcpimstream(int fd, struct sockaddr *dest, char* buffer)
 
 void test_dcpimping(int fd, struct sockaddr *dest, char* buffer)
 {
-	struct sockaddr_in* in = (struct sockaddr_in*) dest;
+	// struct sockaddr_in* in = (struct sockaddr_in*) dest;
 	uint32_t buffer_size = 67000;
-	uint32_t flow_size = 3000000000;
+	// uint32_t flow_size = 3000000000;
 	uint32_t write_len = 0;
+	uint64_t start, end;
+	uint64_t cycles_per_sec = get_cycles_per_sec();
 	// int i = 0;
 	// uint32_t offset = write_len % flow_size;
 
-	in->sin_zero[0] = flow_size >> 24 & 0xFF;
-	in->sin_zero[1] = flow_size >> 16 & 0xFF;
-	in->sin_zero[2] = flow_size >> 8 & 0xFF;
-	in->sin_zero[3] = flow_size & 0xFF;
+	// in->sin_zero[0] = flow_size >> 24 & 0xFF;
+	// in->sin_zero[1] = flow_size >> 16 & 0xFF;
+	// in->sin_zero[2] = flow_size >> 8 & 0xFF;
+	// in->sin_zero[3] = flow_size & 0xFF;
 	// struct addrinfo hints;
 	// struct addrinfo *matching_addresses;
 	// struct sockaddr *dest;
@@ -892,8 +894,9 @@ void test_dcpimping(int fd, struct sockaddr *dest, char* buffer)
 			exit(1);
 		}
 		printf("connect done\n");
+		start = rdtsc();
 	    // for (int i = 0; i < count * 100; i++) {
-		while(write_len <= flow_size) {
+		while(1) {
 			// int cur_write_len = 0;
 			// offset = write_len % buffer_size;
 			// cur_write_len = buffer_size - offset < flow_size - write_len ? (buffer_size - offset) : (flow_size - write_len);
@@ -920,6 +923,9 @@ void test_dcpimping(int fd, struct sockaddr *dest, char* buffer)
 				// if(write_len != 0)
 				// 	printf("sent result:%d\n", result);
 			}
+			end = rdtsc();
+			if(end - start > cycles_per_sec * 120)
+				break;
 		}
 	// }
 
