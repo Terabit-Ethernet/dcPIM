@@ -565,6 +565,8 @@ struct dcpim_sock {
 		/* short flow waiting timer or long flow waiting timer; after all tokens arer granted */
 		// struct hrtimer flow_wait_timer;
 	    ktime_t last_rtx_time;
+		ktime_t latest_token_sent_time;
+
 		uint32_t copied_seq;
 	    uint32_t bytes_received;
 	    // uint32_t received_count;
@@ -576,7 +578,6 @@ struct dcpim_sock {
 		/** @priority: Priority level to include in future GRANTS. */
 		int priority;
 		/* DCPIM metric */
-	    // uint64_t latest_token_sent_time;
 	    // uint64_t first_byte_receive_time;
 		// struct list_head ready_link;
 		/* protected by entry lock */

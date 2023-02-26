@@ -297,53 +297,6 @@ void tcp_connection(int fd, struct sockaddr_in source)
 	close(fd);
 }
 
-/**
- * tcp_server() - Opens a TCP socket, accepts connections on that socket
- * (one thread per connection) and processes messages on those connections.
- * @port:  Port number on which to listen.
- */
-void tcp_server(int port)
-{
-	int listen_fd = socket(PF_INET, SOCK_STREAM, 0);
-	if (listen_fd == -1) {
-		printf("Couldn't open server socket: %s\n", strerror(errno));
-		exit(1);
-	}
-	int option_value = 1;
-	if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &option_value,
-			sizeof(option_value)) != 0) {
-		printf("Couldn't set SO_REUSEADDR on listen socket: %s",
-			strerror(errno));
-		exit(1);
-	}
-	struct sockaddr_in addr;
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(port);
-	addr.sin_addr.s_addr = INADDR_ANY;
-	if (bind(listen_fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr))
-			== -1) {
-		printf("Couldn't bind to port %d: %s\n", port, strerror(errno));
-		exit(1);
-	}
-	while (1) {
-		struct sockaddr_in client_addr;
-		socklen_t addr_len = sizeof(client_addr);
-		if (listen(listen_fd, 1000) == -1) {
-			printf("Couldn't listen on socket: %s", strerror(errno));
-			exit(1);
-		}
-		int stream = accept(listen_fd,
-				reinterpret_cast<sockaddr *>(&client_addr),
-				&addr_len);
-		if (stream < 0) {
-			printf("Couldn't accept incoming connection: %s",
-				strerror(errno));
-			exit(1);
-		}
-		std::thread thread(tcp_connection, stream, client_addr);
-		thread.detach();
-	}
-}
 
 /**
  * dcpim_connection() - Handles messages arriving on a given socket.
@@ -451,6 +404,54 @@ void dcpim_connection(int fd, struct sockaddr_in source)
 	if (verbose)
 		printf("Closing TCP socket from %s\n", print_address(&source));
 	close(fd);
+}
+
+/**
+ * tcp_server() - Opens a TCP socket, accepts connections on that socket
+ * (one thread per connection) and processes messages on those connections.
+ * @port:  Port number on which to listen.
+ */
+void tcp_server(int port)
+{
+	int listen_fd = socket(PF_INET, SOCK_STREAM, 0);
+	if (listen_fd == -1) {
+		printf("Couldn't open server socket: %s\n", strerror(errno));
+		exit(1);
+	}
+	int option_value = 1;
+	if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &option_value,
+			sizeof(option_value)) != 0) {
+		printf("Couldn't set SO_REUSEADDR on listen socket: %s",
+			strerror(errno));
+		exit(1);
+	}
+	struct sockaddr_in addr;
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(port);
+	addr.sin_addr.s_addr = INADDR_ANY;
+	if (bind(listen_fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr))
+			== -1) {
+		printf("Couldn't bind to port %d: %s\n", port, strerror(errno));
+		exit(1);
+	}
+	while (1) {
+		struct sockaddr_in client_addr;
+		socklen_t addr_len = sizeof(client_addr);
+		if (listen(listen_fd, 1000) == -1) {
+			printf("Couldn't listen on socket: %s", strerror(errno));
+			exit(1);
+		}
+		int stream = accept(listen_fd,
+				reinterpret_cast<sockaddr *>(&client_addr),
+				&addr_len);
+		if (stream < 0) {
+			printf("Couldn't accept incoming connection: %s",
+				strerror(errno));
+			exit(1);
+		}
+		std::thread thread(dcpim_connection, stream, client_addr);
+		thread.detach();
+	}
 }
 
 /**

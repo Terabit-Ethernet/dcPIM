@@ -247,8 +247,8 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	/*temporary solution */
 	local_bh_disable();
 	bh_lock_sock(sk);
-	if(!skb_queue_empty(&sk->sk_write_queue) && 
-		dsk->sender.token_seq >= DCPIM_SKB_CB(dcpim_send_head(sk))->end_seq) {
+	if(!skb_queue_empty(&sk->sk_write_queue)
+		&& dsk->sender.token_seq -  DCPIM_SKB_CB(dcpim_send_head(sk))->end_seq <= sk->sk_sndbuf) {
  		dcpim_write_timer_handler(sk);
 	} 
 	bh_unlock_sock(sk);
@@ -511,6 +511,7 @@ int dcpim_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.flow_finish_wait, false);
 	WRITE_ONCE(dsk->receiver.rmem_exhausted, 0);
 	WRITE_ONCE(dsk->receiver.last_rtx_time, ktime_get());
+	WRITE_ONCE(dsk->receiver.latest_token_sent_time, ktime_get());
 	WRITE_ONCE(dsk->receiver.copied_seq, 0);
 	WRITE_ONCE(dsk->receiver.bytes_received, 0);
 	WRITE_ONCE(dsk->receiver.rcv_nxt, 0);
@@ -519,11 +520,11 @@ int dcpim_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.in_pq, false);
 	WRITE_ONCE(dsk->receiver.prev_token_nxt, 0);
 	WRITE_ONCE(dsk->receiver.token_nxt, 0);
-	WRITE_ONCE(dsk->receiver.max_congestion_win, dcpim_params.bdp);
+	WRITE_ONCE(dsk->receiver.max_congestion_win, 2 * dcpim_params.bdp);
 	// INIT_LIST_HEAD(&dsk->reciever.);
 
 	/* token batch 64KB */
-	WRITE_ONCE(dsk->receiver.token_batch, 65536);
+	WRITE_ONCE(dsk->receiver.token_batch, 62636 * 2);
 	atomic_set(&dsk->receiver.backlog_len, 0);
 	atomic_set(&dsk->receiver.inflight_bytes, 0);
 	atomic_set(&dsk->receiver.matched_bw, 100);
@@ -737,7 +738,6 @@ int dcpim_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 		}
 
 		// tcp_cleanup_rbuf(sk, copied);
-		dcpim_try_send_token(sk);
 		// printk("release sock");
 		if (copied >= target) {
 			/* Do not sleep, just process backlog. */
@@ -746,6 +746,7 @@ int dcpim_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 			release_sock(sk);
 			lock_sock(sk);
 		} else {
+			dcpim_try_send_token(sk);
 			sk_wait_data(sk, &timeo, last);
 		}
 
@@ -763,7 +764,7 @@ found_ok_skb:
 		used = skb->len - offset;
 		if (len < used)
 			used = len;
-		dcpim_try_send_token(sk);
+		// dcpim_try_send_token(sk);
 
 		/* Do we have urgent data here? */
 		// if (tp->urg_data) {
@@ -808,7 +809,7 @@ found_ok_skb:
 		// 	trigger_tokens += 1;
 			
 		// }
-		// dcpim_try_send_token(sk);
+		dcpim_try_send_token(sk);
 
 		// tcp_rcv_space_adjust(sk);
 

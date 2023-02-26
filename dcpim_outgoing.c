@@ -1383,13 +1383,23 @@ int dcpim_token_timer_defer_handler(struct sock *sk) {
 	struct dcpim_sock *dsk = dcpim_sk(sk);
 	uint32_t matched_bw = atomic_read(&dsk->receiver.matched_bw);
 	uint32_t token_bytes = dcpim_avail_token_space((struct sock*)dsk);
+	ktime_t time_delta = ktime_get() - dsk->receiver.latest_token_sent_time;
 	if(sk->sk_state != DCPIM_ESTABLISHED)
 		return 0;
 	if(matched_bw == 0)
 		return 0;
 	if(token_bytes < dsk->receiver.token_batch)
 		return 0;
+	if(time_delta < ns_to_ktime(token_bytes * 8 / matched_bw)) {
+		if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
+			hrtimer_start(&dsk->receiver.token_pace_timer,
+				ns_to_ktime(token_bytes * 8 / matched_bw) - time_delta, HRTIMER_MODE_REL_PINNED_SOFT);
+		}
+		return 0;
+	}
 	token_bytes = dcpim_xmit_token(dsk, token_bytes);
+	dsk->receiver.latest_token_sent_time += time_delta;
+	// printk("defer token_bytes:%u %u\n", token_bytes, dsk->receiver.token_nxt);
 	if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
 		hrtimer_start(&dsk->receiver.token_pace_timer,
 			ns_to_ktime(token_bytes * 8 / matched_bw), HRTIMER_MODE_REL_PINNED_SOFT);
@@ -1404,14 +1414,24 @@ enum hrtimer_restart dcpim_xmit_token_handler(struct hrtimer *timer) {
 	struct sock* sk = (struct sock *)dsk;
 	uint32_t matched_bw = atomic_read(&dsk->receiver.matched_bw);
 	uint32_t token_bytes = 0;
+	ktime_t current_time = ktime_get();
+	ktime_t delta = 0;
 
 	if(matched_bw == 0)
 		goto put_sock;
 	bh_lock_sock(sk);
 	if (!sock_owned_by_user(sk)) {
 		token_bytes = dcpim_avail_token_space((struct sock*)dsk);
+		delta = current_time - dsk->receiver.latest_token_sent_time;
+		if(delta < ns_to_ktime(token_bytes * 8 / matched_bw)) {
+			hrtimer_forward_now(timer, ns_to_ktime(token_bytes * 8 / matched_bw) - delta);
+			bh_unlock_sock(sk);
+			return HRTIMER_RESTART;
+		}
 		if(token_bytes >= dsk->receiver.token_batch) {
 			dcpim_xmit_token(dsk, token_bytes);
+			dsk->receiver.latest_token_sent_time = current_time;
+			// printk("timer token_bytes:%u %u\n", token_bytes, dsk->receiver.token_nxt);
 			hrtimer_forward_now(timer, ns_to_ktime(token_bytes * 8 / matched_bw));
 			bh_unlock_sock(sk);
 			/* still need to sock_hold */
@@ -1420,6 +1440,7 @@ enum hrtimer_restart dcpim_xmit_token_handler(struct hrtimer *timer) {
 	} else {
 		/* delegate our work to dcpim_release_cb() */
 		// WARN_ON(sk->sk_state == DCPIM_CLOSE);
+		// printk("delay timer\n");
 		if (!test_and_set_bit(DCPIM_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
 			sock_hold(sk);
 		}
