@@ -500,6 +500,7 @@ int dcpim_init_sock(struct sock *sk)
 	dsk->short_message_id = 0;
 	WRITE_ONCE(dsk->num_sacks, 0);
 
+	WRITE_ONCE(dsk->sender.num_sacks, 0);
 	WRITE_ONCE(dsk->sender.token_seq, 0);
 	WRITE_ONCE(dsk->sender.write_seq, 0);
 	WRITE_ONCE(dsk->sender.snd_nxt, 0);

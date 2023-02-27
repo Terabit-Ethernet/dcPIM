@@ -208,16 +208,16 @@ void dcpim_get_sack_info(struct sock *sk, struct sk_buff *skb) {
 				    sizeof(struct dcpim_token_hdr));
 	struct dcpim_token_hdr *th = dcpim_token_hdr(skb);
 	struct dcpim_sack_block_wire *sp_wire = (struct dcpim_sack_block_wire *)(ptr);
-	struct dcpim_sack_block *sp = dsk->selective_acks;
+	struct dcpim_sack_block *sp = dsk->sender.selective_acks;
 	// struct sk_buff *skb;
 	int used_sacks;
 	int i, j;
 	if (!pskb_may_pull(skb, sizeof(struct dcpim_token_hdr) + sizeof(struct dcpim_sack_block_wire) * th->num_sacks)) {
 		return;		/* No space for header. */
 	}
-	dsk->num_sacks = th->num_sacks;
+	dsk->sender.num_sacks = th->num_sacks;
 	used_sacks = 0;
-	for (i = 0; i < dsk->num_sacks; i++) {
+	for (i = 0; i < dsk->sender.num_sacks; i++) {
 		/* get_unaligned_be32 will host change the endian to be CPU order */
 		sp[used_sacks].start_seq = get_unaligned_be32(&sp_wire[i].start_seq);
 		sp[used_sacks].end_seq = get_unaligned_be32(&sp_wire[i].end_seq);
@@ -822,10 +822,12 @@ int dcpim_handle_token_pkt(struct sk_buff *skb) {
 		/* add token */
  		// dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
  	// 	/* add sack info */
- 	// 	dcpim_get_sack_info(sk, skb);
+
 		// /* start doing transmission (this part may move to different places later)*/
 	    if(!sock_owned_by_user(sk)) {
 			if(sk->sk_state == DCPIM_ESTABLISHED) {
+				if(th->num_sacks > 0)
+ 					dcpim_get_sack_info(sk, skb);
 				sock_rps_save_rxhash(sk, skb);
 				if(th->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
 					dsk->sender.snd_una = th->rcv_nxt;
@@ -1239,6 +1241,8 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 		else if (dh->type == TOKEN) {
 			/* clean rtx queue */
 			struct dcpim_token_hdr *th = dcpim_token_hdr(skb);
+			if(th->num_sacks > 0)
+				dcpim_get_sack_info(sk, skb);
 			if(th->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
 				dsk->sender.snd_una = th->rcv_nxt;
 			if(th->token_nxt - dsk->sender.token_seq <= sk->sk_sndbuf)

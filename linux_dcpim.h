@@ -527,7 +527,7 @@ struct dcpim_sock {
 	 */
     // uint32_t total_length;
 	
-	/* protected by socket user lock*/
+	/* protected by socket user lock; this is for receiver */
     uint32_t num_sacks;
 	struct dcpim_sack_block selective_acks[16]; /* The SACKS themselves*/
 
@@ -547,7 +547,8 @@ struct dcpim_sock {
 	    // uint32_t total_bytes_sent;
 	    // uint32_t bytes_from_user;
 	    int remaining_pkts_at_sender;
-
+   		uint32_t num_sacks;
+		struct dcpim_sack_block selective_acks[16]; /* The SACKS themselves*/
 		/* DCPIM metric */
 	    // uint64_t first_byte_send_time;
 	    // uint64_t start_time;

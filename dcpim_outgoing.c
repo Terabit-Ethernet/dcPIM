@@ -1013,15 +1013,15 @@ void dcpim_retransmit(struct sock* sk) {
 	mss_now = mtu - sizeof(struct iphdr) - sizeof(struct dcpim_data_hdr);
 	/* last sack is the fake sack [prev_grant_next, prev_grant_next) */
 	skb = skb_rb_first(&sk->tcp_rtx_queue);
-	for (i = 0; i < dsk->num_sacks; i++) {
+	for (i = 0; i < dsk->sender.num_sacks; i++) {
 		if(!skb)
 			break;
 		if(i == 0) {
 			start_seq = dsk->sender.snd_una;
 		} else {
-			start_seq = dsk->selective_acks[i - 1].end_seq;
+			start_seq = dsk->sender.selective_acks[i - 1].end_seq;
 		}
-		end_seq = dsk->selective_acks[i].start_seq;
+		end_seq = dsk->sender.selective_acks[i].start_seq;
 
 		while(skb) {
 			if(!before(start_seq, DCPIM_SKB_CB(skb)->end_seq)) {
@@ -1053,7 +1053,7 @@ go_to_next:
 
 
 	}	
-	dsk->num_sacks = 0;
+	dsk->sender.num_sacks = 0;
 }
 /**
  * __dcpim_xmit_control() - Lower-level version of dcpim_xmit_control: sends
