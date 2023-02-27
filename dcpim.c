@@ -520,7 +520,7 @@ int dcpim_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.in_pq, false);
 	WRITE_ONCE(dsk->receiver.prev_token_nxt, 0);
 	WRITE_ONCE(dsk->receiver.token_nxt, 0);
-	WRITE_ONCE(dsk->receiver.max_congestion_win, 2 * dcpim_params.bdp);
+	WRITE_ONCE(dsk->receiver.max_congestion_win, 5 * dcpim_params.control_pkt_bdp);
 	// INIT_LIST_HEAD(&dsk->reciever.);
 
 	/* token batch 64KB */
