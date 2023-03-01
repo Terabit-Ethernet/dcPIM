@@ -9,7 +9,7 @@ struct dcpim_sock* fake_sk;
 
 static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 	int i = 0;
-	unsigned int max_pacing_rate = 0;
+	unsigned long max_pacing_rate = 0;
 	struct dcpim_flow **temp_arr;
 	struct dcpim_flow *flow;
 	sockptr_t optval;
@@ -25,7 +25,7 @@ static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 	}
 	for (i = 0; i < epoch->next_matched_flows; i++) {
 		flow = epoch->next_matched_arr[i];
-		max_pacing_rate = dcpim_params.bandwidth * flow->next_matched_bytes / epoch->epoch_bytes;
+		max_pacing_rate = dcpim_params.bandwidth * flow->next_matched_bytes / epoch->epoch_bytes * 1000000000 / 8; // bytes per second
 		optval = KERNEL_SOCKPTR(&max_pacing_rate);
 		sock_setsockopt(flow->sock->sk_socket, SOL_SOCKET,
 					SO_MAX_PACING_RATE, optval, sizeof(max_pacing_rate));

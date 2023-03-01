@@ -321,10 +321,10 @@ static struct ctl_table_header *dcpim_ctl_header;
 void dcpim_params_init(struct dcpim_params* params) {
     params->clean_match_sock = 0;
     params->match_socket_port = 3000;
-    params->bandwidth = 100;
-    params->control_pkt_rtt = 20;
-    params->rtt = 50;
-    params->bdp  = params->rtt * params->bandwidth / 8 * 1000;
+    params->bandwidth = 100; // in Gbps
+    params->control_pkt_rtt = 20; // in us
+    params->rtt = 50; // in us
+    params->bdp  = params->rtt * params->bandwidth / 8 * 1000; // bytes
     // params->bdp = 500000;
     // params->gso_size = 1500;
     // matchiing parameters

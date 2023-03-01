@@ -1381,8 +1381,8 @@ uint32_t dcpim_xmit_token(struct dcpim_sock* dsk, uint32_t token_bytes) {
 
 int dcpim_token_timer_defer_handler(struct sock *sk) {
 	struct dcpim_sock *dsk = dcpim_sk(sk);
-	uint32_t matched_bw = atomic_read(&dsk->receiver.matched_bw);
-	uint32_t token_bytes = dcpim_avail_token_space((struct sock*)dsk);
+	unsigned long matched_bw = READ_ONCE(sk->sk_max_pacing_rate);
+	unsigned long token_bytes = dcpim_avail_token_space((struct sock*)dsk);
 	ktime_t time_delta = ktime_get() - dsk->receiver.latest_token_sent_time;
 	if(sk->sk_state != DCPIM_ESTABLISHED)
 		return 0;
@@ -1390,10 +1390,10 @@ int dcpim_token_timer_defer_handler(struct sock *sk) {
 		return 0;
 	if(token_bytes < dsk->receiver.token_batch)
 		return 0;
-	if(time_delta < ns_to_ktime(token_bytes * 8 / matched_bw)) {
+	if(time_delta < ns_to_ktime(token_bytes * 1000000000 / matched_bw)) {
 		if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
 			hrtimer_start(&dsk->receiver.token_pace_timer,
-				ns_to_ktime(token_bytes * 8 / matched_bw) - time_delta, HRTIMER_MODE_REL_PINNED_SOFT);
+				ns_to_ktime(token_bytes * 1000000000 / matched_bw) - time_delta, HRTIMER_MODE_REL_PINNED_SOFT);
 		}
 		return 0;
 	}
@@ -1402,7 +1402,7 @@ int dcpim_token_timer_defer_handler(struct sock *sk) {
 	// printk("defer token_bytes:%u %u\n", token_bytes, dsk->receiver.token_nxt);
 	if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
 		hrtimer_start(&dsk->receiver.token_pace_timer,
-			ns_to_ktime(token_bytes * 8 / matched_bw), HRTIMER_MODE_REL_PINNED_SOFT);
+			ns_to_ktime(token_bytes * 1000000000 / matched_bw), HRTIMER_MODE_REL_PINNED_SOFT);
 	}
 	return token_bytes;
 }
@@ -1412,8 +1412,8 @@ enum hrtimer_restart dcpim_xmit_token_handler(struct hrtimer *timer) {
 
 	struct dcpim_sock *dsk = container_of(timer, struct dcpim_sock, receiver.token_pace_timer);
 	struct sock* sk = (struct sock *)dsk;
-	uint32_t matched_bw = atomic_read(&dsk->receiver.matched_bw);
-	uint32_t token_bytes = 0;
+	unsigned long matched_bw = READ_ONCE(sk->sk_max_pacing_rate);
+	unsigned long token_bytes = 0;
 	ktime_t current_time = ktime_get();
 	ktime_t delta = 0;
 
@@ -1423,8 +1423,8 @@ enum hrtimer_restart dcpim_xmit_token_handler(struct hrtimer *timer) {
 	if (!sock_owned_by_user(sk)) {
 		token_bytes = dcpim_avail_token_space((struct sock*)dsk);
 		delta = current_time - dsk->receiver.latest_token_sent_time;
-		if(delta < ns_to_ktime(token_bytes * 8 / matched_bw)) {
-			hrtimer_forward_now(timer, ns_to_ktime(token_bytes * 8 / matched_bw) - delta);
+		if(delta < ns_to_ktime(token_bytes * 1000000000 / matched_bw)) {
+			hrtimer_forward_now(timer, ns_to_ktime(token_bytes * 1000000000 / matched_bw) - delta);
 			bh_unlock_sock(sk);
 			return HRTIMER_RESTART;
 		}
@@ -1432,7 +1432,7 @@ enum hrtimer_restart dcpim_xmit_token_handler(struct hrtimer *timer) {
 			dcpim_xmit_token(dsk, token_bytes);
 			dsk->receiver.latest_token_sent_time = current_time;
 			// printk("timer token_bytes:%u %u\n", token_bytes, dsk->receiver.token_nxt);
-			hrtimer_forward_now(timer, ns_to_ktime(token_bytes * 8 / matched_bw));
+			hrtimer_forward_now(timer, ns_to_ktime(token_bytes * 1000000000 / matched_bw));
 			bh_unlock_sock(sk);
 			/* still need to sock_hold */
 			return HRTIMER_RESTART;

@@ -80,7 +80,7 @@ struct dcpim_params {
 	int clean_match_sock;
 	int fct_round;
 	int match_socket_port;
-	int bandwidth;
+	unsigned long bandwidth;
 	// in microsecond
 	int rtt;
 	int control_pkt_rtt;
@@ -590,7 +590,7 @@ struct dcpim_sock {
 		atomic_t backlog_len;
 		atomic_t inflight_bytes;
 		struct hrtimer token_pace_timer;
-		atomic_t matched_bw;
+		// atomic_t matched_bw;
 		/* protected by bh_lock_sock */
 		struct list_head message_backlog;
 		/* protected by user socket lock */

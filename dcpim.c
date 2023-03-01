@@ -528,7 +528,8 @@ int dcpim_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.token_batch, 62636 * 2);
 	atomic_set(&dsk->receiver.backlog_len, 0);
 	atomic_set(&dsk->receiver.inflight_bytes, 0);
-	atomic_set(&dsk->receiver.matched_bw, 100);
+	// atomic_set(&dsk->receiver.matched_bw, 100);
+	WRITE_ONCE(sk->sk_max_pacing_rate, 1E11 / 8); // bytes per second
 	// dsk->start_time = ktime_get();
 	hrtimer_init(&dsk->receiver.token_pace_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
 	dsk->receiver.token_pace_timer.function = &dcpim_xmit_token_handler;
