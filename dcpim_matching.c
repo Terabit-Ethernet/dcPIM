@@ -13,6 +13,7 @@ static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 	struct dcpim_flow **temp_arr;
 	struct dcpim_flow *flow;
 	sockptr_t optval;
+	struct dcpim_sock *dsk;
 	for (i = 0; i < epoch->cur_matched_flows; i++) {
 		flow = epoch->cur_matched_arr[i];
 		if(flow->next_matched_bytes == 0) {
@@ -29,6 +30,8 @@ static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 		optval = KERNEL_SOCKPTR(&max_pacing_rate);
 		sock_setsockopt(flow->sock->sk_socket, SOL_SOCKET,
 					SO_MAX_PACING_RATE, optval, sizeof(max_pacing_rate));
+		// hrtimer_start(&dcpim_sk(flow->sock)->receiver.token_pace_timer,
+		// 	0, HRTIMER_MODE_REL_PINNED_SOFT);
 		flow->cur_matched_bytes = flow->next_matched_bytes; 
 		flow->next_matched_bytes = 0;
 	}
@@ -118,6 +121,37 @@ static void dcpim_modify_ctrl_pkt_size(struct sk_buff *skb, __be32 size) {
 	struct dcpim_grant_hdr *gh = dcpim_grant_hdr(skb);
 	gh->remaining_sz = size;
 	skb_push(skb, skb->data - skb_mac_header(skb));
+}
+
+void dcpim_add_mat_tab(struct sock *sk) {
+        struct dcpim_flow *flow = NULL;
+        flow = kmalloc(sizeof(struct dcpim_flow), GFP_KERNEL);
+        flow->sock = sk;
+        sock_hold(sk);
+        INIT_LIST_HEAD(&flow->entry);
+        spin_lock_bh(&dcpim_epoch.sender_lock);
+        list_add_tail_rcu(&flow->entry, &dcpim_epoch.flow_list);
+        spin_unlock_bh(&dcpim_epoch.sender_lock);
+}
+
+void dcpim_remove_mat_tab(struct sock *sk) {
+        struct dcpim_flow *flow = NULL, *ftemp;
+        rcu_read_lock();
+        list_for_each_entry_rcu(ftemp, &dcpim_epoch.flow_list, entry) {
+                if(ftemp->sock == sk) {
+                        flow = ftemp;
+                        break;
+                }
+        }
+        rcu_read_unlock();
+		if(flow != NULL) {
+			spin_lock_bh(&dcpim_epoch.sender_lock);
+			list_del_rcu(&flow->entry);
+			spin_unlock_bh(&dcpim_epoch.sender_lock);
+			synchronize_rcu();
+			sock_put(flow->sock);
+			kfree(flow);
+		}
 }
 
 /* Token */
@@ -363,7 +397,7 @@ void dcpim_epoch_init(struct dcpim_epoch *epoch) {
 	hrtimer_init(&epoch->receiver_round_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
 	epoch->sender_round_timer.function = &dcpim_sender_round_timer_handler;
 	epoch->receiver_round_timer.function = &dcpim_receiver_round_timer_handler;
-	queue_work_on(epoch->cpu, epoch->wq, &epoch->epoch_work);
+	// queue_work_on(epoch->cpu, epoch->wq, &epoch->epoch_work);
 	// epoch->epoch_timer.function = &dcpim_new_epoch;
 }
 

@@ -1026,7 +1026,6 @@ void dcpim_destroy_sock(struct sock *sk)
 	struct dcpim_sock *dsk = dcpim_sk(sk);
 	// struct inet_sock *inet = inet_sk(sk);
 	struct rcv_core_entry *entry = &rcv_core_tab.table[raw_smp_processor_id()];
-	printk("destroy dsk address: %d %p\n", refcount_read(&sk->sk_refcnt), dsk);
 	lock_sock(sk);
 	if(sk->sk_state == DCPIM_LISTEN)
 		inet_csk_listen_stop(sk);
@@ -1050,6 +1049,10 @@ void dcpim_destroy_sock(struct sock *sk)
 	if(dsk->receiver.in_pq)
 		dcpim_pq_delete(&entry->flow_q, &dsk->match_link);
 	spin_unlock_bh(&entry->lock);
+	if(sk->sk_priority != 7) {
+		/* delete from flow matching table */
+		dcpim_remove_mat_tab(sk);
+	}
 	printk("refcount sock:%d %p\n", refcount_read(&sk->sk_refcnt), dsk);
 	// if (static_branch_unlikely(&dcpim_encap_needed_key)) {
 	// 	if (up->encap_type) {

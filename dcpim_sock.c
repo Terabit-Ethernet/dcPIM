@@ -237,8 +237,11 @@ int dcpim_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	// 	dsk->peer = dcpim_peer_find(&dcpim_peers_table, daddr, inet);
 
 	/* in-case the socket priority is 7, the socket are used for sending short flows only. */
-	if(sk->sk_priority != 7)
+	if(sk->sk_priority != 7) {
 		dcpim_xmit_control(construct_flow_sync_pkt(sk, 0, UINT_MAX, 0), sk); 
+		/* add to flow matching table */
+		dcpim_add_mat_tab(sk);
+	}
 	// dsk->total_length = flow_len;
 
 	if (err)

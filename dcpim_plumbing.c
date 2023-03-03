@@ -451,7 +451,7 @@ static int __init dcpim_load(void) {
                     status);
                 goto out_cleanup;
         }
-        // dcpim_epoch_init(&dcpim_epoch);
+        dcpim_epoch_init(&dcpim_epoch);
         /* initialize rcv_core table and xmit_core table */
         status = rcv_core_table_init(&rcv_core_tab);
         if(status != 0) {

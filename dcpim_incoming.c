@@ -749,8 +749,9 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 				if(child) {
 					dsk = dcpim_sk(child);
 					msg_sock = child;
-					printk("dsk address:%p\n", dsk);
 					if(fh->message_size == UINT_MAX) {
+						/* add to flow table */
+						dcpim_add_mat_tab(child);
 						/* this line needed to change later */
 						if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
 							hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
@@ -1259,6 +1260,7 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 			child = dcpim_conn_request(sk, skb);
 			if(child) {
 				dsk = dcpim_sk(child);
+				dcpim_add_mat_tab(child);
 				if(fh->message_size == UINT_MAX) {
 					/* this line needed to change later */
 					if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
