@@ -507,7 +507,7 @@ out_cleanup:
         // proc_remove(metrics_dir_entry);
         if (dcpimv4_offload_end() != 0)
             printk(KERN_ERR "DCPIM couldn't stop offloads\n");
-        // dcpim_epoch_destroy(&dcpim_epoch);
+        dcpim_epoch_destroy(&dcpim_epoch);
         rcv_core_table_destory(&rcv_core_tab);
         xmit_core_table_destory(&xmit_core_tab);
         unregister_net_sysctl_table(dcpim_ctl_header);
@@ -547,7 +547,7 @@ static void __exit dcpim_unload(void) {
         if (dcpimv4_offload_end() != 0)
             printk(KERN_ERR "DCPIM couldn't stop offloads\n");
         printk("start to unload\n");
-        // dcpim_epoch_destroy(&dcpim_epoch);
+        dcpim_epoch_destroy(&dcpim_epoch);
         unregister_net_sysctl_table(dcpim_ctl_header);
         printk("unregister sysctl table\n");
         rcv_core_table_destory(&rcv_core_tab);

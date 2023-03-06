@@ -310,14 +310,16 @@ struct dcpim_epoch {
 	int max_array_size;
 	// __be32 match_src_addr;
 	// __be32 match_dst_addr;
-	struct dcpim_flow** cur_matched_arr;
-	struct dcpim_flow** next_matched_arr;
+	struct dcpim_sock** cur_matched_arr;
+	struct dcpim_sock** next_matched_arr;
 	int cur_matched_flows;
 	int next_matched_flows;
-	spinlock_t lock;
+	spinlock_t list_lock;
+	spinlock_t matched_lock;
 
 	spinlock_t receiver_lock;
 	struct dcpim_rts *rts_array;
+	struct sk_buff** rts_skb_array;
 	atomic_t unmatched_recv_bytes;
 	atomic_t rts_size;
 	// int rts_size;
@@ -325,6 +327,8 @@ struct dcpim_epoch {
 	spinlock_t sender_lock;
 	struct list_head flow_list;
 	struct dcpim_grant *grants_array;
+	struct sk_buff** grant_skb_array;
+
 	int unmatched_sent_bytes;
 	atomic_t grant_size;
 	// int grant_size;
@@ -591,6 +595,7 @@ struct dcpim_sock {
 		atomic_t inflight_bytes;
 		struct hrtimer token_pace_timer;
 		// atomic_t matched_bw;
+		unsigned long next_pacing_rate;
 		/* protected by bh_lock_sock */
 		struct list_head message_backlog;
 		/* protected by user socket lock */

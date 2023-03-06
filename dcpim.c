@@ -529,7 +529,9 @@ int dcpim_init_sock(struct sock *sk)
 	atomic_set(&dsk->receiver.backlog_len, 0);
 	atomic_set(&dsk->receiver.inflight_bytes, 0);
 	// atomic_set(&dsk->receiver.matched_bw, 100);
-	WRITE_ONCE(sk->sk_max_pacing_rate, 1E11 / 8); // bytes per second
+	WRITE_ONCE(sk->sk_max_pacing_rate, 0); // bytes per second
+	WRITE_ONCE(dsk->receiver.next_pacing_rate, 0); // bytes per second
+
 	// dsk->start_time = ktime_get();
 	hrtimer_init(&dsk->receiver.token_pace_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
 	dsk->receiver.token_pace_timer.function = &dcpim_xmit_token_handler;
@@ -998,16 +1000,13 @@ int dcpim_rcv(struct sk_buff *skb)
 		return dcpim_handle_fin_pkt(skb);
 	} else if (dh->type == ACK) {
 		return dcpim_handle_ack_pkt(skb);
-	} 
-	else if (dh->type == RTS) {
-		printk("receive rts\n");
+	} else if (dh->type == RTS) {
+		return dcpim_handle_rts(skb, &dcpim_epoch);
+	} else if (dh->type == GRANT) {
+		return dcpim_handle_grant(skb, &dcpim_epoch);
+	} else if (dh->type == ACCEPT) {
+		return dcpim_handle_accept(skb, &dcpim_epoch);
 	}
-		// 	return dcpim_handle_rts(skb, &dcpim_match_table, &dcpim_epoch);
-	// } else if (dh->type == GRANT) {
-	// 	return dcpim_handle_grant(skb, &dcpim_match_table, &dcpim_epoch);
-	// } else if (dh->type == ACCEPT) {
-	// 	return dcpim_handle_accept(skb, &dcpim_match_table, &dcpim_epoch);
-	// }
 
 
 drop:

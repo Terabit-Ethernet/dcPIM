@@ -55,7 +55,7 @@ struct dcpim_epoch* create_epoch(void) {
 	// current epoch and address
 	epoch->cur_epoch = 0;
 	epoch->cpu = 28;
-	spin_lock_init(&epoch->lock);
+	// spin_lock_init(&epoch->lock);
 	spin_lock_init(&epoch->sender_lock);
 	spin_lock_init(&epoch->receiver_lock);
 	epoch->rts_array = kmalloc(sizeof(struct dcpim_rts) * epoch->max_array_size, GFP_KERNEL);
