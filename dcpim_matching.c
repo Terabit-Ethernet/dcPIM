@@ -553,7 +553,8 @@ int dcpim_handle_rts (struct sk_buff *skb, struct dcpim_epoch *epoch) {
 	// if(!sk)
 	// 	goto drop;
 	spin_lock(&epoch->receiver_lock);
-	rts_index = atomic_inc_return(&epoch->rts_size);
+	rts_index = atomic_inc_return(&epoch->rts_size) - 1;
+	// printk("rts_index:%d\n", rts_index);
 	// iph = ip_hdr(skb);
 	if(rts_index <= epoch->max_array_size) {
 		rts = &epoch->rts_array[rts_index];
@@ -565,6 +566,7 @@ int dcpim_handle_rts (struct sk_buff *skb, struct dcpim_epoch *epoch) {
 		// smp_wmb();
 		WRITE_ONCE(rts->epoch, READ_ONCE(epoch->epoch));
 		WRITE_ONCE(rts->round, READ_ONCE(epoch->round));
+		// printk("receive rts:%llu %d %d %d\n", rts->epoch, rts->round, rts->remaining_sz, rts_index);
 		if(temp != NULL)
 			kfree_skb(temp);
 		spin_unlock(&epoch->receiver_lock);
@@ -626,7 +628,7 @@ void dcpim_handle_all_rts(struct dcpim_epoch *epoch) {
 		if(READ_ONCE(rts->epoch) != READ_ONCE(epoch->epoch) || READ_ONCE(rts->round) != READ_ONCE(epoch->round)) {
 			remaining_rts_size -= 1;
 			// rts->remaining_sz = 0;
-			// printk("rts->epoch: %llu epoch->epoch: %llu \n", rts->epoch, READ_ONCE(epoch->epoch));
+			// printk("rts->epoch: %llu epoch->epoch: %llu index:%d rts_size:%d \n", rts->epoch, READ_ONCE(epoch->epoch), index, rts_size);
 			// printk("rts->round: %u epoch->round: %u \n", rts->round, READ_ONCE(epoch->round));
 			// WARN_ON(true);
 			continue;
@@ -636,13 +638,14 @@ void dcpim_handle_all_rts(struct dcpim_epoch *epoch) {
 		}	
 		// printk("index:%d, rts->remaning_sz:%d, remaining_rts_size:%d unmatched_recv_bytes:%d recv_bytes:%d, rts->epoch:%llu, rts->round:%u \n",
 			// index, rts->remaining_sz, remaining_rts_size, unmatched_recv_bytes, recv_bytes, rts->epoch, rts->round);
-		cur_recv_bytes = max(rts->remaining_sz, epoch->epoch_bytes_per_k);
-		// printk("send accept pkt:%d\n", __LINE__);
-		cur_recv_bytes = min(unmatched_recv_bytes - recv_bytes, 
-			(cur_recv_bytes / epoch->epoch_bytes_per_k) * epoch->epoch_bytes_per_k);
+		cur_recv_bytes = rts->remaining_sz;
+		if(cur_recv_bytes  % epoch->epoch_bytes_per_k != 0)
+			cur_recv_bytes = (cur_recv_bytes / epoch->epoch_bytes_per_k + 1) * epoch->epoch_bytes_per_k;
+		cur_recv_bytes = min(unmatched_recv_bytes - recv_bytes, cur_recv_bytes);
 		// dcpim_xmit_control(construct_grant_pkt((struct sock*)rts->dsk, 
 		// 	epoch->round, epoch->epoch, min(rts->remaining_sz, cur_recv_bytes), 0), (struct sock*)rts->dsk);
 		dcpim_modify_ctrl_pkt_size(rts->skb, min(rts->remaining_sz, cur_recv_bytes));
+		// printk("epoch:%llu, round:%d, cur_recv_bytes:%d, remaining_rts_size:%d, rts->remaining_sz:%d\n",epoch->epoch, epoch->round,  cur_recv_bytes, remaining_rts_size, rts->remaining_sz);
 		epoch->rts_skb_array[cur_k] = rts->skb;
 		cur_k += 1;
 		rts->skb = NULL;
@@ -650,6 +653,8 @@ void dcpim_handle_all_rts(struct dcpim_epoch *epoch) {
 		rts->remaining_sz -= cur_recv_bytes;
 		if(rts->remaining_sz <= 0)
 			remaining_rts_size -= 1;
+		// printk("rts->remaining_sz:%d, unmatched_recv_bytes:%d recv_bytes:%d remaining_rts_size:%d \n", rts->remaining_sz, unmatched_recv_bytes, recv_bytes, remaining_rts_size);
+
 	}
 	atomic_set(&epoch->rts_size, 0);
 	spin_unlock_bh(&epoch->receiver_lock);
@@ -691,8 +696,8 @@ int dcpim_handle_grant(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 	// INIT_LIST_HEAD(&grant->entry);
 	// iph = ip_hdr(skb);
 	spin_lock(&epoch->sender_lock);
-	grant_index = atomic_inc_return(&epoch->grant_size);
-	printk("receive grant\n");
+	grant_index = atomic_inc_return(&epoch->grant_size) - 1;
+	// printk("receive grant\n");
 
 	if(grant_index <= epoch->max_array_size) {
 		grant = &epoch->grants_array[grant_index - 1];
@@ -767,10 +772,11 @@ void dcpim_handle_all_grants(struct dcpim_epoch *epoch) {
 		if (grant->remaining_sz <= 0) {
 			continue;
 		}
-		cur_sent_bytes = max(grant->remaining_sz, epoch->epoch_bytes_per_k);
+		cur_sent_bytes = grant->remaining_sz;
+		if(cur_sent_bytes % epoch->epoch_bytes_per_k != 0) 
+			cur_sent_bytes = (cur_sent_bytes / epoch->epoch_bytes_per_k + 1) * epoch->epoch_bytes_per_k;
+		cur_sent_bytes = min(epoch->unmatched_sent_bytes - sent_bytes, cur_sent_bytes);
 		// printk("send accept pkt:%d\n", __LINE__);
-		cur_sent_bytes = min(epoch->unmatched_sent_bytes - sent_bytes, 
-			(cur_sent_bytes / epoch->epoch_bytes_per_k) * epoch->epoch_bytes_per_k);
 		/*construct accept pkt */
 		// skb = construct_accept_pkt((struct sock*)grant->dsk, epoch->round, epoch->epoch, 
 		// 	min(grant->remaining_sz, cur_sent_bytes));
