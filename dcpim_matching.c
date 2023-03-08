@@ -625,14 +625,14 @@ void dcpim_handle_all_rts(struct dcpim_epoch *epoch) {
 			break;
 		index = get_random_u32() % rts_size;
 		rts = &epoch->rts_array[index];
-		if(READ_ONCE(rts->epoch) != READ_ONCE(epoch->epoch) || READ_ONCE(rts->round) != READ_ONCE(epoch->round)) {
-			remaining_rts_size -= 1;
-			// rts->remaining_sz = 0;
-			// printk("rts->epoch: %llu epoch->epoch: %llu index:%d rts_size:%d \n", rts->epoch, READ_ONCE(epoch->epoch), index, rts_size);
-			// printk("rts->round: %u epoch->round: %u \n", rts->round, READ_ONCE(epoch->round));
-			// WARN_ON(true);
-			continue;
-		}
+		// if(READ_ONCE(rts->epoch) != READ_ONCE(epoch->epoch)) {
+		// 	remaining_rts_size -= 1;
+		// 	// rts->remaining_sz = 0;
+		// 	// printk("rts->epoch: %llu epoch->epoch: %llu index:%d rts_size:%d \n", rts->epoch, READ_ONCE(epoch->epoch), index, rts_size);
+		// 	// printk("rts->round: %u epoch->round: %u \n", rts->round, READ_ONCE(epoch->round));
+		// 	// WARN_ON(true);
+		// 	continue;
+		// }
 		if(rts->remaining_sz <= 0) {
 			continue;
 		}	
@@ -700,7 +700,7 @@ int dcpim_handle_grant(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 	// printk("receive grant\n");
 
 	if(grant_index <= epoch->max_array_size) {
-		grant = &epoch->grants_array[grant_index - 1];
+		grant = &epoch->grants_array[grant_index ];
 		grant->remaining_sz = gh->remaining_sz;
 		// epoch->grants_array[grant_index - 1].dsk = dcpim_sk(sk);
 		// ether_addr_copy(grant->h_dest, ethhdr->h_source);
@@ -763,12 +763,12 @@ void dcpim_handle_all_grants(struct dcpim_epoch *epoch) {
 		if(remaining_grant_size <= 0 || epoch->unmatched_sent_bytes <= sent_bytes)
 			break;
 		grant = &epoch->grants_array[get_random_u32() % grant_size];
-		if(READ_ONCE(grant->epoch) != READ_ONCE(epoch->epoch) || READ_ONCE(grant->round) != READ_ONCE(epoch->round)) {
-			remaining_grant_size -= 1;
-			// grant->remaining_sz = 0;
-			// WARN_ON(true);
-			continue;
-		}
+		// if(READ_ONCE(grant->epoch) != READ_ONCE(epoch->epoch) || READ_ONCE(grant->round) != READ_ONCE(epoch->round)) {
+		// 	remaining_grant_size -= 1;
+		// 	// grant->remaining_sz = 0;
+		// 	// WARN_ON(true);
+		// 	continue;
+		// }
 		if (grant->remaining_sz <= 0) {
 			continue;
 		}
