@@ -7,6 +7,7 @@
 
 struct dcpim_sock* fake_sk;
 
+int count = 0;
 static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 	int i = 0;
 	unsigned long max_pacing_rate = 0;
@@ -27,10 +28,9 @@ static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 	}
 	for (i = 0; i < epoch->next_matched_flows; i++) {
 		dsk = epoch->next_matched_arr[i];
-		max_pacing_rate = dcpim_params.bandwidth * dsk->receiver.next_pacing_rate / epoch->epoch_bytes * 1000000000 / 8; // bytes per second
+		max_pacing_rate = dsk->receiver.next_pacing_rate; // bytes per second
 		// optval = KERNEL_SOCKPTR(&max_pacing_rate);
 		WRITE_ONCE(((struct sock*)dsk)->sk_max_pacing_rate, max_pacing_rate);
-
 		// sock_setsockopt(((struct sock*)dsk)->sk_socket, SOL_SOCKET,
 		// 			SO_MAX_PACING_RATE, optval, sizeof(max_pacing_rate));
 		// hrtimer_start(&dsk->receiver.token_pace_timer,
@@ -595,7 +595,6 @@ drop:
 	return 0;
 }
 
-
 void dcpim_handle_all_rts(struct dcpim_epoch *epoch) {
 	struct dcpim_rts *rts;
 	int recv_bytes = 0;
@@ -619,7 +618,6 @@ void dcpim_handle_all_rts(struct dcpim_epoch *epoch) {
 	// 			iter, epoch->epoch, epoch->min_rts->remaining_sz, epoch->cur_match_dst_addr == 0), 
 	// 			epoch->min_rts->peer, epoch->sock->sk, dcpim_params.match_socket_port);	
 	// 	} else {
-	
 	while(1) {
 		if(remaining_rts_size <= 0 || unmatched_recv_bytes <= recv_bytes)
 			break;
