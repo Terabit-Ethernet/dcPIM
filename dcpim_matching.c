@@ -372,7 +372,7 @@ void dcpim_epoch_init(struct dcpim_epoch *epoch) {
 	epoch->cur_epoch = 0;
 	// epoch->cur_match_src_addr = 0;
 	// epoch->cur_match_dst_addr = 0;
-	epoch->cpu = 28;
+	epoch->cpu = 60;
 	// ret = sock_create(AF_INET, SOCK_DGRAM, IPPROTO_DCPIM, &epoch->sock);
 	// inet = inet_sk(epoch->sock->sk);
 	// peer =  dcpim_peer_find(&dcpim_peers_table, 167772169, inet);
