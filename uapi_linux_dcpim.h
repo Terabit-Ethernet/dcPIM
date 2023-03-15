@@ -187,13 +187,13 @@ enum {
 	SKB_GSO_DCPIM_L4 = 1 << 20,
 };
 
-#define SOL_DCPIM 18
+#define SOL_DCPIM 0xFE
 // #define SOL_DCPIMLITE 19
 
 /* DCPIM's protocol number within the IP protocol space (this is not an
  * officially allocated slot).
  */
-#define IPPROTO_DCPIM 18
+#define IPPROTO_DCPIM 0xFE
 // #define IPPROTO_DCPIMLITE 19
 
 /* DCPIM socket options */
