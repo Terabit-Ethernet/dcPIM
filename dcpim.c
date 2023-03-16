@@ -1025,12 +1025,22 @@ void dcpim_destroy_sock(struct sock *sk)
 	struct dcpim_sock *dsk = dcpim_sk(sk);
 	// struct inet_sock *inet = inet_sk(sk);
 	struct rcv_core_entry *entry = &rcv_core_tab.table[raw_smp_processor_id()];
+	if(sk->sk_priority != 7) {
+		/* delete from flow matching table */
+		dcpim_remove_mat_tab(sk);
+	}
+	
+	local_bh_disable();
+	bh_lock_sock(sk);
+	dcpim_set_state(sk, DCPIM_CLOSE);
+	bh_unlock_sock(sk);
+	local_bh_enable();
+
 	lock_sock(sk);
 	if(sk->sk_state == DCPIM_LISTEN)
 		inet_csk_listen_stop(sk);
 	// hrtimer_cancel(&up->receiver.flow_wait_timer);
 	// if(sk->sk_state == DCPIM_ESTABLISHED) {
-	dcpim_set_state(sk, DCPIM_CLOSE);
 	if(hrtimer_cancel(&dsk->receiver.token_pace_timer)) {
 		printk(" cancel hrtimer at:%d\n", __LINE__);	
 		// __sock_put(sk);
@@ -1048,10 +1058,7 @@ void dcpim_destroy_sock(struct sock *sk)
 	if(dsk->receiver.in_pq)
 		dcpim_pq_delete(&entry->flow_q, &dsk->match_link);
 	spin_unlock_bh(&entry->lock);
-	if(sk->sk_priority != 7) {
-		/* delete from flow matching table */
-		dcpim_remove_mat_tab(sk);
-	}
+
 	printk("refcount sock:%d %p\n", refcount_read(&sk->sk_refcnt), dsk);
 	// if (static_branch_unlikely(&dcpim_encap_needed_key)) {
 	// 	if (up->encap_type) {

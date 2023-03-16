@@ -14,6 +14,7 @@ static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 	struct dcpim_sock **temp_arr;
 	struct dcpim_sock *dsk;
 	sockptr_t optval;
+	struct sock* sk;
 	spin_lock_bh(&epoch->matched_lock);
 	for (i = 0; i < epoch->cur_matched_flows; i++) {
 		dsk = epoch->cur_matched_arr[i];
@@ -25,22 +26,28 @@ static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 			// 			SO_MAX_PACING_RATE, optval, sizeof(max_pacing_rate));
 			// flow->cur_matched_bytes = 0;
 		}
+		sock_put((struct sock*)dsk);
 	}
 	for (i = 0; i < epoch->next_matched_flows; i++) {
 		dsk = epoch->next_matched_arr[i];
+		sk = (struct sock*)dsk;
 		max_pacing_rate = dsk->receiver.next_pacing_rate; // bytes per second
 		// optval = KERNEL_SOCKPTR(&max_pacing_rate);
-		WRITE_ONCE(((struct sock*)dsk)->sk_max_pacing_rate, max_pacing_rate);
+		WRITE_ONCE(sk->sk_max_pacing_rate, max_pacing_rate);
 		// sock_setsockopt(((struct sock*)dsk)->sk_socket, SOL_SOCKET,
 		// 			SO_MAX_PACING_RATE, optval, sizeof(max_pacing_rate));
 		// hrtimer_start(&dsk->receiver.token_pace_timer,
 		// 	0, HRTIMER_MODE_REL_PINNED_SOFT);
 		// flow->cur_matched_bytes = flow->next_matched_bytes; 
-		if (!test_and_set_bit(DCPIM_TOKEN_TIMER_DEFERRED, &((struct sock*)dsk)->sk_tsq_flags)) {
-			sock_hold((struct sock*)dsk);
+		bh_lock_sock(sk);
+		if(sk->sk_state == DCPIM_ESTABLISHED){
+			if (!test_and_set_bit(DCPIM_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
+				sock_hold(sk);
+			}
+			sk->sk_data_ready(sk);
 		}
-		((struct sock*)dsk)->sk_data_ready((struct sock*)dsk);
 		dsk->receiver.next_pacing_rate = 0;
+		bh_unlock_sock(sk);
 	}
 	/* swap two arrays */
 	temp_arr = epoch->cur_matched_arr;
@@ -510,6 +517,7 @@ void dcpim_send_all_rts (struct dcpim_epoch* epoch) {
 							WARN_ON(true);
 							kfree_skb(skb);
 						}
+						// __ip_queue_xmit(ftemp->sock, skb, &inet->cork.fl, IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL);
 					}
 			}
 	}
@@ -855,6 +863,7 @@ int dcpim_handle_accept(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 			dsk->receiver.next_pacing_rate = dcpim_params.bandwidth * ah->remaining_sz / epoch->epoch_bytes * 1000000000 / 8; 
 			epoch->next_matched_arr[epoch->next_matched_flows] = dsk;
 			epoch->next_matched_flows += 1;
+			sock_hold(sk);
 			spin_unlock(&epoch->matched_lock);
 			// max_pacing_rate = dcpim_params.bandwidth * ah->remaining_sz / epoch->epoch_bytes;
 			// optval = KERNEL_SOCKPTR(&max_pacing_rate);
