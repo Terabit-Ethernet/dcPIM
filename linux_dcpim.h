@@ -380,7 +380,7 @@ struct dcpim_rts {
 };
 struct dcpim_grant {
     // bool prompt;
-    // struct dcpim_sock *dsk;
+    struct dcpim_sock *dsk;
 	uint64_t epoch;
 	uint32_t round;
     int remaining_sz;
@@ -553,6 +553,9 @@ struct dcpim_sock {
 	    int remaining_pkts_at_sender;
    		uint32_t num_sacks;
 		struct dcpim_sack_block selective_acks[16]; /* The SACKS themselves*/
+
+		/* Below protected by epoch->sender_lock */
+		atomic_t matched;
 		/* DCPIM metric */
 	    // uint64_t first_byte_send_time;
 	    // uint64_t start_time;

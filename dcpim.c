@@ -507,6 +507,7 @@ int dcpim_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->sender.snd_una, 0);
 	WRITE_ONCE(dsk->sender.remaining_pkts_at_sender, 0);
 
+	atomic_set(&dsk->sender.matched, 1);
 	INIT_LIST_HEAD(&dsk->match_link);
 	WRITE_ONCE(dsk->receiver.finished_at_receiver, false);
 	WRITE_ONCE(dsk->receiver.flow_finish_wait, false);
