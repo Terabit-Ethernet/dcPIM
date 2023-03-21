@@ -64,6 +64,7 @@ static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 	epoch->next_matched_arr = temp_arr;
 	epoch->cur_matched_flows = epoch->next_matched_flows;
 	epoch->next_matched_flows = 0;
+	atomic_set(&epoch->unmatched_recv_bytes, epoch->epoch_bytes);
 	spin_unlock_bh(&epoch->matched_lock);
 
 }
@@ -116,7 +117,6 @@ static void sender_matching_handler(struct work_struct *work) {
 		WRITE_ONCE(epoch->unmatched_sent_bytes, epoch->epoch_bytes);
 		// spin_unlock_bh(&epoch->sender_lock);
 		// spin_lock_bh(&epoch->receiver_lock);
-		atomic_set(&epoch->unmatched_recv_bytes, epoch->epoch_bytes);
 		/* update flow rate */
 		dcpim_update_flows_rate(epoch);
 		// spin_unlock_bh(&epoch->receiver_lock);
@@ -454,6 +454,10 @@ void dcpim_epoch_destroy(struct dcpim_epoch *epoch) {
 		if(epoch->grants_array[i].skb != NULL) {
 			kfree_skb(epoch->grants_array[i].skb);
 			epoch->grants_array[i].skb = NULL;
+		}
+		if(epoch->grants_array[i].dsk != NULL) {
+			sock_put((struct sock*)epoch->grants_array[i].dsk);
+			epoch->grants_array[i].dsk = NULL;
 		}
 	}
 	kfree(epoch->grants_array);
@@ -822,10 +826,15 @@ void dcpim_handle_all_grants(struct dcpim_epoch *epoch) {
 			remaining_grant_size -= 1;
 			continue;
 		}
-		cur_sent_bytes = grant->remaining_sz;
-		if(cur_sent_bytes % epoch->epoch_bytes_per_k != 0) 
-			cur_sent_bytes = (cur_sent_bytes / epoch->epoch_bytes_per_k + 1) * epoch->epoch_bytes_per_k;
-		cur_sent_bytes = min(epoch->unmatched_sent_bytes - sent_bytes, cur_sent_bytes);
+		if(grant_size >= epoch->k) {
+			/* fast path: sharing the bandwidth */
+			cur_sent_bytes = epoch->epoch_bytes_per_k;
+		} else {
+			cur_sent_bytes = grant->remaining_sz;
+			if(cur_sent_bytes % epoch->epoch_bytes_per_k != 0) 
+				cur_sent_bytes = (cur_sent_bytes / epoch->epoch_bytes_per_k + 1) * epoch->epoch_bytes_per_k;
+			cur_sent_bytes = min(epoch->unmatched_sent_bytes - sent_bytes, cur_sent_bytes);
+		}
 		// printk("send accept pkt:%d\n", __LINE__);
 		/*construct accept pkt */
 		// skb = construct_accept_pkt((struct sock*)grant->dsk, epoch->round, epoch->epoch, 
@@ -847,7 +856,8 @@ void dcpim_handle_all_grants(struct dcpim_epoch *epoch) {
 		grant->skb = NULL;
 		// kfree_skb(skb);
 		sent_bytes += cur_sent_bytes;
-		grant->remaining_sz -= cur_sent_bytes;
+		// grant->remaining_sz -= cur_sent_bytes;
+		grant->remaining_sz = 0;
 		if(grant->remaining_sz <= 0) {
 			remaining_grant_size -= 1;
 		}
@@ -905,8 +915,7 @@ int dcpim_handle_accept(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 		// spin_lock_bh(&epoch->receiver_lock);
 		/* TO DO: check round number and epoch number */
 		dsk = dcpim_sk(sk);
-		value = atomic_sub_return(ah->remaining_sz, &epoch->unmatched_recv_bytes);
-		if(value >= 0) {
+		// if(value >= 0) {
 			/* To Do: check the epoch and round value after checking */
 			/* add flows */
 			// flow = dcpim_find_flow(epoch, iph->saddr, iph->daddr, ah->common.source, ah->common.dest);
@@ -914,21 +923,24 @@ int dcpim_handle_accept(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 			// 	goto drop;
 			// }
 			spin_lock(&epoch->matched_lock);
-			dsk->receiver.next_pacing_rate = dcpim_params.bandwidth * ah->remaining_sz / epoch->epoch_bytes * 1000000000 / 8; 
-			// if(epoch->epoch % 10000 == 0)
-			// 	printk("dsk:%p ah->remaining_sz: %u %lu\n", dsk, ah->remaining_sz, dsk->receiver.next_pacing_rate );
-			epoch->next_matched_arr[epoch->next_matched_flows] = dsk;
-			epoch->next_matched_flows += 1;
-			sock_hold(sk);
+			value = atomic_sub_return(ah->remaining_sz, &epoch->unmatched_recv_bytes);
+			if(value >= 0 && epoch->next_matched_flows < epoch->k) {
+				dsk->receiver.next_pacing_rate = dcpim_params.bandwidth * ah->remaining_sz / epoch->epoch_bytes * 1000000000 / 8; 
+				// if(epoch->epoch % 10000 == 0)
+				// 	printk("dsk:%p ah->remaining_sz: %u %lu\n", dsk, ah->remaining_sz, dsk->receiver.next_pacing_rate );
+				epoch->next_matched_arr[epoch->next_matched_flows] = dsk;
+				epoch->next_matched_flows += 1;
+				sock_hold(sk);
+			}
 			spin_unlock(&epoch->matched_lock);
 			// max_pacing_rate = dcpim_params.bandwidth * ah->remaining_sz / epoch->epoch_bytes;
 			// optval = KERNEL_SOCKPTR(&max_pacing_rate);
 			// sock_setsockopt(sk->sk_socket, SOL_SOCKET,
 			// 			SO_MAX_PACING_RATE, optval, sizeof(max_pacing_rate));
-		} else {
-			/* TO DO: send reverse accept packet if needed */
-			/* Add statistic counting here */
-		}
+		// } else {
+		// 	/* TO DO: send reverse accept packet if needed */
+		// 	/* Add statistic counting here */
+		// }
 	}
 
 	// spin_unlock_bh(&epoch->receiver_lock);
