@@ -321,7 +321,7 @@ struct dcpim_epoch {
 	struct dcpim_rts *rts_array;
 	struct sk_buff** rts_skb_array;
 	atomic_t unmatched_recv_bytes;
-	atomic_t rts_size;
+	int rts_size;
 	// int rts_size;
 
 	spinlock_t sender_lock;
@@ -330,7 +330,7 @@ struct dcpim_epoch {
 	struct sk_buff** grant_skb_array;
 
 	int unmatched_sent_bytes;
-	atomic_t grant_size;
+	int grant_size;
 	// int grant_size;
 
 	int epoch_bytes_per_k;
@@ -370,11 +370,12 @@ struct dcpim_epoch {
 
 // dcpim matching logic data structure
 struct dcpim_rts {
-    // struct dcpim_sock *dsk;
+    struct dcpim_sock *dsk;
 	uint64_t epoch;
 	uint32_t round;
     int remaining_sz;
-	struct sk_buff *skb;
+	int skb_size;
+	struct sk_buff **skb_arr;
  	// struct list_head entry;
 	// struct llist_node lentry;
 };
@@ -384,16 +385,17 @@ struct dcpim_grant {
 	uint64_t epoch;
 	uint32_t round;
     int remaining_sz;
-	struct sk_buff *skb;
+	int skb_size;
+	struct sk_buff **skb_arr;
 	/* ether hdr */
 	// unsigned char	h_dest[ETH_ALEN];	/* destination eth addr	*/
 	// unsigned char	h_source[ETH_ALEN];	/* source ether addr	*/
 	/* ip hdr */
-	__be32 saddr;
-	__be32 daddr;
+	// __be32 saddr;
+	// __be32 daddr;
 	/* tcp port number */
-	__be16 sport;
-	__be16 dport;
+	// __be16 sport;
+	// __be16 dport;
 	// struct list_head entry;
 	// struct llist_node lentry;
 };
@@ -555,7 +557,9 @@ struct dcpim_sock {
 		struct dcpim_sack_block selective_acks[16]; /* The SACKS themselves*/
 
 		/* Below protected by epoch->sender_lock */
-		atomic_t matched;
+		int next_matched_bytes;
+		int grant_index;
+		struct dcpim_grant* grant;
 		/* DCPIM metric */
 	    // uint64_t first_byte_send_time;
 	    // uint64_t start_time;
@@ -598,12 +602,19 @@ struct dcpim_sock {
 		atomic_t inflight_bytes;
 		struct hrtimer token_pace_timer;
 		// atomic_t matched_bw;
-		unsigned long next_pacing_rate;
 		/* protected by bh_lock_sock */
 		struct list_head message_backlog;
 		/* protected by user socket lock */
 		struct list_head message_list;
 		// struct work_struct token_xmit_struct;
+
+		/* protected by epoch->matched_lock */
+		unsigned long next_pacing_rate;
+
+		/* proteced by epoch->receiver_lock */
+		int rts_index;
+		struct dcpim_rts* rts;
+
     } receiver;
 
 

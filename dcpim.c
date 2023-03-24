@@ -507,7 +507,9 @@ int dcpim_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->sender.snd_una, 0);
 	WRITE_ONCE(dsk->sender.remaining_pkts_at_sender, 0);
 
-	atomic_set(&dsk->sender.matched, 1);
+	WRITE_ONCE(dsk->sender.next_matched_bytes, 0);
+	WRITE_ONCE(dsk->sender.grant, NULL);
+	WRITE_ONCE(dsk->sender.grant_index, -1);
 	INIT_LIST_HEAD(&dsk->match_link);
 	WRITE_ONCE(dsk->receiver.finished_at_receiver, false);
 	WRITE_ONCE(dsk->receiver.flow_finish_wait, false);
@@ -523,6 +525,9 @@ int dcpim_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.prev_token_nxt, 0);
 	WRITE_ONCE(dsk->receiver.token_nxt, 0);
 	WRITE_ONCE(dsk->receiver.max_congestion_win, 5 * dcpim_params.control_pkt_bdp);
+	WRITE_ONCE(dsk->receiver.rts, NULL);
+	WRITE_ONCE(dsk->receiver.rts_index, -1);
+
 	// INIT_LIST_HEAD(&dsk->reciever.);
 
 	/* token batch 64KB */
