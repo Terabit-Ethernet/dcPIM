@@ -477,14 +477,19 @@ struct dst_entry *dcpim_sk_route_child_sock(const struct sock *sk,
 					    const struct request_sock *req)
 {
 	const struct inet_request_sock *ireq = inet_rsk(req);
+	printk("reach to ireq is null:%d %p \n", ireq == NULL, ireq);
 	struct net *net = read_pnet(&ireq->ireq_net);
+	printk("reach to net is null:%d %p \n", net == NULL, ireq);
+
 	struct inet_sock *newinet = inet_sk(newsk);
 	struct ip_options_rcu *opt;
 	struct flowi4 *fl4;
 	struct rtable *rt;
 
 	opt = rcu_dereference(ireq->ireq_opt);
+	printk("reach to fl4 opt is null:%d %p \n", opt == NULL, opt);
 	fl4 = &newinet->cork.fl.u.ip4;
+	printk("fl4 is null:%d %p \n", fl4 == NULL, fl4);
 
 	flowi4_init_output(fl4, ireq->ir_iif, ireq->ir_mark,
 			   RT_CONN_FLAGS(sk), RT_SCOPE_UNIVERSE,
@@ -492,9 +497,10 @@ struct dst_entry *dcpim_sk_route_child_sock(const struct sock *sk,
 			   (opt && opt->opt.srr) ? opt->opt.faddr : ireq->ir_rmt_addr,
 			   ireq->ir_loc_addr, ireq->ir_rmt_port,
 			   htons(ireq->ir_num), sk->sk_uid);
-
+	printk("finish init output\n");
 	security_req_classify_flow(req, flowi4_to_flowi_common(fl4));
 	rt = ip_route_output_flow(net, fl4, sk);
+	printk("finish ip route output output\n");
 
 	if (IS_ERR(rt))
 		goto no_route;
@@ -544,7 +550,7 @@ struct sock *dcpim_create_con_sock(struct sock *sk, struct sk_buff *skb,
 	if (!newsk)
 		goto exit_nonewsk;
  	if(!dst) {
- 		dst = inet_csk_route_child_sock(sk, newsk, req);
+ 		dst = dcpim_sk_route_child_sock(sk, newsk, req);
 	    if (!dst)
 	        goto put_and_exit;
  	}
