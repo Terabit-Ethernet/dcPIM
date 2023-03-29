@@ -214,6 +214,8 @@ static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 				break;
 			if(total_flows >= epoch->max_array_size)
 				break;
+			if(host->next_pacing_rate == 0)
+				break;
 			max_pacing_rate = min(epoch->max_pacing_rate_per_flow, host->next_pacing_rate);
 			WRITE_ONCE(((struct sock*)dsk)->sk_max_pacing_rate, max_pacing_rate);
 			epoch->cur_matched_arr[total_flows] = dsk;
@@ -249,6 +251,7 @@ put_host:
 			}
 			sk->sk_data_ready(sk);
 		}
+
 		// avg_flows += epoch->next_matched_hosts;
 		// count += 1;
 		// if(epoch->epoch % 1000 == 0)
