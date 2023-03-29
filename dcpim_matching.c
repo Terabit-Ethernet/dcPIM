@@ -687,13 +687,16 @@ void dcpim_send_all_rts (struct dcpim_epoch* epoch) {
 	if(epoch->unmatched_sent_bytes > 0) {
 		rcu_read_lock();
 		list_for_each_entry_rcu(host, &epoch->host_list, entry) {
+			spin_lock_bh(&host->lock);
 			flow_size = min(epoch->unmatched_sent_bytes, atomic_read(&host->total_unsent_bytes));
 			// if(READ_ONCE(epoch->round) == 0)
-			// 	atomic_set(&(dcpim_sk)(ftemp->sock)->sender.matched, 0);
+			//      atomic_set(&(dcpim_sk)(ftemp->sock)->sender.matched, 0);
 			// /* the flow has already been matched */
 			// if(READ_ONCE(epoch->round) != 0 && atomic_read(&(dcpim_sk)(ftemp->sock)->sender.matched))
-			// 	continue;
-			if(flow_size > 0) {
+			//      continue;
+			if(flow_size > 0 && host->sk == NULL)
+				WARN_ON_ONCE(true);
+			if(flow_size > 0 && host->sk != NULL) {
 				for(i = 0; i < epoch->k; i++) {
 					rts_size = min(epoch->epoch_bytes_per_k, flow_size);
 					inet = inet_sk(host->sk);
@@ -702,15 +705,16 @@ void dcpim_send_all_rts (struct dcpim_epoch* epoch) {
 					dcpim_fill_dst_entry(host->sk, skb,&inet->cork.fl);
 					dcpim_fill_ip_header(skb, host->src_ip, host->dst_ip);
 					if(ip_local_out(sock_net(host->sk), host->sk, skb) > 0) {
-						WARN_ON(true);
-						kfree_skb(skb);
+							WARN_ON(true);
+							kfree_skb(skb);
 					}
 					flow_size -= rts_size;
 					if(flow_size <= 0)
-						break;
-				} 
-				// __ip_queue_xmit(ftemp->sock, skb, &inet->cork.fl, IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL);
+							break;
+				}
+					// __ip_queue_xmit(ftemp->sock, skb, &inet->cork.fl, IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL);
 			}
+			spin_unlock_bh(&host->lock);
 		}
 		rcu_read_unlock();
 	}
