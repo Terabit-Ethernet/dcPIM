@@ -707,9 +707,6 @@ void dcpim_send_all_rts (struct dcpim_epoch* epoch) {
 						break;
 				} 
 				// __ip_queue_xmit(ftemp->sock, skb, &inet->cork.fl, IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL);
-			} else {
-				if(epoch->epoch % 10000 == 0)
-					printk("epoch->epoch:%d\n", flow_size);
 			}
 		}
 		rcu_read_unlock();
