@@ -7,9 +7,6 @@
 
 struct dcpim_sock* fake_sk;
 
-uint64_t count = 0;
-uint64_t avg_flows = 0;
-
 u32 dcpim_host_hash(struct dcpim_host *host) {
 	return hash_64(((u64)(host->src_ip) << 32) + (u64)(host->dst_ip), DCPIM_MATCH_DEFAULT_HOST_BITS);
 }
@@ -171,6 +168,8 @@ void dcpim_remove_mat_tab(struct dcpim_epoch *epoch, struct sock *sk) {
 	}
 }
 
+uint64_t test_pacing_rate = 0;
+uint64_t test_count = 0;
 static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 	int i = 0, j = 0;
 	int total_flows = 0;
@@ -200,6 +199,10 @@ static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 		// optval = KERNEL_SOCKPTR(&max_pacing_rate);
 		if(host->next_pacing_rate == 0)
 			goto put_host;
+		test_pacing_rate += host->next_pacing_rate;
+		test_count += 1;
+		if(epoch->epoch % 100000 == 0)
+			printk("average pacing rate:%llu\n", test_pacing_rate / test_count);
 		// if((epoch->epoch - 1) % 10000 == 0)
 		// 	printk("dsk:%p, max_pacing_rate: %lu\n", dsk, max_pacing_rate);
 		// WRITE_ONCE(sk->sk_max_pacing_rate, max_pacing_rate);
@@ -530,8 +533,12 @@ void dcpim_epoch_init(struct dcpim_epoch *epoch) {
 	epoch->round_length = dcpim_params.round_length;
 	epoch->epoch_bytes_per_k = epoch->epoch_length * dcpim_params.bandwidth / 8 / epoch->k;
 	epoch->epoch_bytes = epoch->epoch_bytes_per_k * epoch->k;
+	epoch->port = 0;
+	epoch->port_range = 15;
 	/* bytes per second: 5 GB/s */
+	// epoch->max_pacing_rate_per_flow = 4375000000;
 	epoch->max_pacing_rate_per_flow = 5000000000;
+
 	// struct rte_timer epoch_timer;
 	// struct rte_timer sender_iter_timers[10];
 	// struct rte_timer receiver_iter_timers[10];
@@ -701,7 +708,7 @@ void dcpim_send_all_rts (struct dcpim_epoch* epoch) {
 					rts_size = min(epoch->epoch_bytes_per_k, flow_size);
 					inet = inet_sk(host->sk);
 					skb = construct_rts_pkt(host->sk, epoch->round, epoch->epoch, rts_size);
-					dcpim_fill_dcpim_header(skb, 0, 0);
+					dcpim_fill_dcpim_header(skb, htons(epoch->port), htons(epoch->port));
 					dcpim_fill_dst_entry(host->sk, skb,&inet->cork.fl);
 					dcpim_fill_ip_header(skb, host->src_ip, host->dst_ip);
 					if(ip_local_out(sock_net(host->sk), host->sk, skb) > 0) {
@@ -711,6 +718,7 @@ void dcpim_send_all_rts (struct dcpim_epoch* epoch) {
 					flow_size -= rts_size;
 					if(flow_size <= 0)
 							break;
+					epoch->port = (epoch->port + 1) % epoch->port_range;
 				}
 					// __ip_queue_xmit(ftemp->sock, skb, &inet->cork.fl, IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL);
 			}

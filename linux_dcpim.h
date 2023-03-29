@@ -335,6 +335,8 @@ struct dcpim_epoch {
 	uint64_t cur_epoch;
 	uint32_t round;
 	uint32_t cpu;
+	__be16 port;
+	__be16 port_range;
 	/* in ns */
 	int epoch_length;
 	/* in ns */
