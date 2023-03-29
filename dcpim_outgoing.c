@@ -114,16 +114,18 @@ void dcpim_fill_ip_header(struct sk_buff *skb, __be32 saddr, __be32 daddr) {
 
     iph->ihl = 5;
     iph->version = 4;
-    iph->tos = 0;
+    iph->tos =  iph->tos | 1;
     iph->tot_len= htons(skb->len); 
     iph->frag_off = 0; 
     iph->ttl = 64;
-    iph->protocol = IPPROTO_DCPIM;
+    // iph->protocol = IPPROTO_DCPIM;
+    iph->protocol = IPPROTO_TCP;
     iph->saddr = saddr;
     iph->daddr = daddr;
 	ip_send_check(iph);
     skb->pkt_type = PACKET_OUTGOING;
 	skb->no_fcs = 1;
+	skb->ip_summed = CHECKSUM_PARTIAL;
 }
 
 void dcpim_swap_ip_header(struct sk_buff *skb) {
@@ -132,9 +134,13 @@ void dcpim_swap_ip_header(struct sk_buff *skb) {
 	temp = iph->saddr;
     iph->saddr = iph->daddr;
     iph->daddr = temp;
+    iph->protocol = IPPROTO_TCP;
+	/* mask to identify it is dcPIM packet; hacky!! */
+	iph->tos = iph->tos | 1;
 	ip_send_check(iph);
     skb->pkt_type = PACKET_OUTGOING;
 	skb->no_fcs = 1;
+	skb->ip_summed = CHECKSUM_PARTIAL;
 }
 
 void dcpim_fill_dst_entry(struct sock *sk, struct sk_buff *skb, struct flowi *fl) {
@@ -143,8 +149,6 @@ void dcpim_fill_dst_entry(struct sock *sk, struct sk_buff *skb, struct flowi *fl
 	struct ip_options_rcu *inet_opt;
 	struct flowi4 *fl4;
 	struct rtable *rt;
-	struct iphdr *iph;
-	int res;
 
 	/* Skip all of this if the packet is already routed,
 	 * f.e. by something like SCTP.
@@ -685,6 +689,9 @@ int dcpim_fill_packets(struct sock *sk,
 	// }
 // finish:
 	WRITE_ONCE(dsk->sender.write_seq, dsk->sender.write_seq + sent_len);
+	if(dsk->host) {
+		atomic_add(sent_len, &dsk->host->total_unsent_bytes);
+	}
 	return sent_len;
 	
 error:

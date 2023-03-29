@@ -511,6 +511,9 @@ int dcpim_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->sender.grant, NULL);
 	WRITE_ONCE(dsk->sender.grant_index, -1);
 	INIT_LIST_HEAD(&dsk->match_link);
+	INIT_LIST_HEAD(&dsk->entry);
+	dsk->host = NULL;
+	dsk->in_host_table = false;
 	WRITE_ONCE(dsk->receiver.finished_at_receiver, false);
 	WRITE_ONCE(dsk->receiver.flow_finish_wait, false);
 	WRITE_ONCE(dsk->receiver.rmem_exhausted, 0);
@@ -1031,20 +1034,33 @@ void dcpim_destroy_sock(struct sock *sk)
 	struct dcpim_sock *dsk = dcpim_sk(sk);
 	// struct inet_sock *inet = inet_sk(sk);
 	struct rcv_core_entry *entry = &rcv_core_tab.table[raw_smp_processor_id()];
+	/* To Do: flip the order; now the order was a mess */
+	lock_sock(sk);
 	if(sk->sk_priority != 7) {
+		if(dsk->host)
+			atomic_sub((uint32_t)(dsk->sender.write_seq - dsk->sender.snd_una), &dsk->host->total_unsent_bytes);
 		/* delete from flow matching table */
-		dcpim_remove_mat_tab(sk);
+		dcpim_remove_mat_tab(&dcpim_epoch, sk);
 	}
-	
+	// release_sock(sk);
+
+	// local_bh_disable();
+	// bh_lock_sock(sk);
+	// dcpim_set_state(sk, DCPIM_CLOSE);
+	// bh_unlock_sock(sk);
+	// local_bh_enable();
+
+	// lock_sock(sk);
+	if(sk->sk_state == DCPIM_LISTEN)
+		inet_csk_listen_stop(sk);
+
 	local_bh_disable();
 	bh_lock_sock(sk);
+	/* need to sync with the matching side's ESTABLISHED_STATE checking */
 	dcpim_set_state(sk, DCPIM_CLOSE);
 	bh_unlock_sock(sk);
 	local_bh_enable();
-
-	lock_sock(sk);
-	if(sk->sk_state == DCPIM_LISTEN)
-		inet_csk_listen_stop(sk);
+	
 	// hrtimer_cancel(&up->receiver.flow_wait_timer);
 	// if(sk->sk_state == DCPIM_ESTABLISHED) {
 	if(hrtimer_cancel(&dsk->receiver.token_pace_timer)) {

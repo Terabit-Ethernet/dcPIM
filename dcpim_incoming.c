@@ -751,7 +751,7 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 					msg_sock = child;
 					if(fh->message_size == UINT_MAX) {
 						/* add to flow table */
-						dcpim_add_mat_tab(child);
+						dcpim_add_mat_tab(&dcpim_epoch, child);
 						/* this line needed to change later */
 						if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
 							hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
@@ -806,7 +806,7 @@ int dcpim_handle_token_pkt(struct sk_buff *skb) {
 	struct sock *sk;
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
-
+	uint32_t old_snd_una = 0;
 	if (!pskb_may_pull(skb, sizeof(struct dcpim_token_hdr))) {
 		kfree_skb(skb);
 		return 0;
@@ -818,6 +818,8 @@ int dcpim_handle_token_pkt(struct sk_buff *skb) {
  		dsk = dcpim_sk(sk);
  		bh_lock_sock(sk);
  		skb->sk = sk;
+	 	old_snd_una = dsk->sender.snd_una;
+
  		// if (!sock_owned_by_user(sk)) {
 			/* clean rtx queue */
 		/* add token */
@@ -834,6 +836,8 @@ int dcpim_handle_token_pkt(struct sk_buff *skb) {
 					dsk->sender.snd_una = th->rcv_nxt;
 				if(th->token_nxt - dsk->sender.token_seq <= sk->sk_sndbuf)
 					dsk->sender.token_seq = th->token_nxt;
+				if(dsk->host && dsk->sender.snd_una != old_snd_una)
+					atomic_sub((uint32_t)(dsk->sender.snd_una - old_snd_una), &dsk->host->total_unsent_bytes);
 				dcpim_write_timer_handler(sk);
 				dcpim_clean_rtx_queue(sk);
 			}
@@ -879,7 +883,7 @@ int dcpim_handle_ack_pkt(struct sk_buff *skb) {
 	struct sock *sk;
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
-
+	uint32_t old_snd_una = 0;
 	if (!pskb_may_pull(skb, sizeof(struct dcpim_ack_hdr))) {
 		kfree_skb(skb);		/* No space for header. */
 		return 0;
@@ -896,8 +900,11 @@ int dcpim_handle_ack_pkt(struct sk_buff *skb) {
 		dsk = dcpim_sk(sk);
 		if (!sock_owned_by_user(sk)) {
 			if(sk->sk_state == DCPIM_ESTABLISHED) {
+				old_snd_una = dsk->sender.snd_una;
 				if(ah->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
 					dsk->sender.snd_una = ah->rcv_nxt;
+				if(dsk->host && dsk->sender.snd_una != old_snd_una)
+					atomic_sub((uint32_t)(dsk->sender.snd_una - old_snd_una), &dsk->host->total_unsent_bytes);
 				dcpim_clean_rtx_queue(sk);
 			}
 			kfree_skb(skb);
@@ -1212,6 +1219,7 @@ drop:
 int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 	struct dcpimhdr* dh;
 	struct dcpim_sock *dsk = dcpim_sk(sk);
+	uint32_t old_snd_una = dsk->sender.snd_una;
 	dh = dcpim_hdr(skb);
 	atomic_sub(skb->truesize, &dsk->receiver.backlog_len);
 	/* current place to set rxhash for RFS/RPS */
@@ -1237,6 +1245,8 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 			struct dcpim_ack_hdr *ah = dcpim_ack_hdr(skb);
 			if(ah->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
 				dsk->sender.snd_una = ah->rcv_nxt;
+			if(dsk->host && dsk->sender.snd_una != old_snd_una)
+				atomic_sub((uint32_t)(dsk->sender.snd_una - old_snd_una), &dsk->host->total_unsent_bytes);
 			dcpim_clean_rtx_queue(sk);
 		}
 		else if (dh->type == TOKEN) {
@@ -1248,6 +1258,8 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 				dsk->sender.snd_una = th->rcv_nxt;
 			if(th->token_nxt - dsk->sender.token_seq <= sk->sk_sndbuf)
 				dsk->sender.token_seq = th->token_nxt;
+			if(dsk->host && dsk->sender.snd_una != old_snd_una)
+				atomic_sub((uint32_t)(dsk->sender.snd_una - old_snd_una), &dsk->host->total_unsent_bytes);
 			dcpim_write_timer_handler(sk);
 			dcpim_clean_rtx_queue(sk);
 		} 
@@ -1260,7 +1272,7 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 			child = dcpim_conn_request(sk, skb);
 			if(child) {
 				dsk = dcpim_sk(child);
-				dcpim_add_mat_tab(child);
+				dcpim_add_mat_tab(&dcpim_epoch, child);
 				if(fh->message_size == UINT_MAX) {
 					/* this line needed to change later */
 					if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {

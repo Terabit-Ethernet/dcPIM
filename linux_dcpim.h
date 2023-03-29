@@ -20,6 +20,10 @@
 
 struct dcpim_sock;
 
+#define DCPIM_MATCH_DEFAULT_HOST 256
+#define DCPIM_MATCH_DEFAULT_HOST_BITS 8
+#define DCPIM_MATCH_DEFAULT_FLOWS 256
+
 enum {
 	/* Core State */
 	DCPIM_IDLE = 1,
@@ -271,15 +275,45 @@ struct xmit_core_table {
 
 }; 
 
-struct dcpim_flow {
-	/* the sock of the corresponding flow */
-	struct sock* sock;
-	bool matched;
-	int cur_matched_bytes;
-	int next_matched_bytes;
-	struct list_head entry;
-};
+// struct dcpim_flow {
+// 	/* the sock of the corresponding flow */
+// 	struct sock* sock;
+// 	bool matched;
+// 	int cur_matched_bytes;
+// 	int next_matched_bytes;
+// 	struct list_head entry;
+// };
 
+struct dcpim_host {
+	/* key of the host */
+	__be32 src_ip;
+	__be32 dst_ip;
+	/* lock only protects flow_list, sk, num_flows and hash */
+	spinlock_t lock;
+	/* socket list */
+	struct list_head flow_list;
+	int num_flows;
+	u32 hash;
+	/* one member of socket used for sending rts */
+	struct sock* sk;
+	/* sender only */
+	atomic_t total_unsent_bytes;
+	/* receiver only: protected by matched_lock */
+	unsigned long next_pacing_rate;
+	struct hlist_node hlist;
+	/* sender only: for sending RTS */
+	struct list_head entry;
+	refcount_t refcnt;
+	/* grant_index is protected by sender_lock */
+	int grant_index;
+	/* grant is protected by sender_lock */
+	struct dcpim_grant* grant;
+	/* rts_index is protected by receiver_lock */
+	int rts_index;	
+	/* rts is protected by receiver_lock */
+	struct dcpim_rts* rts;
+
+};
 // struct dcpim_matched_flow {
 // 	/* the sock of the corresponding flow */
 // 	struct sock* sock;
@@ -311,10 +345,15 @@ struct dcpim_epoch {
 	// __be32 match_src_addr;
 	// __be32 match_dst_addr;
 	struct dcpim_sock** cur_matched_arr;
-	struct dcpim_sock** next_matched_arr;
+	struct dcpim_host** next_matched_arr;
 	int cur_matched_flows;
-	int next_matched_flows;
-	spinlock_t list_lock;
+	int next_matched_hosts;
+	unsigned long max_pacing_rate_per_flow;
+	spinlock_t table_lock;
+	struct list_head host_list;
+	/* it has DCPIM_MATCH_DEFAULT_HOST_BITS slots */
+	DECLARE_HASHTABLE(host_table, DCPIM_MATCH_DEFAULT_HOST_BITS);
+
 	spinlock_t matched_lock;
 
 	spinlock_t receiver_lock;
@@ -325,7 +364,6 @@ struct dcpim_epoch {
 	// int rts_size;
 
 	spinlock_t sender_lock;
-	struct list_head flow_list;
 	struct dcpim_grant *grants_array;
 	struct sk_buff** grant_skb_array;
 
@@ -370,7 +408,7 @@ struct dcpim_epoch {
 
 // dcpim matching logic data structure
 struct dcpim_rts {
-    struct dcpim_sock *dsk;
+    struct dcpim_host *host;
 	uint64_t epoch;
 	uint32_t round;
     int remaining_sz;
@@ -381,7 +419,7 @@ struct dcpim_rts {
 };
 struct dcpim_grant {
     // bool prompt;
-    struct dcpim_sock *dsk;
+    struct dcpim_host *host;
 	uint64_t epoch;
 	uint32_t round;
     int remaining_sz;
@@ -539,6 +577,10 @@ struct dcpim_sock {
 
     // ktime_t start_time;
 	struct list_head match_link;
+	/* protectd by dcpim_host lock */
+	struct list_head entry;
+	bool in_host_table;
+	struct dcpim_host* host;
     /* sender */
     struct dcpim_sender {
 		uint32_t token_seq;

@@ -79,46 +79,46 @@ static int dcpimdevice_release(struct inode *inode, struct file *file) {
 static long dcpimdevice_ioctl(struct file *file,
 			       unsigned int cmd,
 			       unsigned long arg) {
-        int fd = arg, err;
-        struct dcpim_flow *flow = NULL, *ftemp;
-        struct socket* sock;
-	switch(cmd) {
-                case DCPIM_ADD_FLOW:
-                        sock = sockfd_lookup(fd, &err);
-                        if(sock) {
-                                /* add socket into the flow matching table */
-                                flow = kmalloc(sizeof(struct dcpim_flow), GFP_KERNEL);
-                                flow->sock = sock->sk;
-                                sock_hold(sock->sk);
-                                INIT_LIST_HEAD(&flow->entry);
-                                spin_lock_bh(&dcpim_epoch.sender_lock);
-                                list_add_tail_rcu(&flow->entry, &dcpim_epoch.flow_list);
-                                spin_unlock_bh(&dcpim_epoch.sender_lock);
-                        }
-                        break;
-                case DCPIM_REMOVE_FLOW:
-                        sock = sockfd_lookup(fd, &err);
-                        if(sock) {
-                                rcu_read_lock();
-                                list_for_each_entry_rcu(ftemp, &dcpim_epoch.flow_list, entry) {
-                                        if(ftemp->sock == sock->sk) {
-                                                flow = ftemp;
-                                                break;
-                                        }
-                                }
-                                rcu_read_unlock();
-                                /* remove socket from the flow matching table */ 
-                                if(flow) {
-                                        spin_lock_bh(&dcpim_epoch.sender_lock);
-                                        list_del_rcu(&flow->entry);
-                                        spin_unlock_bh(&dcpim_epoch.sender_lock);
-                                        synchronize_rcu();
-                                        sock_put(flow->sock);
-                                        kfree(flow);
-                                } 
-                        }
-                        break;
-	}
+        // int fd = arg, err;
+        // struct dcpim_flow *flow = NULL, *ftemp;
+        // struct socket* sock;
+	// switch(cmd) {
+        //         case DCPIM_ADD_FLOW:
+        //                 sock = sockfd_lookup(fd, &err);
+        //                 if(sock) {
+        //                         /* add socket into the flow matching table */
+        //                         flow = kmalloc(sizeof(struct dcpim_flow), GFP_KERNEL);
+        //                         flow->sock = sock->sk;
+        //                         sock_hold(sock->sk);
+        //                         INIT_LIST_HEAD(&flow->entry);
+        //                         spin_lock_bh(&dcpim_epoch.sender_lock);
+        //                         list_add_tail_rcu(&flow->entry, &dcpim_epoch.flow_list);
+        //                         spin_unlock_bh(&dcpim_epoch.sender_lock);
+        //                 }
+        //                 break;
+        //         case DCPIM_REMOVE_FLOW:
+        //                 sock = sockfd_lookup(fd, &err);
+        //                 if(sock) {
+        //                         rcu_read_lock();
+        //                         list_for_each_entry_rcu(ftemp, &dcpim_epoch.flow_list, entry) {
+        //                                 if(ftemp->sock == sock->sk) {
+        //                                         flow = ftemp;
+        //                                         break;
+        //                                 }
+        //                         }
+        //                         rcu_read_unlock();
+        //                         /* remove socket from the flow matching table */ 
+        //                         if(flow) {
+        //                                 spin_lock_bh(&dcpim_epoch.sender_lock);
+        //                                 list_del_rcu(&flow->entry);
+        //                                 spin_unlock_bh(&dcpim_epoch.sender_lock);
+        //                                 synchronize_rcu();
+        //                                 sock_put(flow->sock);
+        //                                 kfree(flow);
+        //                         } 
+        //                 }
+        //                 break;
+	// }
 	return 0;
 }
 
