@@ -824,8 +824,8 @@ int dcpim_handle_rts (struct sk_buff *skb, struct dcpim_epoch *epoch) {
 unlock_receiver:
 	spin_unlock(&epoch->receiver_lock);
 
-	// if(temp != NULL)
-	// 	kfree_skb(temp);
+	if(temp != NULL)
+		kfree_skb(temp);
 	// rts->epoch = rh->epoch; 
 	// rts->iter = rh->iter;
 	// rts->peer = dcpim_peer_find(&dcpim_peers_table, iph->saddr, inet_sk(epoch->sock->sk));
