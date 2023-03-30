@@ -301,7 +301,8 @@ static void dcpim_v4_reqsk_destructor(struct request_sock *req)
 
         printk("call reqsk destructor\n");
         printk("ireq option is NULL:%d\n", inet_rsk(req)->ireq_opt == NULL);
-        kfree(rcu_dereference_protected(inet_rsk(req)->ireq_opt, 1));
+        if(rcu_dereference_protected(inet_rsk(req)->ireq_opt, 1))
+		kfree(rcu_dereference_protected(inet_rsk(req)->ireq_opt, 1));
 }
 
 struct request_sock_ops dcpim_request_sock_ops __read_mostly = {
