@@ -1116,6 +1116,8 @@ int main(int argc, char** argv)
 	struct addrinfo hints;
 	char *host, *port_name;
 	char buffer[1000000] = "abcdefgh\n";
+	// int cpu_list[15] = {0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56};
+	bool pin = false;
 	buffer[63999] = 'H';
 	int status;
 	int fd;
@@ -1145,7 +1147,9 @@ int main(int argc, char** argv)
 		if (strcmp(argv[nextArg], "--help") == 0) {
 			print_help(argv[0]);
 			exit(0);
-		} else if (strcmp(argv[nextArg], "--count") == 0) {
+		} else if (strcmp(argv[nextArg], "--pin") == 0) {
+			pin = true;
+        } else if (strcmp(argv[nextArg], "--count") == 0) {
 			if (nextArg == (argc-1)) {
 				printf("No value provided for %s option\n",
 					argv[nextArg]);
@@ -1182,6 +1186,13 @@ int main(int argc, char** argv)
 				argv[nextArg], argv[0]);
 			exit(1);
 		}
+	}
+	if(pin) {
+			cpu_set_t cpuset;
+			pthread_t current_thread = pthread_self();
+			CPU_ZERO(&cpuset);
+			CPU_SET(srcPort % 16 * 4, &cpuset);
+			pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
 	}
 	// get destination address
 	memset(&hints, 0, sizeof(struct addrinfo));
@@ -1258,7 +1269,11 @@ int main(int argc, char** argv)
 			} else if (strcmp(argv[nextArg], "dcpimping") == 0) {
 				printf("call dcpimping\n");
 				test_dcpimping(fd, dest, buffer);
-			}
+			} else if (strcmp(argv[nextArg], "tcpping") == 0) {
+                fd = socket(AF_INET, SOCK_STREAM, 0);
+				printf("call tcpping\n");
+                test_dcpimping(fd, dest, buffer);
+            }
 			 else {
 				printf("Unknown operation '%s'\n", argv[nextArg]);
 				exit(1);

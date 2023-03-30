@@ -411,7 +411,7 @@ void dcpim_connection(int fd, struct sockaddr_in source)
  * (one thread per connection) and processes messages on those connections.
  * @port:  Port number on which to listen.
  */
-void tcp_server(int port)
+void tcp_server(int port, bool pin)
 {
 	int listen_fd = socket(PF_INET, SOCK_STREAM, 0);
 	if (listen_fd == -1) {
@@ -450,6 +450,12 @@ void tcp_server(int port)
 			exit(1);
 		}
 		std::thread thread(dcpim_connection, stream, client_addr);
+		if(pin) {
+			cpu_set_t cpuset;
+			CPU_ZERO(&cpuset);
+			CPU_SET(ntohs(client_addr.sin_port) % 16 * 4, &cpuset);
+			pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
+		}
 		thread.detach();
 	}
 }
@@ -531,7 +537,7 @@ void udp_server(int port)
  * dcpim_server()
  *
  */
-void dcpim_server(int port)
+void dcpim_server(int port, bool pin)
 {
 	// char buffer[1000000];
 	// int result = 0;
@@ -579,6 +585,12 @@ void dcpim_server(int port)
 			exit(1);
 		}
 		std::thread thread(dcpim_connection, stream, client_addr);
+		if(pin) {
+			cpu_set_t cpuset;
+			CPU_ZERO(&cpuset);
+			CPU_SET(ntohs(client_addr.sin_port) % 16 * 4, &cpuset);
+			pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
+		}
 		thread.detach();
 	}
 	// while (1) {
@@ -620,8 +632,9 @@ void dcpim_server(int port)
 
 int main(int argc, char** argv) {
 	int next_arg;
-	int num_ports = 1;
+	// int num_ports = 1;
 	std::string ip;
+	bool pin = false;
 	if ((argc >= 2) && (strcmp(argv[1], "--help") == 0)) {
 		print_help(argv[0]);
 		exit(0);
@@ -631,7 +644,9 @@ int main(int argc, char** argv) {
 		if (strcmp(argv[next_arg], "--help") == 0) {
 			print_help(argv[0]);
 			exit(0);
-		} else if (strcmp(argv[next_arg], "--port") == 0) {
+		} else if (strcmp(argv[next_arg], "--pin") == 0) {
+			pin = true;
+        } else if (strcmp(argv[next_arg], "--port") == 0) {
 			if (next_arg == (argc-1)) {
 				printf("No value provided for %s option\n",
 					argv[next_arg]);
@@ -648,16 +663,6 @@ int main(int argc, char** argv) {
 			}
 			next_arg++;
 			ip = std::string(argv[next_arg]);
-		} 
-		else if (strcmp(argv[next_arg], "--num_ports") == 0) {
-			if (next_arg == (argc-1)) {
-				printf("No value provided for %s option\n",
-					argv[next_arg]);
-				exit(1);
-			}
-			next_arg++;
-			num_ports = get_int(argv[next_arg],
-				"Bad num_ports %s; must be positive integer\n");
 		} else if (strcmp(argv[next_arg], "--validate") == 0) {
 			validate = true;
 		} else if (strcmp(argv[next_arg], "--verbose") == 0) {
@@ -674,11 +679,11 @@ int main(int argc, char** argv) {
 	// 	printf("port number:%i\n", port + i);
 	// 	workers.push_back(std::thread (homa_server, ip, port+i));
 	// }
-	workers.push_back(std::thread(tcp_server, port));
+	workers.push_back(std::thread(tcp_server, port, pin));
 	workers.push_back(std::thread(udp_server, port));
-	workers.push_back(std::thread(dcpim_server, port));
+	workers.push_back(std::thread(dcpim_server, port, pin));
 	workers.push_back(std::thread(aggre_thread, &agg_stats));
-	for(int i = 0; i < num_ports; i++) {
+	for(int i = 0; i < 4; i++) {
 		workers[i].join();
 	}
 }
