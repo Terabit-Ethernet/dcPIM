@@ -173,6 +173,7 @@ uint64_t test_count = 0;
 static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 	int i = 0, j = 0;
 	int total_flows = 0;
+	int total_channels, matched_channels, num_flows;
 	unsigned long max_pacing_rate = 0;
 	// struct dcpim_host **temp_arr;
 	struct dcpim_sock *dsk, *temp;
@@ -201,6 +202,8 @@ static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 			goto put_host;
 		test_pacing_rate += host->next_pacing_rate;
 		test_count += 1;
+		total_channels = host->next_pacing_rate / epoch->rate_per_channel;
+		num_flows = host->num_flows;
 		if(epoch->epoch % 100000 == 0)
 			printk("average pacing rate:%llu\n", test_pacing_rate / test_count);
 		// if((epoch->epoch - 1) % 10000 == 0)
@@ -217,16 +220,24 @@ static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 				break;
 			if(total_flows >= epoch->max_array_size)
 				break;
-			if(host->next_pacing_rate == 0)
+			// if(host->next_pacing_rate == 0)
+			// 	break;
+			if(total_channels == 0)
 				break;
-			max_pacing_rate = min(epoch->max_pacing_rate_per_flow, host->next_pacing_rate);
-			WRITE_ONCE(((struct sock*)dsk)->sk_max_pacing_rate, max_pacing_rate);
+			if(total_channels % num_flows)
+				matched_channels = total_channels / num_flows + 1;
+			else
+				matched_channels = total_channels / num_flows;
+			// max_pacing_rate = min(epoch->max_pacing_rate_per_flow, host->next_pacing_rate);
+			WRITE_ONCE(((struct sock*)dsk)->sk_max_pacing_rate, matched_channels *  epoch->rate_per_channel);
 			epoch->cur_matched_arr[total_flows] = dsk;
 			sock_hold((struct sock*)dsk);
 			list_move_tail(&dsk->entry, &host->flow_list);
 			j++;
 			total_flows++;
-			host->next_pacing_rate -= max_pacing_rate;
+			total_channels -= matched_channels;
+			num_flows--;
+			// host->next_pacing_rate -= max_pacing_rate;
 		}
 		spin_unlock_bh(&host->lock);
 		host->next_pacing_rate = 0;
@@ -537,7 +548,7 @@ void dcpim_epoch_init(struct dcpim_epoch *epoch) {
 	epoch->port_range = 15;
 	/* bytes per second: 5 GB/s */
 	// epoch->max_pacing_rate_per_flow = 4375000000;
-	epoch->max_pacing_rate_per_flow = 5000000000;
+	epoch->rate_per_channel = dcpim_params.bandwidth * 1000000000 / 8 / epoch->k;
 
 	// struct rte_timer epoch_timer;
 	// struct rte_timer sender_iter_timers[10];
@@ -707,7 +718,7 @@ void dcpim_send_all_rts (struct dcpim_epoch* epoch) {
 				for(i = 0; i < epoch->k; i++) {
 					rts_size = min(epoch->epoch_bytes_per_k, flow_size);
 					inet = inet_sk(host->sk);
-					skb = construct_rts_pkt(host->sk, epoch->round, epoch->epoch, rts_size);
+					skb = construct_rts_pkt(host->sk, epoch->round, epoch->epoch, epoch->epoch_bytes_per_k);
 					dcpim_fill_dcpim_header(skb, htons(epoch->port), htons(epoch->port));
 					dcpim_fill_dst_entry(host->sk, skb,&inet->cork.fl);
 					dcpim_fill_ip_header(skb, host->src_ip, host->dst_ip);
@@ -1166,7 +1177,8 @@ int dcpim_handle_accept(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 			spin_lock(&epoch->matched_lock);
 			value = atomic_sub_return(ah->remaining_sz, &epoch->unmatched_recv_bytes);
 			if(value >= 0 && epoch->next_matched_hosts < epoch->k) {
-				host->next_pacing_rate += dcpim_params.bandwidth * ah->remaining_sz / epoch->epoch_bytes * 1000000000 / 8; 
+				// host->next_pacing_rate += dcpim_params.bandwidth * ah->remaining_sz / epoch->epoch_bytes * 1000000000 / 8;
+				host->next_pacing_rate  += epoch->rate_per_channel;
 				// if(epoch->epoch % 10000 == 0)
 				// 	printk("dsk:%p ah->remaining_sz: %u %lu\n", dsk, ah->remaining_sz, dsk->receiver.next_pacing_rate );
 				epoch->next_matched_arr[epoch->next_matched_hosts] = host;

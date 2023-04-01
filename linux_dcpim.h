@@ -350,7 +350,7 @@ struct dcpim_epoch {
 	struct dcpim_host** next_matched_arr;
 	int cur_matched_flows;
 	int next_matched_hosts;
-	unsigned long max_pacing_rate_per_flow;
+	unsigned long rate_per_channel;
 	spinlock_t table_lock;
 	struct list_head host_list;
 	/* it has DCPIM_MATCH_DEFAULT_HOST_BITS slots */
