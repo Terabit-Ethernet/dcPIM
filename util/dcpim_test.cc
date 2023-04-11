@@ -1227,13 +1227,6 @@ int main(int argc, char** argv)
 		addr_in.sin_port = htons(srcPort + i);
 		addr_in.sin_addr.s_addr = inet_addr("192.168.10.124");
 
-
-		if (bind(fd, (struct sockaddr *) &addr_in, sizeof(addr_in)) != 0) {
-			printf("Couldn't bind socket to DCPIM port %d: %s\n", srcPort,
-					strerror(errno));
-			return -1;
-		}
-
 		for ( ; nextArg < argc; nextArg++) {
 			// if (strcmp(argv[nextArg], "close") == 0) {
 			// 	test_close();
@@ -1268,12 +1261,25 @@ int main(int argc, char** argv)
 				test_dcpimstream(fd, dest, buffer);
 			} else if (strcmp(argv[nextArg], "dcpimping") == 0) {
 				printf("call dcpimping\n");
+				if (bind(fd, (struct sockaddr *) &addr_in, sizeof(addr_in)) != 0) {
+					printf("Couldn't bind socket to DCPIM port %d: %s\n", srcPort,
+							strerror(errno));
+					return -1;
+				}
 				test_dcpimping(fd, dest, buffer);
 			} else if (strcmp(argv[nextArg], "tcpping") == 0) {
-                fd = socket(AF_INET, SOCK_STREAM, 0);
+				int reuse = 1;
+                		fd = socket(AF_INET, SOCK_STREAM, 0);
+				if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0)
+   					perror("setsockopt(SO_REUSEADDR) failed");
+				if (bind(fd, (struct sockaddr *) &addr_in, sizeof(addr_in)) != 0) {
+					printf("Couldn't bind socket to TCP port %d: %s\n", srcPort,
+							strerror(errno));
+					return -1;
+				}
 				printf("call tcpping\n");
-                test_dcpimping(fd, dest, buffer);
-            }
+                		test_dcpimping(fd, dest, buffer);
+            		}
 			 else {
 				printf("Unknown operation '%s'\n", argv[nextArg]);
 				exit(1);
