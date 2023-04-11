@@ -315,6 +315,18 @@ void dcpim_connection(int fd, struct sockaddr_in source)
 	// uint64_t start_cycle = 0, end_cycle = 0;
 	struct sockaddr_in sin;
 	socklen_t len = sizeof(sin);
+    	// Get the CPU affinity mask for the current thread
+    	cpu_set_t cpu_set;
+    	pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpu_set);
+
+    	// Determine which CPU the current thread is running on
+    	int cpu;
+    	for (cpu = 0; cpu < CPU_SETSIZE; cpu++) {
+        	if (CPU_ISSET(cpu, &cpu_set)) {
+            		printf("Thread is running on CPU %d\n", cpu);
+            		break;
+        	}
+    	}
 	// int *int_buffer = reinterpret_cast<int*>(buffer);
 	if (verbose)
 		printf("New DCPIM socket from %s\n", print_address(&source));
@@ -325,6 +337,7 @@ void dcpim_connection(int fd, struct sockaddr_in source)
 	    printf("port number %d\n", ntohs(sin.sin_port));
 	// start_cycle = rdtsc();
 	printf("start connection\n");
+
 	while (1) {
 		int result = read(fd, buffer,
 				sizeof(buffer));
@@ -455,6 +468,7 @@ void tcp_server(int port, bool pin)
 			CPU_ZERO(&cpuset);
 			CPU_SET(ntohs(client_addr.sin_port) % 16 * 4, &cpuset);
 			pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
+			printf("set affinity:%d port:%d \n",ntohs(client_addr.sin_port) % 16 * 4, ntohs(client_addr.sin_port) );
 		}
 		thread.detach();
 	}
