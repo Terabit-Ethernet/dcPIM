@@ -226,13 +226,13 @@ void dcpim_get_sack_info(struct sock *sk, struct sk_buff *skb) {
 	}
 
 	/* order SACK blocks to allow in order walk of the retrans queue */
-	for (i = used_sacks - 1; i > 0; i--) {
-		for (j = 0; j < i; j++) {
-			if (after(sp[j].start_seq, sp[j + 1].start_seq)) {
-				swap(sp[j], sp[j + 1]);
-			}
-		}
-	}
+	// for (i = used_sacks - 1; i > 0; i--) {
+	// 	for (j = 0; j < i; j++) {
+	// 		if (after(sp[j].start_seq, sp[j + 1].start_seq)) {
+	// 			swap(sp[j], sp[j + 1]);
+	// 		}
+	// 	}
+	// }
 }
 
 /* assume hold the socket spinlock*/
@@ -1062,8 +1062,8 @@ queue_and_out:
 		return 0;
 	}
 	if (!after(DCPIM_SKB_CB(skb)->end_seq, dsk->receiver.rcv_nxt)) {
-		printk("duplicate drop\n");
-		printk("duplicate seq:%u\n", DCPIM_SKB_CB(skb)->seq);
+		// printk("duplicate drop\n");
+		// printk("duplicate seq:%u\n", DCPIM_SKB_CB(skb)->seq);
 		dcpim_rmem_free_skb(sk, skb);
 		dcpim_drop(sk, skb);
 		return 0;
@@ -1140,6 +1140,8 @@ int dcpim_handle_data_pkt(struct sk_buff *skb)
 	bool refcounted = false;
 	bool discard = false;
 	// printk("receive data pkt\n");
+	// if(get_random_u32() % 10 <= 0)
+	// 	goto drop;
 	if (!pskb_may_pull(skb, sizeof(struct dcpim_data_hdr)))
 		goto drop;		/* No space for header. */
 	dh =  dcpim_data_hdr(skb);
@@ -1158,12 +1160,13 @@ int dcpim_handle_data_pkt(struct sk_buff *skb)
  		bh_lock_sock(sk);
  		/* inflight_bytes for now is best-effort estimation */
         // ret = 0;
-		// printk("atomic backlog len:%d\n", atomic_read(&dsk->receiver.backlog_len));
+		// printk("data seq: %u rcv_nxt:%u \n", DCPIM_SKB_CB(skb)->seq, dsk->receiver.rcv_nxt);
         if (!sock_owned_by_user(sk)) {
 			/* current place to set rxhash for RFS/RPS */
 			// printk("skb->hash:%u\n", skb->hash);
 			if(sk->sk_state == DCPIM_ESTABLISHED) {
 				atomic_sub(DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq, &dsk->receiver.inflight_bytes);
+				/* ignoring spurious retransmission */
 				if(atomic_read(&dsk->receiver.inflight_bytes) < 0) {
 					atomic_set(&dsk->receiver.inflight_bytes, 0);
 				}
@@ -1228,6 +1231,7 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 	if(sk->sk_state == DCPIM_ESTABLISHED) {
 		if(dh->type == DATA) {
 			atomic_sub(DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq, &dsk->receiver.inflight_bytes);
+			/* ignoring spurious retransmission */
 			if(atomic_read(&dsk->receiver.inflight_bytes) < 0) {
 				atomic_set(&dsk->receiver.inflight_bytes, 0);
 			}

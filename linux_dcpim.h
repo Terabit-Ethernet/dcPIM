@@ -67,6 +67,7 @@ enum dcpimcsq_enum {
 	DCPIM_RMEM_CHECK_DEFERRED,  /* Read Memory Check once release sock */
 	DCPIM_RTX_DEFERRED,
 	DCPIM_WAIT_DEFERRED,
+	DCPIM_RTX_TOKEN_TIMER_DEFERRED,
 };
 
 enum dcpimcsq_flags {
@@ -78,6 +79,7 @@ enum dcpimcsq_flags {
 	DCPIMF_RMEM_CHECK_DEFERRED	= (1UL << DCPIM_RMEM_CHECK_DEFERRED),
 	DCPIMF_RTX_DEFERRED	= (1UL << DCPIM_RTX_DEFERRED),
 	DCPIMF_WAIT_DEFERRED = (1UL << DCPIM_WAIT_DEFERRED),
+	DCPIMF_RTX_TOKEN_TIMER_DEFERRED = (1UL << DCPIM_RTX_TOKEN_TIMER_DEFERRED),
 };
 
 struct dcpim_params {
@@ -645,6 +647,10 @@ struct dcpim_sock {
 		atomic_t backlog_len;
 		atomic_t inflight_bytes;
 		struct hrtimer token_pace_timer;
+		struct hrtimer rtx_timer;
+		uint32_t rtx_rcv_nxt;
+		/* 0: rtx timer is not set; 1: timer should be set; 2: timer is triggering; */
+		atomic_t rtx_status;
 		// atomic_t matched_bw;
 		/* protected by bh_lock_sock */
 		struct list_head message_backlog;

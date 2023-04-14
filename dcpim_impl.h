@@ -42,6 +42,7 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx);
 uint32_t dcpim_xmit_token(struct dcpim_sock* dsk, uint32_t token_bytes);
 int rtx_bytes_count(struct dcpim_sock* dsk, __u32 prev_grant_nxt);
 enum hrtimer_restart dcpim_xmit_token_handler(struct hrtimer *timer);
+enum hrtimer_restart dcpim_rtx_token_handler(struct hrtimer *timer);
 void dcpim_pq_init(struct dcpim_pq* pq, bool(*comp)(const struct list_head*, const struct list_head*));
 bool dcpim_pq_empty(struct dcpim_pq* pq);
 bool dcpim_pq_empty_lockless(struct dcpim_pq* pq);
@@ -140,8 +141,9 @@ void dcpim_flow_wait_handler(struct sock *sk);
 /*DCPIM outgoing function*/
 struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id, 
 	uint32_t message_size, __u64 start_time);
-struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority, __u32 prev_grant_nxt,
-	 __u32 grant_nxt, bool handle_rtx);
+struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority, __u32 grant_nxt);
+struct sk_buff* construct_rtx_token_pkt(struct sock* sk, unsigned short priority,
+	 __u32 prev_token_nxt, __u32 token_nxt, int *rtx_bytes);
 struct sk_buff* construct_fin_pkt(struct sock* sk);
 struct sk_buff* construct_ack_pkt(struct sock* sk, __be32 rcv_nxt);
 struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz);
@@ -152,6 +154,7 @@ void dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool free_toke
 void dcpim_retransmit_data(struct sk_buff *skb, struct dcpim_sock* dsk);
 void __dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool free_token);
 void dcpim_retransmit(struct sock* sk);
+uint32_t dcpim_check_rtx_token(struct dcpim_sock* dsk);
 
 int dcpim_write_timer_handler(struct sock *sk);
 

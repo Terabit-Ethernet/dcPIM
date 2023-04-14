@@ -185,6 +185,11 @@ static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 		// if(dsk->receiver.next_pacing_rate == 0) {
 			// max_pacing_rate = 0;
 			WRITE_ONCE(((struct sock*)dsk)->sk_max_pacing_rate, 0);
+			// if(READ_ONCE(dsk->receiver.rtx_rcv_nxt) ==  READ_ONCE(dsk->receiver.rcv_nxt)) {
+			// printk("epoch:%llu set rtx status sock:%p \n", dcpim_epoch.epoch, dsk);
+			/* need to check retransmission when new epoch starts */	
+			atomic_cmpxchg(&dsk->receiver.rtx_status, 0, 1);
+			// }
 			// optval = KERNEL_SOCKPTR(&max_pacing_rate);
 			// sock_setsockopt(((struct sock*)dsk)->sk_socket, SOL_SOCKET,
 			// 			SO_MAX_PACING_RATE, optval, sizeof(max_pacing_rate));
@@ -260,7 +265,12 @@ put_host:
 		sk = (struct sock*)dsk;
 		bh_lock_sock(sk);
 		if(sk->sk_state == DCPIM_ESTABLISHED){
+			// atomic_cmpxchg(&dsk->receiver.rtx_status, 0, 1);
 			if (!test_and_set_bit(DCPIM_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
+				sock_hold(sk);
+			}
+			// printk("epoch:%llu set rtx flags sock: %p \n", dcpim_epoch.epoch, dsk);
+			if (!test_and_set_bit(DCPIM_RTX_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
 				sock_hold(sk);
 			}
 			sk->sk_data_ready(sk);
