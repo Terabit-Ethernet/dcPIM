@@ -832,9 +832,9 @@ int dcpim_handle_token_pkt(struct sk_buff *skb) {
 				if(th->num_sacks > 0)
  					dcpim_get_sack_info(sk, skb);
 				sock_rps_save_rxhash(sk, skb);
-				if(th->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
+				if(after(th->rcv_nxt, dsk->sender.snd_una))
 					dsk->sender.snd_una = th->rcv_nxt;
-				if(th->token_nxt - dsk->sender.token_seq <= sk->sk_sndbuf)
+				if(after(th->token_nxt, dsk->sender.token_seq))
 					dsk->sender.token_seq = th->token_nxt;
 				if(dsk->host && dsk->sender.snd_una != old_snd_una)
 					atomic_sub((uint32_t)(dsk->sender.snd_una - old_snd_una), &dsk->host->total_unsent_bytes);
@@ -901,7 +901,7 @@ int dcpim_handle_ack_pkt(struct sk_buff *skb) {
 		if (!sock_owned_by_user(sk)) {
 			if(sk->sk_state == DCPIM_ESTABLISHED) {
 				old_snd_una = dsk->sender.snd_una;
-				if(ah->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
+				if(after(ah->rcv_nxt, dsk->sender.snd_una))
 					dsk->sender.snd_una = ah->rcv_nxt;
 				if(dsk->host && dsk->sender.snd_una != old_snd_una)
 					atomic_sub((uint32_t)(dsk->sender.snd_una - old_snd_una), &dsk->host->total_unsent_bytes);
@@ -1247,7 +1247,7 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 			sk->sk_data_ready(sk);
 		} else if (dh->type == ACK) {
 			struct dcpim_ack_hdr *ah = dcpim_ack_hdr(skb);
-			if(ah->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
+			if(after(ah->rcv_nxt,dsk->sender.snd_una))
 				dsk->sender.snd_una = ah->rcv_nxt;
 			if(dsk->host && dsk->sender.snd_una != old_snd_una)
 				atomic_sub((uint32_t)(dsk->sender.snd_una - old_snd_una), &dsk->host->total_unsent_bytes);
@@ -1258,9 +1258,9 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 			struct dcpim_token_hdr *th = dcpim_token_hdr(skb);
 			if(th->num_sacks > 0)
 				dcpim_get_sack_info(sk, skb);
-			if(th->rcv_nxt - dsk->sender.snd_una <= sk->sk_sndbuf)
+			if(after(th->rcv_nxt, dsk->sender.snd_una))
 				dsk->sender.snd_una = th->rcv_nxt;
-			if(th->token_nxt - dsk->sender.token_seq <= sk->sk_sndbuf)
+			if(after(th->token_nxt, dsk->sender.token_seq))
 				dsk->sender.token_seq = th->token_nxt;
 			if(dsk->host && dsk->sender.snd_una != old_snd_una)
 				atomic_sub((uint32_t)(dsk->sender.snd_una - old_snd_una), &dsk->host->total_unsent_bytes);

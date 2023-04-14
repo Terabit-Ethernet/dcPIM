@@ -248,7 +248,7 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	local_bh_disable();
 	bh_lock_sock(sk);
 	if(!skb_queue_empty(&sk->sk_write_queue)
-		&& dsk->sender.token_seq -  DCPIM_SKB_CB(dcpim_send_head(sk))->end_seq <= sk->sk_sndbuf) {
+		&& after(dsk->sender.token_seq, DCPIM_SKB_CB(dcpim_send_head(sk))->end_seq)) {
  		dcpim_write_timer_handler(sk);
 	} 
 	bh_unlock_sock(sk);
