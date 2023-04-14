@@ -1,4 +1,5 @@
 #include <linux/etherdevice.h>
+#include <linux/netdevice.h>
 #include <net/tcp.h>
 #include "dcpim_impl.h"
 // static void recevier_iter_event_handler(struct work_struct *work);
@@ -697,6 +698,7 @@ void dcpim_send_all_rts (struct dcpim_epoch* epoch) {
 	int flow_size, rts_size, i;
 	struct sk_buff *skb;
 	struct inet_sock *inet;
+	int err = 0;
 	// spin_lock(&table->lock);
 	// list_for_each_entry(entry, &table->hash_list, list_link) {
 	// 	struct list_head *list_head = NULL;
@@ -732,9 +734,12 @@ void dcpim_send_all_rts (struct dcpim_epoch* epoch) {
 					dcpim_fill_dcpim_header(skb, htons(epoch->port), htons(epoch->port));
 					dcpim_fill_dst_entry(host->sk, skb,&inet->cork.fl);
 					dcpim_fill_ip_header(skb, host->src_ip, host->dst_ip);
-					if(ip_local_out(sock_net(host->sk), host->sk, skb) > 0) {
-							WARN_ON(true);
-							kfree_skb(skb);
+					err = ip_local_out(sock_net(host->sk), host->sk, skb);
+					if(unlikely(err > 0)) {
+							// WARN_ON(true);
+							// kfree_skb(skb);
+						printk("local out fails: %d\n", err);
+						// net_xmit_eval(err);
 					}
 					flow_size -= rts_size;
 					if(flow_size <= 0)
