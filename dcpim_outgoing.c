@@ -66,6 +66,7 @@
 			  DCPIMF_CLEAN_TIMER_DEFERRED |	\
 			  DCPIMF_TOKEN_TIMER_DEFERRED |	\
 			  DCPIMF_RTX_TOKEN_TIMER_DEFERRED |	\
+			  DCPIMF_RTX_FLOW_SYNC_DEFERRED |	\
 			  DCPIMF_RMEM_CHECK_DEFERRED | \
 			  DCPIMF_RTX_DEFERRED | \
 			  DCPIMF_WAIT_DEFERRED)
@@ -752,9 +753,10 @@ void dcpim_release_cb(struct sock *sk)
 		dcpim_check_rtx_token(dcpim_sk(sk));
 		__sock_put(sk);
 	}
-	// if (flags & DCPIMF_RTX_DEFERRED) {
-	// 	dcpim_write_timer_handler(sk);
-	// }
+	if (flags & DCPIMF_RTX_FLOW_SYNC_DEFERRED) {
+		dcpim_rtx_sync_handler(dcpim_sk(sk));
+		__sock_put(sk);
+	}
 	// if (flags & DCPIMF_WAIT_DEFERRED) {
 	// 	dcpim_flow_wait_handler(sk);
 	// }
@@ -805,6 +807,28 @@ struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id,
 	dh = (struct dcpimhdr*) (&fh->common);
 	dh->len = htons(sizeof(struct dcpim_flow_sync_hdr));
 	dh->type = NOTIFICATION;
+	fh->message_id = message_id;
+	fh->message_size = message_size;
+	fh->start_time = start_time;
+	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
+	// if (extra_bytes > 0)
+	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
+	return skb;
+}
+
+struct sk_buff* construct_syn_ack_pkt(struct sock* sk, __u64 message_id, 
+	uint32_t message_size, __u64 start_time) {
+	// int extra_bytes = 0;
+	struct sk_buff* skb = __construct_control_skb(sk, 0);
+	struct dcpim_syn_ack_hdr* fh;
+	struct dcpimhdr* dh; 
+	if(unlikely(!skb)) {
+		return NULL;
+	}
+	fh = (struct dcpim_syn_ack_hdr *) skb_put(skb, sizeof(struct dcpim_syn_ack_hdr));
+	dh = (struct dcpimhdr*) (&fh->common);
+	dh->len = htons(sizeof(struct dcpim_syn_ack_hdr));
+	dh->type = SYN_ACK;
 	fh->message_id = message_id;
 	fh->message_size = message_size;
 	fh->start_time = start_time;
@@ -1536,4 +1560,63 @@ enum hrtimer_restart dcpim_rtx_token_handler(struct hrtimer *timer) {
 put_sock:
 	// sock_put(sk);
 	return HRTIMER_NORESTART;
+}
+
+/* hrtimer may fire twice for some reaons; need to check what happens later. */
+enum hrtimer_restart dcpim_rtx_sync_timer_handler(struct hrtimer *timer) {
+
+	struct dcpim_sock *dsk = container_of(timer, struct dcpim_sock, sender.rtx_flow_sync_timer);
+	struct sock* sk = (struct sock *)dsk;
+	
+	bh_lock_sock(sk);
+	if (!sock_owned_by_user(sk)) {
+		if(!dsk->sender.syn_ack_recvd) {
+			/* maximum retried times = 3 */
+			if(dsk->sender.sync_sent_times >= 3) {
+				dcpim_set_state(sk, DCPIM_CLOSE);
+				/* TO DO: might need to wake up socket */
+			} else {
+				/*  retransmit flow sync */
+				if(sk->sk_priority != 7) {
+					dcpim_xmit_control(construct_flow_sync_pkt(sk, 0, UINT_MAX, 0), sk); 
+				} else {
+					/* to do: add short flow syn retransmission */
+				}
+				dsk->sender.sync_sent_times += 1;
+				hrtimer_forward_now(timer, ns_to_ktime(dcpim_params.rtt * 1000));
+				bh_unlock_sock(sk);
+				return HRTIMER_RESTART;
+			}
+		} 
+	} else {
+		/* delegate our work to dcpim_release_cb() */
+		if (!test_and_set_bit(DCPIM_RTX_FLOW_SYNC_DEFERRED, &sk->sk_tsq_flags)) {
+			sock_hold(sk);
+		}
+	}
+	bh_unlock_sock(sk);
+put_sock:
+	// sock_put(sk);
+	return HRTIMER_NORESTART;
+}
+
+void dcpim_rtx_sync_handler(struct dcpim_sock *dsk) {
+
+	struct sock* sk = (struct sock *)dsk;
+	if(!dsk->sender.syn_ack_recvd) {
+	/*  retransmit flow sync */
+		if(dsk->sender.sync_sent_times >= 3) {
+				dcpim_set_state(sk, DCPIM_CLOSE);
+				/* TO DO: might need to wake up socket */
+		}  else {
+			if(sk->sk_priority != 7) {
+				dcpim_xmit_control(construct_flow_sync_pkt(sk, 0, UINT_MAX, 0), sk); 
+			} else {
+				/* to do: add short flow syn retransmission */
+			}
+			dsk->sender.sync_sent_times += 1;
+			hrtimer_start(&dsk->sender.rtx_flow_sync_timer, ns_to_ktime(dcpim_params.rtt * 1000), HRTIMER_MODE_REL_PINNED_SOFT);
+		}
+	} 
+	return;
 }

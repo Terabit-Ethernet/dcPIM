@@ -68,6 +68,7 @@ enum dcpimcsq_enum {
 	DCPIM_RTX_DEFERRED,
 	DCPIM_WAIT_DEFERRED,
 	DCPIM_RTX_TOKEN_TIMER_DEFERRED,
+	DCPIM_RTX_FLOW_SYNC_DEFERRED,
 };
 
 enum dcpimcsq_flags {
@@ -80,6 +81,7 @@ enum dcpimcsq_flags {
 	DCPIMF_RTX_DEFERRED	= (1UL << DCPIM_RTX_DEFERRED),
 	DCPIMF_WAIT_DEFERRED = (1UL << DCPIM_WAIT_DEFERRED),
 	DCPIMF_RTX_TOKEN_TIMER_DEFERRED = (1UL << DCPIM_RTX_TOKEN_TIMER_DEFERRED),
+	DCPIMF_RTX_FLOW_SYNC_DEFERRED = (1UL << DCPIM_RTX_FLOW_SYNC_DEFERRED),
 };
 
 struct dcpim_params {
@@ -495,6 +497,10 @@ static inline struct dcpim_ack_hdr *dcpim_ack_hdr(const struct sk_buff *skb)
 	return (struct dcpim_ack_hdr *)skb_transport_header(skb);
 }
 
+static inline struct dcpim_syn_ack_hdr *dcpim_syn_ack_hdr(const struct sk_buff *skb)
+{
+	return (struct dcpim_syn_ack_hdr *)skb_transport_header(skb);
+}
 
 static inline struct dcpim_flow_sync_hdr *dcpim_flow_sync_hdr(const struct sk_buff *skb)
 {
@@ -601,6 +607,9 @@ struct dcpim_sock {
 	    int remaining_pkts_at_sender;
    		uint32_t num_sacks;
 		struct dcpim_sack_block selective_acks[16]; /* The SACKS themselves*/
+		bool syn_ack_recvd;
+		struct hrtimer rtx_flow_sync_timer;
+		int sync_sent_times;
 
 		/* Below protected by epoch->sender_lock */
 		int next_matched_bytes;

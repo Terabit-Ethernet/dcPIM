@@ -510,6 +510,12 @@ int dcpim_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->sender.next_matched_bytes, 0);
 	WRITE_ONCE(dsk->sender.grant, NULL);
 	WRITE_ONCE(dsk->sender.grant_index, -1);
+	
+	WRITE_ONCE(dsk->sender.syn_ack_recvd, false);
+	WRITE_ONCE(dsk->sender.sync_sent_times, 0);
+	hrtimer_init(&dsk->sender.rtx_flow_sync_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
+	dsk->sender.rtx_flow_sync_timer.function = & dcpim_rtx_sync_timer_handler;
+
 	INIT_LIST_HEAD(&dsk->match_link);
 	INIT_LIST_HEAD(&dsk->entry);
 	dsk->host = NULL;
@@ -1019,6 +1025,8 @@ int dcpim_rcv(struct sk_buff *skb)
 		return dcpim_handle_grant(skb, &dcpim_epoch);
 	} else if (dh->type == ACCEPT) {
 		return dcpim_handle_accept(skb, &dcpim_epoch);
+	} else if (dh->type == SYN_ACK) {
+		return dcpim_handle_syn_ack_pkt(skb);
 	}
 
 
@@ -1072,6 +1080,10 @@ void dcpim_destroy_sock(struct sock *sk)
 		// __sock_put(sk);
 	}
 	if(hrtimer_cancel(&dsk->receiver.rtx_timer)) {
+		printk(" cancel rtx hrtimer at:%d\n", __LINE__);	
+		// __sock_put(sk);
+	}
+	if(hrtimer_cancel(&dsk->sender.rtx_flow_sync_timer)) {
 		printk(" cancel rtx hrtimer at:%d\n", __LINE__);	
 		// __sock_put(sk);
 	}
