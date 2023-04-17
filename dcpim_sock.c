@@ -76,20 +76,28 @@ void inet_sk_state_store(struct sock *sk, int newstate)
 
 void dcpim_set_state(struct sock* sk, int state) {
 	// struct inet_sock* inet = inet_sk(sk);
+	struct dcpim_sock *dsk = dcpim_sk(sk);
 	switch (state) {
 	case DCPIM_ESTABLISHED:
 		break;
 	case DCPIM_CLOSE:
 		// if (oldstate == TCP_CLOSE_WAIT || oldstate == TCP_ESTABLISHED)
 		// 	TCP_INC_STATS(sock_net(sk), TCP_MIB_ESTABRESETS);
-
-		sk->sk_prot->unhash(sk);
-		/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
-		if (inet_csk(sk)->icsk_bind_hash) {
-			inet_put_port(sk);
-		} 
-		if (sk->sk_state == DCPIM_ESTABLISHED)
-			dcpim_xmit_control(construct_fin_pkt(sk), sk); 
+		if (sk->sk_state == DCPIM_ESTABLISHED) {
+			if(dcpim_sk(sk)->delay_destruct) {
+				/* start the timer for rtx fin */
+				dsk->fin_sent_times += 1;
+				sock_hold(sk);
+				hrtimer_start(&dsk->rtx_fin_timer, ns_to_ktime(dcpim_params.rtt * 1000), HRTIMER_MODE_REL_PINNED_SOFT);
+				dcpim_xmit_control(construct_fin_pkt(sk), sk); 
+			}
+		} else if(sk->sk_state == DCPIM_LISTEN){
+			sk->sk_prot->unhash(sk);
+			/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
+			if (inet_csk(sk)->icsk_bind_hash) {
+				inet_put_port(sk);
+			} 
+		}
 		/* fall through */
 	default:
 		// if (oldstate == TCP_ESTABLISHED)

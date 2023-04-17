@@ -431,7 +431,8 @@ static int __init dcpim_load(void) {
         //     head = dcpim_pq_pop(&pq);
         //     temp = list_entry(head, struct test_element, node);
         //     printk("value: %d\n", temp->value);
-        // }   
+        // }
+        dcpim_wq = alloc_workqueue("dcpim_wq", WQ_MEM_RECLAIM | WQ_HIGHPRI, 0); 
         printk(KERN_NOTICE "DCPIM module loading\n");
         dcpim_params_init(&dcpim_params);
 
@@ -519,6 +520,8 @@ out_cleanup:
         printk("inet unregister protosw");
         proto_unregister(&dcpim_prot);
         printk("unregister protocol\n");
+	flush_workqueue(dcpim_wq);
+	destroy_workqueue(dcpim_wq);
         // proto_unregister(&dcpimlite_prot);
 out:
         return status;
@@ -566,7 +569,8 @@ static void __exit dcpim_unload(void) {
         printk("reach here:%d\n", __LINE__);
         proto_unregister(&dcpim_prot);
         printk("reach here:%d\n", __LINE__);
-
+	flush_workqueue(dcpim_wq);
+	destroy_workqueue(dcpim_wq);
 
         // proto_unregister(&dcpimlite_prot);
 }

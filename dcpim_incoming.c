@@ -211,7 +211,7 @@ void dcpim_get_sack_info(struct sock *sk, struct sk_buff *skb) {
 	struct dcpim_sack_block *sp = dsk->sender.selective_acks;
 	// struct sk_buff *skb;
 	int used_sacks;
-	int i, j;
+	int i;
 	if (!pskb_may_pull(skb, sizeof(struct dcpim_token_hdr) + sizeof(struct dcpim_sack_block_wire) * th->num_sacks)) {
 		return;		/* No space for header. */
 	}
@@ -759,7 +759,7 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 						}
 					}
 					/* send flow syn ack back */
-					dcpim_xmit_control(construct_syn_ack_pkt(sk, fh->message_id, fh->message_size, fh->start_time), child); 
+					dcpim_xmit_control(construct_syn_ack_pkt(child, fh->message_id, fh->message_size, fh->start_time), child); 
 				}
 			} else if (sk->sk_state == DCPIM_ESTABLISHED) {
 				/* send flow syn ack back */
@@ -941,7 +941,7 @@ int dcpim_handle_syn_ack_pkt(struct sk_buff *skb) {
 	struct sock *sk;
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
-	uint32_t old_snd_una = 0;
+	// uint32_t old_snd_una = 0;
 	if (!pskb_may_pull(skb, sizeof(struct dcpim_ack_hdr))) {
 		kfree_skb(skb);		/* No space for header. */
 		return 0;
@@ -979,7 +979,6 @@ int dcpim_handle_syn_ack_pkt(struct sk_buff *skb) {
 	return 0;
 }
 
-
 int dcpim_handle_fin_pkt(struct sk_buff *skb) {
 	struct dcpim_sock *dsk;
 	// struct inet_sock *inet;
@@ -1006,7 +1005,14 @@ int dcpim_handle_fin_pkt(struct sk_buff *skb) {
 		if (!sock_owned_by_user(sk)) {
 			// printk("reach here:%d", __LINE__);
 			if(sk->sk_state == DCPIM_ESTABLISHED) {
+				dsk->delay_destruct = false;
+				dcpim_xmit_control(construct_fin_ack_pkt(sk, 0), sk); 
 				dcpim_set_state(sk, DCPIM_CLOSE);
+				sk->sk_prot->unhash(sk);
+				/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
+				if (inet_csk(sk)->icsk_bind_hash) {
+					inet_put_port(sk);
+				} 
 				// dcpim_write_queue_purge(sk);
 				sk->sk_data_ready(sk);
 			}
@@ -1019,8 +1025,14 @@ int dcpim_handle_fin_pkt(struct sk_buff *skb) {
 		// printk("socket address: %p LINE:%d\n", dsk,  __LINE__);
 
 	} else {
-		kfree_skb(skb);
-		printk("doesn't find dsk address LINE:%d\n", __LINE__);
+		/* send fin ack packet */
+		dh->type = FIN_ACK;
+		dcpim_swap_dcpim_header(skb);
+		dcpim_swap_ip_header(skb);
+		dcpim_swap_eth_header(skb);
+		dev_queue_xmit(skb);
+			// kfree_skb(skb);
+		// printk("doesn't find dsk address LINE:%d\n", __LINE__);
 	}
 
     if (refcounted) {
@@ -1030,6 +1042,56 @@ int dcpim_handle_fin_pkt(struct sk_buff *skb) {
 	return 0;
 }
 
+int dcpim_handle_fin_ack_pkt(struct sk_buff *skb) {
+	struct dcpim_sock *dsk;
+	// struct inet_sock *inet;
+	// struct dcpim_peer *peer;
+	// struct iphdr *iph;
+	struct dcpimhdr *dh;
+	struct sock *sk;
+	int sdif = inet_sdif(skb);
+	bool refcounted = false;
+
+	// if (!pskb_may_pull(skb, sizeof(struct dcpim_ack_hdr))) {
+	// 	kfree_skb(skb);		/* No space for header. */
+	// 	return 0;
+	// }
+	dh = dcpim_hdr(skb);
+	// sk = skb_steal_sock(skb);
+	// if(!sk) {
+	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(dh), dh->source,
+            dh->dest, sdif, &refcounted);
+    // }
+	if(sk) {
+ 		bh_lock_sock(sk);
+		dsk = dcpim_sk(sk);
+		if (!sock_owned_by_user(sk)) {
+			// printk("reach here:%d", __LINE__);
+			dsk->delay_destruct = false;
+			sk->sk_prot->unhash(sk);
+			/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
+			if (inet_csk(sk)->icsk_bind_hash) {
+				inet_put_port(sk);
+			} 
+	        kfree_skb(skb);
+        } else {
+            dcpim_add_backlog(sk, skb, true);
+        }
+        bh_unlock_sock(sk);
+
+		// printk("socket address: %p LINE:%d\n", dsk,  __LINE__);
+
+	} else {
+		kfree_skb(skb);
+		// printk("doesn't find dsk address LINE:%d\n", __LINE__);
+	}
+
+    if (refcounted) {
+        sock_put(sk);
+    }
+
+	return 0;
+}
 
 static int  dcpim_queue_rcv(struct sock *sk, struct sk_buff *skb,  bool *fragstolen)
 {
@@ -1294,8 +1356,14 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 			// return __dcpim4_lib_rcv(skb, &dcpim_table, IPPROTO_DCPIM);
 		} else if (dh->type == FIN) {
 			// printk("reach here:%d", __LINE__);
-
+			dsk->delay_destruct = false;
+			dcpim_xmit_control(construct_fin_ack_pkt(sk, 0), sk); 
 			dcpim_set_state(sk, DCPIM_CLOSE);
+			sk->sk_prot->unhash(sk);
+			/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
+			if (inet_csk(sk)->icsk_bind_hash) {
+				inet_put_port(sk);
+			} 
 			// dcpim_write_queue_purge(sk);
 			// atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 			sk->sk_data_ready(sk);
@@ -1326,9 +1394,12 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 		} else if (dh->type == SYN_ACK) {
 			dsk->sender.syn_ack_recvd = true;
 			hrtimer_cancel(&dsk->sender.rtx_flow_sync_timer);
+		} else 	if(dh->type == FIN_ACK) {
+			/* it is impossible to reach here */
+			WARN_ON_ONCE(true);
+			dsk->delay_destruct = false;
 		}
-	}
-	if(sk->sk_state == DCPIM_LISTEN) {
+	} else if(sk->sk_state == DCPIM_LISTEN) {
 		if(dh->type == NOTIFICATION) {
 			struct dcpim_flow_sync_hdr *fh;
 			struct sock* child;
@@ -1345,10 +1416,22 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 					}
 				} 
 				/* send syn ack back */
-				dcpim_xmit_control(construct_syn_ack_pkt(sk, fh->message_id, fh->message_size, fh->start_time), child); 
+				dcpim_xmit_control(construct_syn_ack_pkt(child, fh->message_id, fh->message_size, fh->start_time), child); 
 			}  
 			// return __dcpim4_lib_rcv(skb, &dcpim_table, IPPROTO_DCPIM);
 		} 
+	} else {
+		if(dh->type == FIN_ACK || dh->type == FIN) {
+			dsk->delay_destruct = false;
+			if(dh->type == FIN) {
+				dcpim_xmit_control(construct_fin_ack_pkt(sk, 0), sk); 
+			} 
+			sk->sk_prot->unhash(sk);
+			/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
+			if (inet_csk(sk)->icsk_bind_hash) {
+				inet_put_port(sk);
+			} 
+		}
 	}
 	kfree_skb(skb);
 	return 0;

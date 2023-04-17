@@ -80,6 +80,8 @@ EXPORT_SYMBOL(dcpim_epoch);
 struct inet_hashinfo dcpim_hashinfo;
 EXPORT_SYMBOL(dcpim_hashinfo);
 
+struct workqueue_struct *dcpim_wq;
+
 struct dcpim_message_bucket dcpim_tx_messages[DCPIM_BUCKETS];
 struct dcpim_message_bucket dcpim_rx_messages[DCPIM_BUCKETS];
 
@@ -496,10 +498,16 @@ int dcpim_init_sock(struct sock *sk)
 	// printk("remaining tokens:%d\n", dcpim_epoch.remaining_tokens);
 	// atomic64_set(&dsk->next_outgoing_id, 1);
 	// initialize the ready queue and its lock
+	
+	WRITE_ONCE(dsk->delay_destruct, true);
+	hrtimer_init(&dsk->rtx_fin_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
+	dsk->rtx_fin_timer.function = dcpim_rtx_fin_timer_handler;
+	WRITE_ONCE(dsk->fin_sent_times, 0);
+	INIT_WORK(&dsk->rtx_fin_work, rtx_fin_handler);
+
 	sk->sk_destruct = dcpim_destruct_sock;
 	dsk->short_message_id = 0;
 	WRITE_ONCE(dsk->num_sacks, 0);
-
 	WRITE_ONCE(dsk->sender.num_sacks, 0);
 	WRITE_ONCE(dsk->sender.token_seq, 0);
 	WRITE_ONCE(dsk->sender.write_seq, 0);
@@ -1027,6 +1035,8 @@ int dcpim_rcv(struct sk_buff *skb)
 		return dcpim_handle_accept(skb, &dcpim_epoch);
 	} else if (dh->type == SYN_ACK) {
 		return dcpim_handle_syn_ack_pkt(skb);
+	}  else if (dh->type == FIN_ACK) {
+		return dcpim_handle_fin_ack_pkt(skb);
 	}
 
 

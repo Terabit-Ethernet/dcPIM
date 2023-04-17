@@ -585,12 +585,21 @@ struct dcpim_sock {
     uint32_t num_sacks;
 	struct dcpim_sack_block selective_acks[16]; /* The SACKS themselves*/
 
+	/* the socket is in DCPIM_ESTABLISHED before and not received fin or fin_ack */
+	bool delay_destruct;
+	struct hrtimer rtx_fin_timer;
+	int fin_sent_times;
+	struct work_struct rtx_fin_work;
+
+
     // ktime_t start_time;
 	struct list_head match_link;
 	/* protectd by dcpim_host lock */
 	struct list_head entry;
 	bool in_host_table;
 	struct dcpim_host* host;
+	
+	
     /* sender */
     struct dcpim_sender {
 		uint32_t token_seq;

@@ -40,8 +40,9 @@ enum dcpim_packet_type {
 	GRANT			   = 25,
 	ACCEPT			   = 26,
 
-	FIN              = 27,
-	SYN_ACK		 = 28,
+	FIN                = 27,
+	SYN_ACK		 	   = 28,
+	FIN_ACK		       = 29,
 };
 
 struct dcpimhdr {
@@ -158,6 +159,15 @@ struct dcpim_syn_ack_hdr {
 	__be32 message_size;
 	__be64 start_time;
 };
+
+struct dcpim_fin_ack_hdr {
+	struct dcpimhdr common;
+	__be64 message_id;
+	/*UINT32_MAX refers to long flow; otherwise, the flow is the short flow. */
+	// __be32 message_size;
+	// __be64 start_time;
+};
+
 
 // _Static_assert(sizeof(struct dcpim_flow_sync_hdr) <= DCPIM_HEADER_MAX_SIZE,
 // 		"flow_sync_header too large");

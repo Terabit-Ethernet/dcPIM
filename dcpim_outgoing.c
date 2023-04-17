@@ -52,6 +52,7 @@
 #include <net/busy_poll.h>
 #include "dcpim_impl.h"
 #include <net/sock_reuseport.h>
+#include <net/sock.h>
 #include <net/addrconf.h>
 #include <net/udp_tunnel.h>
 
@@ -959,6 +960,27 @@ struct sk_buff* construct_fin_pkt(struct sock* sk) {
 	return skb;
 }
 
+struct sk_buff* construct_fin_ack_pkt(struct sock* sk, __u64 message_id) {
+	// int extra_bytes = 0;
+	struct sk_buff* skb = __construct_control_skb(sk, 0);
+	struct dcpim_fin_ack_hdr* fh;
+	struct dcpimhdr* dh; 
+	if(unlikely(!skb)) {
+		return NULL;
+	}
+	fh = (struct dcpim_fin_ack_hdr *) skb_put(skb, sizeof(struct dcpim_fin_ack_hdr));
+	dh = (struct dcpimhdr*) (&fh->common);
+	dh->len = htons(sizeof(struct dcpim_fin_ack_hdr));
+	dh->type = FIN_ACK;
+	fh->message_id = message_id;
+	// fh->message_size = message_size;
+	// fh->start_time = start_time;
+	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
+	// if (extra_bytes > 0)
+	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
+	return skb;
+}
+
 struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short round, int epoch, int remaining_sz) {
 	// int extra_bytes = 0;
 	struct sk_buff* skb = __construct_control_skb(sk, 0);
@@ -1557,7 +1579,6 @@ enum hrtimer_restart dcpim_rtx_token_handler(struct hrtimer *timer) {
 		}
 	}
 	bh_unlock_sock(sk);
-put_sock:
 	// sock_put(sk);
 	return HRTIMER_NORESTART;
 }
@@ -1595,7 +1616,6 @@ enum hrtimer_restart dcpim_rtx_sync_timer_handler(struct hrtimer *timer) {
 		}
 	}
 	bh_unlock_sock(sk);
-put_sock:
 	// sock_put(sk);
 	return HRTIMER_NORESTART;
 }
@@ -1619,4 +1639,37 @@ void dcpim_rtx_sync_handler(struct dcpim_sock *dsk) {
 		}
 	} 
 	return;
+}
+
+void rtx_fin_handler(struct work_struct *work) {
+	struct dcpim_sock *dsk = container_of(work, struct dcpim_sock, rtx_fin_work);
+	struct sock* sk = (struct sock*)dsk;
+	bool need_put = false;
+	lock_sock(sk);
+	if(!dsk->delay_destruct || dsk->fin_sent_times >= 3) {
+		need_put = true;
+		goto put_sock;
+	} 
+	dcpim_xmit_control(construct_fin_pkt(sk), sk); 
+	dsk->fin_sent_times += 1;
+	hrtimer_start(&dsk->rtx_fin_timer, ns_to_ktime(dcpim_params.rtt * 1000), HRTIMER_MODE_REL_PINNED_SOFT);
+	release_sock(sk);
+put_sock:
+	if(need_put) {
+		sk->sk_prot->unhash(sk);
+		/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
+		if (inet_csk(sk)->icsk_bind_hash) {
+			inet_put_port(sk);
+		} 
+		sock_put(sk);
+	}
+}
+
+
+/* hrtimer may fire twice for some reaons; need to check what happens later. */
+enum hrtimer_restart dcpim_rtx_fin_timer_handler(struct hrtimer *timer) {
+
+	struct dcpim_sock *dsk = container_of(timer, struct dcpim_sock, rtx_fin_timer);
+	queue_work_on(raw_smp_processor_id(), dcpim_wq, &dsk->rtx_fin_work);
+	return HRTIMER_NORESTART;
 }
