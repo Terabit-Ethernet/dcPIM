@@ -1588,7 +1588,6 @@ enum hrtimer_restart dcpim_rtx_sync_timer_handler(struct hrtimer *timer) {
 
 	struct dcpim_sock *dsk = container_of(timer, struct dcpim_sock, sender.rtx_flow_sync_timer);
 	struct sock* sk = (struct sock *)dsk;
-	
 	bh_lock_sock(sk);
 	if (!sock_owned_by_user(sk)) {
 		if(!dsk->sender.syn_ack_recvd) {
@@ -1653,7 +1652,6 @@ void rtx_fin_handler(struct work_struct *work) {
 	dcpim_xmit_control(construct_fin_pkt(sk), sk); 
 	dsk->fin_sent_times += 1;
 	hrtimer_start(&dsk->rtx_fin_timer, ns_to_ktime(dcpim_params.rtt * 1000), HRTIMER_MODE_REL_PINNED_SOFT);
-	release_sock(sk);
 put_sock:
 	if(need_put) {
 		sk->sk_prot->unhash(sk);
@@ -1663,6 +1661,7 @@ put_sock:
 		} 
 		sock_put(sk);
 	}
+	release_sock(sk);
 }
 
 

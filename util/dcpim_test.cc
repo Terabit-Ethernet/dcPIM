@@ -909,12 +909,9 @@ void test_dcpimping(int fd, struct sockaddr *dest, char* buffer)
 			// 	offset = 0;
 			// 	cur_write_len = flow_size - write_len;
 			// }
-	    	int result = write(fd, buffer, buffer_size);			
+			int result = write(fd, buffer, buffer_size);
 			if( result < 0 ) {
-				if(errno == EMSGSIZE) {
-					// printf("Socket write failed: %s %d\n", strerror(errno), result);
-					break;
-				}
+				break;
 			} else {
 				write_len += result;
 				// if(write_len > 1000000) {

@@ -237,6 +237,7 @@ struct proto dcpim_prot = {
     // .h.udp_table        = &dcpim_table,
     .max_header     = DCPIM_HEADER_MAX_SIZE,
     .diag_destroy       = dcpim_abort,
+    .no_autobind       = 1,
 };
 // EXPORT_SYMBOL(dcpim_prot);
 
