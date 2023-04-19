@@ -1591,8 +1591,8 @@ enum hrtimer_restart dcpim_rtx_sync_timer_handler(struct hrtimer *timer) {
 	bh_lock_sock(sk);
 	if (!sock_owned_by_user(sk)) {
 		if(!dsk->sender.syn_ack_recvd) {
-			/* maximum retried times = 3 */
-			if(dsk->sender.sync_sent_times >= 3) {
+			/* maximum retried times = 5 */
+			if(dsk->sender.sync_sent_times >= 5) {
 				dcpim_set_state(sk, DCPIM_CLOSE);
 				/* TO DO: might need to wake up socket */
 			} else {
@@ -1645,7 +1645,7 @@ void rtx_fin_handler(struct work_struct *work) {
 	struct sock* sk = (struct sock*)dsk;
 	bool need_put = false;
 	lock_sock(sk);
-	if(!dsk->delay_destruct || dsk->fin_sent_times >= 3) {
+	if(!dsk->delay_destruct || dsk->fin_sent_times >= 5) {
 		need_put = true;
 		goto put_sock;
 	} 
