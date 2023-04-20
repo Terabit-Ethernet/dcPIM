@@ -105,7 +105,7 @@ static inline void dcpim_rps_record_flow(const struct sock *sk)
 		 * OR	an additional socket flag
 		 * [1] : sk_state and sk_prot are in the same cache line.
 		 */
-		if (sk->sk_state == DCPIM_ESTABLISHED || sk->sk_state == DCPIM_LISTEN) {
+		if (sk->sk_state == DCPIM_ESTABLISHED) {
 			// printk("rfs:rxhash:%u\n", sk->sk_rxhash);
 			sock_rps_record_flow_hash(sk->sk_rxhash);
 		}

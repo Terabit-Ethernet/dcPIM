@@ -1279,7 +1279,7 @@ int dcpim_handle_data_pkt(struct sk_buff *skb)
 		// printk("data seq: %u rcv_nxt:%u \n", DCPIM_SKB_CB(skb)->seq, dsk->receiver.rcv_nxt);
         if (!sock_owned_by_user(sk)) {
 			/* current place to set rxhash for RFS/RPS */
-			// printk("skb->hash:%u\n", skb->hash);
+			// printk("interrupt core:%d skb->hash:%u\n", raw_smp_processor_id(), skb->hash);
 			if(sk->sk_state == DCPIM_ESTABLISHED) {
 				atomic_sub(DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq, &dsk->receiver.inflight_bytes);
 				/* ignoring spurious retransmission */
@@ -1342,11 +1342,11 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 	dh = dcpim_hdr(skb);
 	atomic_sub(skb->truesize, &dsk->receiver.backlog_len);
 	/* current place to set rxhash for RFS/RPS */
- 	sock_rps_save_rxhash(sk, skb);
 	// printk("backlog rcv\n");
 	if(sk->sk_state == DCPIM_ESTABLISHED) {
 		if(dh->type == DATA) {
 			atomic_sub(DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq, &dsk->receiver.inflight_bytes);
+ 			sock_rps_save_rxhash(sk, skb);
 			/* ignoring spurious retransmission */
 			if(atomic_read(&dsk->receiver.inflight_bytes) < 0) {
 				atomic_set(&dsk->receiver.inflight_bytes, 0);
@@ -1377,6 +1377,7 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 		} else if (dh->type == TOKEN) {
 			/* clean rtx queue */
 			struct dcpim_token_hdr *th = dcpim_token_hdr(skb);
+ 			sock_rps_save_rxhash(sk, skb);
 			if(th->num_sacks > 0)
 				dcpim_get_sack_info(sk, skb);
 			if(after(th->rcv_nxt, dsk->sender.snd_una))
