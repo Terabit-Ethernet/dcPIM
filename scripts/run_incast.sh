@@ -1,9 +1,9 @@
 iodepth=(1)
-num_apps=(8)
+num_apps=(15)
 dim=(0)
 # 1: incast
 workload=(2)
-perf=1
+perf=0
 sys="dcpim"
 for d in "${dim[@]}"
 do  

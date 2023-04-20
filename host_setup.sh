@@ -8,10 +8,10 @@ sudo ifconfig $INTF mtu 9000
 sudo ifconfig $INTF $HOST
 # Enable aRFS and configure network
 sudo service irqbalance stop
-sudo ethtool -C $INTF adaptive-rx on adaptive-tx on
-sudo ethtool -K $INTF ntuple on gro on gso on tso on lro off
-echo 32768 | sudo tee /proc/sys/net/core/rps_sock_flow_entries
-for f in /sys/class/net/$INTF/queues/rx-*/rps_flow_cnt; do echo 32768 | sudo tee $f; done
+sudo ethtool -C $INTF adaptive-rx off adaptive-tx off
+sudo ethtool -K $INTF ntuple off gro on gso on tso on lro off
+#echo 32768 | sudo tee /proc/sys/net/core/rps_sock_flow_entries
+#for f in /sys/class/net/$INTF/queues/rx-*/rps_flow_cnt; do echo 32768 | sudo tee $f; done
 sudo set_irq_affinity.sh $INTF
 
 # Increase sock size limits
