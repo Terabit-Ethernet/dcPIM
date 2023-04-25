@@ -46,7 +46,7 @@
 #include <vector>
 // #include "homa.h"
 #include "test_utils.h"
-#include "../uapi_linux_dcacp.h"
+#include "../uapi_linux_dcpim.h"
 /* Log events to standard output. */
 bool verbose = false;
 
@@ -297,61 +297,14 @@ void tcp_connection(int fd, struct sockaddr_in source)
 	close(fd);
 }
 
-/**
- * tcp_server() - Opens a TCP socket, accepts connections on that socket
- * (one thread per connection) and processes messages on those connections.
- * @port:  Port number on which to listen.
- */
-void tcp_server(int port)
-{
-	int listen_fd = socket(PF_INET, SOCK_STREAM, 0);
-	if (listen_fd == -1) {
-		printf("Couldn't open server socket: %s\n", strerror(errno));
-		exit(1);
-	}
-	int option_value = 1;
-	if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &option_value,
-			sizeof(option_value)) != 0) {
-		printf("Couldn't set SO_REUSEADDR on listen socket: %s",
-			strerror(errno));
-		exit(1);
-	}
-	struct sockaddr_in addr;
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(port);
-	addr.sin_addr.s_addr = INADDR_ANY;
-	if (bind(listen_fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr))
-			== -1) {
-		printf("Couldn't bind to port %d: %s\n", port, strerror(errno));
-		exit(1);
-	}
-	while (1) {
-		struct sockaddr_in client_addr;
-		socklen_t addr_len = sizeof(client_addr);
-		if (listen(listen_fd, 1000) == -1) {
-			printf("Couldn't listen on socket: %s", strerror(errno));
-			exit(1);
-		}
-		int stream = accept(listen_fd,
-				reinterpret_cast<sockaddr *>(&client_addr),
-				&addr_len);
-		if (stream < 0) {
-			printf("Couldn't accept incoming connection: %s",
-				strerror(errno));
-			exit(1);
-		}
-		std::thread thread(tcp_connection, stream, client_addr);
-		thread.detach();
-	}
-}
 
 /**
- * dcacp_connection() - Handles messages arriving on a given socket.
+ * dcpim_connection() - Handles messages arriving on a given socket.
  * @fd:           File descriptor for the socket over which messages
  *                will arrive.
  * @client_addr:  Information about the client (for messages).
  */
-void dcacp_connection(int fd, struct sockaddr_in source)
+void dcpim_connection(int fd, struct sockaddr_in source)
 {
 	// int flag = 1;
 	char buffer[2000000];
@@ -362,9 +315,21 @@ void dcacp_connection(int fd, struct sockaddr_in source)
 	// uint64_t start_cycle = 0, end_cycle = 0;
 	struct sockaddr_in sin;
 	socklen_t len = sizeof(sin);
+    	// Get the CPU affinity mask for the current thread
+    	cpu_set_t cpu_set;
+    	pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpu_set);
+
+    	// Determine which CPU the current thread is running on
+    	int cpu;
+    	for (cpu = 0; cpu < CPU_SETSIZE; cpu++) {
+        	if (CPU_ISSET(cpu, &cpu_set)) {
+            		printf("Thread is running on CPU %d\n", cpu);
+            		break;
+        	}
+    	}
 	// int *int_buffer = reinterpret_cast<int*>(buffer);
 	if (verbose)
-		printf("New DCACP socket from %s\n", print_address(&source));
+		printf("New DCPIM socket from %s\n", print_address(&source));
 	// setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
 	if (getsockname(fd, (struct sockaddr *)&sin, &len) == -1)
 	    perror("getsockname");
@@ -372,6 +337,7 @@ void dcacp_connection(int fd, struct sockaddr_in source)
 	    printf("port number %d\n", ntohs(sin.sin_port));
 	// start_cycle = rdtsc();
 	printf("start connection\n");
+
 	while (1) {
 		int result = read(fd, buffer,
 				sizeof(buffer));
@@ -395,7 +361,7 @@ void dcacp_connection(int fd, struct sockaddr_in source)
 		// 	double rate = ((double) total_length)/ to_seconds(
 		// 		end_cycle - start_cycle);
 		// 	// if(count != 0) {
-		// 	// 	printf("DCACP throughput: "
+		// 	// 	printf("DCPIM throughput: "
 		// 	// 	"%.2f Gbps, bytes: %f, time: %f\n", rate * 1e-09 * 8, (double) total_length, to_seconds(
 		// 	// 	end_cycle - start_cycle));
 		// 	// }
@@ -451,6 +417,61 @@ void dcacp_connection(int fd, struct sockaddr_in source)
 	if (verbose)
 		printf("Closing TCP socket from %s\n", print_address(&source));
 	close(fd);
+}
+
+/**
+ * tcp_server() - Opens a TCP socket, accepts connections on that socket
+ * (one thread per connection) and processes messages on those connections.
+ * @port:  Port number on which to listen.
+ */
+void tcp_server(int port, bool pin)
+{
+	int listen_fd = socket(PF_INET, SOCK_STREAM, 0);
+	if (listen_fd == -1) {
+		printf("Couldn't open server socket: %s\n", strerror(errno));
+		exit(1);
+	}
+	int option_value = 1;
+	if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &option_value,
+			sizeof(option_value)) != 0) {
+		printf("Couldn't set SO_REUSEADDR on listen socket: %s",
+			strerror(errno));
+		exit(1);
+	}
+	struct sockaddr_in addr;
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(port);
+	addr.sin_addr.s_addr = INADDR_ANY;
+	if (bind(listen_fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr))
+			== -1) {
+		printf("Couldn't bind to port %d: %s\n", port, strerror(errno));
+		exit(1);
+	}
+	while (1) {
+		struct sockaddr_in client_addr;
+		socklen_t addr_len = sizeof(client_addr);
+		if (listen(listen_fd, 1000) == -1) {
+			printf("Couldn't listen on socket: %s", strerror(errno));
+			exit(1);
+		}
+		int stream = accept(listen_fd,
+				reinterpret_cast<sockaddr *>(&client_addr),
+				&addr_len);
+		if (stream < 0) {
+			printf("Couldn't accept incoming connection: %s",
+				strerror(errno));
+			exit(1);
+		}
+		std::thread thread(dcpim_connection, stream, client_addr);
+		if(pin) {
+			cpu_set_t cpuset;
+			CPU_ZERO(&cpuset);
+			CPU_SET(ntohs(client_addr.sin_port) % 16 * 4, &cpuset);
+			pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
+			printf("set affinity:%d port:%d \n",ntohs(client_addr.sin_port) % 16 * 4, ntohs(client_addr.sin_port) );
+		}
+		thread.detach();
+	}
 }
 
 /**
@@ -527,17 +548,17 @@ void udp_server(int port)
 }
 
 /**
- * dcacp_server()
+ * dcpim_server()
  *
  */
-void dcacp_server(int port)
+void dcpim_server(int port, bool pin)
 {
 	// char buffer[1000000];
 	// int result = 0;
 	// uint64_t start_cycle = 0, end_cycle = 0;
 	// uint64_t total_length = 0;
 	// int count = 0;
-	int listen_fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCACP);
+	int listen_fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCPIM);
 	if (listen_fd == -1) {
 		printf("Couldn't open server socket: %s\n", strerror(errno));
 		exit(1);
@@ -577,7 +598,13 @@ void dcacp_server(int port)
 				strerror(errno));
 			exit(1);
 		}
-		std::thread thread(dcacp_connection, stream, client_addr);
+		std::thread thread(dcpim_connection, stream, client_addr);
+		if(pin) {
+			cpu_set_t cpuset;
+			CPU_ZERO(&cpuset);
+			CPU_SET(ntohs(client_addr.sin_port) % 16 * 4, &cpuset);
+			pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
+		}
 		thread.detach();
 	}
 	// while (1) {
@@ -607,7 +634,7 @@ void dcacp_server(int port)
 
 	// 		start_cycle = rdtsc();
 	// 		if(count != 0) {
-	// 			printf("DCACP throughput: "
+	// 			printf("DCPIM throughput: "
 	// 			"%.2f Gbps\n", rate * 1e-09 * 8);
 	// 		}
 	// 	}
@@ -619,8 +646,9 @@ void dcacp_server(int port)
 
 int main(int argc, char** argv) {
 	int next_arg;
-	int num_ports = 1;
+	// int num_ports = 1;
 	std::string ip;
+	bool pin = false;
 	if ((argc >= 2) && (strcmp(argv[1], "--help") == 0)) {
 		print_help(argv[0]);
 		exit(0);
@@ -630,7 +658,9 @@ int main(int argc, char** argv) {
 		if (strcmp(argv[next_arg], "--help") == 0) {
 			print_help(argv[0]);
 			exit(0);
-		} else if (strcmp(argv[next_arg], "--port") == 0) {
+		} else if (strcmp(argv[next_arg], "--pin") == 0) {
+			pin = true;
+        } else if (strcmp(argv[next_arg], "--port") == 0) {
 			if (next_arg == (argc-1)) {
 				printf("No value provided for %s option\n",
 					argv[next_arg]);
@@ -647,16 +677,6 @@ int main(int argc, char** argv) {
 			}
 			next_arg++;
 			ip = std::string(argv[next_arg]);
-		} 
-		else if (strcmp(argv[next_arg], "--num_ports") == 0) {
-			if (next_arg == (argc-1)) {
-				printf("No value provided for %s option\n",
-					argv[next_arg]);
-				exit(1);
-			}
-			next_arg++;
-			num_ports = get_int(argv[next_arg],
-				"Bad num_ports %s; must be positive integer\n");
 		} else if (strcmp(argv[next_arg], "--validate") == 0) {
 			validate = true;
 		} else if (strcmp(argv[next_arg], "--verbose") == 0) {
@@ -673,11 +693,11 @@ int main(int argc, char** argv) {
 	// 	printf("port number:%i\n", port + i);
 	// 	workers.push_back(std::thread (homa_server, ip, port+i));
 	// }
-	workers.push_back(std::thread(tcp_server, port));
+	workers.push_back(std::thread(tcp_server, port, pin));
 	workers.push_back(std::thread(udp_server, port));
-	workers.push_back(std::thread(dcacp_server, port));
+	workers.push_back(std::thread(dcpim_server, port, pin));
 	workers.push_back(std::thread(aggre_thread, &agg_stats));
-	for(int i = 0; i < num_ports; i++) {
+	for(int i = 0; i < 4; i++) {
 		workers[i].join();
 	}
 }

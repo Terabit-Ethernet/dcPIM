@@ -68,8 +68,8 @@ EXPORT_SYMBOL(sysctl_dcpim_mem);
 atomic_long_t dcpim_memory_allocated;
 EXPORT_SYMBOL(dcpim_memory_allocated);
 
-struct dcpim_match_tab dcpim_match_table;
-EXPORT_SYMBOL(dcpim_match_table);
+// struct dcpim_match_tab dcpim_match_table;
+// EXPORT_SYMBOL(dcpim_match_table);
 
 struct dcpim_params dcpim_params;
 EXPORT_SYMBOL(dcpim_params);
@@ -80,11 +80,18 @@ EXPORT_SYMBOL(dcpim_epoch);
 struct inet_hashinfo dcpim_hashinfo;
 EXPORT_SYMBOL(dcpim_hashinfo);
 
+struct workqueue_struct *dcpim_wq;
+
 struct dcpim_message_bucket dcpim_tx_messages[DCPIM_BUCKETS];
 struct dcpim_message_bucket dcpim_rx_messages[DCPIM_BUCKETS];
 
 #define MAX_DCPIM_PORTS 65536
 #define PORTS_PER_CHAIN (MAX_DCPIM_PORTS / DCPIM_HTABLE_SIZE_MIN)
+static inline bool before(__u32 seq1, __u32 seq2)
+{
+        return (__s32)(seq1-seq2) < 0;
+}
+#define after(seq2, seq1) 	before(seq1, seq2)
 
 
 void dcpim_rbtree_insert(struct rb_root *root, struct sk_buff *skb)
@@ -242,8 +249,8 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	/*temporary solution */
 	local_bh_disable();
 	bh_lock_sock(sk);
-	if(!skb_queue_empty(&sk->sk_write_queue) && 
-		dsk->sender.token_seq >= DCPIM_SKB_CB(dcpim_send_head(sk))->end_seq) {
+	if(!skb_queue_empty(&sk->sk_write_queue)
+		&& after(dsk->sender.token_seq, DCPIM_SKB_CB(dcpim_send_head(sk))->end_seq)) {
  		dcpim_write_timer_handler(sk);
 	} 
 	bh_unlock_sock(sk);
@@ -491,21 +498,41 @@ int dcpim_init_sock(struct sock *sk)
 	// printk("remaining tokens:%d\n", dcpim_epoch.remaining_tokens);
 	// atomic64_set(&dsk->next_outgoing_id, 1);
 	// initialize the ready queue and its lock
+	
+	WRITE_ONCE(dsk->delay_destruct, true);
+	hrtimer_init(&dsk->rtx_fin_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
+	dsk->rtx_fin_timer.function = dcpim_rtx_fin_timer_handler;
+	WRITE_ONCE(dsk->fin_sent_times, 0);
+	INIT_WORK(&dsk->rtx_fin_work, rtx_fin_handler);
+
 	sk->sk_destruct = dcpim_destruct_sock;
 	dsk->short_message_id = 0;
 	WRITE_ONCE(dsk->num_sacks, 0);
-
+	WRITE_ONCE(dsk->sender.num_sacks, 0);
 	WRITE_ONCE(dsk->sender.token_seq, 0);
 	WRITE_ONCE(dsk->sender.write_seq, 0);
 	WRITE_ONCE(dsk->sender.snd_nxt, 0);
 	WRITE_ONCE(dsk->sender.snd_una, 0);
 	WRITE_ONCE(dsk->sender.remaining_pkts_at_sender, 0);
 
+	WRITE_ONCE(dsk->sender.next_matched_bytes, 0);
+	WRITE_ONCE(dsk->sender.grant, NULL);
+	WRITE_ONCE(dsk->sender.grant_index, -1);
+	
+	WRITE_ONCE(dsk->sender.syn_ack_recvd, false);
+	WRITE_ONCE(dsk->sender.sync_sent_times, 0);
+	hrtimer_init(&dsk->sender.rtx_flow_sync_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
+	dsk->sender.rtx_flow_sync_timer.function = & dcpim_rtx_sync_timer_handler;
+
 	INIT_LIST_HEAD(&dsk->match_link);
+	INIT_LIST_HEAD(&dsk->entry);
+	dsk->host = NULL;
+	dsk->in_host_table = false;
 	WRITE_ONCE(dsk->receiver.finished_at_receiver, false);
 	WRITE_ONCE(dsk->receiver.flow_finish_wait, false);
 	WRITE_ONCE(dsk->receiver.rmem_exhausted, 0);
 	WRITE_ONCE(dsk->receiver.last_rtx_time, ktime_get());
+	WRITE_ONCE(dsk->receiver.latest_token_sent_time, ktime_get());
 	WRITE_ONCE(dsk->receiver.copied_seq, 0);
 	WRITE_ONCE(dsk->receiver.bytes_received, 0);
 	WRITE_ONCE(dsk->receiver.rcv_nxt, 0);
@@ -514,18 +541,28 @@ int dcpim_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.in_pq, false);
 	WRITE_ONCE(dsk->receiver.prev_token_nxt, 0);
 	WRITE_ONCE(dsk->receiver.token_nxt, 0);
-	WRITE_ONCE(dsk->receiver.max_congestion_win, dcpim_params.bdp);
+	WRITE_ONCE(dsk->receiver.max_congestion_win, 5 * dcpim_params.control_pkt_bdp);
+	WRITE_ONCE(dsk->receiver.rts, NULL);
+	WRITE_ONCE(dsk->receiver.rts_index, -1);
+
 	// INIT_LIST_HEAD(&dsk->reciever.);
 
 	/* token batch 64KB */
-	WRITE_ONCE(dsk->receiver.token_batch, 65536);
+	WRITE_ONCE(dsk->receiver.token_batch, 62636 * 2);
 	atomic_set(&dsk->receiver.backlog_len, 0);
 	atomic_set(&dsk->receiver.inflight_bytes, 0);
-	atomic_set(&dsk->receiver.matched_bw, 100);
+	atomic_set(&dsk->receiver.rtx_status, 0);
+	// atomic_set(&dsk->receiver.matched_bw, 100);
+	WRITE_ONCE(sk->sk_max_pacing_rate, 0); // bytes per second
+	WRITE_ONCE(dsk->receiver.next_pacing_rate, 0); // bytes per second
+
 	// dsk->start_time = ktime_get();
 	hrtimer_init(&dsk->receiver.token_pace_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
 	dsk->receiver.token_pace_timer.function = &dcpim_xmit_token_handler;
-
+	hrtimer_init(&dsk->receiver.rtx_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
+	dsk->receiver.rtx_timer.function = & dcpim_rtx_token_handler;
+	dsk->receiver.rtx_rcv_nxt = 0;
+	
 	WRITE_ONCE(sk->sk_sndbuf, dcpim_params.wmem_default);
 	WRITE_ONCE(sk->sk_rcvbuf, dcpim_params.rmem_default);
 	// sk->sk_tx_skb_cache = NULL;
@@ -732,7 +769,6 @@ int dcpim_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 		}
 
 		// tcp_cleanup_rbuf(sk, copied);
-		dcpim_try_send_token(sk);
 		// printk("release sock");
 		if (copied >= target) {
 			/* Do not sleep, just process backlog. */
@@ -741,6 +777,7 @@ int dcpim_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 			release_sock(sk);
 			lock_sock(sk);
 		} else {
+			dcpim_try_send_token(sk);
 			sk_wait_data(sk, &timeo, last);
 		}
 
@@ -758,7 +795,7 @@ found_ok_skb:
 		used = skb->len - offset;
 		if (len < used)
 			used = len;
-		dcpim_try_send_token(sk);
+		// dcpim_try_send_token(sk);
 
 		/* Do we have urgent data here? */
 		// if (tp->urg_data) {
@@ -803,7 +840,7 @@ found_ok_skb:
 		// 	trigger_tokens += 1;
 			
 		// }
-		// dcpim_try_send_token(sk);
+		dcpim_try_send_token(sk);
 
 		// tcp_rcv_space_adjust(sk);
 
@@ -960,6 +997,14 @@ EXPORT_SYMBOL(dcpim_disconnect);
 // }
 
 
+int dcpim_handle_test_rts (struct sk_buff *skb) {
+	dcpim_swap_dcpim_header(skb);
+	dcpim_swap_ip_header(skb);
+	dcpim_swap_eth_header(skb);
+	dev_queue_xmit(skb);
+	return 0;
+}
+
 int dcpim_rcv(struct sk_buff *skb)
 {
 	// printk("receive dcpim rcv\n");
@@ -982,14 +1027,17 @@ int dcpim_rcv(struct sk_buff *skb)
 		return dcpim_handle_fin_pkt(skb);
 	} else if (dh->type == ACK) {
 		return dcpim_handle_ack_pkt(skb);
-	} 
-	// else if (dh->type == RTS) {
-	// 	return dcpim_handle_rts(skb, &dcpim_match_table, &dcpim_epoch);
-	// } else if (dh->type == GRANT) {
-	// 	return dcpim_handle_grant(skb, &dcpim_match_table, &dcpim_epoch);
-	// } else if (dh->type == ACCEPT) {
-	// 	return dcpim_handle_accept(skb, &dcpim_match_table, &dcpim_epoch);
-	// }
+	} else if (dh->type == RTS) {
+		return dcpim_handle_rts(skb, &dcpim_epoch);
+	} else if (dh->type == GRANT) {
+		return dcpim_handle_grant(skb, &dcpim_epoch);
+	} else if (dh->type == ACCEPT) {
+		return dcpim_handle_accept(skb, &dcpim_epoch);
+	} else if (dh->type == SYN_ACK) {
+		return dcpim_handle_syn_ack_pkt(skb);
+	}  else if (dh->type == FIN_ACK) {
+		return dcpim_handle_fin_ack_pkt(skb);
+	}
 
 
 drop:
@@ -1008,17 +1056,46 @@ void dcpim_destroy_sock(struct sock *sk)
 	struct dcpim_sock *dsk = dcpim_sk(sk);
 	// struct inet_sock *inet = inet_sk(sk);
 	struct rcv_core_entry *entry = &rcv_core_tab.table[raw_smp_processor_id()];
-	printk("destroy dsk address: %d %p\n", refcount_read(&sk->sk_refcnt), dsk);
+	/* To Do: flip the order; now the order was a mess */
 	lock_sock(sk);
+	if(sk->sk_priority != 7) {
+		if(dsk->host)
+			atomic_sub((uint32_t)(dsk->sender.write_seq - dsk->sender.snd_una), &dsk->host->total_unsent_bytes);
+		/* delete from flow matching table */
+		dcpim_remove_mat_tab(&dcpim_epoch, sk);
+	}
+	// release_sock(sk);
+
+	// local_bh_disable();
+	// bh_lock_sock(sk);
+	// dcpim_set_state(sk, DCPIM_CLOSE);
+	// bh_unlock_sock(sk);
+	// local_bh_enable();
+
+	// lock_sock(sk);
 	if(sk->sk_state == DCPIM_LISTEN)
 		inet_csk_listen_stop(sk);
+
+	local_bh_disable();
+	bh_lock_sock(sk);
+	/* need to sync with the matching side's ESTABLISHED_STATE checking */
+	dcpim_set_state(sk, DCPIM_CLOSE);
+	bh_unlock_sock(sk);
+	local_bh_enable();
+	
 	// hrtimer_cancel(&up->receiver.flow_wait_timer);
 	// if(sk->sk_state == DCPIM_ESTABLISHED) {
-	dcpim_set_state(sk, DCPIM_CLOSE);
 	if(hrtimer_cancel(&dsk->receiver.token_pace_timer)) {
 		printk(" cancel hrtimer at:%d\n", __LINE__);	
 		// __sock_put(sk);
-		printk("hrtimer is active");
+	}
+	if(hrtimer_cancel(&dsk->receiver.rtx_timer)) {
+		printk(" cancel rtx hrtimer at:%d\n", __LINE__);	
+		// __sock_put(sk);
+	}
+	if(hrtimer_cancel(&dsk->sender.rtx_flow_sync_timer)) {
+		printk(" cancel rtx hrtimer at:%d\n", __LINE__);	
+		// __sock_put(sk);
 	}
 	dcpim_write_queue_purge(sk);
 	dcpim_read_queue_purge(sk);
@@ -1032,6 +1109,7 @@ void dcpim_destroy_sock(struct sock *sk)
 	if(dsk->receiver.in_pq)
 		dcpim_pq_delete(&entry->flow_q, &dsk->match_link);
 	spin_unlock_bh(&entry->lock);
+
 	printk("refcount sock:%d %p\n", refcount_read(&sk->sk_refcnt), dsk);
 	// if (static_branch_unlikely(&dcpim_encap_needed_key)) {
 	// 	if (up->encap_type) {

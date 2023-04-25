@@ -11,7 +11,6 @@ dcpim_module-y = dcpim_sock.o\
 				 dcpim.o \
 				 dcpim_scheduling.o\
 				 dcpim_offload.o\
-				 dcpim_unittest.o\
 				 dcpim_plumbing.o
 
 # dcpim.o \

@@ -40,7 +40,9 @@ enum dcpim_packet_type {
 	GRANT			   = 25,
 	ACCEPT			   = 26,
 
-	FIN              = 27,
+	FIN                = 27,
+	SYN_ACK		 	   = 28,
+	FIN_ACK		       = 29,
 };
 
 struct dcpimhdr {
@@ -149,6 +151,24 @@ struct dcpim_flow_sync_hdr {
 	__be32 message_size;
 	__be64 start_time;
 };
+
+struct dcpim_syn_ack_hdr {
+	struct dcpimhdr common;
+	__be64 message_id;
+	/*UINT32_MAX refers to long flow; otherwise, the flow is the short flow. */
+	__be32 message_size;
+	__be64 start_time;
+};
+
+struct dcpim_fin_ack_hdr {
+	struct dcpimhdr common;
+	__be64 message_id;
+	/*UINT32_MAX refers to long flow; otherwise, the flow is the short flow. */
+	// __be32 message_size;
+	// __be64 start_time;
+};
+
+
 // _Static_assert(sizeof(struct dcpim_flow_sync_hdr) <= DCPIM_HEADER_MAX_SIZE,
 // 		"flow_sync_header too large");
 
@@ -170,7 +190,7 @@ struct dcpim_grant_hdr {
 	__u8 round;
 	__be64 epoch;
 	__be32 remaining_sz;
-	__u8 prompt;
+	// __u8 prompt;
 };
 
 struct dcpim_accept_hdr {
@@ -187,13 +207,13 @@ enum {
 	SKB_GSO_DCPIM_L4 = 1 << 20,
 };
 
-#define SOL_DCPIM 18
+#define SOL_DCPIM 0xFE
 // #define SOL_DCPIMLITE 19
 
 /* DCPIM's protocol number within the IP protocol space (this is not an
  * officially allocated slot).
  */
-#define IPPROTO_DCPIM 18
+#define IPPROTO_DCPIM 0xFE
 // #define IPPROTO_DCPIMLITE 19
 
 /* DCPIM socket options */

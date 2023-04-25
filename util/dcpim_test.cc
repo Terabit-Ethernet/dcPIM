@@ -42,7 +42,7 @@
 
 #include <thread>
 
-#include "../uapi_linux_dcacp.h"
+#include "../uapi_linux_dcpim.h"
 #include "test_utils.h"
 #ifndef ETH_MAX_MTU
 #define ETH_MAX_MTU	0xFFFFU
@@ -763,7 +763,7 @@ void test_udpstream(char *server_name, int port)
  * @server_name:  Name of the server machine.
  * @port:         Server port to connect to.
  */
-void test_dcacpstream(int fd, struct sockaddr *dest, char* buffer)
+void test_dcpimstream(int fd, struct sockaddr *dest, char* buffer)
 {
 	// struct addrinfo hints;
 	// struct addrinfo *matching_addresses;
@@ -787,7 +787,7 @@ void test_dcacpstream(int fd, struct sockaddr *dest, char* buffer)
 	// dest = matching_addresses->ai_addr;
 	// ((struct sockaddr_in *) dest)->sin_port = htons(port);
 	
-	// int fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCACP);
+	// int fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCPIM);
 	// if (fd == -1) {
 	// 	printf("Couldn't open client socket: %s\n", strerror(errno));
 	// 	return;
@@ -827,24 +827,26 @@ void test_dcacpstream(int fd, struct sockaddr *dest, char* buffer)
 		// }
 		elapsed = to_seconds(rdtsc() - start_cycles);
 		rate = ((double) bytes_sent - start_bytes) / elapsed;
-		printf("DCACP throughput using %d byte buffers: %.2f Gb/sec\n",
+		printf("DCPIM throughput using %d byte buffers: %.2f Gb/sec\n",
 			length, rate * 1e-09 * 8);	
 	}
 }
 
-void test_dcacpping(int fd, struct sockaddr *dest, char* buffer)
+void test_dcpimping(int fd, struct sockaddr *dest, char* buffer)
 {
-	struct sockaddr_in* in = (struct sockaddr_in*) dest;
+	// struct sockaddr_in* in = (struct sockaddr_in*) dest;
 	uint32_t buffer_size = 67000;
-	uint32_t flow_size = 3000000000;
+	// uint32_t flow_size = 3000000000;
 	uint32_t write_len = 0;
+	uint64_t start, end;
+	uint64_t cycles_per_sec = get_cycles_per_sec();
 	// int i = 0;
 	// uint32_t offset = write_len % flow_size;
 
-	in->sin_zero[0] = flow_size >> 24 & 0xFF;
-	in->sin_zero[1] = flow_size >> 16 & 0xFF;
-	in->sin_zero[2] = flow_size >> 8 & 0xFF;
-	in->sin_zero[3] = flow_size & 0xFF;
+	// in->sin_zero[0] = flow_size >> 24 & 0xFF;
+	// in->sin_zero[1] = flow_size >> 16 & 0xFF;
+	// in->sin_zero[2] = flow_size >> 8 & 0xFF;
+	// in->sin_zero[3] = flow_size & 0xFF;
 	// struct addrinfo hints;
 	// struct addrinfo *matching_addresses;
 	// struct sockaddr *dest;
@@ -867,7 +869,7 @@ void test_dcacpping(int fd, struct sockaddr *dest, char* buffer)
 	// dest = matching_addresses->ai_addr;
 	// ((struct sockaddr_in *) dest)->sin_port = htons(port);
 	
-	// int fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCACP);
+	// int fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCPIM);
 	// if (fd == -1) {
 	// 	printf("Couldn't open client socket: %s\n", strerror(errno));
 	// 	return;
@@ -892,8 +894,9 @@ void test_dcacpping(int fd, struct sockaddr *dest, char* buffer)
 			exit(1);
 		}
 		printf("connect done\n");
+		start = rdtsc();
 	    // for (int i = 0; i < count * 100; i++) {
-		while(write_len <= flow_size) {
+		while(1) {
 			// int cur_write_len = 0;
 			// offset = write_len % buffer_size;
 			// cur_write_len = buffer_size - offset < flow_size - write_len ? (buffer_size - offset) : (flow_size - write_len);
@@ -906,12 +909,9 @@ void test_dcacpping(int fd, struct sockaddr *dest, char* buffer)
 			// 	offset = 0;
 			// 	cur_write_len = flow_size - write_len;
 			// }
-	    	int result = write(fd, buffer, buffer_size);			
+			int result = write(fd, buffer, buffer_size);
 			if( result < 0 ) {
-				if(errno == EMSGSIZE) {
-					// printf("Socket write failed: %s %d\n", strerror(errno), result);
-					break;
-				}
+				break;
 			} else {
 				write_len += result;
 				// if(write_len > 1000000) {
@@ -920,6 +920,9 @@ void test_dcacpping(int fd, struct sockaddr *dest, char* buffer)
 				// if(write_len != 0)
 				// 	printf("sent result:%d\n", result);
 			}
+			end = rdtsc();
+			if(end - start > cycles_per_sec * 120)
+				break;
 		}
 	// }
 
@@ -942,7 +945,7 @@ void test_dcacpping(int fd, struct sockaddr *dest, char* buffer)
 		// }
 	// 	elapsed = to_seconds(rdtsc() - start_cycles);
 	// 	rate = ((double) bytes_sent - start_bytes) / elapsed;
-	// 	printf("DCACP throughput using %d byte buffers: %.2f Gb/sec\n",
+	// 	printf("DCPIM throughput using %d byte buffers: %.2f Gb/sec\n",
 	// 		length, rate * 1e-09 * 8);	
 	// }
 }
@@ -1110,6 +1113,8 @@ int main(int argc, char** argv)
 	struct addrinfo hints;
 	char *host, *port_name;
 	char buffer[1000000] = "abcdefgh\n";
+	// int cpu_list[15] = {0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56};
+	bool pin = false;
 	buffer[63999] = 'H';
 	int status;
 	int fd;
@@ -1139,7 +1144,9 @@ int main(int argc, char** argv)
 		if (strcmp(argv[nextArg], "--help") == 0) {
 			print_help(argv[0]);
 			exit(0);
-		} else if (strcmp(argv[nextArg], "--count") == 0) {
+		} else if (strcmp(argv[nextArg], "--pin") == 0) {
+			pin = true;
+        } else if (strcmp(argv[nextArg], "--count") == 0) {
 			if (nextArg == (argc-1)) {
 				printf("No value provided for %s option\n",
 					argv[nextArg]);
@@ -1177,6 +1184,13 @@ int main(int argc, char** argv)
 			exit(1);
 		}
 	}
+	if(pin) {
+			cpu_set_t cpuset;
+			pthread_t current_thread = pthread_self();
+			CPU_ZERO(&cpuset);
+			CPU_SET(srcPort % 16 * 4, &cpuset);
+			pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
+	}
 	// get destination address
 	memset(&hints, 0, sizeof(struct addrinfo));
 	hints.ai_family = AF_INET;
@@ -1197,25 +1211,18 @@ int main(int argc, char** argv)
 		nextArg = tempArg;
 
 		printf("nextArg:%d\n", nextArg);
-		fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_DCACP);
+		fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_DCPIM);
 		if (fd < 0) {
-			printf("Couldn't open DCACP socket: %s\n", strerror(errno));
+			printf("Couldn't open DCPIM socket: %s\n", strerror(errno));
 		}
 		// int option = 1;
-		// if (setsockopt(fd, SOL_DCACP, SO_NO_CHECK, (void*)&option, sizeof(option))) {
+		// if (setsockopt(fd, SOL_DCPIM, SO_NO_CHECK, (void*)&option, sizeof(option))) {
 		// 	return -1;
 		// }
 		memset(&addr_in, 0, sizeof(addr_in));
 		addr_in.sin_family = AF_INET;
-		addr_in.sin_port = htons(srcPort);
-		addr_in.sin_addr.s_addr = inet_addr("192.168.10.114");
-
-
-		if (bind(fd, (struct sockaddr *) &addr_in, sizeof(addr_in)) != 0) {
-			printf("Couldn't bind socket to DCACP port %d: %s\n", port,
-					strerror(errno));
-			return -1;
-		}
+		addr_in.sin_port = htons(srcPort + i);
+		addr_in.sin_addr.s_addr = inet_addr("192.168.10.124");
 
 		for ( ; nextArg < argc; nextArg++) {
 			// if (strcmp(argv[nextArg], "close") == 0) {
@@ -1247,12 +1254,29 @@ int main(int argc, char** argv)
 				test_udpclose();
 			} else if (strcmp(argv[nextArg], "udpstream") == 0) {
 				test_udpstream(host, port);
-			} else if (strcmp(argv[nextArg], "dcacpstream") == 0) {
-				test_dcacpstream(fd, dest, buffer);
-			} else if (strcmp(argv[nextArg], "dcacpping") == 0) {
-				printf("call dcacpping\n");
-				test_dcacpping(fd, dest, buffer);
-			}
+			} else if (strcmp(argv[nextArg], "dcpimstream") == 0) {
+				test_dcpimstream(fd, dest, buffer);
+			} else if (strcmp(argv[nextArg], "dcpimping") == 0) {
+				printf("call dcpimping\n");
+				if (bind(fd, (struct sockaddr *) &addr_in, sizeof(addr_in)) != 0) {
+					printf("Couldn't bind socket to DCPIM port %d: %s\n", srcPort,
+							strerror(errno));
+					return -1;
+				}
+				test_dcpimping(fd, dest, buffer);
+			} else if (strcmp(argv[nextArg], "tcpping") == 0) {
+				int reuse = 1;
+                		fd = socket(AF_INET, SOCK_STREAM, 0);
+				if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0)
+   					perror("setsockopt(SO_REUSEADDR) failed");
+				if (bind(fd, (struct sockaddr *) &addr_in, sizeof(addr_in)) != 0) {
+					printf("Couldn't bind socket to TCP port %d: %s\n", srcPort,
+							strerror(errno));
+					return -1;
+				}
+				printf("call tcpping\n");
+                		test_dcpimping(fd, dest, buffer);
+            		}
 			 else {
 				printf("Unknown operation '%s'\n", argv[nextArg]);
 				exit(1);

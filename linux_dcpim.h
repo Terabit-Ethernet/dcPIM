@@ -20,6 +20,10 @@
 
 struct dcpim_sock;
 
+#define DCPIM_MATCH_DEFAULT_HOST 256
+#define DCPIM_MATCH_DEFAULT_HOST_BITS 8
+#define DCPIM_MATCH_DEFAULT_FLOWS 256
+
 enum {
 	/* Core State */
 	DCPIM_IDLE = 1,
@@ -63,6 +67,8 @@ enum dcpimcsq_enum {
 	DCPIM_RMEM_CHECK_DEFERRED,  /* Read Memory Check once release sock */
 	DCPIM_RTX_DEFERRED,
 	DCPIM_WAIT_DEFERRED,
+	DCPIM_RTX_TOKEN_TIMER_DEFERRED,
+	DCPIM_RTX_FLOW_SYNC_DEFERRED,
 };
 
 enum dcpimcsq_flags {
@@ -74,13 +80,15 @@ enum dcpimcsq_flags {
 	DCPIMF_RMEM_CHECK_DEFERRED	= (1UL << DCPIM_RMEM_CHECK_DEFERRED),
 	DCPIMF_RTX_DEFERRED	= (1UL << DCPIM_RTX_DEFERRED),
 	DCPIMF_WAIT_DEFERRED = (1UL << DCPIM_WAIT_DEFERRED),
+	DCPIMF_RTX_TOKEN_TIMER_DEFERRED = (1UL << DCPIM_RTX_TOKEN_TIMER_DEFERRED),
+	DCPIMF_RTX_FLOW_SYNC_DEFERRED = (1UL << DCPIM_RTX_FLOW_SYNC_DEFERRED),
 };
 
 struct dcpim_params {
 	int clean_match_sock;
 	int fct_round;
 	int match_socket_port;
-	int bandwidth;
+	unsigned long bandwidth;
 	// in microsecond
 	int rtt;
 	int control_pkt_rtt;
@@ -271,12 +279,68 @@ struct xmit_core_table {
 
 }; 
 
+// struct dcpim_flow {
+// 	/* the sock of the corresponding flow */
+// 	struct sock* sock;
+// 	bool matched;
+// 	int cur_matched_bytes;
+// 	int next_matched_bytes;
+// 	struct list_head entry;
+// };
+
+struct dcpim_host {
+	/* key of the host */
+	__be32 src_ip;
+	__be32 dst_ip;
+	/* lock only protects flow_list, sk, num_flows and hash */
+	spinlock_t lock;
+	/* socket list */
+	struct list_head flow_list;
+	int num_flows;
+	u32 hash;
+	/* one member of socket used for sending rts */
+	struct sock* sk;
+	/* sender only */
+	atomic_t total_unsent_bytes;
+	/* receiver only: protected by matched_lock */
+	unsigned long next_pacing_rate;
+	struct hlist_node hlist;
+	/* sender only: for sending RTS */
+	struct list_head entry;
+	refcount_t refcnt;
+	/* grant_index is protected by sender_lock */
+	int grant_index;
+	/* grant is protected by sender_lock */
+	struct dcpim_grant* grant;
+	/* rts_index is protected by receiver_lock */
+	int rts_index;	
+	/* rts is protected by receiver_lock */
+	struct dcpim_rts* rts;
+
+};
+// struct dcpim_matched_flow {
+// 	/* the sock of the corresponding flow */
+// 	struct sock* sock;
+// 	int matched_bytes;
+// 	struct net *net;
+//  	/* ip hdr */
+// 	__be32 saddr;
+// 	__be32 daddr;
+// 	/* tcp port number */
+// 	__be16 sport;
+// 	__be16 dport;
+// 	int dif;
+// 	int sdif;
+// };
+
 struct dcpim_epoch {
 
 	uint64_t epoch;
 	uint64_t cur_epoch;
 	uint32_t round;
 	uint32_t cpu;
+	__be16 port;
+	__be16 port_range;
 	/* in ns */
 	int epoch_length;
 	/* in ns */
@@ -286,18 +350,31 @@ struct dcpim_epoch {
 	int max_array_size;
 	// __be32 match_src_addr;
 	// __be32 match_dst_addr;
-	spinlock_t lock;
+	struct dcpim_sock** cur_matched_arr;
+	struct dcpim_host** next_matched_arr;
+	int cur_matched_flows;
+	int next_matched_hosts;
+	unsigned long rate_per_channel;
+	spinlock_t table_lock;
+	struct list_head host_list;
+	/* it has DCPIM_MATCH_DEFAULT_HOST_BITS slots */
+	DECLARE_HASHTABLE(host_table, DCPIM_MATCH_DEFAULT_HOST_BITS);
+
+	spinlock_t matched_lock;
 
 	spinlock_t receiver_lock;
 	struct dcpim_rts *rts_array;
+	struct sk_buff** rts_skb_array;
 	atomic_t unmatched_recv_bytes;
-	atomic_t rts_size;
+	int rts_size;
 	// int rts_size;
 
 	spinlock_t sender_lock;
 	struct dcpim_grant *grants_array;
+	struct sk_buff** grant_skb_array;
+
 	int unmatched_sent_bytes;
-	atomic_t grant_size;
+	int grant_size;
 	// int grant_size;
 
 	int epoch_bytes_per_k;
@@ -316,7 +393,7 @@ struct dcpim_epoch {
 	// struct hrtimer token_xmit_timer;
 	// struct work_struct token_xmit_struct;
 	/* for phost queue */
-	struct dcpim_pq flow_q;
+	// struct dcpim_pq flow_q;
 
 	// current epoch and address
 	// uint32_t cur_match_src_addr;
@@ -337,55 +414,72 @@ struct dcpim_epoch {
 
 // dcpim matching logic data structure
 struct dcpim_rts {
-    struct dcpim_sock *dsk;
+    struct dcpim_host *host;
+	uint64_t epoch;
+	uint32_t round;
     int remaining_sz;
+	int skb_size;
+	struct sk_buff **skb_arr;
  	// struct list_head entry;
 	// struct llist_node lentry;
 };
 struct dcpim_grant {
     // bool prompt;
-    struct dcpim_sock *dsk;
+    struct dcpim_host *host;
+	uint64_t epoch;
+	uint32_t round;
     int remaining_sz;
+	int skb_size;
+	struct sk_buff **skb_arr;
+	/* ether hdr */
+	// unsigned char	h_dest[ETH_ALEN];	/* destination eth addr	*/
+	// unsigned char	h_source[ETH_ALEN];	/* source ether addr	*/
+	/* ip hdr */
+	// __be32 saddr;
+	// __be32 daddr;
+	/* tcp port number */
+	// __be16 sport;
+	// __be16 dport;
 	// struct list_head entry;
 	// struct llist_node lentry;
 };
 
-struct dcpim_match_entry {
-	struct spinlock lock;
-	struct dcpim_pq pq;
-	struct hlist_node hash_link;
-	struct list_head list_link;
-	// struct dcpim_peer *peer;
-	__be32 dst_addr;
-};
+// struct dcpim_match_entry {
+// 	struct spinlock lock;
+// 	struct dcpim_pq pq;
+// 	struct hlist_node hash_link;
+// 	struct list_head list_link;
+// 	// struct dcpim_peer *peer;
+// 	__be32 dst_addr;
+// };
 
-struct dcpim_match_slot {
-	struct hlist_head head;
-	int	count;
-	struct spinlock	lock;
-};
-struct dcpim_match_tab {
-	/* hash table: matching ip_address => list pointer*/
-	struct dcpim_match_slot *buckets;
+// struct dcpim_match_slot {
+// 	struct hlist_head head;
+// 	int	count;
+// 	struct spinlock	lock;
+// };
+// struct dcpim_match_tab {
+// 	/* hash table: matching ip_address => list pointer*/
+// 	struct dcpim_match_slot *buckets;
 
-	/* the lock is for the hash_list, not for buckets.*/
-	struct spinlock lock;
-	/* list of current active hash entry for iteration*/
-	struct list_head hash_list;
-	bool (*comp)(const struct list_head*, const struct list_head*);
+// 	/* the lock is for the hash_list, not for buckets.*/
+// 	struct spinlock lock;
+// 	/* list of current active hash entry for iteration*/
+// 	struct list_head hash_list;
+// 	bool (*comp)(const struct list_head*, const struct list_head*);
 
-	// struct list_node rts_list;
-	// struct list_node grant_list;
+// 	// struct list_node rts_list;
+// 	// struct list_node grant_list;
 
-	// struct list_node *current_entry;
-	// struct list_node
-};
-/* DCPIM match table slot */
-static inline struct dcpim_match_slot *dcpim_match_bucket(
-		struct dcpim_match_tab *table, __be32 addr)
-{
-	return &table->buckets[addr & (DCPIM_BUCKETS - 1)];
-}
+// 	// struct list_node *current_entry;
+// 	// struct list_node
+// };
+// /* DCPIM match table slot */
+// static inline struct dcpim_match_slot *dcpim_match_bucket(
+// 		struct dcpim_match_tab *table, __be32 addr)
+// {
+// 	return &table->buckets[addr & (DCPIM_BUCKETS - 1)];
+// }
 
 
 static inline struct dcpimhdr *dcpim_hdr(const struct sk_buff *skb)
@@ -403,6 +497,10 @@ static inline struct dcpim_ack_hdr *dcpim_ack_hdr(const struct sk_buff *skb)
 	return (struct dcpim_ack_hdr *)skb_transport_header(skb);
 }
 
+static inline struct dcpim_syn_ack_hdr *dcpim_syn_ack_hdr(const struct sk_buff *skb)
+{
+	return (struct dcpim_syn_ack_hdr *)skb_transport_header(skb);
+}
 
 static inline struct dcpim_flow_sync_hdr *dcpim_flow_sync_hdr(const struct sk_buff *skb)
 {
@@ -483,12 +581,25 @@ struct dcpim_sock {
 	 */
     // uint32_t total_length;
 	
-	/* protected by socket user lock*/
+	/* protected by socket user lock; this is for receiver */
     uint32_t num_sacks;
 	struct dcpim_sack_block selective_acks[16]; /* The SACKS themselves*/
 
+	/* the socket is in DCPIM_ESTABLISHED before and not received fin or fin_ack */
+	bool delay_destruct;
+	struct hrtimer rtx_fin_timer;
+	int fin_sent_times;
+	struct work_struct rtx_fin_work;
+
+
     // ktime_t start_time;
 	struct list_head match_link;
+	/* protectd by dcpim_host lock */
+	struct list_head entry;
+	bool in_host_table;
+	struct dcpim_host* host;
+	
+	
     /* sender */
     struct dcpim_sender {
 		uint32_t token_seq;
@@ -503,7 +614,16 @@ struct dcpim_sock {
 	    // uint32_t total_bytes_sent;
 	    // uint32_t bytes_from_user;
 	    int remaining_pkts_at_sender;
+   		uint32_t num_sacks;
+		struct dcpim_sack_block selective_acks[16]; /* The SACKS themselves*/
+		bool syn_ack_recvd;
+		struct hrtimer rtx_flow_sync_timer;
+		int sync_sent_times;
 
+		/* Below protected by epoch->sender_lock */
+		int next_matched_bytes;
+		int grant_index;
+		struct dcpim_grant* grant;
 		/* DCPIM metric */
 	    // uint64_t first_byte_send_time;
 	    // uint64_t start_time;
@@ -521,6 +641,8 @@ struct dcpim_sock {
 		/* short flow waiting timer or long flow waiting timer; after all tokens arer granted */
 		// struct hrtimer flow_wait_timer;
 	    ktime_t last_rtx_time;
+		ktime_t latest_token_sent_time;
+
 		uint32_t copied_seq;
 	    uint32_t bytes_received;
 	    // uint32_t received_count;
@@ -532,7 +654,6 @@ struct dcpim_sock {
 		/** @priority: Priority level to include in future GRANTS. */
 		int priority;
 		/* DCPIM metric */
-	    // uint64_t latest_token_sent_time;
 	    // uint64_t first_byte_receive_time;
 		// struct list_head ready_link;
 		/* protected by entry lock */
@@ -544,12 +665,24 @@ struct dcpim_sock {
 		atomic_t backlog_len;
 		atomic_t inflight_bytes;
 		struct hrtimer token_pace_timer;
-		atomic_t matched_bw;
+		struct hrtimer rtx_timer;
+		uint32_t rtx_rcv_nxt;
+		/* 0: rtx timer is not set; 1: timer should be set; 2: timer is triggering; */
+		atomic_t rtx_status;
+		// atomic_t matched_bw;
 		/* protected by bh_lock_sock */
 		struct list_head message_backlog;
 		/* protected by user socket lock */
 		struct list_head message_list;
 		// struct work_struct token_xmit_struct;
+
+		/* protected by epoch->matched_lock */
+		unsigned long next_pacing_rate;
+
+		/* proteced by epoch->receiver_lock */
+		int rts_index;
+		struct dcpim_rts* rts;
+
     } receiver;
 
 

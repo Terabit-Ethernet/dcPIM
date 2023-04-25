@@ -76,20 +76,28 @@ void inet_sk_state_store(struct sock *sk, int newstate)
 
 void dcpim_set_state(struct sock* sk, int state) {
 	// struct inet_sock* inet = inet_sk(sk);
+	struct dcpim_sock *dsk = dcpim_sk(sk);
 	switch (state) {
 	case DCPIM_ESTABLISHED:
 		break;
 	case DCPIM_CLOSE:
 		// if (oldstate == TCP_CLOSE_WAIT || oldstate == TCP_ESTABLISHED)
 		// 	TCP_INC_STATS(sock_net(sk), TCP_MIB_ESTABRESETS);
-
-		sk->sk_prot->unhash(sk);
-		/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
-		if (inet_csk(sk)->icsk_bind_hash) {
-			inet_put_port(sk);
-		} 
-		if (sk->sk_state == DCPIM_ESTABLISHED)
-			dcpim_xmit_control(construct_fin_pkt(sk), sk); 
+		if (sk->sk_state == DCPIM_ESTABLISHED) {
+			if(dcpim_sk(sk)->delay_destruct) {
+				/* start the timer for rtx fin */
+				dsk->fin_sent_times += 1;
+				sock_hold(sk);
+				hrtimer_start(&dsk->rtx_fin_timer, ns_to_ktime(dcpim_params.rtt * 1000), HRTIMER_MODE_REL_PINNED_SOFT);
+				dcpim_xmit_control(construct_fin_pkt(sk), sk); 
+			}
+		} else if(sk->sk_state == DCPIM_LISTEN){
+			sk->sk_prot->unhash(sk);
+			/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
+			if (inet_csk(sk)->icsk_bind_hash) {
+				inet_put_port(sk);
+			} 
+		}
 		/* fall through */
 	default:
 		// if (oldstate == TCP_ESTABLISHED)
@@ -237,8 +245,14 @@ int dcpim_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	// 	dsk->peer = dcpim_peer_find(&dcpim_peers_table, daddr, inet);
 
 	/* in-case the socket priority is 7, the socket are used for sending short flows only. */
-	if(sk->sk_priority != 7)
+	if(sk->sk_priority != 7) {
 		dcpim_xmit_control(construct_flow_sync_pkt(sk, 0, UINT_MAX, 0), sk); 
+		dcpim_sk(sk)->sender.sync_sent_times += 1;
+		hrtimer_start(&dcpim_sk(sk)->sender.rtx_flow_sync_timer,
+			ns_to_ktime(dcpim_params.rtt * 1000), HRTIMER_MODE_REL_PINNED_SOFT);
+		/* add to flow matching table */
+		dcpim_add_mat_tab(&dcpim_epoch, sk);
+	}
 	// dsk->total_length = flow_len;
 
 	if (err)
@@ -396,6 +410,8 @@ static void dcpim_v4_init_req(struct request_sock *req,
 		ireq->no_srccheck = inet_sk(sk_listener)->transparent;
 		/* Note: tcp_v6_init_req() might override ir_iif for link locals */
 		ireq->ir_iif = inet_request_bound_dev_if(sk_listener, skb);
+		/* For now, ireq_opt is always NULL */
+		ireq->ireq_opt = NULL;
         // RCU_INIT_POINTER(ireq->ireq_opt, dcpim_v4_save_options(net, skb));
 		refcount_set(&req->rsk_refcnt, 1);
 }
@@ -468,20 +484,26 @@ struct sock *dcpim_create_openreq_child(const struct sock *sk,
 }
 EXPORT_SYMBOL(dcpim_create_openreq_child);
 
-
 struct dst_entry *dcpim_sk_route_child_sock(const struct sock *sk,
 					    struct sock *newsk,
 					    const struct request_sock *req)
 {
 	const struct inet_request_sock *ireq = inet_rsk(req);
+	// printk("reach to ireq is null:%d %p \n", ireq == NULL, ireq);
 	struct net *net = read_pnet(&ireq->ireq_net);
+	// printk("reach to net is null:%d %p \n", net == NULL, ireq);
+
 	struct inet_sock *newinet = inet_sk(newsk);
 	struct ip_options_rcu *opt;
 	struct flowi4 *fl4;
 	struct rtable *rt;
 
 	opt = rcu_dereference(ireq->ireq_opt);
+	// printk("reach to fl4 opt is null:%d %p \n", opt == NULL, opt);
 	fl4 = &newinet->cork.fl.u.ip4;
+	// printk("fl4: %p %d %d %d\n", fl4, ireq->ir_iif, ireq->ir_mark, RT_CONN_FLAGS(sk));
+	// printk("second: %d %d %d %d\n", sk->sk_protocol,  inet_sk_flowi_flags(sk), (opt && opt->opt.srr) ? opt->opt.faddr : ireq->ir_rmt_addr, ireq->ir_loc_addr);
+	// printk("thrid: %d %d %u \n",  ireq->ir_rmt_port, htons(ireq->ir_num), sk->sk_uid);
 
 	flowi4_init_output(fl4, ireq->ir_iif, ireq->ir_mark,
 			   RT_CONN_FLAGS(sk), RT_SCOPE_UNIVERSE,
@@ -489,14 +511,19 @@ struct dst_entry *dcpim_sk_route_child_sock(const struct sock *sk,
 			   (opt && opt->opt.srr) ? opt->opt.faddr : ireq->ir_rmt_addr,
 			   ireq->ir_loc_addr, ireq->ir_rmt_port,
 			   htons(ireq->ir_num), sk->sk_uid);
-
 	security_req_classify_flow(req, flowi4_to_flowi_common(fl4));
 	rt = ip_route_output_flow(net, fl4, sk);
+	// printk("finish ip route output output\n");
+	// printk("finish init output\n");
 
-	if (IS_ERR(rt))
+	if (IS_ERR(rt)) {
+		// printk("goto no route\n");
 		goto no_route;
-	if (opt && opt->opt.is_strictroute && rt->rt_uses_gateway)
+	}
+	if (opt && opt->opt.is_strictroute && rt->rt_uses_gateway) {
+		// printk("got to route err\n");
 		goto route_err;
+	}
 	return &rt->dst;
 
 route_err:
@@ -541,7 +568,7 @@ struct sock *dcpim_create_con_sock(struct sock *sk, struct sk_buff *skb,
 	if (!newsk)
 		goto exit_nonewsk;
  	if(!dst) {
- 		dst = inet_csk_route_child_sock(sk, newsk, req);
+ 		dst = dcpim_sk_route_child_sock(sk, newsk, req);
 	    if (!dst)
 	        goto put_and_exit;
  	}

@@ -25,6 +25,7 @@
 #include <net/snmp.h>
 #include <net/ip.h>
 #include <net/gro.h>
+#include <net/xfrm.h>
 #include <linux/ipv6.h>
 #include <linux/seq_file.h>
 #include <linux/poll.h>
@@ -104,7 +105,7 @@ static inline void dcpim_rps_record_flow(const struct sock *sk)
 		 * OR	an additional socket flag
 		 * [1] : sk_state and sk_prot are in the same cache line.
 		 */
-		if (sk->sk_state == DCPIM_ESTABLISHED || sk->sk_state == DCPIM_LISTEN) {
+		if (sk->sk_state == DCPIM_ESTABLISHED) {
 			// printk("rfs:rxhash:%u\n", sk->sk_rxhash);
 			sock_rps_record_flow_hash(sk->sk_rxhash);
 		}
@@ -210,12 +211,12 @@ static inline void dcpim_rtx_queue_unlink_and_free(struct sk_buff *skb, struct s
 }
 
 /* DCPIM compartor */
-static inline bool before(__u32 seq1, __u32 seq2)
-{
-        return (__s32)(seq1-seq2) < 0;
-}
+//static inline bool before(__u32 seq1, __u32 seq2)
+//{
+//        return (__s32)(seq1-seq2) < 0;
+//}
 
-#define after(seq2, seq1) 	before(seq1, seq2)
+// #define after(seq2, seq1) 	before(seq1, seq2)
 
 static inline struct sk_buff *dcpim_write_queue_head(const struct sock *sk)
 {
@@ -418,7 +419,39 @@ static inline struct dcpimhdr *dcpim_gro_dcpimhdr(struct sk_buff *skb)
 static inline void dcpim_lib_close(struct sock *sk, long timeout)
 {
 	printk("call socket close\n");
-	sk_common_release(sk);
+	// sk_common_release(sk);
+	if (sk->sk_prot->destroy)
+		sk->sk_prot->destroy(sk);
+
+	/*
+	 * Observation: when sk_common_release is called, processes have
+	 * no access to socket. But net still has.
+	 * Step one, detach it from networking:
+	 *
+	 * A. Remove from hash tables.
+	 */
+
+	// sk->sk_prot->unhash(sk);
+
+	/*
+	 * In this point socket cannot receive new packets, but it is possible
+	 * that some packets are in flight because some CPU runs receiver and
+	 * did hash table lookup before we unhashed socket. They will achieve
+	 * receive queue and will be purged by socket destructor.
+	 *
+	 * Also we still have packets pending on receive queue and probably,
+	 * our own packets waiting in device queues. sock_destroy will drain
+	 * receive queue, but transmitted packets will delay socket destruction
+	 * until the last reference will be released.
+	 */
+
+	sock_orphan(sk);
+
+	xfrm_sk_free_policy(sk);
+
+	sk_refcnt_debug_release(sk);
+
+	sock_put(sk);
 }
 
 

@@ -13,6 +13,7 @@ extern struct inet_hashinfo dcpim_hashinfo;
 extern struct dcpim_peertab dcpim_peers_table;
 extern struct dcpim_match_tab dcpim_match_table;
 
+extern struct workqueue_struct *dcpim_wq;
 extern struct dcpim_params dcpim_params;
 extern struct dcpim_epoch dcpim_epoch;
 extern struct request_sock_ops dcpim_request_sock_ops;
@@ -42,6 +43,11 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx);
 uint32_t dcpim_xmit_token(struct dcpim_sock* dsk, uint32_t token_bytes);
 int rtx_bytes_count(struct dcpim_sock* dsk, __u32 prev_grant_nxt);
 enum hrtimer_restart dcpim_xmit_token_handler(struct hrtimer *timer);
+enum hrtimer_restart dcpim_rtx_token_handler(struct hrtimer *timer);
+enum hrtimer_restart dcpim_rtx_sync_timer_handler(struct hrtimer *timer);
+void dcpim_rtx_sync_handler(struct dcpim_sock *dsk);
+void rtx_fin_handler(struct work_struct *work);
+enum hrtimer_restart dcpim_rtx_fin_timer_handler(struct hrtimer *timer);
 void dcpim_pq_init(struct dcpim_pq* pq, bool(*comp)(const struct list_head*, const struct list_head*));
 bool dcpim_pq_empty(struct dcpim_pq* pq);
 bool dcpim_pq_empty_lockless(struct dcpim_pq* pq);
@@ -51,16 +57,18 @@ struct list_head* dcpim_pq_peek(struct dcpim_pq* pq);
 void dcpim_pq_delete(struct dcpim_pq* pq, struct list_head* node);
 int dcpim_pq_size(struct dcpim_pq* pq);
 
-void dcpim_match_entry_init(struct dcpim_match_entry* entry, __be32 addr, 
- bool(*comp)(const struct list_head*, const struct list_head*));
-void dcpim_mattab_init(struct dcpim_match_tab *table,
-	bool(*comp)(const struct list_head*, const struct list_head*));
+// void dcpim_match_entry_init(struct dcpim_match_entry* entry, __be32 addr, 
+//  bool(*comp)(const struct list_head*, const struct list_head*));
+// void dcpim_mattab_init(struct dcpim_match_tab *table,
+// 	bool(*comp)(const struct list_head*, const struct list_head*));
+void dcpim_remove_mat_tab(struct dcpim_epoch *epoch, struct sock *sk);
+void dcpim_add_mat_tab(struct dcpim_epoch *epoch, struct sock *sk);
 
 void dcpim_mattab_destroy(struct dcpim_match_tab *table);
 void dcpim_mattab_add_new_sock(struct dcpim_match_tab *table, struct sock *sk);
 void dcpim_mattab_delete_sock(struct dcpim_match_tab *table, struct sock *sk);
 
-void dcpim_mattab_delete_match_entry(struct dcpim_match_tab *table, struct dcpim_match_entry* entry);
+// void dcpim_mattab_delete_match_entry(struct dcpim_match_tab *table, struct dcpim_match_entry* entry);
 
 
 void dcpim_epoch_init(struct dcpim_epoch *epoch);
@@ -73,8 +81,15 @@ void dcpim_handle_all_rts(struct dcpim_epoch *epoch);
 int dcpim_handle_grant(struct sk_buff *skb, struct dcpim_epoch *epoch);
 void dcpim_handle_all_grants(struct dcpim_epoch *epoch);
 int dcpim_handle_accept(struct sk_buff *skb, struct dcpim_epoch *epoch);
-
-
+int dcpim_handle_syn_ack_pkt(struct sk_buff *skb);
+int dcpim_handle_fin_ack_pkt(struct sk_buff *skb);
+void dcpim_fill_eth_header(struct sk_buff *skb, const void *saddr, const void *daddr);
+void dcpim_fill_ip_header(struct sk_buff *skb, __be32 saddr, __be32 daddr);
+void dcpim_fill_dcpim_header(struct sk_buff *skb, __be16 sport, __be16 dport); 
+void dcpim_fill_dst_entry(struct sock *sk, struct sk_buff *skb, struct flowi *fl);
+void dcpim_swap_dcpim_header(struct sk_buff *skb);
+void dcpim_swap_ip_header(struct sk_buff *skb);
+void dcpim_swap_eth_header(struct sk_buff *skb);
 /* scheduling */
 bool flow_compare(const struct list_head* node1, const struct list_head* node2);
 void rcv_core_entry_init(struct rcv_core_entry *entry, int core_id);
@@ -132,18 +147,24 @@ void dcpim_flow_wait_handler(struct sock *sk);
 /*DCPIM outgoing function*/
 struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id, 
 	uint32_t message_size, __u64 start_time);
-struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority, __u32 prev_grant_nxt,
-	 __u32 grant_nxt, bool handle_rtx);
+struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority, __u32 grant_nxt);
+struct sk_buff* construct_rtx_token_pkt(struct sock* sk, unsigned short priority,
+	 __u32 prev_token_nxt, __u32 token_nxt, int *rtx_bytes);
 struct sk_buff* construct_fin_pkt(struct sock* sk);
 struct sk_buff* construct_ack_pkt(struct sock* sk, __be32 rcv_nxt);
 struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz);
 struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool prompt);
 struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz);
+struct sk_buff* construct_syn_ack_pkt(struct sock* sk, __u64 message_id, 
+	uint32_t message_size, __u64 start_time);
+struct sk_buff* construct_fin_ack_pkt(struct sock* sk, __u64 message_id);
+
 int dcpim_xmit_control(struct sk_buff* skb, struct sock *dcpim_sk);
 void dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool free_token);
 void dcpim_retransmit_data(struct sk_buff *skb, struct dcpim_sock* dsk);
 void __dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool free_token);
 void dcpim_retransmit(struct sock* sk);
+uint32_t dcpim_check_rtx_token(struct dcpim_sock* dsk);
 
 int dcpim_write_timer_handler(struct sock *sk);
 

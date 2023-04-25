@@ -17,6 +17,7 @@
 
 #include <linux/uaccess.h>
 #include <asm/ioctls.h>
+#include <linux/etherdevice.h>
 #include <linux/memblock.h>
 #include <linux/highmem.h>
 #include <linux/swap.h>
@@ -51,6 +52,7 @@
 #include <net/busy_poll.h>
 #include "dcpim_impl.h"
 #include <net/sock_reuseport.h>
+#include <net/sock.h>
 #include <net/addrconf.h>
 #include <net/udp_tunnel.h>
 
@@ -64,9 +66,18 @@
 #define DCPIM_DEFERRED_ALL (DCPIMF_TSQ_DEFERRED |		\
 			  DCPIMF_CLEAN_TIMER_DEFERRED |	\
 			  DCPIMF_TOKEN_TIMER_DEFERRED |	\
+			  DCPIMF_RTX_TOKEN_TIMER_DEFERRED |	\
+			  DCPIMF_RTX_FLOW_SYNC_DEFERRED |	\
 			  DCPIMF_RMEM_CHECK_DEFERRED | \
 			  DCPIMF_RTX_DEFERRED | \
 			  DCPIMF_WAIT_DEFERRED)
+
+static inline bool before(__u32 seq1, __u32 seq2)
+{
+        return (__s32)(seq1-seq2) < 0;
+}
+#define after(seq2, seq1) 	before(seq1, seq2)
+
 
 /* Insert buff after skb on the write or rtx queue of sk.  */
 static void dcpim_insert_write_queue_after(struct sk_buff *skb,
@@ -80,6 +91,126 @@ static void dcpim_insert_write_queue_after(struct sk_buff *skb,
 		dcpim_rbtree_insert(&sk->tcp_rtx_queue, buff);
 }
 
+void dcpim_fill_dcpim_header(struct sk_buff *skb, __be16 sport, __be16 dport) {
+	struct dcpimhdr* dh;
+	dh = dcpim_hdr(skb);
+	dh->source = sport;
+	dh->dest = dport;
+	dh->check = 0;
+	dh->doff = (sizeof(struct dcpimhdr)) << 2;
+}
+
+void dcpim_swap_dcpim_header(struct sk_buff *skb) {
+	struct dcpimhdr* dh;
+	__be16 temp;
+	dh = dcpim_hdr(skb);
+	temp = dh->source;
+	dh->source = dh->dest;
+	dh->dest = temp;
+}
+
+void dcpim_fill_ip_header(struct sk_buff *skb, __be32 saddr, __be32 daddr) {
+    struct iphdr* iph;
+    skb_push(skb, sizeof(struct iphdr));
+	skb_reset_network_header(skb);
+	iph = ip_hdr(skb);
+
+    iph->ihl = 5;
+    iph->version = 4;
+    iph->tos =  iph->tos | 1;
+    iph->tot_len= htons(skb->len); 
+    iph->frag_off = 0; 
+    iph->ttl = 64;
+    // iph->protocol = IPPROTO_DCPIM;
+    iph->protocol = IPPROTO_TCP;
+    iph->saddr = saddr;
+    iph->daddr = daddr;
+	ip_send_check(iph);
+    skb->pkt_type = PACKET_OUTGOING;
+	skb->no_fcs = 1;
+	skb->ip_summed = CHECKSUM_PARTIAL;
+}
+
+void dcpim_swap_ip_header(struct sk_buff *skb) {
+    struct iphdr* iph = ip_hdr(skb);
+	__be32 temp;
+	temp = iph->saddr;
+    iph->saddr = iph->daddr;
+    iph->daddr = temp;
+    iph->protocol = IPPROTO_TCP;
+	/* mask to identify it is dcPIM packet; hacky!! */
+	iph->tos = iph->tos | 1;
+	ip_send_check(iph);
+    skb->pkt_type = PACKET_OUTGOING;
+	skb->no_fcs = 1;
+	skb->ip_summed = CHECKSUM_PARTIAL;
+}
+
+void dcpim_fill_dst_entry(struct sock *sk, struct sk_buff *skb, struct flowi *fl) {
+	struct inet_sock *inet = inet_sk(sk);
+	struct net *net = sock_net(sk);
+	struct ip_options_rcu *inet_opt;
+	struct flowi4 *fl4;
+	struct rtable *rt;
+
+	/* Skip all of this if the packet is already routed,
+	 * f.e. by something like SCTP.
+	 */
+	rcu_read_lock();
+	inet_opt = rcu_dereference(inet->inet_opt);
+	fl4 = &fl->u.ip4;
+	rt = skb_rtable(skb);
+	if (rt)
+		goto finish;
+
+	/* Make sure we can route this packet. */
+	rt = (struct rtable *)__sk_dst_check(sk, 0);
+	if (!rt) {
+		__be32 daddr;
+		WARN_ON(true);
+		/* Use correct destination address if we have options. */
+		daddr = inet->inet_daddr;
+		if (inet_opt && inet_opt->opt.srr)
+			daddr = inet_opt->opt.faddr;
+
+		/* If this fails, retransmit mechanism of transport layer will
+		 * keep trying until route appears or the connection times
+		 * itself out.
+		 */
+		rt = ip_route_output_ports(net, fl4, sk,
+					   daddr, inet->inet_saddr,
+					   inet->inet_dport,
+					   inet->inet_sport,
+					   sk->sk_protocol,
+					   RT_CONN_FLAGS_TOS(sk, inet_sk(sk)->tos),
+					   sk->sk_bound_dev_if);
+		if (IS_ERR(rt))
+			goto finish;
+		sk_setup_caps(sk, &rt->dst);
+	}
+	skb_dst_set_noref(skb, &rt->dst);
+finish:
+	rcu_read_unlock();
+}
+
+void dcpim_fill_eth_header(struct sk_buff *skb, const void *saddr, const void *daddr) {
+    struct ethhdr* eth;
+    eth = (struct ethhdr*)skb_push(skb, sizeof (struct ethhdr));
+	skb_reset_mac_header(skb);
+    skb->protocol = eth->h_proto = htons(ETH_P_IP);
+    ether_addr_copy(eth->h_source, saddr);
+    ether_addr_copy(eth->h_dest, daddr);
+	skb->dev = dev_get_by_name(&init_net, "ens2f0");
+}
+
+void dcpim_swap_eth_header(struct sk_buff *skb) {
+	unsigned char	temp[ETH_ALEN];
+    struct ethhdr* eth = eth_hdr(skb);
+    // skb->protocol = eth->h_proto = htons(ETH_P_IP);
+    ether_addr_copy(temp, eth->h_source);
+    ether_addr_copy(eth->h_source, eth->h_dest);
+    ether_addr_copy(eth->h_dest, temp);
+}
 
 /* Initialize GSO segments for a packet. */
 static void dcpim_set_skb_gso_segs(struct sk_buff *skb, unsigned int mss_now)
@@ -196,8 +327,8 @@ int dcpim_fragment(struct sock *sk, enum dcpim_queue dcpim_queue,
 	nlen = skb->len - len;
 	buff->truesize += nlen;
 	skb->truesize -= nlen;
-	printk("do fragment\n");
-	printk("new buff seq:%u\n", DCPIM_SKB_CB(skb)->seq + len);
+	// printk("do fragment\n");
+	// printk("new buff seq:%u\n", DCPIM_SKB_CB(skb)->seq + len);
 	/* Correct the sequence numbers. */
 	DCPIM_SKB_CB(buff)->seq = DCPIM_SKB_CB(skb)->seq + len;
 	DCPIM_SKB_CB(buff)->end_seq = DCPIM_SKB_CB(skb)->end_seq;
@@ -561,6 +692,9 @@ int dcpim_fill_packets(struct sock *sk,
 	// }
 // finish:
 	WRITE_ONCE(dsk->sender.write_seq, dsk->sender.write_seq + sent_len);
+	if(dsk->host) {
+		atomic_add(sent_len, &dsk->host->total_unsent_bytes);
+	}
 	return sent_len;
 	
 error:
@@ -615,9 +749,15 @@ void dcpim_release_cb(struct sock *sk)
 		dcpim_token_timer_defer_handler(sk);
 		__sock_put(sk);
 	}
-	// if (flags & DCPIMF_RTX_DEFERRED) {
-	// 	dcpim_write_timer_handler(sk);
-	// }
+	if(flags & DCPIMF_RTX_TOKEN_TIMER_DEFERRED) {
+		/* transmit retransmission tokens */
+		dcpim_check_rtx_token(dcpim_sk(sk));
+		__sock_put(sk);
+	}
+	if (flags & DCPIMF_RTX_FLOW_SYNC_DEFERRED) {
+		dcpim_rtx_sync_handler(dcpim_sk(sk));
+		__sock_put(sk);
+	}
 	// if (flags & DCPIMF_WAIT_DEFERRED) {
 	// 	dcpim_flow_wait_handler(sk);
 	// }
@@ -677,8 +817,51 @@ struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id,
 	return skb;
 }
 
-struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
-	 __u32 prev_token_nxt, __u32 token_nxt, bool handle_rtx) {
+struct sk_buff* construct_syn_ack_pkt(struct sock* sk, __u64 message_id, 
+	uint32_t message_size, __u64 start_time) {
+	// int extra_bytes = 0;
+	struct sk_buff* skb = __construct_control_skb(sk, 0);
+	struct dcpim_syn_ack_hdr* fh;
+	struct dcpimhdr* dh; 
+	if(unlikely(!skb)) {
+		return NULL;
+	}
+	fh = (struct dcpim_syn_ack_hdr *) skb_put(skb, sizeof(struct dcpim_syn_ack_hdr));
+	dh = (struct dcpimhdr*) (&fh->common);
+	dh->len = htons(sizeof(struct dcpim_syn_ack_hdr));
+	dh->type = SYN_ACK;
+	fh->message_id = message_id;
+	fh->message_size = message_size;
+	fh->start_time = start_time;
+	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
+	// if (extra_bytes > 0)
+	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
+	return skb;
+}
+
+struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority, __u32 token_nxt) {
+	// int extra_bytes = 0;
+	struct dcpim_sock *dsk = dcpim_sk(sk);
+	struct sk_buff* skb = __construct_control_skb(sk, DCPIM_HEADER_MAX_SIZE
+		 + dsk->num_sacks * sizeof(struct dcpim_sack_block_wire));
+	struct dcpim_token_hdr* fh;
+	struct dcpimhdr* dh;
+	if(unlikely(!skb)) {
+		return NULL;
+	}
+	fh = (struct dcpim_token_hdr *) skb_put(skb, sizeof(struct dcpim_token_hdr));
+	dh = (struct dcpimhdr*) (&fh->common);
+	dh->len = htons(sizeof(struct dcpim_token_hdr));
+	dh->type = TOKEN;
+	fh->priority = priority;
+	fh->rcv_nxt = dsk->receiver.rcv_nxt;
+	fh->token_nxt = token_nxt;
+	fh->num_sacks = 0;
+	return skb;
+}
+
+struct sk_buff* construct_rtx_token_pkt(struct sock* sk, unsigned short priority,
+	 __u32 prev_token_nxt, __u32 token_nxt, int *rtx_bytes) {
 	// int extra_bytes = 0;
 	struct dcpim_sock *dsk = dcpim_sk(sk);
 	struct sk_buff* skb = __construct_control_skb(sk, DCPIM_HEADER_MAX_SIZE
@@ -686,7 +869,7 @@ struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
 	struct dcpim_token_hdr* fh;
 	struct dcpimhdr* dh;
 	struct dcpim_sack_block_wire *sack;
-	int i = 0;
+	int i = 1;
 	bool manual_end_point = true;
 	if(unlikely(!skb)) {
 		return NULL;
@@ -703,38 +886,37 @@ struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority,
 	// printk("prev_grant_nxt:%u\n", prev_grant_nxt);
 	// printk("new rcv_nxt:%u\n", dsk->receiver.rcv_nxt);
 	// printk("copied seq:%u\n", dsk->receiver.copied_seq);
-	if(handle_rtx && dsk->receiver.rcv_nxt < prev_token_nxt) {
-		printk("rcv_nxt:%u\n", dsk->receiver.rcv_nxt);
-		while(i < dsk->num_sacks) {
-			__u32 start_seq = dsk->selective_acks[i].start_seq;
-			__u32 end_seq = dsk->selective_acks[i].end_seq;
+	// printk("rcv_nxt:%u\n", dsk->receiver.rcv_nxt);
+	while(i <= dsk->num_sacks) {
+		__u32 start_seq = dsk->selective_acks[dsk->num_sacks - i].start_seq;
+		__u32 end_seq = dsk->selective_acks[dsk->num_sacks - i].end_seq;
 
-			if(start_seq > prev_token_nxt)
-				goto next;
-			if(end_seq > prev_token_nxt) {
-				end_seq = prev_token_nxt;
-				manual_end_point = false;
-			}
-
-			sack = (struct dcpim_sack_block_wire*) skb_put(skb, sizeof(struct dcpim_sack_block_wire));
-			sack->start_seq = htonl(start_seq);
-			printk("start seq:%u\n", start_seq);
-			printk("end seq:%u\n", end_seq);
-
-			sack->end_seq = htonl(end_seq);
-			fh->num_sacks++;
-		next:
-			i++;
-		}
-		if(manual_end_point) {
-			sack = (struct dcpim_sack_block_wire*) skb_put(skb, sizeof(struct dcpim_sack_block_wire));
-			sack->start_seq = htonl(prev_token_nxt);
-			sack->end_seq = htonl(prev_token_nxt);
-			printk("sack start seq:%u\n", prev_token_nxt);
-			fh->num_sacks++;
+		if(after(start_seq,prev_token_nxt))
+			goto next;
+		if(after(end_seq,prev_token_nxt)) {
+			end_seq = prev_token_nxt;
+			manual_end_point = false;
 		}
 
+		sack = (struct dcpim_sack_block_wire*) skb_put(skb, sizeof(struct dcpim_sack_block_wire));
+		sack->start_seq = htonl(start_seq);
+		sack->end_seq = htonl(end_seq);
+		// printk("start seq:%u\n", start_seq);
+		// printk("end seq:%u\n", end_seq);
+		*rtx_bytes += end_seq - start_seq;
+		fh->num_sacks++;
+	next:
+		i++;
 	}
+	if(manual_end_point) {
+		sack = (struct dcpim_sack_block_wire*) skb_put(skb, sizeof(struct dcpim_sack_block_wire));
+		sack->start_seq = htonl(prev_token_nxt);
+		sack->end_seq = htonl(prev_token_nxt);
+		// printk("sack start seq:%u\n", prev_token_nxt);
+		fh->num_sacks++;
+	}
+
+
 
 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
 	// if (extra_bytes > 0)
@@ -778,6 +960,27 @@ struct sk_buff* construct_fin_pkt(struct sock* sk) {
 	return skb;
 }
 
+struct sk_buff* construct_fin_ack_pkt(struct sock* sk, __u64 message_id) {
+	// int extra_bytes = 0;
+	struct sk_buff* skb = __construct_control_skb(sk, 0);
+	struct dcpim_fin_ack_hdr* fh;
+	struct dcpimhdr* dh; 
+	if(unlikely(!skb)) {
+		return NULL;
+	}
+	fh = (struct dcpim_fin_ack_hdr *) skb_put(skb, sizeof(struct dcpim_fin_ack_hdr));
+	dh = (struct dcpimhdr*) (&fh->common);
+	dh->len = htons(sizeof(struct dcpim_fin_ack_hdr));
+	dh->type = FIN_ACK;
+	fh->message_id = message_id;
+	// fh->message_size = message_size;
+	// fh->start_time = start_time;
+	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
+	// if (extra_bytes > 0)
+	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
+	return skb;
+}
+
 struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short round, int epoch, int remaining_sz) {
 	// int extra_bytes = 0;
 	struct sk_buff* skb = __construct_control_skb(sk, 0);
@@ -814,7 +1017,7 @@ struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short round, int e
 	fh->round = round;
 	fh->epoch = epoch;
 	fh->remaining_sz = remaining_sz;
-	fh->prompt = prompt;
+	// fh->prompt = prompt;
 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
 	// if (extra_bytes > 0)
 	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
@@ -889,15 +1092,15 @@ void dcpim_retransmit(struct sock* sk) {
 	mss_now = mtu - sizeof(struct iphdr) - sizeof(struct dcpim_data_hdr);
 	/* last sack is the fake sack [prev_grant_next, prev_grant_next) */
 	skb = skb_rb_first(&sk->tcp_rtx_queue);
-	for (i = 0; i < dsk->num_sacks; i++) {
+	for (i = 0; i < dsk->sender.num_sacks; i++) {
 		if(!skb)
 			break;
 		if(i == 0) {
 			start_seq = dsk->sender.snd_una;
 		} else {
-			start_seq = dsk->selective_acks[i - 1].end_seq;
+			start_seq = dsk->sender.selective_acks[i - 1].end_seq;
 		}
-		end_seq = dsk->selective_acks[i].start_seq;
+		end_seq = dsk->sender.selective_acks[i].start_seq;
 
 		while(skb) {
 			if(!before(start_seq, DCPIM_SKB_CB(skb)->end_seq)) {
@@ -929,7 +1132,7 @@ go_to_next:
 
 
 	}	
-	dsk->num_sacks = 0;
+	dsk->sender.num_sacks = 0;
 }
 /**
  * __dcpim_xmit_control() - Lower-level version of dcpim_xmit_control: sends
@@ -941,6 +1144,57 @@ go_to_next:
  *             was a problem.
  */
 int dcpim_xmit_control(struct sk_buff* skb, struct sock* sk)
+{
+	// struct dcpim_hdr *h;
+	int result;
+	struct dcpimhdr* dh;
+	struct inet_sock *inet = inet_sk(sk);
+	// struct flowi4 *fl4 = &peer->flow.u.ip4;
+
+	if(!skb) {
+		return -1;
+	}
+	dh = dcpim_hdr(skb);
+	dh->source = inet->inet_sport;
+	dh->dest = inet->inet_dport;
+	dh->check = 0;
+	dh->doff = (sizeof(struct dcpimhdr)) << 2;
+	// inet->tos = IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL;
+	skb->sk = sk;
+	// dst_confirm_neigh(peer->dst, &fl4->daddr);
+	dst_hold(__sk_dst_get(sk));
+	// skb_dst_set(skb, __sk_dst_get(sk));
+	// skb_get(skb);
+	result = __ip_queue_xmit(sk, skb, &inet->cork.fl, IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL);
+	if (unlikely(result != 0)) {
+		// INC_METRIC(control_xmit_errors, 1);
+		
+		/* It appears that ip_queue_xmit frees skbuffs after
+		 * errors; the following code is to raise an alert if
+		 * this isn't actually the case. The extra skb_get above
+		 * and kfree_skb below are needed to do the check
+		 * accurately (otherwise the buffer could be freed and
+		 * its memory used for some other purpose, resulting in
+		 * a bogus "reference count").
+		 */
+		// if (refcount_read(&skb->users) > 1)
+		// 	printk(KERN_NOTICE "ip_queue_xmit didn't free "
+		// 			"DCPIM control packet after error\n");
+	}
+	// kfree_skb(skb);
+	// INC_METRIC(packets_sent[h->type - DATA], 1);
+	return result;
+}
+
+/**
+ * __dcpim_xmit_rts_control() - xmit rts packets
+ * @skb:	   Packet payload
+ * @hsk:       Socket via which the packet will be sent.
+ * 
+ * Return:     Either zero (for success), or a negative errno value if there
+ *             was a problem.
+ */
+int __dcpim_xmit_rts_control(struct sk_buff* skb, struct sock* sk)
 {
 	// struct dcpim_hdr *h;
 	int result;
@@ -1170,12 +1424,12 @@ int dcpim_write_timer_handler(struct sock *sk)
 	struct dcpim_sock *dsk = dcpim_sk(sk);
 	struct sk_buff *skb;
 	int sent_bytes = 0;
-	if(dsk->num_sacks > 0) {
+	if(dsk->sender.num_sacks > 0) {
 		// printk("retransmit\n");
 		dcpim_retransmit(sk);
 	}
 	while((skb = skb_dequeue(&sk->sk_write_queue)) != NULL) {
-		if (dsk->sender.token_seq - DCPIM_SKB_CB(skb)->end_seq <= sk->sk_sndbuf) {
+		if (after(dsk->sender.token_seq, DCPIM_SKB_CB(skb)->end_seq)) {
 			dcpim_xmit_data(skb, dsk, false);
 			sent_bytes += DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq;
 		} else {
@@ -1198,26 +1452,63 @@ uint32_t dcpim_xmit_token(struct dcpim_sock* dsk, uint32_t token_bytes) {
 	dsk->receiver.token_nxt += token_bytes; 
 	dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
 	atomic_add(token_bytes, &dsk->receiver.inflight_bytes);
-	dcpim_xmit_control(construct_token_pkt((struct sock*)dsk, 3, dsk->receiver.prev_token_nxt, dsk->receiver.token_nxt, false),
+	dcpim_xmit_control(construct_token_pkt((struct sock*)dsk, 3, dsk->receiver.token_nxt),
 	 	sk);
 	return token_bytes;
-	
+}
+
+uint32_t dcpim_check_rtx_token(struct dcpim_sock* dsk) {
+	// struct inet_sock *inet = inet_sk((struct sock*)dsk);
+	struct sock *sk = (struct sock*)dsk;
+	int rtx_bytes = 0;
+	/* don't add inflight bytes to rtx packets*/
+	// if(after(dsk->receiver.rtx_token_nxt, dsk->receiver.rcv_nxt)) {
+	/* handle rtx time */
+	if(atomic_read(&dsk->receiver.rtx_status) == 1) {
+		if(dsk->receiver.rtx_rcv_nxt == dsk->receiver.rcv_nxt) {
+			// printk("epoch:%llu value: %u %u \n", dcpim_epoch.epoch, dsk->receiver.rtx_rcv_nxt, dsk->receiver.rcv_nxt);
+			dcpim_xmit_control(construct_rtx_token_pkt((struct sock*)dsk, 3, dsk->receiver.token_nxt, dsk->receiver.token_nxt, &rtx_bytes), sk);
+		}	
+		// dsk->receiver.rtx_token_nxt = prev_token_nxt;
+		// hrtimer_start(&dsk->receiver.rtx_timer,
+		// 	ns_to_ktime(dcpim_params.bdp * 1000000000 / matched_bw), HRTIMER_MODE_REL_PINNED_SOFT);
+		// atomic_set(&dsk->receiver.rtx_status, 2);
+		atomic_set(&dsk->receiver.rtx_status, 0);
+	}
+	dsk->receiver.rtx_rcv_nxt = dsk->receiver.rcv_nxt;
+
+	// }
+	// atomic_set(&dsk->receiver.rtx_status, 0);
+	// atomic_add(rtx_bytes, &dsk->receiver.inflight_bytes);
+
+	return rtx_bytes;
 }
 
 int dcpim_token_timer_defer_handler(struct sock *sk) {
 	struct dcpim_sock *dsk = dcpim_sk(sk);
-	uint32_t matched_bw = atomic_read(&dsk->receiver.matched_bw);
-	uint32_t token_bytes = dcpim_avail_token_space((struct sock*)dsk);
+	uint32_t prev_token_nxt = dsk->receiver.token_nxt;
+	unsigned long matched_bw = READ_ONCE(sk->sk_max_pacing_rate);
+	unsigned long token_bytes = dcpim_avail_token_space((struct sock*)dsk);
+	ktime_t time_delta = ktime_get() - dsk->receiver.latest_token_sent_time;
 	if(sk->sk_state != DCPIM_ESTABLISHED)
 		return 0;
 	if(matched_bw == 0)
 		return 0;
 	if(token_bytes < dsk->receiver.token_batch)
 		return 0;
+	if(time_delta < ns_to_ktime(token_bytes * 1000000000 / matched_bw)) {
+		if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
+			hrtimer_start(&dsk->receiver.token_pace_timer,
+				ns_to_ktime(token_bytes * 1000000000 / matched_bw) - time_delta, HRTIMER_MODE_REL_PINNED_SOFT);
+		}
+		return 0;
+	}
 	token_bytes = dcpim_xmit_token(dsk, token_bytes);
+	dsk->receiver.latest_token_sent_time += time_delta;
+	// printk("defer token_bytes:%u %u\n", token_bytes, dsk->receiver.token_nxt);
 	if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
 		hrtimer_start(&dsk->receiver.token_pace_timer,
-			ns_to_ktime(token_bytes * 8 / matched_bw), HRTIMER_MODE_REL_PINNED_SOFT);
+			ns_to_ktime(token_bytes * 1000000000 / matched_bw), HRTIMER_MODE_REL_PINNED_SOFT);
 	}
 	return token_bytes;
 }
@@ -1227,24 +1518,39 @@ enum hrtimer_restart dcpim_xmit_token_handler(struct hrtimer *timer) {
 
 	struct dcpim_sock *dsk = container_of(timer, struct dcpim_sock, receiver.token_pace_timer);
 	struct sock* sk = (struct sock *)dsk;
-	uint32_t matched_bw = atomic_read(&dsk->receiver.matched_bw);
-	uint32_t token_bytes = 0;
+	unsigned long matched_bw = READ_ONCE(sk->sk_max_pacing_rate);
+	unsigned long token_bytes = 0;
+	ktime_t current_time = ktime_get();
+	ktime_t delta = 0;
 
 	if(matched_bw == 0)
 		goto put_sock;
 	bh_lock_sock(sk);
 	if (!sock_owned_by_user(sk)) {
 		token_bytes = dcpim_avail_token_space((struct sock*)dsk);
+		delta = current_time - dsk->receiver.latest_token_sent_time;
+		if(delta < ns_to_ktime(token_bytes * 1000000000 / matched_bw)) {
+			if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
+				hrtimer_forward_now(timer, ns_to_ktime(token_bytes * 1000000000 / matched_bw) - delta);
+			}
+			bh_unlock_sock(sk);
+			return HRTIMER_RESTART;
+		}
 		if(token_bytes >= dsk->receiver.token_batch) {
 			dcpim_xmit_token(dsk, token_bytes);
-			hrtimer_forward_now(timer, ns_to_ktime(token_bytes * 8 / matched_bw));
+			dsk->receiver.latest_token_sent_time = current_time;
+			// printk("timer token_bytes:%u %u\n", token_bytes, dsk->receiver.token_nxt);
+			if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
+				hrtimer_forward_now(timer, ns_to_ktime(token_bytes * 1000000000 / matched_bw));
+			}
 			bh_unlock_sock(sk);
 			/* still need to sock_hold */
 			return HRTIMER_RESTART;
-		}	
+		}
 	} else {
 		/* delegate our work to dcpim_release_cb() */
 		// WARN_ON(sk->sk_state == DCPIM_CLOSE);
+		// printk("delay timer\n");
 		if (!test_and_set_bit(DCPIM_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
 			sock_hold(sk);
 		}
@@ -1253,5 +1559,116 @@ enum hrtimer_restart dcpim_xmit_token_handler(struct hrtimer *timer) {
 	bh_unlock_sock(sk);
 put_sock:
 	// sock_put(sk);
+	return HRTIMER_NORESTART;
+}
+
+/* hrtimer may fire twice for some reaons; need to check what happens later. */
+enum hrtimer_restart dcpim_rtx_token_handler(struct hrtimer *timer) {
+
+	struct dcpim_sock *dsk = container_of(timer, struct dcpim_sock, receiver.rtx_timer);
+	struct sock* sk = (struct sock *)dsk;
+
+	bh_lock_sock(sk);
+	if (!sock_owned_by_user(sk)) {
+		/* transmit retransmit tokens */
+		dcpim_check_rtx_token(dsk);
+	} else {
+		/* delegate our work to dcpim_release_cb() */
+		if (!test_and_set_bit(DCPIM_RTX_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
+			sock_hold(sk);
+		}
+	}
+	bh_unlock_sock(sk);
+	// sock_put(sk);
+	return HRTIMER_NORESTART;
+}
+
+/* hrtimer may fire twice for some reaons; need to check what happens later. */
+enum hrtimer_restart dcpim_rtx_sync_timer_handler(struct hrtimer *timer) {
+
+	struct dcpim_sock *dsk = container_of(timer, struct dcpim_sock, sender.rtx_flow_sync_timer);
+	struct sock* sk = (struct sock *)dsk;
+	bh_lock_sock(sk);
+	if (!sock_owned_by_user(sk)) {
+		if(!dsk->sender.syn_ack_recvd) {
+			/* maximum retried times = 5 */
+			if(dsk->sender.sync_sent_times >= 5) {
+				dcpim_set_state(sk, DCPIM_CLOSE);
+				/* TO DO: might need to wake up socket */
+			} else {
+				/*  retransmit flow sync */
+				if(sk->sk_priority != 7) {
+					dcpim_xmit_control(construct_flow_sync_pkt(sk, 0, UINT_MAX, 0), sk); 
+				} else {
+					/* to do: add short flow syn retransmission */
+				}
+				dsk->sender.sync_sent_times += 1;
+				hrtimer_forward_now(timer, ns_to_ktime(dcpim_params.rtt * 1000));
+				bh_unlock_sock(sk);
+				return HRTIMER_RESTART;
+			}
+		} 
+	} else {
+		/* delegate our work to dcpim_release_cb() */
+		if (!test_and_set_bit(DCPIM_RTX_FLOW_SYNC_DEFERRED, &sk->sk_tsq_flags)) {
+			sock_hold(sk);
+		}
+	}
+	bh_unlock_sock(sk);
+	// sock_put(sk);
+	return HRTIMER_NORESTART;
+}
+
+void dcpim_rtx_sync_handler(struct dcpim_sock *dsk) {
+
+	struct sock* sk = (struct sock *)dsk;
+	if(!dsk->sender.syn_ack_recvd) {
+	/*  retransmit flow sync */
+		if(dsk->sender.sync_sent_times >= 3) {
+				dcpim_set_state(sk, DCPIM_CLOSE);
+				/* TO DO: might need to wake up socket */
+		}  else {
+			if(sk->sk_priority != 7) {
+				dcpim_xmit_control(construct_flow_sync_pkt(sk, 0, UINT_MAX, 0), sk); 
+			} else {
+				/* to do: add short flow syn retransmission */
+			}
+			dsk->sender.sync_sent_times += 1;
+			hrtimer_start(&dsk->sender.rtx_flow_sync_timer, ns_to_ktime(dcpim_params.rtt * 1000), HRTIMER_MODE_REL_PINNED_SOFT);
+		}
+	} 
+	return;
+}
+
+void rtx_fin_handler(struct work_struct *work) {
+	struct dcpim_sock *dsk = container_of(work, struct dcpim_sock, rtx_fin_work);
+	struct sock* sk = (struct sock*)dsk;
+	bool need_put = false;
+	lock_sock(sk);
+	if(!dsk->delay_destruct || dsk->fin_sent_times >= 5) {
+		need_put = true;
+		goto put_sock;
+	} 
+	dcpim_xmit_control(construct_fin_pkt(sk), sk); 
+	dsk->fin_sent_times += 1;
+	hrtimer_start(&dsk->rtx_fin_timer, ns_to_ktime(dcpim_params.rtt * 1000), HRTIMER_MODE_REL_PINNED_SOFT);
+put_sock:
+	if(need_put) {
+		sk->sk_prot->unhash(sk);
+		/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
+		if (inet_csk(sk)->icsk_bind_hash) {
+			inet_put_port(sk);
+		} 
+		sock_put(sk);
+	}
+	release_sock(sk);
+}
+
+
+/* hrtimer may fire twice for some reaons; need to check what happens later. */
+enum hrtimer_restart dcpim_rtx_fin_timer_handler(struct hrtimer *timer) {
+
+	struct dcpim_sock *dsk = container_of(timer, struct dcpim_sock, rtx_fin_timer);
+	queue_work_on(raw_smp_processor_id(), dcpim_wq, &dsk->rtx_fin_work);
 	return HRTIMER_NORESTART;
 }
