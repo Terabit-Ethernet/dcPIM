@@ -1,3 +1,21 @@
+--- linux-6.0.3/net/core/flow_dissector.c	2022-10-21 10:39:29.000000000 +0000
++++ linux-6.0.3_qizhe/net/core/flow_dissector.c	2023-04-20 17:07:08.860164866 +0000
+@@ -36,6 +36,7 @@
+ #endif
+ #include <linux/bpf-netns.h>
+ 
++#define IPPROTO_DCPIM 0xFE
+ static void dissector_set_key(struct flow_dissector *flow_dissector,
+ 			      enum flow_dissector_key_id key_id)
+ {
+@@ -1488,6 +1489,7 @@
+ 		break;
+ 
+ 	case IPPROTO_TCP:
++	case IPPROTO_DCPIM:
+ 		__skb_flow_dissect_tcp(skb, flow_dissector, target_container,
+ 				       data, nhoff, hlen);
+ 		break;
 --- linux-6.0.3/net/core/skbuff.c	2022-10-21 10:39:29.000000000 +0000
 +++ linux-6.0.3_qizhe/net/core/skbuff.c	2023-03-09 06:24:02.457721954 +0000
 @@ -6558,3 +6558,4 @@
@@ -6,7 +24,7 @@
  }
 +EXPORT_SYMBOL(skb_attempt_defer_free);
 --- linux-6.0.3/net/ipv4/af_inet.c	2022-10-21 10:39:29.000000000 +0000
-+++ linux-6.0.3_qizhe/net/ipv4/af_inet.c	2023-04-05 16:24:40.543710260 +0000
++++ linux-6.0.3_qizhe/net/ipv4/af_inet.c	2023-04-20 16:32:28.653230702 +0000
 @@ -1438,7 +1438,7 @@
  {
  	const struct net_offload *ops;
@@ -16,22 +34,34 @@
  	struct sk_buff *p;
  	unsigned int hlen;
  	unsigned int off;
-@@ -1454,7 +1454,14 @@
+@@ -1454,9 +1454,15 @@
  		if (unlikely(!iph))
  			goto out;
  	}
 -
 +	/* dcPIM change */
 +        if(iph->tos & 0x1) {
-+                if (unlikely(ip_fast_csum((u8 *)iph, 5)))
++		if (unlikely(ip_fast_csum((u8 *)iph, 5)))
 +                	goto out;
 +		iph->protocol = 0xFE;
 +                iph->tos &= ~(1UL);
 +		ip_send_check (iph);
 +        }
  	proto = iph->protocol;
- 
+-
  	ops = rcu_dereference(inet_offloads[proto]);
+ 	if (!ops || !ops->callbacks.gro_receive)
+ 		goto out;
+--- linux-6.0.3/net/ipv4/ip_input.c	2022-10-21 10:39:29.000000000 +0000
++++ linux-6.0.3_qizhe/net/ipv4/ip_input.c	2023-04-19 18:44:00.751987015 +0000
+@@ -502,7 +502,6 @@
+ 		goto inhdr_error;
+ 
+ 	iph = ip_hdr(skb);
+-
+ 	if (unlikely(ip_fast_csum((u8 *)iph, iph->ihl)))
+ 		goto csum_error;
+ 
 --- linux-6.0.3/net/ipv4/ip_output.c	2022-10-21 10:39:29.000000000 +0000
 +++ linux-6.0.3_qizhe/net/ipv4/ip_output.c	2023-03-15 03:02:12.398612893 +0000
 @@ -506,13 +506,23 @@
