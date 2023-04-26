@@ -1,0 +1,91 @@
+--- linux-6.0.3/net/core/flow_dissector.c	2022-10-21 10:39:29.000000000 +0000
++++ linux-6.0.3_qizhe/net/core/flow_dissector.c	2023-04-20 17:07:08.860164866 +0000
+@@ -36,6 +36,7 @@
+ #endif
+ #include <linux/bpf-netns.h>
+ 
++#define IPPROTO_DCPIM 0xFE
+ static void dissector_set_key(struct flow_dissector *flow_dissector,
+ 			      enum flow_dissector_key_id key_id)
+ {
+@@ -1488,6 +1489,7 @@
+ 		break;
+ 
+ 	case IPPROTO_TCP:
++	case IPPROTO_DCPIM:
+ 		__skb_flow_dissect_tcp(skb, flow_dissector, target_container,
+ 				       data, nhoff, hlen);
+ 		break;
+--- linux-6.0.3/net/core/skbuff.c	2022-10-21 10:39:29.000000000 +0000
++++ linux-6.0.3_qizhe/net/core/skbuff.c	2023-03-09 06:24:02.457721954 +0000
+@@ -6558,3 +6558,4 @@
+ 	if (unlikely(kick) && !cmpxchg(&sd->defer_ipi_scheduled, 0, 1))
+ 		smp_call_function_single_async(cpu, &sd->defer_csd);
+ }
++EXPORT_SYMBOL(skb_attempt_defer_free);
+--- linux-6.0.3/net/ipv4/af_inet.c	2022-10-21 10:39:29.000000000 +0000
++++ linux-6.0.3_qizhe/net/ipv4/af_inet.c	2023-04-20 16:32:28.653230702 +0000
+@@ -1438,7 +1438,7 @@
+ {
+ 	const struct net_offload *ops;
+ 	struct sk_buff *pp = NULL;
+-	const struct iphdr *iph;
++	struct iphdr *iph;
+ 	struct sk_buff *p;
+ 	unsigned int hlen;
+ 	unsigned int off;
+@@ -1454,9 +1454,15 @@
+ 		if (unlikely(!iph))
+ 			goto out;
+ 	}
+-
++	/* dcPIM change */
++        if(iph->tos & 0x1) {
++		if (unlikely(ip_fast_csum((u8 *)iph, 5)))
++                	goto out;
++		iph->protocol = 0xFE;
++                iph->tos &= ~(1UL);
++		ip_send_check (iph);
++        }
+ 	proto = iph->protocol;
+-
+ 	ops = rcu_dereference(inet_offloads[proto]);
+ 	if (!ops || !ops->callbacks.gro_receive)
+ 		goto out;
+--- linux-6.0.3/net/ipv4/ip_input.c	2022-10-21 10:39:29.000000000 +0000
++++ linux-6.0.3_qizhe/net/ipv4/ip_input.c	2023-04-19 18:44:00.751987015 +0000
+@@ -502,7 +502,6 @@
+ 		goto inhdr_error;
+ 
+ 	iph = ip_hdr(skb);
+-
+ 	if (unlikely(ip_fast_csum((u8 *)iph, iph->ihl)))
+ 		goto csum_error;
+ 
+--- linux-6.0.3/net/ipv4/ip_output.c	2022-10-21 10:39:29.000000000 +0000
++++ linux-6.0.3_qizhe/net/ipv4/ip_output.c	2023-03-15 03:02:12.398612893 +0000
+@@ -506,13 +506,23 @@
+ 	skb_push(skb, sizeof(struct iphdr) + (inet_opt ? inet_opt->opt.optlen : 0));
+ 	skb_reset_network_header(skb);
+ 	iph = ip_hdr(skb);
++	/* dcPIM change */
++        if(sk->sk_protocol == 0xFE) {
++                tos = tos | 1;
++        }
+ 	*((__be16 *)iph) = htons((4 << 12) | (5 << 8) | (tos & 0xff));
+ 	if (ip_dont_fragment(sk, &rt->dst) && !skb->ignore_df)
+ 		iph->frag_off = htons(IP_DF);
+ 	else
+ 		iph->frag_off = 0;
+ 	iph->ttl      = ip_select_ttl(inet, &rt->dst);
+-	iph->protocol = sk->sk_protocol;
++        /* dcPIM change */
++	if(sk->sk_protocol == 0xFE) {
++                iph->protocol = 6;
++        } else {
++                iph->protocol = sk->sk_protocol;
++        }
++	// iph->protocol = sk->sk_protocol;
+ 	ip_copy_addrs(iph, fl4);
+ 
+ 	/* Transport layer set skb->h.foo itself. */
