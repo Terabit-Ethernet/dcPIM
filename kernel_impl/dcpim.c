@@ -258,14 +258,16 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	return sent_len;
 }
 
-int dcpim_sendmsg_short_locked(struct sock *sk, struct msghdr *msg, size_t len) {
+int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	// DECLARE_SOCKADDR(struct sockaddr_in *, usin, msg->msg_name);
 	// int corkreq = up->corkflag || msg->msg_flags&MSG_MORE;
 	struct dcpim_sock *dsk = dcpim_sk(sk);
+	struct inet_sock *inet = inet_sk(sk);
 	int sent_len = 0;
 	// long timeo;
 	int flags;
-	struct dcpim_message *dcpim_msg = dcpim_message_new(dsk, dsk->short_message_id, len);
+	struct dcpim_message *dcpim_msg = 
+	dcpim_message_new(dsk, inet->inet_saddr, inet->inet_sport, inet->inet_daddr, inet->inet_dport, dsk->short_message_id, len);
 
 
 	flags = msg->msg_flags;
@@ -289,14 +291,17 @@ int dcpim_sendmsg_short_locked(struct sock *sk, struct msghdr *msg, size_t len) 
 		WARN_ON_ONCE(true);
 	}
  	dsk->short_message_id++;
+	dcpim_msg->state = DCPIM_WAIT_FIN_TX;
 	/* add msg into sender_msg_table */
-	dcpim_insert_message(dcpim_tx_messages, dcpim_msg);
+	if(!dcpim_insert_message(dcpim_tx_messages, dcpim_msg)) {
+		WARN_ON(true);
+	}
 	/* burst packets of short flows
 	 * No need to hold the lock because we just initialize the message.
 	 * Flow sync packet currently doesn't 
 	 */
-	dcpim_xmit_control(construct_flow_sync_pkt(sk, dcpim_msg->id, dcpim_msg->total_len, 0), sk); 
-	dcpim_xmit_data_whole_message(dcpim_msg, dsk, true);
+	dcpim_xmit_control(construct_flow_sync_msg_pkt(sk, dcpim_msg->id, dcpim_msg->total_len, 0), sk); 
+	dcpim_xmit_data_whole_message(dcpim_msg, dsk);
 	/* TODO: intiiate hrtimer for retransmission */
 sent_done:
 	return sent_len;
@@ -337,7 +342,7 @@ int dcpim_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 		ret = dcpim_sendmsg_locked(sk, msg, len);
 	else 
 		/* send short flow message */
-		ret = dcpim_sendmsg_short_locked(sk, msg, len);
+		ret = dcpim_sendmsg_msg_locked(sk, msg, len);
 	release_sock(sk);
 	return ret;
 }
@@ -544,6 +549,8 @@ int dcpim_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.max_congestion_win, 5 * dcpim_params.control_pkt_bdp);
 	WRITE_ONCE(dsk->receiver.rts, NULL);
 	WRITE_ONCE(dsk->receiver.rts_index, -1);
+	INIT_LIST_HEAD(&dsk->receiver.msg_list);
+	INIT_LIST_HEAD(&dsk->receiver.msg_backlog);
 
 	// INIT_LIST_HEAD(&dsk->reciever.);
 
@@ -603,12 +610,8 @@ bool dcpim_try_send_token(struct sock *sk) {
 	// }
 	return false;
 }
-/*
- * 	This should be easy, if there is something there we
- * 	return it, otherwise we block.
- */
 
-int dcpim_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
+int dcpim_recvmsg_normal(struct sock *sk, struct msghdr *msg, size_t len,
 		int flags, int *addr_len)
 {
 
@@ -909,6 +912,170 @@ out:
 // 	goto out;
 }
 
+
+/**
+ * sk_msg_wait_data - wait for message to arrive at message_list
+ * @sk:    sock to wait on
+ * @timeo: for how long
+ *
+ * Now socket state including sk->sk_err is changed only under lock,
+ * hence we may omit checks after joining wait queue.
+ * We check receive queue before schedule() only as optimization;
+ * it is very likely that release_sock() added new data.
+ */
+int sk_msg_wait_data(struct dcpim_sock *dsk, long *timeo)
+{
+	struct sock* sk = (struct sock*)dsk;
+	DEFINE_WAIT_FUNC(wait, woken_wake_function);
+	int rc;
+
+	add_wait_queue(sk_sleep(sk), &wait);
+	sk_set_bit(SOCKWQ_ASYNC_WAITDATA, sk);
+	rc = sk_wait_event(sk, timeo, !list_empty(&dsk->receiver.msg_list), &wait);
+	sk_clear_bit(SOCKWQ_ASYNC_WAITDATA, sk);
+	remove_wait_queue(sk_sleep(sk), &wait);
+	return rc;
+}
+
+/*
+ * 	dcpim_recvmsg_msg for short messages
+ * 	Guarantee: 
+ */
+int dcpim_recvmsg_msg(struct sock *sk, struct msghdr *msg, size_t len,
+		int flags, int *addr_len)
+{
+	struct dcpim_sock *dsk = dcpim_sk(sk);
+	struct dcpim_message *message = NULL;
+	int copied = 0;
+	// u32 peek_seq;
+	u32 seq = 0;
+	unsigned long used;
+	int err;
+	// int inq;
+	// int target;		/* Read at least this many bytes */
+	long timeo;
+	// int trigger_tokens = 1;
+	struct sk_buff *skb, *last, *tmp;
+	dcpim_rps_record_flow(sk);
+	// target = sock_rcvlowat(sk, flags & MSG_WAITALL, len);
+	// printk("target bytes:%d\n", target);
+
+	if (sk_can_busy_loop(sk) && list_empty(&dsk->receiver.msg_list) &&
+	    (sk->sk_state == DCPIM_ESTABLISHED))
+		sk_busy_loop(sk, flags & MSG_DONTWAIT);
+
+	lock_sock(sk);
+	err = -ENOTCONN;
+	// cmsg_flags = tp->recvmsg_inq ? 1 : 0;
+	timeo = sock_rcvtimeo(sk, flags & MSG_DONTWAIT);
+	/* if sk_state is not established, go to out */
+	if (sk->sk_state != DCPIM_ESTABLISHED)
+		goto out;
+	/* if message list is empty, go to sleep */
+	while(list_empty(&dsk->receiver.msg_list)) {
+		if (!timeo) {
+			err = -EAGAIN;
+			goto out;
+		}
+		if (sock_flag(sk, SOCK_DONE) || sk->sk_shutdown & RCV_SHUTDOWN || sk->sk_state == DCPIM_CLOSE) {
+			err = 0;
+			goto out;
+		}
+		if (sk->sk_err) {
+			err = sock_error(sk);
+			goto out;
+		}
+		if (signal_pending(current)) {
+			err = sock_intr_errno(timeo);
+			goto out;
+		}
+		sk_msg_wait_data(dsk, &timeo);
+	}
+	message = list_first_entry(&dsk->receiver.msg_list, struct dcpim_message, table_link);
+	if(len < message->total_len) {
+		err = -ENOBUFS;
+		goto out;
+	} else {
+		list_del(&message->table_link);
+	}
+	do {
+		u32 offset;
+		/* Next get a buffer. */
+		last = skb_peek_tail(&message->pkt_queue);
+		skb_queue_walk_safe(&message->pkt_queue, skb, tmp) {
+			last = skb;
+
+			/* Now that we have two receive queues this
+			 * shouldn't happen.
+			 */
+			if (WARN(before(seq, DCPIM_SKB_CB(skb)->seq),
+				 "DCPIM short recvmsg seq # bug: copied %X, seq %X, fl %X\n",
+				 seq, DCPIM_SKB_CB(skb)->seq, flags))
+				break;
+			offset = seq - DCPIM_SKB_CB(skb)->seq;
+			// if (unlikely(TCP_SKB_CB(skb)->tcp_flags & TCPHDR_SYN)) {
+			// 	pr_err_once("%s: found a SYN, please report !\n", __func__);
+			// 	offset--;
+			// }
+			if (offset < skb->len) {
+				goto found_ok_skb; 
+			}
+			else {
+				WARN_ON(true);
+			}
+		}
+		break;
+
+found_ok_skb:
+		/* Ok so how much can we use? */
+		WARN_ON(offset != 0);
+		used = skb->len - offset;
+		if (len < used)
+			used = len;
+		err = skb_copy_datagram_msg(skb, offset, msg, used);
+		// printk("copy data done: %d\n", used);
+		if (err) {
+			/* Exception. Bailout! */
+			if (!copied)
+				copied = -EFAULT;
+			break;
+		}
+		WRITE_ONCE(seq, seq + used);
+		copied += used;
+		len -= used;
+		if (used + offset < skb->len)
+			continue;
+		spin_lock_bh(&message->lock);
+		__skb_unlink(skb, &message->pkt_queue);
+		spin_unlock_bh(&message->lock);
+		// atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+		kfree_skb(skb);
+		continue;
+	} while (len > 0);
+	/* To Do: change the state of dcPIM message */
+	dcpim_message_put(message);
+	release_sock(sk);
+	return copied;
+out:
+	release_sock(sk);
+	return err;
+}
+
+int dcpim_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
+		int flags, int *addr_len)
+{
+
+	// struct dcpim_sock *dsk = dcpim_sk(sk);
+	int ret = 0;
+	/* maybe we should change to the locked version later */
+	if(sk->sk_priority != 7)
+		ret = dcpim_recvmsg_normal(sk, msg, len, flags, addr_len);
+	else 
+		/* recv_msg short flow message */
+		ret = dcpim_recvmsg_msg(sk, msg, len, flags, addr_len);
+	return ret;
+}
+
 // int dcpim_pre_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 // {
 // 	if (addr_len < sizeof(struct sockaddr_in))
@@ -1027,18 +1194,29 @@ int dcpim_rcv(struct sk_buff *skb)
 		return dcpim_handle_fin_pkt(skb);
 	} else if (dh->type == ACK) {
 		return dcpim_handle_ack_pkt(skb);
-	} else if (dh->type == RTS) {
-		return dcpim_handle_rts(skb, &dcpim_epoch);
-	} else if (dh->type == GRANT) {
-		return dcpim_handle_grant(skb, &dcpim_epoch);
-	} else if (dh->type == ACCEPT) {
-		return dcpim_handle_accept(skb, &dcpim_epoch);
 	} else if (dh->type == SYN_ACK) {
 		return dcpim_handle_syn_ack_pkt(skb);
 	}  else if (dh->type == FIN_ACK) {
 		return dcpim_handle_fin_ack_pkt(skb);
 	}
-
+	/* belows are for matching */
+	else if (dh->type == RTS) {
+		return dcpim_handle_rts(skb, &dcpim_epoch);
+	} else if (dh->type == GRANT) {
+		return dcpim_handle_grant(skb, &dcpim_epoch);
+	} else if (dh->type == ACCEPT) {
+		return dcpim_handle_accept(skb, &dcpim_epoch);
+	}
+	/* belows are for short flows */
+	else if (dh->type == NOTIFICATION_MSG) {
+		return dcpim_handle_flow_sync_msg_pkt(skb);
+	} else if (dh->type == DATA_MSG) {
+		return dcpim_handle_data_msg_pkt(skb);
+	} else if (dh->type == FIN_MSG) {
+		return dcpim_handle_fin_msg_pkt(skb);
+	} else if (dh->type == FIN_ACK_MSG) {
+		return dcpim_handle_fin_ack_msg_pkt(skb);
+	}
 
 drop:
 

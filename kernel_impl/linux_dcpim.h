@@ -46,8 +46,9 @@ enum {
 /* dcPIM short message state */
 enum {
 	DCPIM_INIT = 0,
-	DCPIM_WAIT_FOR_FIN,
-	DCPIM_ENTER_MATCH,
+	DCPIM_WAIT_FIN_TX,
+	DCPIM_WAIT_FIN_RX,
+	DCPIM_WAIT_ACK, /* wait for fin_ack */
 	DCPIM_FINISH,
 };
 
@@ -69,6 +70,7 @@ enum dcpimcsq_enum {
 	DCPIM_WAIT_DEFERRED,
 	DCPIM_RTX_TOKEN_TIMER_DEFERRED,
 	DCPIM_RTX_FLOW_SYNC_DEFERRED,
+	DCPIM_MSG_RX_DEFERRED, 
 };
 
 enum dcpimcsq_flags {
@@ -82,6 +84,7 @@ enum dcpimcsq_flags {
 	DCPIMF_WAIT_DEFERRED = (1UL << DCPIM_WAIT_DEFERRED),
 	DCPIMF_RTX_TOKEN_TIMER_DEFERRED = (1UL << DCPIM_RTX_TOKEN_TIMER_DEFERRED),
 	DCPIMF_RTX_FLOW_SYNC_DEFERRED = (1UL << DCPIM_RTX_FLOW_SYNC_DEFERRED),
+	DCPIMF_MSG_RX_DEFERRED = (1UL << DCPIM_MSG_RX_DEFERRED),
 };
 
 struct dcpim_params {
@@ -133,21 +136,21 @@ struct dcpim_message {
 	 */
 	spinlock_t lock;
 
-	// /** @saddr: source IP address
-	//  */
-	// uint32_t saddr;
+	/** @saddr: source IP address
+	 */
+	uint32_t saddr;
 
-	// /** @sport: source port number
-	//  */
-	// uint16_t sport;
+	/** @sport: source port number
+	 */
+	uint16_t sport;
 
-	// /** @daddr: dest IP address
-	//  */
-	// uint32_t daddr;
+	/** @daddr: dest IP address
+	 */
+	uint32_t daddr;
 
-	// /** @sk_dport: dest port number
-	//  */
-	// uint16_t dport;
+	/** @sk_dport: dest port number
+	 */
+	uint16_t dport;
 
 	/**
 	 * @pkt_queue: DATA packets received for this message so far. The list
@@ -202,9 +205,9 @@ struct dcpim_message {
 	refcount_t	refcnt;
 
 	/**
-	 * @flow_sync_skb: The skb for holding flow_sync packet.
+	 * @fin_skb: The skb for holding fin packet.
 	 */
-	struct sk_buff* flow_sync_skb;
+	struct sk_buff* fin_skb;
 
 };
 
@@ -527,6 +530,16 @@ static inline struct dcpim_accept_hdr *dcpim_accept_hdr(const struct sk_buff *sk
 	return (struct dcpim_accept_hdr *)skb_transport_header(skb);
 }
 
+static inline struct dcpim_fin_hdr *dcpim_fin_hdr(const struct sk_buff *skb)
+{
+	return (struct dcpim_fin_hdr *)skb_transport_header(skb);
+}
+
+static inline struct dcpim_fin_ack_hdr *dcpim_fin_ack_hdr(const struct sk_buff *skb)
+{
+	return (struct dcpim_fin_ack_hdr *)skb_transport_header(skb);
+}
+
 /**
  * dcpim_set_doff() - Fills in the doff TCP header field for a Homa packet.
  * @h:   Packet header whose doff field is to be set.
@@ -671,9 +684,9 @@ struct dcpim_sock {
 		atomic_t rtx_status;
 		// atomic_t matched_bw;
 		/* protected by bh_lock_sock */
-		struct list_head message_backlog;
+		struct list_head msg_backlog;
 		/* protected by user socket lock */
-		struct list_head message_list;
+		struct list_head msg_list;
 		// struct work_struct token_xmit_struct;
 
 		/* protected by epoch->matched_lock */

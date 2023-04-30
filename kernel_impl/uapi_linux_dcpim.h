@@ -43,6 +43,10 @@ enum dcpim_packet_type {
 	FIN                = 27,
 	SYN_ACK		 	   = 28,
 	FIN_ACK		       = 29,
+	NOTIFICATION_MSG   = 30,
+	DATA_MSG		   = 31,
+	FIN_MSG			   = 32,
+	FIN_ACK_MSG		   = 33,
 };
 
 struct dcpimhdr {
@@ -75,7 +79,7 @@ struct dcpimhdr {
 	__u16 gro_count;
 	
 	/**
-	 * @checksum: not used by Homa, but must occupy the same bytes as
+	 * @checksum: not used by dcPIM, but must occupy the same bytes as
 	 * the checksum in a TCP header (TSO may modify this?).*/
 	__be16 check;
 
@@ -117,7 +121,7 @@ struct dcpim_data_hdr {
 	__u8 unused1;
 	__u16 unused2;
 	// __u8 priority;
-	// __be64 message_id;
+	__be64 message_id;
 	/* token seq number */
 	// __be32 seq_no;
 	// __be32 data_seq_no;
@@ -168,6 +172,13 @@ struct dcpim_fin_ack_hdr {
 	// __be64 start_time;
 };
 
+struct dcpim_fin_hdr {
+	struct dcpimhdr common;
+	__be64 message_id;
+	/*UINT32_MAX refers to long flow; otherwise, the flow is the short flow. */
+	// __be32 message_size;
+	// __be64 start_time;
+};
 
 // _Static_assert(sizeof(struct dcpim_flow_sync_hdr) <= DCPIM_HEADER_MAX_SIZE,
 // 		"flow_sync_header too large");

@@ -606,6 +606,7 @@ struct sock *dcpim_create_con_sock(struct sock *sk, struct sk_buff *skb,
 
 	    dcpim_set_state(newsk, DCPIM_ESTABLISHED);
 		state = inet_ehash_nolisten(newsk, NULL, NULL);
+		/* TO DO: if state is false, go to put_exit */
     	sock_rps_save_rxhash(newsk, skb);
     } 
 	return newsk;

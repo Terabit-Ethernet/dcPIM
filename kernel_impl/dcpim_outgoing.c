@@ -70,6 +70,7 @@
 			  DCPIMF_RTX_FLOW_SYNC_DEFERRED |	\
 			  DCPIMF_RMEM_CHECK_DEFERRED | \
 			  DCPIMF_RTX_DEFERRED | \
+			  DCPIMF_MSG_RX_DEFERRED | \
 			  DCPIMF_WAIT_DEFERRED)
 
 static inline bool before(__u32 seq1, __u32 seq2)
@@ -758,6 +759,10 @@ void dcpim_release_cb(struct sock *sk)
 		dcpim_rtx_sync_handler(dcpim_sk(sk));
 		__sock_put(sk);
 	}
+	if(flags & DCPIMF_MSG_RX_DEFERRED) {
+		dcpim_msg_bg_handler(dcpim_sk(sk));
+		__sock_put(sk);
+	}
 	// if (flags & DCPIMF_WAIT_DEFERRED) {
 	// 	dcpim_flow_wait_handler(sk);
 	// }
@@ -808,6 +813,28 @@ struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id,
 	dh = (struct dcpimhdr*) (&fh->common);
 	dh->len = htons(sizeof(struct dcpim_flow_sync_hdr));
 	dh->type = NOTIFICATION;
+	fh->message_id = message_id;
+	fh->message_size = message_size;
+	fh->start_time = start_time;
+	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
+	// if (extra_bytes > 0)
+	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
+	return skb;
+}
+
+struct sk_buff* construct_flow_sync_msg_pkt(struct sock* sk, __u64 message_id, 
+	uint32_t message_size, __u64 start_time) {
+	// int extra_bytes = 0;
+	struct sk_buff* skb = __construct_control_skb(sk, 0);
+	struct dcpim_flow_sync_hdr* fh;
+	struct dcpimhdr* dh; 
+	if(unlikely(!skb)) {
+		return NULL;
+	}
+	fh = (struct dcpim_flow_sync_hdr *) skb_put(skb, sizeof(struct dcpim_flow_sync_hdr));
+	dh = (struct dcpimhdr*) (&fh->common);
+	dh->len = htons(sizeof(struct dcpim_flow_sync_hdr));
+	dh->type = NOTIFICATION_MSG;
 	fh->message_id = message_id;
 	fh->message_size = message_size;
 	fh->start_time = start_time;
@@ -960,6 +987,25 @@ struct sk_buff* construct_fin_pkt(struct sock* sk) {
 	return skb;
 }
 
+struct sk_buff* construct_fin_msg_pkt(struct sock* sk) {
+	// int extra_bytes = 0;
+	struct sk_buff* skb = __construct_control_skb(sk, 0);
+	struct dcpimhdr* dh; 
+	struct dcpim_fin_hdr *fh;
+	if(unlikely(!skb)) {
+		return NULL;
+	}
+	fh = (struct dcpim_fin_hdr*) skb_put(skb, sizeof(struct dcpim_fin_hdr));
+	dh = (struct dcpimhdr*) (&fh->common);
+	dh->len = htons(sizeof(struct dcpim_fin_hdr));
+	dh->type = FIN_MSG;
+	// fh->message_id = message_id;
+	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
+	// if (extra_bytes > 0)
+	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
+	return skb;
+}
+
 struct sk_buff* construct_fin_ack_pkt(struct sock* sk, __u64 message_id) {
 	// int extra_bytes = 0;
 	struct sk_buff* skb = __construct_control_skb(sk, 0);
@@ -972,6 +1018,27 @@ struct sk_buff* construct_fin_ack_pkt(struct sock* sk, __u64 message_id) {
 	dh = (struct dcpimhdr*) (&fh->common);
 	dh->len = htons(sizeof(struct dcpim_fin_ack_hdr));
 	dh->type = FIN_ACK;
+	fh->message_id = message_id;
+	// fh->message_size = message_size;
+	// fh->start_time = start_time;
+	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
+	// if (extra_bytes > 0)
+	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
+	return skb;
+}
+
+struct sk_buff* construct_fin_ack_msg_pkt(struct sock* sk, __u64 message_id) {
+	// int extra_bytes = 0;
+	struct sk_buff* skb = __construct_control_skb(sk, 0);
+	struct dcpim_fin_ack_hdr* fh;
+	struct dcpimhdr* dh; 
+	if(unlikely(!skb)) {
+		return NULL;
+	}
+	fh = (struct dcpim_fin_ack_hdr *) skb_put(skb, sizeof(struct dcpim_fin_ack_hdr));
+	dh = (struct dcpimhdr*) (&fh->common);
+	dh->len = htons(sizeof(struct dcpim_fin_ack_hdr));
+	dh->type = FIN_ACK_MSG;
 	fh->message_id = message_id;
 	// fh->message_size = message_size;
 	// fh->start_time = start_time;
@@ -1240,7 +1307,7 @@ int __dcpim_xmit_rts_control(struct sk_buff* skb, struct sock* sk)
 /**
  *
  */
-void dcpim_xmit_data(struct sk_buff* skb, struct dcpim_sock* dsk, bool free_token)
+void dcpim_xmit_data(struct sk_buff* skb, struct dcpim_sock* dsk)
 {
 	struct sock* sk = (struct sock*)(dsk);
 	struct sk_buff* oskb;
@@ -1249,7 +1316,7 @@ void dcpim_xmit_data(struct sk_buff* skb, struct dcpim_sock* dsk, bool free_toke
 		skb = pskb_copy(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
 	else
 		skb = skb_clone(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
-	__dcpim_xmit_data(skb, dsk, free_token);
+	__dcpim_xmit_data(skb, dsk, 0, 0);
 	/* change the state of queue and metadata*/
 
 	// dcpim_unlink_write_queue(oskb, sk);
@@ -1303,7 +1370,7 @@ void dcpim_xmit_data(struct sk_buff* skb, struct dcpim_sock* dsk, bool free_toke
 /** dcpim_xmit_data_message - send skb of a short message
  * 
  */
-void dcpim_xmit_data_message(struct sk_buff* skb, struct dcpim_sock* dsk, bool free_token)
+void dcpim_xmit_data_message(struct sk_buff* skb, struct dcpim_sock* dsk, uint64_t id)
 {
 	struct sock* sk = (struct sock*)(dsk);
 	struct sk_buff* oskb;
@@ -1312,17 +1379,17 @@ void dcpim_xmit_data_message(struct sk_buff* skb, struct dcpim_sock* dsk, bool f
 		skb = pskb_copy(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
 	else
 		skb = skb_clone(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
-	__dcpim_xmit_data(skb, dsk, free_token);
+	__dcpim_xmit_data(skb, dsk, true, id);
 }
 
 /** dcpim_xmit_data_message - send the whole short message. Assume caller holds the lock.
  * 
  */
-void dcpim_xmit_data_whole_message(struct dcpim_message* msg, struct dcpim_sock* dsk, bool free_token)
+void dcpim_xmit_data_whole_message(struct dcpim_message* msg, struct dcpim_sock* dsk)
 {
 	struct sk_buff* skb;
 	skb_queue_walk(&msg->pkt_queue, skb) {
-		dcpim_xmit_data_message(skb, dsk, free_token);
+		dcpim_xmit_data_message(skb, dsk, msg->id);
 	}
 }
 
@@ -1335,7 +1402,7 @@ void dcpim_retransmit_data(struct sk_buff* skb, struct dcpim_sock* dsk)
 		skb = pskb_copy(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
 	else
 		skb = skb_clone(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
-	__dcpim_xmit_data(skb, dsk, 0);
+	__dcpim_xmit_data(skb, dsk, 0, 0);
 }
 
 /**
@@ -1343,13 +1410,15 @@ void dcpim_retransmit_data(struct sk_buff* skb, struct dcpim_sock* dsk)
  * to homa_xmit_data and homa_resend_data.
  * @skb:      Packet to be sent. The packet will be freed after transmission
  *            (and also if errors prevented transmission).
- * @rpc:      Information about the RPC that the packet belongs to.
- * @priority: Priority level at which to transmit the packet.
+ * @dsk:      DCPIM socket
+ * @is_short: Whether packets belonged to short messages.
+ * @msg_id:   The ID of message.
+
  */
-void __dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool free_token)
+void __dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool is_short, uint64_t msg_id)
 {
 	int err;
-	__u8 tos;
+	__u8 tos = 0;
 	// struct dcpim_data_hder *h = (struct dcpim_data_hder *)
 	// 		skb_transport_header(skb);
 	struct sock* sk = (struct sock*)dsk;
@@ -1370,10 +1439,10 @@ void __dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool free_to
 	/* Update cutoff_version in case it has changed since the
 	 * message was initially created.
 	 */
-	if(free_token) 
-		tos = IPTOS_LOWDELAY | IPTOS_PREC_INTERNETCONTROL;
-	else 
-		tos = IPTOS_THROUGHPUT | IPTOS_PREC_IMMEDIATE;
+	// if(free_token) 
+	// 	tos = IPTOS_LOWDELAY | IPTOS_PREC_INTERNETCONTROL;
+	// else 
+	// 	tos = IPTOS_THROUGHPUT | IPTOS_PREC_IMMEDIATE;
 	skb_push(skb, sizeof(struct dcpim_data_hdr) - sizeof(struct data_segment));
 	skb_reset_transport_header(skb);
 	h = (struct dcpim_data_hdr *)
@@ -1389,8 +1458,13 @@ void __dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool free_to
 	h->common.dest = inet->inet_dport;
 	// h->common.len = htons(DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq);
 	// h->common.seq = htonl(DCPIM_SKB_CB(skb)->seq);
-	h->common.type = DATA;
-	h->free_token = free_token;
+	if(is_short)
+		h->common.type = DATA_MSG;
+	else 
+		h->common.type = DATA;
+	h->free_token = is_short;
+	/* doesn't change to network order for now */
+	h->message_id = msg_id;
 	dcpim_set_doff(h);
 	
 	skb_set_hash_from_sk(skb, sk);
@@ -1430,7 +1504,7 @@ int dcpim_write_timer_handler(struct sock *sk)
 	}
 	while((skb = skb_dequeue(&sk->sk_write_queue)) != NULL) {
 		if (after(dsk->sender.token_seq, DCPIM_SKB_CB(skb)->end_seq)) {
-			dcpim_xmit_data(skb, dsk, false);
+			dcpim_xmit_data(skb, dsk);
 			sent_bytes += DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq;
 		} else {
 			skb_queue_head(&sk->sk_write_queue, skb);
@@ -1671,4 +1745,42 @@ enum hrtimer_restart dcpim_rtx_fin_timer_handler(struct hrtimer *timer) {
 	struct dcpim_sock *dsk = container_of(timer, struct dcpim_sock, rtx_fin_timer);
 	queue_work_on(raw_smp_processor_id(), dcpim_wq, &dsk->rtx_fin_work);
 	return HRTIMER_NORESTART;
+}
+
+enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer) {
+
+	struct dcpim_message *msg = container_of(timer, struct dcpim_message, rtx_timer);
+	spin_lock(&msg->lock);
+	if(msg->state == DCPIM_WAIT_ACK) {
+		if(skb_queue_empty(&msg->pkt_queue))
+			msg->state = DCPIM_FINISH;
+		else {
+			dcpim_tx_msg_fin(msg);
+			hrtimer_forward_now(timer, ns_to_ktime(dcpim_params.rtt * 1000));
+			spin_unlock(&msg->lock);
+			return HRTIMER_RESTART;
+		}
+	} else if (msg->state == DCPIM_WAIT_FIN_TX) {
+		/* To Do: add to matching */
+	}
+	spin_unlock(&msg->lock);
+	return HRTIMER_NORESTART;
+}
+
+void dcpim_msg_bg_handler(struct dcpim_sock *dsk) {
+	struct list_head *list, *temp;
+	struct dcpim_message *msg;
+	/* for now, only add to list if dsk is in established state. */
+	bool established = ((struct sock*)dsk)->sk_state == DCPIM_ESTABLISHED;
+	list_for_each_safe(list, temp, &dsk->receiver.msg_backlog) {
+		msg = list_entry(list, struct dcpim_message, table_link);
+		list_del(&msg->table_link);
+		if(established) {
+			/* construct the fin */
+			// dcpim_xmit_control(construct_fin_msg_pkt(sk, msg->id), sk);
+			list_add_tail(&msg->table_link, &dsk->receiver.msg_list);
+		}
+		else
+			dcpim_message_put(msg);
+	}
 }

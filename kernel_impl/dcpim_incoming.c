@@ -726,9 +726,9 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 	// struct message_hslot* slot;
 	struct dcpim_flow_sync_hdr *fh;
 	struct sock *sk, *child, *msg_sock;
-	struct dcpim_message *msg;
+	// struct dcpim_message *msg;
 	int sdif = inet_sdif(skb);
-	const struct iphdr *iph = ip_hdr(skb);
+	// const struct iphdr *iph = ip_hdr(skb);
 	bool refcounted = false;
 	// struct dcpim_message *msg;
 	if (!pskb_may_pull(skb, sizeof(struct dcpim_flow_sync_hdr))) {
@@ -771,22 +771,22 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 		}
 		bh_unlock_sock(sk);
 
-		/* create short message */
-		if(fh->message_size != UINT_MAX) {
-			msg = dcpim_lookup_message(dcpim_rx_messages,  iph->daddr, 
-				fh->common.dest, iph->saddr, fh->common.source, fh->message_id);
-			if(msg != NULL) {
-				goto drop;
-			} else {
-				msg = dcpim_message_new(dcpim_sk(msg_sock), fh->message_id, fh->message_size);
-				if(msg_sock == NULL) {
-					msg->hash = dcpim_message_hash(iph->daddr, fh->common.dest, iph->saddr, fh->common.source, fh->message_id);
-					msg->flow_sync_skb = skb;
-					skb_get(skb);
-				}
-				dcpim_insert_message(dcpim_rx_messages, msg);
-			}
-		}
+		// /* create short message */
+		// if(fh->message_size != UINT_MAX) {
+		// 	msg = dcpim_lookup_message(dcpim_rx_messages,  iph->daddr, 
+		// 		fh->common.dest, iph->saddr, fh->common.source, fh->message_id);
+		// 	if(msg != NULL) {
+		// 		goto drop;
+		// 	} else {
+		// 		msg = dcpim_message_new(dcpim_sk(msg_sock), fh->message_id, fh->message_size);
+		// 		if(msg_sock == NULL) {
+		// 			msg->hash = dcpim_message_hash(iph->daddr, fh->common.dest, iph->saddr, fh->common.source, fh->message_id);
+		// 			msg->flow_sync_skb = skb;
+		// 			skb_get(skb);
+		// 		}
+		// 		dcpim_insert_message(dcpim_rx_messages, msg);
+		// 	}
+		// }
 
 	} else {
 		kfree_skb(skb);
@@ -800,6 +800,7 @@ drop:
 
 	return 0;
 }
+
 // ktime_t start, end;
 // __u32 backlog_time = 0;
 int dcpim_handle_token_pkt(struct sk_buff *skb) {
@@ -1232,21 +1233,17 @@ bool dcpim_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check)
         return false;
 
  }
+
 /**
  * dcpim_data_pkt() - Handler for incoming DATA packets
  * @skb:     Incoming packet; size known to be large enough for the header.
  *           This function now owns the packet.
- * @rpc:     Information about the RPC corresponding to this packet.
  * 
- * Return: Zero means the function completed successfully. Nonzero means
- * that the RPC had to be unlocked and deleted because the socket has been
- * shut down; the caller should not access the RPC anymore. Note: this method
- * may change the RPC's state to RPC_READY.
+ * Return: Zero means the function completed successfully.
  */
  ktime_t start,end;
  __u64 total_bytes;
-int dcpim_handle_data_pkt(struct sk_buff *skb)
-{
+int dcpim_handle_data_pkt(struct sk_buff *skb) {
 	struct dcpim_sock *dsk;
 	struct dcpim_data_hdr *dh;
 	struct sock *sk;
@@ -1313,9 +1310,6 @@ discard_skb:
     if (refcounted) {
         sock_put(sk);
     }
-
-
-
     return 0;
 drop:
     /* Discard frame. */
@@ -1330,6 +1324,195 @@ drop:
 //             sock_put(sk);
 //     goto drop;
 	// kfree_skb(skb);
+}
+
+
+
+/**
+ * dcpim_handle_flow_sync_msg_pkt() - Handler for incoming FLOW_SYNC packets of message
+ * @skb:     Incoming packet; size known to be large enough for the header.
+ *           This function now owns the packet.
+ * 
+ * Return: Zero means the function completed successfully.
+ */
+int dcpim_handle_flow_sync_msg_pkt(struct sk_buff *skb) {
+	struct dcpim_flow_sync_hdr *fh;
+	struct dcpim_message *msg;
+	const struct iphdr *iph = ip_hdr(skb);
+	bool free_skb = true, insert = false;
+	// struct dcpim_message *msg;
+	if (!pskb_may_pull(skb, sizeof(struct dcpim_flow_sync_hdr))) {
+		goto drop;		/* No space for header. */
+	}
+	fh =  dcpim_flow_sync_hdr(skb);
+	msg = dcpim_message_new(NULL, iph->daddr,  fh->common.dest, iph->saddr, fh->common.source, fh->message_id, fh->message_size);
+	msg->state = DCPIM_WAIT_FIN_RX;
+	insert = dcpim_insert_message(dcpim_rx_messages, msg);
+	if(!insert) {
+		dcpim_message_put(msg);
+	} else {
+		/* form the fin skb */
+		fh->common.type = FIN_MSG;
+		dcpim_swap_dcpim_header(skb);
+		dcpim_swap_ip_header(skb);
+		dcpim_swap_eth_header(skb);
+		free_skb = false;
+		spin_lock(&msg->lock);
+		msg->fin_skb = skb;
+		spin_unlock(&msg->lock);		
+	}
+drop:
+	if(free_skb)
+		kfree_skb(skb);
+	return 0;
+	// sk = skb_steal_sock(skb);
+	// if(!sk) {
+}
+
+/**
+ * dcpim_handle_data_msg_pkt() - Handler for incoming DATA packets of message
+ * @skb:     Incoming packet; size known to be large enough for the header.
+ *           This function now owns the packet.
+ * 
+ * Return: Zero means the function completed successfully.
+ */
+int dcpim_handle_data_msg_pkt(struct sk_buff *skb) {
+	struct dcpim_sock *dsk;
+	struct dcpim_message *msg;
+	struct dcpim_data_hdr *dh;
+	struct sock *sk;
+	struct iphdr *iph;
+	int sdif = inet_sdif(skb);
+
+	bool refcounted = false;
+	bool is_complete = false;
+
+	if (!pskb_may_pull(skb, sizeof(struct dcpim_data_hdr)))
+		goto drop;		/* No space for header. */
+	dh =  dcpim_data_hdr(skb);
+	iph = ip_hdr(skb);
+	dcpim_v4_fill_cb(skb, iph, dh);
+	msg = dcpim_lookup_message(dcpim_rx_messages,  iph->daddr, 
+				dh->common.dest, iph->saddr, dh->common.source, dh->message_id);
+	if(!msg)
+		goto drop;
+	spin_lock(&msg->lock);
+	if(msg->state == DCPIM_WAIT_FIN_RX) {
+		is_complete = dcpim_message_receive_data(msg, skb);
+		if(is_complete) {
+			msg->state = DCPIM_WAIT_ACK;
+			dcpim_tx_msg_fin(msg);
+			hrtimer_start(&msg->rtx_timer, ns_to_ktime(dcpim_params.rtt * 1000) , HRTIMER_MODE_REL_PINNED_SOFT);
+		}
+	}
+	spin_unlock(&msg->lock);
+	if(is_complete) {
+		sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&dh->common), dh->common.source,
+			dh->common.dest, sdif, &refcounted);
+		/* add to socket */
+		if(sk) {
+			dsk = dcpim_sk(sk);
+			bh_lock_sock(sk);
+			if(!sock_owned_by_user(sk)) {
+				if(sk->sk_state == DCPIM_ESTABLISHED) { 
+					/* construct the fin */
+					// dcpim_xmit_control(construct_fin_msg_pkt(sk, msg->id), sk);
+					list_add_tail(&msg->table_link, &dsk->receiver.msg_list);
+					dcpim_message_hold(msg);
+				}
+				sk->sk_data_ready(sk);
+			} else {
+				/* add to backlog and initiate the signal */
+				list_add_tail(&msg->table_link, &dsk->receiver.msg_backlog);
+				dcpim_message_hold(msg);
+				if (!test_and_set_bit(DCPIM_MSG_RX_DEFERRED, &sk->sk_tsq_flags)) {
+					sock_hold(sk);
+				}
+			}			
+			bh_lock_sock(sk);
+		}
+	}
+	dcpim_message_put(msg);
+
+    if (refcounted) {
+        sock_put(sk);
+    }
+	return 0;
+drop:
+    /* Discard frame. */
+    kfree_skb(skb);
+    return 0;
+}
+
+/**
+ * dcpim_handle_fin_msg_pkt() - Handler for incoming fin packets of message
+ * @skb:     Incoming packet; size known to be large enough for the header.
+ *           This function now owns the packet.
+ * 
+ * Return: Zero means the function completed successfully.
+ */
+int dcpim_handle_fin_msg_pkt(struct sk_buff *skb) {
+	struct dcpim_fin_hdr *fh;
+	struct dcpim_message *msg;
+	struct iphdr *iph;
+	// struct dcpim_message *msg;
+	if (!pskb_may_pull(skb, sizeof(struct dcpim_fin_hdr))) {
+		goto drop;		/* No space for header. */
+	}
+	iph = ip_hdr(skb);
+	fh =  dcpim_fin_hdr(skb);
+	/* send fin_ack */
+	fh->common.type = FIN_ACK_MSG;
+	dcpim_swap_dcpim_header(skb);
+	dcpim_swap_ip_header(skb);
+	dcpim_swap_eth_header(skb);
+	if(!dev_queue_xmit(skb)) {
+		WARN_ON(true);
+	}
+	msg = dcpim_lookup_message(dcpim_tx_messages,  iph->daddr, fh->common.dest, iph->saddr, fh->common.source, fh->message_id);
+	if(msg) {
+		dcpim_remove_message(dcpim_tx_messages, msg);
+		dcpim_message_put(msg);
+	}
+	return 0;
+drop:
+	kfree_skb(skb);
+	return 0;
+	// sk = skb_steal_sock(skb);
+	// if(!sk) {
+}
+
+/**
+ * dcpim_handle_fin_ack_msg_pkt() - Handler for incoming fin_ack packets of message
+ * @skb:     Incoming packet; size known to be large enough for the header.
+ *           This function now owns the packet.
+ * 
+ * Return: Zero means the function completed successfully.
+ */
+int dcpim_handle_fin_ack_msg_pkt(struct sk_buff *skb) {
+	struct dcpim_fin_ack_hdr *fh;
+	struct dcpim_message *msg;
+	struct iphdr *iph;
+	// struct dcpim_message *msg;
+	if (!pskb_may_pull(skb, sizeof(struct dcpim_fin_ack_hdr))) {
+		goto drop;		/* No space for header. */
+	}
+	iph = ip_hdr(skb);
+	fh =  dcpim_fin_ack_hdr(skb);
+	msg = dcpim_lookup_message(dcpim_rx_messages,  iph->daddr, fh->common.dest, iph->saddr, fh->common.source, fh->message_id);
+	if(msg) {
+		dcpim_remove_message(dcpim_rx_messages, msg);
+		spin_lock(&msg->lock);
+		if(msg->state == DCPIM_WAIT_ACK)
+			msg->state = DCPIM_FINISH;
+		spin_unlock(&msg->lock);
+		dcpim_message_put(msg);
+	}
+drop:
+	kfree_skb(skb);
+	return 0;
+	// sk = skb_steal_sock(skb);
+	// if(!sk) {
 }
 
 /* should hold the lock, before calling this function；
