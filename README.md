@@ -10,5 +10,6 @@ and guarantees near-optimal network utilization.
 
 - `implementation/` includes the DPDK implementation of dcPIM.
 - `simulator/` includes the simulator of dcPIM.
+- `kernel_impl/` includes the kernel implementation of dcPIM (ongoing).
 
 README in each sub repository contains instructions for running implementation/simulation experiments and reproducing our SIGCOMM results. 
