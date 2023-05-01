@@ -14,7 +14,7 @@
  */
 
 /* This is a test program that acts as a server for testing either
- * Homa or TCP; it simply accepts request packets of arbitrary length
+ * dcPIM or TCP; it simply accepts request packets of arbitrary length
  * and responds with packets whose length is determined by the request.
  * The program runs forever; use control-C to kill it.
  *
@@ -50,8 +50,8 @@
 /* Log events to standard output. */
 bool verbose = false;
 
-/* Port number on which to listen (both for Homa and TCP); if multiple
- * Homa ports are in use, they will be consecutive numbers starting with
+/* Port number on which to listen (both for dcPIM and TCP); if multiple
+ * dcPIM ports are in use, they will be consecutive numbers starting with
  * this. */
 int port = 4000;
 
@@ -95,9 +95,9 @@ void aggre_thread(struct Agg_Stats *stats) {
 	}
 }
 /**
- * homa_server() - Opens a Homa socket and handles all requests arriving on
+ * homa_server() - Opens a dcPIM socket and handles all requests arriving on
  * that socket.
- * @port:   Port number to use for the Homa socket.
+ * @port:   Port number to use for the dcPIM socket.
  */
 // void homa_server(std::string ip, int port)
 // {
@@ -110,7 +110,7 @@ void aggre_thread(struct Agg_Stats *stats) {
 // 	uint64_t start_cycle = 0, end_cycle = 0;
 // 	fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_HOMA);
 // 	if (fd < 0) {
-// 		printf("Couldn't open Homa socket: %s\n", strerror(errno));
+// 		printf("Couldn't open dcPIM socket: %s\n", strerror(errno));
 // 		return;
 // 	}
 	
@@ -122,12 +122,12 @@ void aggre_thread(struct Agg_Stats *stats) {
 // 	// addr_in.sin_addr.s_addr = INADDR_ANY;
 
 // 	if (bind(fd, (struct sockaddr *) &addr_in, sizeof(addr_in)) != 0) {
-// 		printf("Couldn't bind socket to Homa port %d: %s\n", port,
+// 		printf("Couldn't bind socket to dcPIM port %d: %s\n", port,
 // 				strerror(errno));
 // 		return;
 // 	}
 // 	if (verbose)
-// 		printf("Successfully bound to Homa port %d\n", port);
+// 		printf("Successfully bound to dcPIM port %d\n", port);
 // 	while (1) {
 // 		uint64_t id = 0;
 // 		int seed;
@@ -162,7 +162,7 @@ void aggre_thread(struct Agg_Stats *stats) {
 
 // 			start_cycle = rdtsc();
 // 			if(count != 0) {
-// 				printf("Homa throughput: "
+// 				printf("dcPIM throughput: "
 // 				"%.2f Gbps\n", rate * 1e-09 * 8);
 // 			}
 // 		}
@@ -174,7 +174,7 @@ void aggre_thread(struct Agg_Stats *stats) {
 // 		// result = homa_reply(fd, message, 1,
 // 		// 	(struct sockaddr *) &source, sizeof(source), id);
 // 		// if (result < 0) {
-// 		// 	printf("Homa_reply failed: %s\n", strerror(errno));
+// 		// 	printf("dcPIM_reply failed: %s\n", strerror(errno));
 // 		// }
 // 	}
 // 	printf("end\n");
@@ -190,7 +190,7 @@ void print_help(const char *name)
 		"The following options are supported:\n\n"
 		"--help       Print this message and exit\n"
 		"--port       (First) port number to use (default: 4000)\n"
-		"--num_ports  Number of Homa ports to open (default: 1)\n"
+		"--num_ports  Number of dcPIM ports to open (default: 1)\n"
 		"--validate   Validate contents of incoming messages (default: false\n"
 		"--verbose    Log events as they happen (default: false)\n",
 		name);

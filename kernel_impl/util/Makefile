@@ -1,4 +1,4 @@
-# Makefile to build various testing programs for Homa.
+# Makefile to build various testing programs for dcPIM.
 
 CFLAGS := -Wall -Werror -fno-strict-aliasing -O3 -I..
 

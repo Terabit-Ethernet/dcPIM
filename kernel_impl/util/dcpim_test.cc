@@ -14,7 +14,7 @@
  */
 
 // This file contains a collection of tests for the Linux implementation
-// of Homa
+// of dcPIM
 //
 // Usage:
 // homaTest host:port [options] op op ...
@@ -79,7 +79,7 @@ void close_fd(int fd)
 // /**
 //  * send_fd() - Helper method for "poll" test: sleeps a while, then sends
 //  * a request to a socket.
-//  * @fd:      File descriptor for a Homa socket; used to send the message.
+//  * @fd:      File descriptor for a dcPIM socket; used to send the message.
 //  * @addr:    Where to send the message.
 //  * @request: Request message to send.
 //  */
@@ -94,7 +94,7 @@ void close_fd(int fd)
 // 		printf("Error in homa_send: %s\n",
 // 			strerror(errno));
 // 	} else {
-// 		printf("Homa_send succeeded, id %lu\n", id);
+// 		printf("dcPIM_send succeeded, id %lu\n", id);
 // 	}
 // }
 
@@ -131,7 +131,7 @@ void print_help(const char *name)
 }
 
 // /**
-//  * test_close() - Close a Homa socket while a thread is waiting on it.
+//  * test_close() - Close a dcPIM socket while a thread is waiting on it.
 //  */
 // void test_close()
 // {
@@ -142,7 +142,7 @@ void print_help(const char *name)
 
 // 	fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_HOMA);
 // 	if (fd < 0) {
-// 		printf("Couldn't open Homa socket: %s\n",
+// 		printf("Couldn't open dcPIM socket: %s\n",
 // 			strerror(errno));
 // 		exit(1);
 // 	}
@@ -160,7 +160,7 @@ void print_help(const char *name)
 // /**
 //  * test_fill_memory() - Send requests to a server, but never read responses;
 //  * eventually, this will cause memory to fill up.
-//  * @fd:       Homa socket.
+//  * @fd:       dcPIM socket.
 //  * @dest:     Where to send the request
 //  * @request:  Request message.
 //  */
@@ -216,7 +216,7 @@ void print_help(const char *name)
 
 // /**
 //  * test_invoke() - Send a request and wait for response.
-//  * @fd:       Homa socket.
+//  * @fd:       dcPIM socket.
 //  * @dest:     Where to send the request
 //  * @request:  Request message.
 //  */
@@ -234,7 +234,7 @@ void print_help(const char *name)
 // 		printf("Error in homa_send: %s\n",
 // 			strerror(errno));
 // 	} else {
-// 		printf("Homa_send succeeded, id %lu\n", id);
+// 		printf("dcPIM_send succeeded, id %lu\n", id);
 // 	}
 // 	resp_length = homa_recv(fd, response, sizeof(response),
 // 		HOMA_RECV_RESPONSE, &id, (struct sockaddr *) &server_addr,
@@ -254,7 +254,7 @@ void print_help(const char *name)
 // /**
 //  * test_ioctl() - Measure round-trip time for an ioctl kernel call that
 //  * does nothing but return an error.
-//  * @fd:       Homa socket.
+//  * @fd:       dcPIM socket.
 //  * @count:    Number of reads to issue.
 //  */
 // void test_ioctl(int fd, int count)
@@ -281,7 +281,7 @@ void print_help(const char *name)
 
 // /**
 //  * test_poll() - Receive a message using the poll interface.
-//  * @fd:       Homa socket.
+//  * @fd:       dcPIM socket.
 //  * @request:  Request message.
 //  */
 // void test_poll(int fd, char *request)
@@ -301,7 +301,7 @@ void print_help(const char *name)
 // 	addr.sin_port = htons(500);
 	
 // 	if (bind(fd, (struct sockaddr *) &addr, sizeof(addr)) != 0) {
-// 		printf("Couldn't bind socket to Homa port %d: %s\n",
+// 		printf("Couldn't bind socket to dcPIM port %d: %s\n",
 // 				ntohl(addr.sin_port), strerror(errno));
 // 		return;
 // 	}
@@ -330,7 +330,7 @@ void print_help(const char *name)
 // /**
 //  * test_read() - Measure round-trip time for a read kernel call that
 //  * does nothing but return an error.
-//  * @fd:       Homa socket.
+//  * @fd:       dcPIM socket.
 //  * @count:    Number of reads to issue.
 //  */
 // void test_read(int fd, int count)
@@ -357,7 +357,7 @@ void print_help(const char *name)
 
 // /**
 //  * test_rtt() - Measure round-trip time for an RPC.
-//  * @fd:       Homa socket.
+//  * @fd:       dcPIM socket.
 //  * @dest:     Where to send requests.
 //  * @request:  Request message.
 //  */
@@ -408,7 +408,7 @@ void print_help(const char *name)
 // 		print_dist(times, count);
 // 		// printf("Bandwidth at median: %.1f MB/sec\n",
 // 		// 		2.0*((double) length)/(to_seconds(times[count/2])*1e06));
-// 		printf("Homa throughput using %d byte messages: "
+// 		printf("dcPIM throughput using %d byte messages: "
 // 			"%.2f GB/sec\n", length, rate*1e-09);
 //     }
 
@@ -416,7 +416,7 @@ void print_help(const char *name)
 
 // /**
 //  * test_send() - Send a request; don't wait for response.
-//  * @fd:       Homa socket.
+//  * @fd:       dcPIM socket.
 //  * @dest:     Where to send the request
 //  * @request:  Request message.
 //  */
@@ -431,13 +431,13 @@ void print_help(const char *name)
 // 		printf("Error in homa_send: %s\n",
 // 			strerror(errno));
 // 	} else {
-// 		printf("Homa_send succeeded, id %lu\n", id);
+// 		printf("dcPIM_send succeeded, id %lu\n", id);
 // 	}
 // }
 
 /**
- * test_shutdown() - Shutdown a Homa socket while a thread is waiting on it.
- * @fd:   Homa socket
+ * test_shutdown() - Shutdown a dcPIM socket while a thread is waiting on it.
+ * @fd:   dcPIM socket
  */
 // void test_shutdown(int fd)
 // {
@@ -469,10 +469,10 @@ void print_help(const char *name)
 // }
 
 /**
- * test_stream() - measure Homa's throughput in streaming mode by
+ * test_stream() - measure dcPIM's throughput in streaming mode by
  * maintaining --count outstanding RPCs at any given time, each with --length
  * bytes of data. Data flows only in one direction
- * @fd:       Homa socket
+ * @fd:       dcPIM socket
  * @dest:     Where to send requests
  */
 // void test_stream(int fd, struct sockaddr *dest)
@@ -545,7 +545,7 @@ void print_help(const char *name)
 // 	end_cycles = rdtsc();
 // 	rate = ((double) bytes_sent - start_bytes)/ to_seconds(
 // 			end_cycles - start_cycles);
-// 	printf("Homa throughput using %d concurrent %d byte messages: "
+// 	printf("dcPIM throughput using %d concurrent %d byte messages: "
 // 			"%.2f GB/sec\n", count, length, rate*1e-09);
 	
 // 	for (i = 0; i < count; i++)
@@ -597,7 +597,7 @@ void print_help(const char *name)
 // 		// print_dist(times, count);
 // 		// printf("Bandwidth at median: %.1f MB/sec\n",
 // 		// 		2.0*((double) length)/(to_seconds(times[count/2])*1e06));
-// 		printf("Homa throughput using %d byte messages: "
+// 		printf("dcPIM throughput using %d byte messages: "
 // 			"%.2f Gbps/sec\n", length, rate * 1e-09 * 8);
 //     }
 
