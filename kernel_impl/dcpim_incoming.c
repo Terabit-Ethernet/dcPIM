@@ -706,7 +706,7 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 	// struct iphdr *iph;
 	// struct message_hslot* slot;
 	struct dcpim_flow_sync_hdr *fh;
-	struct sock *sk, *child, *msg_sock;
+	struct sock *sk, *child;
 	// struct dcpim_message *msg;
 	int sdif = inet_sdif(skb);
 	// const struct iphdr *iph = ip_hdr(skb);
@@ -729,7 +729,6 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 				child = dcpim_conn_request(sk, skb);
 				if(child) {
 					dsk = dcpim_sk(child);
-					msg_sock = child;
 					if(fh->message_size == UINT_MAX) {
 						/* add to flow table */
 						dcpim_add_mat_tab(&dcpim_epoch, child);
@@ -738,6 +737,9 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 							hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
 							// sock_hold(child);
 						}
+					} else {
+						/* small msg socket */
+						child->sk_priority = 7;
 					}
 					/* send flow syn ack back */
 					dcpim_xmit_control(construct_syn_ack_pkt(child, fh->message_id, fh->message_size, fh->start_time), child); 
