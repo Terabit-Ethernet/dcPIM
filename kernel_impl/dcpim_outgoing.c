@@ -444,13 +444,13 @@ int dcpim_fill_packets_message(struct sock* sk, struct dcpim_message *dcpim_msg,
 			err = -ENOMEM;
 			goto error;
 		}
-		if ((max_gso_data > bytes_left)) {
-			// if(!sk->sk_tx_skb_cache)
-			// 	sk->sk_tx_skb_cache = skb;
-			// else
-			kfree_skb(skb);
-			break;
-		}
+		// if ((max_gso_data > bytes_left)) {
+		// 	// if(!sk->sk_tx_skb_cache)
+		// 	// 	sk->sk_tx_skb_cache = skb;
+		// 	// else
+		// 	kfree_skb(skb);
+		// 	break;
+		// }
 		available = max_gso_data;
 		current_len = available > bytes_left? bytes_left : available;
 		// h->message_id = 256;
@@ -582,7 +582,7 @@ int dcpim_fill_packets(struct sock *sk,
 			err = -ENOMEM;
 			goto error;
 		}
-		if (skb->truesize > sk_stream_wspace(sk) || (max_gso_data > bytes_left)) {
+		if (skb->truesize > sk_stream_wspace(sk)) {
 			// if(!sk->sk_tx_skb_cache)
 			// 	sk->sk_tx_skb_cache = skb;
 			// else

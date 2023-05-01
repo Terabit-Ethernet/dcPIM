@@ -271,6 +271,7 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 		goto sent_done;
 
 	} else if(sent_len != dcpim_msg->total_len) {
+		printk("sent len:%d len:%d\n", sent_len, dcpim_msg->total_len);
 		dcpim_msg->total_len = sent_len;
 		dcpim_msg->remaining_len = sent_len;
 		WARN_ON_ONCE(true);
