@@ -1213,6 +1213,17 @@ drop:
 	// return __dcpim4_lib_rcv(skb, &dcpim_table, IPPROTO_DCPIM);
 }
 
+void dcpim_flush_msgs_handler(struct dcpim_sock *dsk) {
+	struct list_head *list, *temp;
+	struct dcpim_message *msg;
+	/* for now, only add to list if dsk is in established state. */
+	list_for_each_safe(list, temp, &dsk->receiver.msg_list) {
+		msg = list_entry(list, struct dcpim_message, table_link);
+		list_del(&msg->table_link);
+		dcpim_message_put(msg);
+	}
+}
+
 void dcpim_destroy_sock(struct sock *sk)
 {
 	// struct udp_hslot* hslot = udp_hashslot(sk->sk_prot->h.udp_table, sock_net(sk),
@@ -1228,6 +1239,7 @@ void dcpim_destroy_sock(struct sock *sk)
 		/* delete from flow matching table */
 		dcpim_remove_mat_tab(&dcpim_epoch, sk);
 	}
+	dcpim_flush_msgs_handler(dsk);
 	// release_sock(sk);
 
 	// local_bh_disable();

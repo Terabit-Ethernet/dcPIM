@@ -77,9 +77,8 @@ unsigned int dcpim_message_hash(__be32 laddr, __u16 lport,
 static inline bool dcpim_message_match(struct dcpim_message* msg, __be32 saddr, __u16 sport,
 		__be32 daddr, __be16 dport, uint64_t id)
 {
-	struct sock* sk = (struct sock*)msg->dsk;
-	if(msg->id == id && sk->sk_rcv_saddr == saddr 
-		&& sk->sk_num == sport && sk->sk_daddr == daddr && sk->sk_dport == dport)
+	if(msg->id == id && msg->saddr == saddr 
+		&& msg->sport == sport && msg->daddr == daddr && msg->dport == dport)
 		return true;
 	return false;
 }
