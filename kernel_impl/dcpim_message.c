@@ -105,7 +105,7 @@ struct dcpim_message* dcpim_message_new(struct dcpim_sock* dsk,
 	msg->sport = sport;
 	msg->daddr = daddr;
 	msg->dport = dport;
-	if(!dsk) {
+	if(dsk) {
 		msg->dsk = dsk;
 		sock_hold(sk);
 	} else {
