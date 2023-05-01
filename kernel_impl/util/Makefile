@@ -29,9 +29,6 @@ cp_node: cp_node.o dist.o $(LIB_OBJS)
 %.o: %.c test_utils.h 
 	cc -c $(CFLAGS) $< -o $@
 	
-# homa_api.o: ../homa_api.c
-# 	cc -c $(CFLAGS) $< -o $@
-
 clean:
 	rm -f $(BINS) $(OBJS) $(LIB_OBJS)
 

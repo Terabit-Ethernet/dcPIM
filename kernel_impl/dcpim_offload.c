@@ -1,11 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
-/*
- *	IPV4 GSO/GRO offload support
- *	Linux INET implementation
- *
- *	DCPIMv4 GSO support
- */
-
 #include <linux/skbuff.h>
 #include <net/udp.h>
 #include <net/gro.h>

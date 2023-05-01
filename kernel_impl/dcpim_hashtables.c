@@ -1,14 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
-/*
- * INET		An implementation of the TCP/IP protocol suite for the LINUX
- *		operating system.  INET is implemented using the BSD Socket
- *		interface as the means of communication with the user level.
- *
- *		Generic INET transport hashtables
- *
- * Authors:	Lotsa people, from code originally in tcp
- */
-
 #include <linux/module.h>
 #include <linux/random.h>
 #include <linux/sched.h>

@@ -1,15 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
-/*
- * INET		An implementation of the TCP/IP protocol suite for the LINUX
- *		operating system.  INET is implemented using the  BSD Socket
- *		interface as the means of communication with the user level.
- *
- *		Definitions for the DCPIM protocol.
- *
- * Version:	@(#)dcpim.h	1.0.2	04/28/93
- *
- * Author:	Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
- */
 #ifndef _LINUX_DCPIM_H
 #define _LINUX_DCPIM_H
 
@@ -541,7 +529,7 @@ static inline struct dcpim_fin_ack_hdr *dcpim_fin_ack_hdr(const struct sk_buff *
 }
 
 /**
- * dcpim_set_doff() - Fills in the doff TCP header field for a Homa packet.
+ * dcpim_set_doff() - Fills in the doff TCP header field for a dcPIM packet.
  * @h:   Packet header whose doff field is to be set.
  */
 static inline void dcpim_set_doff(struct dcpim_data_hdr *h)

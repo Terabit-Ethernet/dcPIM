@@ -1,7 +1,3 @@
-
-
-
-
 int dcpim_rtx_synack (const struct sock *sk, struct request_sock *req) {
    printk(KERN_WARNING "unimplemented dcpim rtx synack \n");
    return -ENOSYS;

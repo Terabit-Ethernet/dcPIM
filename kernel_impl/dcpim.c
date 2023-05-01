@@ -1,18 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
-/*
- * INET		An implementation of the TCP/IP protocol suite for the LINUX
- *		operating system.  INET is implemented using the  BSD Socket
- *		interface as the means of communication with the user level.
- *
- *		DATACENTER ADMISSION CONTROL PROTOCOL(DCPIM) 
- *
- * Authors:	Ross Biro
- *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
- *		Arnt Gulbrandsen, <agulbra@nvg.unit.no>
- *		Alan Cox, <alan@lxorguk.ukuu.org.uk>
- *		Hirokazu Takahashi, <taka@valinux.co.jp>
- */
-
 #define pr_fmt(fmt) "DCPIM: " fmt
 
 #include <linux/uaccess.h>

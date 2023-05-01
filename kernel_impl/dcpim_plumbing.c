@@ -260,7 +260,7 @@ static struct net_protocol dcpim_protocol = {
         .no_policy =    1,
 };
 
-/* Used to configure sysctl access to Homa configuration parameters.*/
+/* Used to configure sysctl access to dcPIM configuration parameters.*/
 static struct ctl_table dcpim_ctl_table[] = {
         {
                 // this is only being called when unloading the module
@@ -367,15 +367,6 @@ int dcpim_dointvec(struct ctl_table *table, int write,
                  * all info that is dependent on any sysctl value.
                  */
                 dcpim_sysctl_changed(&dcpim_params);
-
-                // /* For this value, only call the method when this
-                //  * particular value was written (don't want to increment
-                //  * cutoff_version otherwise).
-                //  */
-                // if ((table->data == &homa_data.unsched_cutoffs)
-                //                 || (table->data == &homa_data.num_priorities)) {
-                //         homa_prios_changed(homa);
-                // }
         }
         return result;
 }
@@ -388,15 +379,6 @@ int dcpim_dointvec(struct ctl_table *table, int write,
 void dcpim_sysctl_changed(struct dcpim_params *params)
 {
         // __u64 tmp;
-
-        // /* Code below is written carefully to avoid integer underflow or
-        //  * overflow under expected usage patterns. Be careful when changing!
-        //  */
-        // homa->cycles_per_kbyte = (8*(__u64) cpu_khz)/homa->link_mbps;
-        // homa->cycles_per_kbyte = (105*homa->cycles_per_kbyte)/100;
-        // tmp = homa->max_nic_queue_ns;
-        // tmp = (tmp*cpu_khz)/1000000;
-        // homa->max_nic_queue_cycles = tmp;
     if(params->clean_match_sock == 1) {
         // sock_release(dcpim_match_table.sock);
         // dcpim_match_table.sock = NULL;
@@ -464,17 +446,6 @@ static int __init dcpim_load(void) {
         if(status != 0) {
             goto out_cleanup;
         }
-        // if (status)
-        //         goto out_cleanup;
-        // dcpimlite4_register();
-        // metrics_dir_entry = proc_create("homa_metrics", S_IRUGO,
-        //                 init_net.proc_net, &homa_metrics_fops);
-        // if (!metrics_dir_entry) {
-        //         printk(KERN_ERR "couldn't create /proc/net/homa_metrics\n");
-        //         status = -ENOMEM;
-        //         goto out_cleanup;
-        // }
-
         dcpim_ctl_header = register_net_sysctl(&init_net, "net/dcpim",
                         dcpim_ctl_table);
         if (!dcpim_ctl_header) {
@@ -492,22 +463,11 @@ static int __init dcpim_load(void) {
        status = dcpimdevice_init();
        if(status != 0)
                 goto out_cleanup;
-        // printk("in_softirq():%lu\n", in_softirq());
-        // test_main();
-        // tasklet_init(&timer_tasklet, homa_tasklet_handler, 0);
-        // hrtimer_init(&hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-        // hrtimer.function = &homa_hrtimer;
-        // ts.tv_nsec = 1000000;                   /* 1 ms */
-        // ts.tv_sec = 0;
-        // tick_interval = timespec_to_ktime(ts);
-        // hrtimer_start(&hrtimer, tick_interval, HRTIMER_MODE_REL);
         
         // tt_init("timetrace");
         return 0;
 
 out_cleanup:
-        // unregister_net_sysctl_table(homa_ctl_header);
-        // proc_remove(metrics_dir_entry);
         if (dcpimv4_offload_end() != 0)
             printk(KERN_ERR "DCPIM couldn't stop offloads\n");
         dcpim_epoch_destroy(&dcpim_epoch);
@@ -535,20 +495,6 @@ static void __exit dcpim_unload(void) {
         printk(KERN_NOTICE "DCPIM module unloading\n");
         exiting = true;
         dcpimdevice_exit();
-        /* Stopping the hrtimer and tasklet is tricky, because each
-         * reschedules the other. This means that the timer could get
-         * invoked again after executing tasklet_disable. So, we stop
-         * it yet again. The exiting variable will cause it to do
-         * nothing, in case it triggers again before we cancel it the
-         * second time. Very tricky! 
-         */
-        // hrtimer_cancel(&hrtimer);
-        // tasklet_kill(&timer_tasklet);
-        // hrtimer_cancel(&hrtimer);
-        // if (homa_offload_end() != 0)
-        //         printk(KERN_ERR "Homa couldn't stop offloads\n");
-        // unregister_net_sysctl_table(homa_ctl_header);
-        // proc_remove(metrics_dir_entry);
         if (dcpimv4_offload_end() != 0)
             printk(KERN_ERR "DCPIM couldn't stop offloads\n");
         printk("start to unload\n");

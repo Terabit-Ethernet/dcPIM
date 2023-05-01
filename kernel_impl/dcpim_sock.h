@@ -1,13 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
-/*
- * NET		Generic infrastructure for INET connection oriented protocols.
- *
- *		Definitions for inet_connection_sock 
- *
- * Authors:	Many people, see the TCP sources
- *
- * 		From code originally in TCP
- */
 #ifndef _DCPIM_SOCK_H
 #define _DCPIM_SOCK_H
 

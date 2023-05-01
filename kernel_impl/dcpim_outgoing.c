@@ -1,18 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
-/*
- * INET		An implementation of the TCP/IP protocol suite for the LINUX
- *		operating system.  INET is implemented using the  BSD Socket
- *		interface as the means of communication with the user level.
- *
- *		DATACENTER ADMISSION CONTROL PROTOCOL(DCPIM) 
- *
- * Authors:	Ross Biro
- *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
- *		Arnt Gulbrandsen, <agulbra@nvg.unit.no>
- *		Alan Cox, <alan@lxorguk.ukuu.org.uk>
- *		Hirokazu Takahashi, <taka@valinux.co.jp>
- */
-
 #define pr_fmt(fmt) "DCPIM: " fmt
 
 #include <linux/uaccess.h>
@@ -1323,48 +1308,6 @@ void dcpim_xmit_data(struct sk_buff* skb, struct dcpim_sock* dsk)
 	dcpim_rbtree_insert(&sk->tcp_rtx_queue, oskb);
 	WRITE_ONCE(dsk->sender.snd_nxt, DCPIM_SKB_CB(oskb)->end_seq);
 	// sk_wmem_queued_add(sk, -skb->truesize);
-
-	// if (!skb_queue_empty(&sk->sk_write_queue)) {
-	// 	struct sk_buff *skb = dcpim_send_head(sk);
-	// 	WRITE_ONCE(dsk->sender.snd_nxt, DCPIM_SKB_CB(skb)->end_seq);
-	// 	__dcpim_xmit_data(skb, dsk);
-	// }
-	// while (msg->next_packet) {
-	// 	// int priority = TOS_1;
-	// 	struct sk_buff *skb = msg->next_packet;
-	// 	// struct dcpim_sock* dsk = msg->dsk;
-	// 	// int offset = homa_data_offset(skb);
-		
-	// 	// if (homa == NULL) {
-	// 	// 	printk(KERN_NOTICE "NULL homa pointer in homa_xmit_"
-	// 	// 		"data, state %d, shutdown %d, id %llu, socket %d",
-	// 	// 		rpc->state, rpc->hsk->shutdown, rpc->id,
-	// 	// 		rpc->hsk->client_port);
-	// 	// 	BUG();
-	// 	// }
-		
-	// 	// if (offset >= rpc->msgout.granted)
-	// 	// 	break;
-		
-	// 	// if ((rpc->msgout.length - offset) >= homa->throttle_min_bytes) {
-	// 	// 	if (!homa_check_nic_queue(homa, skb, force)) {
-	// 	// 		homa_add_to_throttled(rpc);
-	// 	// 		break;
-	// 	// 	}
-	// 	// }
-		
-	// 	// if (offset < rpc->msgout.unscheduled) {
-	// 	// 	priority = homa_unsched_priority(homa, rpc->peer,
-	// 	// 			rpc->msgout.length);
-	// 	// } else {
-	// 	// 	priority = rpc->msgout.sched_priority;
-	// 	// }
-	// 	msg->next_packet = *dcpim_next_skb(skb);
-		
-	// 	skb_get(skb);
-	// 	__dcpim_xmit_data(skb, dsk);
-	// 	force = false;
-	// }
 }
 
 /** dcpim_xmit_data_message - send skb of a short message
@@ -1406,8 +1349,8 @@ void dcpim_retransmit_data(struct sk_buff* skb, struct dcpim_sock* dsk)
 }
 
 /**
- * __homa_xmit_data() - Handles packet transmission stuff that is common
- * to homa_xmit_data and homa_resend_data.
+ * __dcpim_xmit_data() - Handles packet transmission stuff that is common
+ * to dcpim_xmit_data.
  * @skb:      Packet to be sent. The packet will be freed after transmission
  *            (and also if errors prevented transmission).
  * @dsk:      DCPIM socket
