@@ -1,5 +1,3 @@
-#define pr_fmt(fmt) "DCPIM: " fmt
-
 #include <linux/uaccess.h>
 #include <asm/ioctls.h>
 #include <linux/etherdevice.h>
