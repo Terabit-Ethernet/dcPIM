@@ -463,7 +463,7 @@ int dcpim_fill_packets_message(struct sock* sk, struct dcpim_message *dcpim_msg,
 			int seg_size;
 			seg = (struct data_segment *) skb_put(skb, sizeof(*seg));
 			seg->offset = htonl(len - bytes_left + write_seq);
-
+			// printk("seq: %lu\n", len - bytes_left + write_seq);
 			if (bytes_left <= max_pkt_data)
 				seg_size = bytes_left;
 			else
@@ -480,7 +480,8 @@ int dcpim_fill_packets_message(struct sock* sk, struct dcpim_message *dcpim_msg,
 		} while ((available > 0) && (bytes_left > 0));
 		sent_len += current_len;
 		dcpim_set_skb_gso_segs(skb, max_pkt_data + sizeof(struct data_segment));
-		dcpim_add_write_queue_tail(sk, skb);
+		skb_queue_tail(&dcpim_msg->pkt_queue, skb);
+		// dcpim_add_write_queue_tail(sk, skb);
 	}
 	WRITE_ONCE(write_seq, write_seq + sent_len);
 	return sent_len;
@@ -1316,6 +1317,7 @@ void dcpim_xmit_data_message(struct sk_buff* skb, struct dcpim_sock* dsk, uint64
 	struct sock* sk = (struct sock*)(dsk);
 	struct sk_buff* oskb;
 	oskb = skb;
+	// printk("tx data");
 	if (unlikely(skb_cloned(oskb))) 
 		skb = pskb_copy(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
 	else
@@ -1403,6 +1405,7 @@ void __dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool is_shor
 		h->common.type = DATA_MSG;
 	else 
 		h->common.type = DATA;
+	// printk("type: %d %u \n", h->common.type, skb->len);
 	h->free_token = is_short;
 	/* doesn't change to network order for now */
 	h->message_id = msg_id;
