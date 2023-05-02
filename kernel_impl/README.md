@@ -1,5 +1,6 @@
 # dcPIM Kernel IMplementation
 
+
 ## Install Kernel
 The default versoin is 6.0.3
 Our patch is based on Linux 6.0.3. On Ubuntu 20.04, you can use the following instructions to build and install the kernel.
@@ -60,3 +61,5 @@ cd util
 sudo -s
 ./run_client.sh 1 0
 ```
+## The current status of implementation
+The first prototype is close to be finished. Some additinoal features are still needed to be implemented (like short flow transmission). More testing are needed to be done.
