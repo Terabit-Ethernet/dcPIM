@@ -42,11 +42,11 @@ sudo make install
 ```
 cd dcpim_kernel
 make
-sudo insmod dcacp_module.ko
+sudo insmod dcpim_module.ko
 ```
 2. To unload the module,
 ```
-sudo rmmod dcacp_module.ko
+sudo rmmod dcpim_module.ko
 ```
 
 ## Run Program
