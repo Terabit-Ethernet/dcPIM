@@ -254,7 +254,6 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	struct dcpim_message *dcpim_msg = 
 	dcpim_message_new(dsk, inet->inet_saddr, inet->inet_sport, inet->inet_daddr, inet->inet_dport, dsk->short_message_id, len);
 
-
 	flags = msg->msg_flags;
 	if (sk->sk_state != DCPIM_ESTABLISHED) {
 		return -ENOTCONN;
@@ -1148,15 +1147,6 @@ EXPORT_SYMBOL(dcpim_disconnect);
 //     }
 // 	return 0;
 // }
-
-
-int dcpim_handle_test_rts (struct sk_buff *skb) {
-	dcpim_swap_dcpim_header(skb);
-	dcpim_swap_ip_header(skb);
-	dcpim_swap_eth_header(skb);
-	dev_queue_xmit(skb);
-	return 0;
-}
 
 int dcpim_rcv(struct sk_buff *skb)
 {

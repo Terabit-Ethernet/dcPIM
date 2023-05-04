@@ -55,6 +55,14 @@
 // 				 inet_sdif(skb), dcpimtable, skb);
 // }
 
+static inline void dcpim_flip_header(struct sk_buff* skb, int type) {
+	struct dcpimhdr* dh = dcpim_hdr(skb);
+	dh->type = type;
+	dcpim_swap_dcpim_header(skb);
+	dcpim_swap_ip_header(skb);
+	dcpim_swap_eth_header(skb);
+	skb_push(skb, skb->data - skb_mac_header(skb));
+}
 static inline bool before(__u32 seq1, __u32 seq2)
 {
         return (__s32)(seq1-seq2) < 0;
@@ -1011,10 +1019,7 @@ int dcpim_handle_fin_pkt(struct sk_buff *skb) {
 
 	} else {
 		/* send fin ack packet */
-		dh->type = FIN_ACK;
-		dcpim_swap_dcpim_header(skb);
-		dcpim_swap_ip_header(skb);
-		dcpim_swap_eth_header(skb);
+		dcpim_flip_header(skb, FIN_ACK);
 		if(dev_queue_xmit(skb)) {
 			WARN_ON_ONCE(true);
 		}
@@ -1332,6 +1337,7 @@ int dcpim_handle_flow_sync_msg_pkt(struct sk_buff *skb) {
 	}
 	fh =  dcpim_flow_sync_hdr(skb);
 	msg = dcpim_message_new(NULL, iph->daddr,  fh->common.dest, iph->saddr, fh->common.source, fh->message_id, fh->message_size);
+	
 	msg->state = DCPIM_WAIT_FIN_RX;
 	insert = dcpim_insert_message(dcpim_rx_messages, msg);
 
@@ -1339,10 +1345,7 @@ int dcpim_handle_flow_sync_msg_pkt(struct sk_buff *skb) {
 		dcpim_message_put(msg);
 	} else {
 		/* form the fin skb */
-		fh->common.type = FIN_MSG;
-		dcpim_swap_dcpim_header(skb);
-		dcpim_swap_ip_header(skb);
-		dcpim_swap_eth_header(skb);
+		dcpim_flip_header(skb, FIN_MSG);
 		free_skb = false;
 		spin_lock(&msg->lock);
 		msg->fin_skb = skb;
@@ -1401,7 +1404,6 @@ int dcpim_handle_data_msg_pkt(struct sk_buff *skb) {
 		// fin_skb = construct_fin_msg_pkt(sk, msg->id);
 		// dcpim_xmit_control(fin_skb, sk);
 		// skb_dump(KERN_WARNING, fin_skb, true);
-		// skb_dump(KERN_WARNING, msg->fin_skb, true);
 		if(dev_queue_xmit(fin_skb)) {
 			WARN_ON_ONCE(true);
 		}
@@ -1458,16 +1460,16 @@ int dcpim_handle_fin_msg_pkt(struct sk_buff *skb) {
 	}
 	iph = ip_hdr(skb);
 	fh =  dcpim_fin_hdr(skb);
+	msg = dcpim_lookup_message(dcpim_tx_messages,  iph->daddr, fh->common.dest, iph->saddr, fh->common.source, fh->message_id);
+
 	/* send fin_ack */
-	fh->common.type = FIN_ACK_MSG;
-	dcpim_swap_dcpim_header(skb);
-	dcpim_swap_ip_header(skb);
-	dcpim_swap_eth_header(skb);
+	dcpim_flip_header(skb, FIN_ACK_MSG);
 	if(dev_queue_xmit(skb)) {
 		WARN_ON_ONCE(true);
 	}
-	msg = dcpim_lookup_message(dcpim_tx_messages,  iph->daddr, fh->common.dest, iph->saddr, fh->common.source, fh->message_id);
+
 	if(msg) {
+		printk("find message\n");
 		dcpim_remove_message(dcpim_tx_messages, msg);
 		dcpim_message_put(msg);
 	}

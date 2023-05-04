@@ -327,7 +327,6 @@ void dcpim_message_table_destroy(void) {
 		dcpim_hlist_move_list(&bucket->slot, &message_table_tmp[i].slot);
 		spin_unlock_bh(&bucket->lock);
 	}
-	synchronize_rcu();
 	for (i = 0; i < DCPIM_BUCKETS; i++) {
 		hlist_for_each_entry_safe(msg, next, &message_table_tmp[i].slot, hash_link) {
 			hlist_del(&msg->hash_link);
@@ -341,7 +340,6 @@ void dcpim_message_table_destroy(void) {
 		dcpim_hlist_move_list(&bucket->slot, &message_table_tmp[i].slot);
 		spin_unlock_bh(&bucket->lock);
 	}
-	synchronize_rcu();
 	for (i = 0; i < DCPIM_BUCKETS; i++) {
 		hlist_for_each_entry_safe(msg, next, &message_table_tmp[i].slot, hash_link) {
 			hlist_del(&msg->hash_link);
@@ -363,8 +361,8 @@ struct dcpim_message* dcpim_lookup_message(struct dcpim_message_bucket *hashinfo
 	unsigned int hash = dcpim_message_hash(saddr, sport, daddr, dport, id);
 	unsigned int slot = dcpim_hash_slot(hash);
 	struct dcpim_message_bucket *head = &hashinfo[slot];
-	rcu_read_lock();
-	hlist_for_each_entry_rcu(msg, &head->slot, hash_link) {
+	spin_lock(&hashinfo[slot].lock);
+	hlist_for_each_entry(msg, &head->slot, hash_link) {
 		if (msg->hash != hash)
 			continue;
 		if (likely(dcpim_message_match(msg, saddr, sport, daddr, dport, id))) {
@@ -376,7 +374,7 @@ struct dcpim_message* dcpim_lookup_message(struct dcpim_message_bucket *hashinfo
 out:
 	msg = NULL;
 found:
-	rcu_read_unlock();
+	spin_unlock(&hashinfo[slot].lock);
 	return msg;
 }
 
@@ -395,8 +393,7 @@ bool dcpim_insert_message(struct dcpim_message_bucket *hashinfo, struct dcpim_me
 		spin_unlock(lock);
 		return false;
 	}
-	rcu_read_lock();
-	hlist_for_each_entry_rcu(iter, &head->slot, hash_link) {
+	hlist_for_each_entry(iter, &head->slot, hash_link) {
 		if (iter->hash != msg->hash)
 			continue;
 		if (likely(dcpim_message_match(iter, msg->saddr, msg->sport, msg->daddr, msg->dport, msg->id))) {
@@ -405,8 +402,7 @@ bool dcpim_insert_message(struct dcpim_message_bucket *hashinfo, struct dcpim_me
 			return false;
 		}
 	}
-	rcu_read_unlock();
-	hlist_add_head_rcu(&msg->hash_link, &head->slot);
+	hlist_add_head(&msg->hash_link, &head->slot);
 	spin_unlock(lock);
 	return true;
 }
@@ -425,10 +421,9 @@ void dcpim_remove_message(struct dcpim_message_bucket *hashinfo, struct dcpim_me
 		spin_unlock(lock);
 		return;
 	}
-	hlist_del_rcu(&msg->hash_link);
+	hlist_del(&msg->hash_link);
 	spin_unlock(lock);
 	/* need to sync for deletion */
-	synchronize_rcu();
 	dcpim_message_put(msg);
 	return;
 }
