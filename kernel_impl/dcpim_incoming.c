@@ -992,6 +992,7 @@ int dcpim_handle_fin_pkt(struct sk_buff *skb) {
 				dsk->delay_destruct = false;
 				dcpim_xmit_control(construct_fin_ack_pkt(sk, 0), sk); 
 				dcpim_set_state(sk, DCPIM_CLOSE);
+				/* To Do: need to check unhash condition for short flows */
 				sk->sk_prot->unhash(sk);
 				/* !(sk->sk_userlocks & SOCK_BINDPORT_LOCK) may need later*/
 				if (inet_csk(sk)->icsk_bind_hash) {
@@ -1014,7 +1015,9 @@ int dcpim_handle_fin_pkt(struct sk_buff *skb) {
 		dcpim_swap_dcpim_header(skb);
 		dcpim_swap_ip_header(skb);
 		dcpim_swap_eth_header(skb);
-		dev_queue_xmit(skb);
+		if(dev_queue_xmit(skb)) {
+			WARN_ON_ONCE(true);
+		}
 			// kfree_skb(skb);
 		// printk("doesn't find dsk address LINE:%d\n", __LINE__);
 	}
@@ -1331,6 +1334,7 @@ int dcpim_handle_flow_sync_msg_pkt(struct sk_buff *skb) {
 	msg = dcpim_message_new(NULL, iph->daddr,  fh->common.dest, iph->saddr, fh->common.source, fh->message_id, fh->message_size);
 	msg->state = DCPIM_WAIT_FIN_RX;
 	insert = dcpim_insert_message(dcpim_rx_messages, msg);
+
 	if(!insert) {
 		dcpim_message_put(msg);
 	} else {
@@ -1342,8 +1346,9 @@ int dcpim_handle_flow_sync_msg_pkt(struct sk_buff *skb) {
 		free_skb = false;
 		spin_lock(&msg->lock);
 		msg->fin_skb = skb;
-		spin_unlock(&msg->lock);		
+		spin_unlock(&msg->lock);	
 	}
+
 drop:
 	if(free_skb)
 		kfree_skb(skb);
@@ -1365,16 +1370,18 @@ int dcpim_handle_data_msg_pkt(struct sk_buff *skb) {
 	struct dcpim_data_hdr *dh;
 	struct sock *sk;
 	struct iphdr *iph;
+	struct sk_buff *fin_skb;
 	int sdif = inet_sdif(skb);
 
 	bool refcounted = false;
 	bool is_complete = false;
-
 	if (!pskb_may_pull(skb, sizeof(struct dcpim_data_hdr)))
 		goto drop;		/* No space for header. */
 	dh =  dcpim_data_hdr(skb);
 	iph = ip_hdr(skb);
 	dcpim_v4_fill_cb(skb, iph, dh);
+	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&dh->common), dh->common.source,
+			dh->common.dest, sdif, &refcounted);
 	msg = dcpim_lookup_message(dcpim_rx_messages,  iph->daddr, 
 				dh->common.dest, iph->saddr, dh->common.source, dh->message_id);
 	if(!msg)
@@ -1384,14 +1391,21 @@ int dcpim_handle_data_msg_pkt(struct sk_buff *skb) {
 		is_complete = dcpim_message_receive_data(msg, skb);
 		if(is_complete) {
 			msg->state = DCPIM_WAIT_ACK;
-			dcpim_tx_msg_fin(msg);
-			hrtimer_start(&msg->rtx_timer, ns_to_ktime(dcpim_params.rtt * 1000) , HRTIMER_MODE_REL_PINNED_SOFT);
+			// hrtimer_start(&msg->rtx_timer, ns_to_ktime(dcpim_params.rtt * 1000) , HRTIMER_MODE_REL_PINNED_SOFT);
 		}
 	}
 	spin_unlock(&msg->lock);
 	if(is_complete) {
-		sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&dh->common), dh->common.source,
-			dh->common.dest, sdif, &refcounted);
+		fin_skb = dcpim_message_get_fin(msg);
+		// printk("message fin skb:%p %p\n", fin_skb, fin_skb->dev);
+		// fin_skb = construct_fin_msg_pkt(sk, msg->id);
+		// dcpim_xmit_control(fin_skb, sk);
+		// skb_dump(KERN_WARNING, fin_skb, true);
+		// skb_dump(KERN_WARNING, msg->fin_skb, true);
+		if(dev_queue_xmit(fin_skb)) {
+			WARN_ON_ONCE(true);
+		}
+		// msg->fin_skb = NULL;
 		/* add to socket */
 		if(sk) {
 			dsk = dcpim_sk(sk);
@@ -1402,8 +1416,8 @@ int dcpim_handle_data_msg_pkt(struct sk_buff *skb) {
 					// dcpim_xmit_control(construct_fin_msg_pkt(sk, msg->id), sk);
 					list_add_tail(&msg->table_link, &dsk->receiver.msg_list);
 					dcpim_message_hold(msg);
+					sk->sk_data_ready(sk);
 				}
-				sk->sk_data_ready(sk);
 			} else {
 				/* add to backlog and initiate the signal */
 				list_add_tail(&msg->table_link, &dsk->receiver.msg_backlog);
@@ -1412,7 +1426,7 @@ int dcpim_handle_data_msg_pkt(struct sk_buff *skb) {
 					sock_hold(sk);
 				}
 			}			
-			bh_lock_sock(sk);
+			bh_unlock_sock(sk);
 		}
 	}
 	dcpim_message_put(msg);
@@ -1449,8 +1463,8 @@ int dcpim_handle_fin_msg_pkt(struct sk_buff *skb) {
 	dcpim_swap_dcpim_header(skb);
 	dcpim_swap_ip_header(skb);
 	dcpim_swap_eth_header(skb);
-	if(!dev_queue_xmit(skb)) {
-		WARN_ON(true);
+	if(dev_queue_xmit(skb)) {
+		WARN_ON_ONCE(true);
 	}
 	msg = dcpim_lookup_message(dcpim_tx_messages,  iph->daddr, fh->common.dest, iph->saddr, fh->common.source, fh->message_id);
 	if(msg) {

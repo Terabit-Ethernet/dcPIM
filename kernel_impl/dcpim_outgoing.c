@@ -122,6 +122,8 @@ void dcpim_swap_ip_header(struct sk_buff *skb) {
     iph->saddr = iph->daddr;
     iph->daddr = temp;
     iph->protocol = IPPROTO_TCP;
+	iph->frag_off = 0;
+	iph->id = 0;
 	/* mask to identify it is dcPIM packet; hacky!! */
 	iph->tos = iph->tos | 1;
 	ip_send_check(iph);
@@ -971,7 +973,7 @@ struct sk_buff* construct_fin_pkt(struct sock* sk) {
 	return skb;
 }
 
-struct sk_buff* construct_fin_msg_pkt(struct sock* sk) {
+struct sk_buff* construct_fin_msg_pkt(struct sock* sk, uint64_t msg_id) {
 	// int extra_bytes = 0;
 	struct sk_buff* skb = __construct_control_skb(sk, 0);
 	struct dcpimhdr* dh; 
@@ -983,7 +985,7 @@ struct sk_buff* construct_fin_msg_pkt(struct sock* sk) {
 	dh = (struct dcpimhdr*) (&fh->common);
 	dh->len = htons(sizeof(struct dcpim_fin_hdr));
 	dh->type = FIN_MSG;
-	// fh->message_id = message_id;
+	fh->message_id = msg_id;
 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
 	// if (extra_bytes > 0)
 	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
@@ -1216,7 +1218,7 @@ int dcpim_xmit_control(struct sk_buff* skb, struct sock* sk)
 	dst_hold(__sk_dst_get(sk));
 	// skb_dst_set(skb, __sk_dst_get(sk));
 	// skb_get(skb);
-	result = __ip_queue_xmit(sk, skb, &inet->cork.fl, IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL);
+	result = __ip_queue_xmit(sk, skb, &inet->cork.fl, 0);
 	if (unlikely(result != 0)) {
 		// INC_METRIC(control_xmit_errors, 1);
 		
@@ -1694,14 +1696,18 @@ enum hrtimer_restart dcpim_rtx_fin_timer_handler(struct hrtimer *timer) {
 enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer) {
 
 	struct dcpim_message *msg = container_of(timer, struct dcpim_message, rtx_timer);
+	struct sk_buff* fin_skb = NULL;
 	spin_lock(&msg->lock);
 	if(msg->state == DCPIM_WAIT_ACK) {
 		if(skb_queue_empty(&msg->pkt_queue))
 			msg->state = DCPIM_FINISH;
 		else {
-			dcpim_tx_msg_fin(msg);
-			hrtimer_forward_now(timer, ns_to_ktime(dcpim_params.rtt * 1000));
+			fin_skb = dcpim_message_get_fin(msg);
 			spin_unlock(&msg->lock);
+			if(dev_queue_xmit(fin_skb)) {
+				WARN_ON_ONCE(true);
+			}
+			hrtimer_forward_now(timer, ns_to_ktime(dcpim_params.rtt * 1000));
 			return HRTIMER_RESTART;
 		}
 	} else if (msg->state == DCPIM_WAIT_FIN_TX) {

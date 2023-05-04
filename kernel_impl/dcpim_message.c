@@ -294,6 +294,65 @@ void dcpim_message_table_init(void) {
 	}
 }
 
+/**
+ * dcpim_hlist_move_list - Move an hlist
+ * @old: hlist_head for old list.
+ * @new: hlist_head for new list.
+ *
+ * Move a list from one list head to another. Fixup the pprev
+ * reference of the first entry if it exists.
+ */
+static inline void dcpim_hlist_move_list(struct hlist_head *old,
+				   struct hlist_head *new)
+{
+	new->first = old->first;
+	if (new->first)
+		new->first->pprev = &new->first;
+	/* the hlist_move_tail doesn't use write once. */
+	WRITE_ONCE(old->first, NULL);
+}
+
+/**
+ * dcpim_message_table_destroy() - Destructor for dcpim_message_table.
+ */
+void dcpim_message_table_destroy(void) {
+	int i = 0;
+	struct dcpim_message *msg;
+	struct hlist_node *next;
+	struct dcpim_message_bucket* message_table_tmp = kzalloc(sizeof(struct dcpim_message_bucket) * DCPIM_BUCKETS, GFP_KERNEL);
+	for (i = 0; i < DCPIM_BUCKETS; i++) {
+		struct dcpim_message_bucket *bucket = &dcpim_tx_messages[i];
+		INIT_HLIST_HEAD(&message_table_tmp[i].slot);
+		spin_lock_bh(&bucket->lock);
+		dcpim_hlist_move_list(&bucket->slot, &message_table_tmp[i].slot);
+		spin_unlock_bh(&bucket->lock);
+	}
+	synchronize_rcu();
+	for (i = 0; i < DCPIM_BUCKETS; i++) {
+		hlist_for_each_entry_safe(msg, next, &message_table_tmp[i].slot, hash_link) {
+			hlist_del(&msg->hash_link);
+			dcpim_message_put(msg);
+		}
+	}
+	for (i = 0; i < DCPIM_BUCKETS; i++) {
+		struct dcpim_message_bucket *bucket = &dcpim_rx_messages[i];
+		INIT_HLIST_HEAD(&message_table_tmp[i].slot);
+		spin_lock_bh(&bucket->lock);
+		dcpim_hlist_move_list(&bucket->slot, &message_table_tmp[i].slot);
+		spin_unlock_bh(&bucket->lock);
+	}
+	synchronize_rcu();
+	for (i = 0; i < DCPIM_BUCKETS; i++) {
+		hlist_for_each_entry_safe(msg, next, &message_table_tmp[i].slot, hash_link) {
+			hlist_del(&msg->hash_link);
+			dcpim_message_put(msg);
+		}
+	}
+	printk("finish destroy message table \n");
+	kfree(message_table_tmp);
+
+}
+
 struct dcpim_message* dcpim_lookup_message(struct dcpim_message_bucket *hashinfo,
 				  const __be32 saddr, const __be16 sport,
 				  const __be32 daddr, const u16 dport,
@@ -304,7 +363,7 @@ struct dcpim_message* dcpim_lookup_message(struct dcpim_message_bucket *hashinfo
 	unsigned int hash = dcpim_message_hash(saddr, sport, daddr, dport, id);
 	unsigned int slot = dcpim_hash_slot(hash);
 	struct dcpim_message_bucket *head = &hashinfo[slot];
-
+	rcu_read_lock();
 	hlist_for_each_entry_rcu(msg, &head->slot, hash_link) {
 		if (msg->hash != hash)
 			continue;
@@ -317,6 +376,7 @@ struct dcpim_message* dcpim_lookup_message(struct dcpim_message_bucket *hashinfo
 out:
 	msg = NULL;
 found:
+	rcu_read_unlock();
 	return msg;
 }
 
@@ -335,14 +395,17 @@ bool dcpim_insert_message(struct dcpim_message_bucket *hashinfo, struct dcpim_me
 		spin_unlock(lock);
 		return false;
 	}
+	rcu_read_lock();
 	hlist_for_each_entry_rcu(iter, &head->slot, hash_link) {
 		if (iter->hash != msg->hash)
 			continue;
 		if (likely(dcpim_message_match(iter, msg->saddr, msg->sport, msg->daddr, msg->dport, msg->id))) {
+			rcu_read_unlock();
 			spin_unlock(lock);
 			return false;
 		}
 	}
+	rcu_read_unlock();
 	hlist_add_head_rcu(&msg->hash_link, &head->slot);
 	spin_unlock(lock);
 	return true;
@@ -364,27 +427,25 @@ void dcpim_remove_message(struct dcpim_message_bucket *hashinfo, struct dcpim_me
 	}
 	hlist_del_rcu(&msg->hash_link);
 	spin_unlock(lock);
-	/* need to sync  for deletion */
+	/* need to sync for deletion */
+	synchronize_rcu();
 	dcpim_message_put(msg);
 	return;
 }
 
 
  /**
- * dcpim_tx_msg_fin() - Assume the spin_lock is hold by the caller.
+ * dcpim_message_get_fin() - Assume the spin_lock is hold by the caller.
  * @msg:	The dcpim_message. 
  */
-void dcpim_tx_msg_fin(struct dcpim_message *msg) {
+struct sk_buff* dcpim_message_get_fin(struct dcpim_message *msg) {
 
-	struct sk_buff *skb;
+	struct sk_buff *skb = NULL;
 	if(msg->fin_skb) {
 		if (unlikely(skb_cloned(msg->fin_skb))) 
 			skb = pskb_copy(msg->fin_skb,  GFP_ATOMIC);
 		else
 			skb = skb_clone(msg->fin_skb, GFP_ATOMIC);
-		if(skb) {
-			if(!dev_queue_xmit(skb))
-				WARN_ON(true);
-		}
 	}
+	return skb;
 }

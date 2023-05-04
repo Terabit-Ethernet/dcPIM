@@ -14,22 +14,22 @@
  */
 enum dcpim_packet_type {
 	// For Phost
-	DATA               = 20,
-	TOKEN              = 21,
-	NOTIFICATION	   = 22,
-	ACK  			   = 23,
+	DATA               = 0x10,
+	TOKEN             ,
+	NOTIFICATION	  ,
+	ACK  			  ,
 	//For PIM
-	RTS                = 24,
-	GRANT			   = 25,
-	ACCEPT			   = 26,
+	RTS               ,
+	GRANT			  , 
+	ACCEPT			  ,
 
-	FIN                = 27,
-	SYN_ACK		 	   = 28,
-	FIN_ACK		       = 29,
-	NOTIFICATION_MSG   = 30,
-	DATA_MSG		   = 31,
-	FIN_MSG			   = 32,
-	FIN_ACK_MSG		   = 33,
+	FIN               , 
+	SYN_ACK		 	  ,
+	FIN_ACK		      , 
+	NOTIFICATION_MSG  , 
+	DATA_MSG		  , 
+	FIN_MSG			  , 
+	FIN_ACK_MSG		  , 
 };
 
 struct dcpimhdr {
@@ -151,16 +151,16 @@ struct dcpim_fin_ack_hdr {
 	struct dcpimhdr common;
 	__be64 message_id;
 	/*UINT32_MAX refers to long flow; otherwise, the flow is the short flow. */
-	// __be32 message_size;
-	// __be64 start_time;
+	__be32 message_size;
+	__be64 start_time;
 };
 
 struct dcpim_fin_hdr {
 	struct dcpimhdr common;
 	__be64 message_id;
 	/*UINT32_MAX refers to long flow; otherwise, the flow is the short flow. */
-	// __be32 message_size;
-	// __be64 start_time;
+	__be32 message_size;
+	__be64 start_time;
 };
 
 // _Static_assert(sizeof(struct dcpim_flow_sync_hdr) <= DCPIM_HEADER_MAX_SIZE,

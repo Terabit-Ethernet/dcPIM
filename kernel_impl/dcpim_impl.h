@@ -189,6 +189,8 @@ void dcpim_destroy_sock(struct sock *sk);
 
 
 /* dcpim message functions */
+void dcpim_message_table_init(void);
+void dcpim_message_table_destroy(void);
 unsigned int dcpim_message_hash(__be32 laddr, __u16 lport, __be32 faddr, __be16 fport, uint64_t id);
 struct dcpim_message* dcpim_message_new(struct dcpim_sock* dsk, 
 			__be32 saddr, __be16 sport, __be32 daddr,  u16 dport,
@@ -197,7 +199,7 @@ void dcpim_message_hold(struct dcpim_message *msg);
 void dcpim_message_put(struct dcpim_message *msg);
 void dcpim_message_finish(struct dcpim_message_bucket *hashinfo, struct dcpim_message *msg);
 void dcpim_message_destroy(struct dcpim_message *msg);
-void dcpim_tx_msg_fin(struct dcpim_message *msg);
+struct sk_buff* dcpim_message_get_fin(struct dcpim_message *msg);
 bool dcpim_message_receive_data(struct dcpim_message *msg, struct sk_buff *skb);
 int dcpim_fill_packets_message(struct sock* sk, struct dcpim_message *dcpim_msg,
 		struct msghdr *msg, size_t len);
@@ -211,7 +213,7 @@ enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer);
 void dcpim_msg_bg_handler(struct dcpim_sock *dsk);
 struct sk_buff* construct_flow_sync_msg_pkt(struct sock* sk, __u64 message_id, 
 	uint32_t message_size, __u64 start_time);
-struct sk_buff* construct_fin_msg_pkt(struct sock* sk);
+struct sk_buff* construct_fin_msg_pkt(struct sock* sk, uint64_t msg_id);
 struct sk_buff* construct_fin_ack_msg_pkt(struct sock* sk, __u64 message_id);
 
 /* dcpim message hash table functions */

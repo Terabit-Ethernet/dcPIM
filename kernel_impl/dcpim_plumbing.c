@@ -415,8 +415,8 @@ static int __init dcpim_load(void) {
         //     temp = list_entry(head, struct test_element, node);
         //     printk("value: %d\n", temp->value);
         // }
-        dcpim_wq = alloc_workqueue("dcpim_wq", WQ_MEM_RECLAIM | WQ_HIGHPRI, 0); 
         printk(KERN_NOTICE "DCPIM module loading\n");
+        dcpim_wq = alloc_workqueue("dcpim_wq", WQ_MEM_RECLAIM | WQ_HIGHPRI, 0); 
         dcpim_params_init(&dcpim_params);
 
         dcpim_init();
@@ -437,6 +437,7 @@ static int __init dcpim_load(void) {
                 goto out_cleanup;
         }
         dcpim_epoch_init(&dcpim_epoch);
+        dcpim_message_table_init();
         /* initialize rcv_core table and xmit_core table */
         status = rcv_core_table_init(&rcv_core_tab);
         if(status != 0) {
@@ -453,7 +454,6 @@ static int __init dcpim_load(void) {
                 status = -ENOMEM;
                 goto out_cleanup;
         }
-        
         status = dcpimv4_offload_init();
         printk("init the offload\n");
         if (status != 0) {
@@ -468,9 +468,11 @@ static int __init dcpim_load(void) {
         return 0;
 
 out_cleanup:
+        /* To Do: clean up need to take care more */
         if (dcpimv4_offload_end() != 0)
             printk(KERN_ERR "DCPIM couldn't stop offloads\n");
         dcpim_epoch_destroy(&dcpim_epoch);
+        dcpim_message_table_destroy();
         rcv_core_table_destory(&rcv_core_tab);
         xmit_core_table_destory(&xmit_core_tab);
         unregister_net_sysctl_table(dcpim_ctl_header);
@@ -499,6 +501,7 @@ static void __exit dcpim_unload(void) {
             printk(KERN_ERR "DCPIM couldn't stop offloads\n");
         printk("start to unload\n");
         dcpim_epoch_destroy(&dcpim_epoch);
+        dcpim_message_table_destroy();
         unregister_net_sysctl_table(dcpim_ctl_header);
         printk("unregister sysctl table\n");
         rcv_core_table_destory(&rcv_core_tab);
