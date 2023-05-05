@@ -14,7 +14,7 @@
  */
 enum dcpim_packet_type {
 	// For Phost
-	DATA               = 0x10,
+	DATA               = 0x20,
 	TOKEN             ,
 	NOTIFICATION	  ,
 	ACK  			  ,
@@ -36,7 +36,7 @@ struct dcpimhdr {
 	__be16	source;
 	__be16	dest;
 	/**
-	 * @unused1: corresponds to the sequence number field in TCP headers;
+	 * @seq: corresponds to the sequence number field in TCP headers;
 	 * must not be used by DCPIM, in case it gets incremented during TCP
 	 * offload.
 	 */
@@ -51,22 +51,18 @@ struct dcpimhdr {
 	 */
 	__u8 doff;
 
+	__u8 unused3;
 	/** @type: One of the values of &enum packet_type. */
 	__u8 type;
-
-	/**
-	 * @gro_count: value on the wire is undefined. Used only by
-	 * dcpim_offload.c (it counts the total number of packets aggregated
-	 * into this packet, including the top-level packet). Unused for now
-	 */
-	__u16 gro_count;
+	__u8 unused4;
 	
 	/**
-	 * @checksum: not used by dcPIM, but must occupy the same bytes as
+	 * @check: not used by dcPIM, but must occupy the same bytes as
 	 * the checksum in a TCP header (TSO may modify this?).*/
 	__be16 check;
 
 	__be16 len;
+
 	// *
 	//  * @priority: the priority at which the packet was set; used
 	//  * only for debugging.
