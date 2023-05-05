@@ -95,7 +95,8 @@ struct dcpim_message* dcpim_message_new(struct dcpim_sock* dsk,
 
 	struct dcpim_message* msg = NULL;
 	struct sock* sk = (struct sock*)dsk;
-	msg = kmalloc(sizeof(struct dcpim_message), GFP_KERNEL);
+	/* GFP_ATOMIC may change later */
+	msg = kmalloc(sizeof(struct dcpim_message), GFP_ATOMIC);
 	if(msg == NULL)
 		return msg;
 
