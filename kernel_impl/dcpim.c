@@ -254,6 +254,7 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	struct dcpim_message *dcpim_msg = dcpim_message_new(dsk, inet->inet_saddr, inet->inet_sport, inet->inet_daddr, inet->inet_dport, dsk->short_message_id, len);
 
 	if(dcpim_msg == NULL) {
+		WARN_ON(true);
 		return -ENOBUFS;
 	}
 	flags = msg->msg_flags;

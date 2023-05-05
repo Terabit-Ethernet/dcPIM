@@ -1337,7 +1337,10 @@ int dcpim_handle_flow_sync_msg_pkt(struct sk_buff *skb) {
 	}
 	fh =  dcpim_flow_sync_hdr(skb);
 	msg = dcpim_message_new(NULL, iph->daddr,  fh->common.dest, iph->saddr, fh->common.source, fh->message_id, fh->message_size);
-	
+	if(msg == NULL) {
+		WARN_ON(true);
+		goto drop;
+	}
 	msg->state = DCPIM_WAIT_FIN_RX;
 	insert = dcpim_insert_message(dcpim_rx_messages, msg);
 
