@@ -278,9 +278,11 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
  	dsk->short_message_id++;
 	dcpim_msg->state = DCPIM_WAIT_FIN_TX;
 	/* add msg into sender_msg_table */
+	local_bh_disable();
 	if(!dcpim_insert_message(dcpim_tx_messages, dcpim_msg)) {
 		WARN_ON(true);
 	}
+	local_bh_enable();
 	/* burst packets of short flows
 	 * No need to hold the lock because we just initialize the message.
 	 * Flow sync packet currently doesn't 

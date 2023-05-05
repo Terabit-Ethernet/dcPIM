@@ -1469,7 +1469,6 @@ int dcpim_handle_fin_msg_pkt(struct sk_buff *skb) {
 	}
 
 	if(msg) {
-		printk("find message\n");
 		dcpim_remove_message(dcpim_tx_messages, msg);
 		dcpim_message_put(msg);
 	}

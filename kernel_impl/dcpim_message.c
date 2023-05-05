@@ -346,7 +346,6 @@ void dcpim_message_table_destroy(void) {
 			dcpim_message_put(msg);
 		}
 	}
-	printk("finish destroy message table \n");
 	kfree(message_table_tmp);
 
 }
@@ -397,7 +396,6 @@ bool dcpim_insert_message(struct dcpim_message_bucket *hashinfo, struct dcpim_me
 		if (iter->hash != msg->hash)
 			continue;
 		if (likely(dcpim_message_match(iter, msg->saddr, msg->sport, msg->daddr, msg->dport, msg->id))) {
-			rcu_read_unlock();
 			spin_unlock(lock);
 			return false;
 		}
