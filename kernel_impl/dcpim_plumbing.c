@@ -327,6 +327,8 @@ void dcpim_params_init(struct dcpim_params* params) {
     params->control_pkt_rtt = 20; // in us
     params->rtt = 50; // in us
     params->bdp  = params->rtt * params->bandwidth / 8 * 1000; // bytes
+    /* retransmission time = rtx_message * controk pkt rtt for messages */
+    params->rtx_messages = 5;
     // params->bdp = 500000;
     // params->gso_size = 1500;
     // matchiing parameters

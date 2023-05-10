@@ -173,6 +173,7 @@ void dcpim_message_put(struct dcpim_message *msg) {
 void dcpim_message_destroy(struct dcpim_message *msg) {
 	struct sk_buff *skb, *n;
 	struct sock *sk = (struct sock*)(msg->dsk);
+	hrtimer_cancel(&msg->rtx_timer);
 	spin_lock_bh(&msg->lock);
 	skb_queue_walk_safe(&msg->pkt_queue, skb, n) {
 		kfree_skb(skb);
@@ -251,7 +252,6 @@ bool dcpim_message_receive_data(struct dcpim_message *msg, struct sk_buff *skb) 
 	}
 	if(msg->remaining_len == 0) {
 		is_complete = true;
-		msg->state = DCPIM_WAIT_ACK;
 	}
 unlock_return:
 	return is_complete;

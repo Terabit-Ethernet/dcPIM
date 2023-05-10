@@ -1397,8 +1397,9 @@ int dcpim_handle_data_msg_pkt(struct sk_buff *skb) {
 		is_complete = dcpim_message_receive_data(msg, skb);
 		if(is_complete) {
 			msg->state = DCPIM_WAIT_ACK;
-			// hrtimer_start(&msg->rtx_timer, ns_to_ktime(dcpim_params.rtt * 1000) , HRTIMER_MODE_REL_PINNED_SOFT);
 		}
+	} else {
+		kfree_skb(skb);
 	}
 	spin_unlock(&msg->lock);
 	if(is_complete) {
@@ -1410,6 +1411,8 @@ int dcpim_handle_data_msg_pkt(struct sk_buff *skb) {
 		if(dev_queue_xmit(fin_skb)) {
 			WARN_ON_ONCE(true);
 		}
+		hrtimer_start(&msg->rtx_timer, dcpim_params.rtx_messages * ns_to_ktime(dcpim_params.control_pkt_rtt * 1000) , HRTIMER_MODE_REL_PINNED_SOFT);
+
 		// msg->fin_skb = NULL;
 		/* add to socket */
 		if(sk) {

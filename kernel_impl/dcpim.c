@@ -292,7 +292,9 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	 */
 	dcpim_xmit_control(construct_flow_sync_msg_pkt(sk, dcpim_msg->id, dcpim_msg->total_len, 0), sk); 
 	dcpim_xmit_data_whole_message(dcpim_msg, dsk);
-	/* TODO: intiiate hrtimer for retransmission */
+	/* Intiiate hrtimer for retransmission */
+	hrtimer_start(&dcpim_msg->rtx_timer, dcpim_params.rtx_messages * ns_to_ktime(dcpim_params.rtt * 1000) + 
+		ns_to_ktime(dcpim_msg->total_len * 8 / dcpim_params.bandwidth) , HRTIMER_MODE_REL_PINNED_SOFT);
 sent_done:
 	return sent_len;
 	// if(sent_len == 0) {

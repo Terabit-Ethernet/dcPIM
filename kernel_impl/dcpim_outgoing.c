@@ -1699,17 +1699,13 @@ enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer) {
 	struct sk_buff* fin_skb = NULL;
 	spin_lock(&msg->lock);
 	if(msg->state == DCPIM_WAIT_ACK) {
-		if(skb_queue_empty(&msg->pkt_queue))
-			msg->state = DCPIM_FINISH;
-		else {
-			fin_skb = dcpim_message_get_fin(msg);
-			spin_unlock(&msg->lock);
-			if(dev_queue_xmit(fin_skb)) {
-				WARN_ON_ONCE(true);
-			}
-			hrtimer_forward_now(timer, ns_to_ktime(dcpim_params.rtt * 1000));
-			return HRTIMER_RESTART;
+		fin_skb = dcpim_message_get_fin(msg);
+		spin_unlock(&msg->lock);
+		if(dev_queue_xmit(fin_skb)) {
+			WARN_ON_ONCE(true);
 		}
+		hrtimer_forward_now(timer, dcpim_params.rtx_messages * ns_to_ktime(dcpim_params.control_pkt_rtt * 1000));
+		return HRTIMER_RESTART;
 	} else if (msg->state == DCPIM_WAIT_FIN_TX) {
 		/* To Do: add to matching */
 	}
