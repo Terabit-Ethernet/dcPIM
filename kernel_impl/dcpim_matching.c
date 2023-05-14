@@ -1226,7 +1226,7 @@ int dcpim_handle_accept(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 	struct dcpim_accept_hdr *ah;
 	// struct dcpim_flow* flow;
 	struct iphdr *iph;
-	bool skip_free = false;
+	bool skip_free = true;
 	// bool refcounted = false;
 	// struct dcpim_sock *dsk;
 	// unsigned int max_pacing_rate = 0;
@@ -1268,7 +1268,7 @@ int dcpim_handle_accept(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 					host->next_pacing_rate  += epoch->rate_per_channel;
 				else {
 					if(epoch->rtx_msg_size < epoch->k) {
-						skip_free =true;
+						skip_free = false;
 						dcpim_modify_ctrl_pkt(skb, RTX_MSG, READ_ONCE(epoch->epoch), READ_ONCE(epoch->round));
 						dcpim_modify_ctrl_pkt_size(skb, ah->remaining_sz, true);
 						epoch->rtx_msg_array[epoch->rtx_msg_size] = skb;
@@ -1334,7 +1334,6 @@ int dcpim_handle_rtx_msg(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 	struct dcpim_rtx_msg_hdr *ah;
 	// struct dcpim_flow* flow;
 	struct iphdr *iph;
-	bool skip_free = false;
 	if (!pskb_may_pull(skb, sizeof(struct dcpim_rtx_msg_hdr)))
 		goto drop;		/* No space for header. */
 
@@ -1360,8 +1359,7 @@ int dcpim_handle_rtx_msg(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 		dcpim_host_put(host);
 	}
 drop:
-	if(skip_free)
-		kfree_skb(skb);
+	kfree_skb(skb);
 
 	return 0;
 }
