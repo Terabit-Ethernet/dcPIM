@@ -37,7 +37,8 @@ enum {
 	DCPIM_WAIT_FIN_TX,
 	DCPIM_WAIT_FIN_RX,
 	DCPIM_WAIT_ACK, /* wait for fin_ack */
-	DCPIM_FINISH,
+	DCPIM_FINISH_TX,
+	DCPIM_FINISH_RX,
 };
 
 enum {
@@ -58,7 +59,8 @@ enum dcpimcsq_enum {
 	DCPIM_WAIT_DEFERRED,
 	DCPIM_RTX_TOKEN_TIMER_DEFERRED,
 	DCPIM_RTX_FLOW_SYNC_DEFERRED,
-	DCPIM_MSG_RX_DEFERRED, 
+	DCPIM_MSG_RX_DEFERRED,
+	DCPIM_MSG_RTX_DEFERRED, 
 };
 
 enum dcpimcsq_flags {
@@ -73,6 +75,7 @@ enum dcpimcsq_flags {
 	DCPIMF_RTX_TOKEN_TIMER_DEFERRED = (1UL << DCPIM_RTX_TOKEN_TIMER_DEFERRED),
 	DCPIMF_RTX_FLOW_SYNC_DEFERRED = (1UL << DCPIM_RTX_FLOW_SYNC_DEFERRED),
 	DCPIMF_MSG_RX_DEFERRED = (1UL << DCPIM_MSG_RX_DEFERRED),
+	DCPIMF_MSG_RTX_DEFERRED = (1UL << DCPIM_MSG_RTX_DEFERRED),
 };
 
 struct dcpim_params {
@@ -198,6 +201,16 @@ struct dcpim_message {
 	 */
 	struct sk_buff* fin_skb;
 
+	/**
+	 * @last_rtx_time: The last rtx time
+	 */
+	ktime_t last_rtx_time;
+	
+	/**
+	 * @timeout: Timeout for retransmission in ns.
+	 */
+	int timeout;
+
 };
 
 struct dcpim_pq {
@@ -288,12 +301,18 @@ struct dcpim_host {
 	spinlock_t lock;
 	/* socket list */
 	struct list_head flow_list;
+	/* message socket list */
+	struct list_head short_flow_list;
 	int num_flows;
+	int num_long_flows;
+	int num_short_flows;
 	u32 hash;
 	/* one member of socket used for sending rts */
 	struct sock* sk;
 	/* sender only */
 	atomic_t total_unsent_bytes;
+	/* sender only: msg bytes for retransmission */
+	atomic_t rtx_msg_bytes;
 	/* receiver only: protected by matched_lock */
 	unsigned long next_pacing_rate;
 	struct hlist_node hlist;
@@ -368,6 +387,9 @@ struct dcpim_epoch {
 	int unmatched_sent_bytes;
 	int grant_size;
 	// int grant_size;
+	struct sk_buff** rtx_msg_array;
+	struct sk_buff** temp_rtx_msg_array;
+	int rtx_msg_size;
 
 	int epoch_bytes_per_k;
 	int epoch_bytes;
@@ -411,6 +433,7 @@ struct dcpim_rts {
 	uint32_t round;
     int remaining_sz;
 	int skb_size;
+	int rtx_channel;
 	struct sk_buff **skb_arr;
  	// struct list_head entry;
 	// struct llist_node lentry;
@@ -422,6 +445,7 @@ struct dcpim_grant {
 	uint32_t round;
     int remaining_sz;
 	int skb_size;
+	int rtx_channel;
 	struct sk_buff **skb_arr;
 	/* ether hdr */
 	// unsigned char	h_dest[ETH_ALEN];	/* destination eth addr	*/
@@ -519,6 +543,11 @@ static inline struct dcpim_accept_hdr *dcpim_accept_hdr(const struct sk_buff *sk
 	return (struct dcpim_accept_hdr *)skb_transport_header(skb);
 }
 
+static inline struct dcpim_rtx_msg_hdr *dcpim_rtx_msg_hdr(const struct sk_buff *skb)
+{
+	return (struct dcpim_rtx_msg_hdr *)skb_transport_header(skb);
+}
+
 static inline struct dcpim_fin_hdr *dcpim_fin_hdr(const struct sk_buff *skb)
 {
 	return (struct dcpim_fin_hdr *)skb_transport_header(skb);
@@ -554,6 +583,11 @@ struct dcpim_sack_block_wire {
 struct dcpim_sack_block {
 	u32	start_seq;
 	u32	end_seq;
+};
+
+struct dcpim_msgid_entry{
+	uint64_t msg_id;
+	struct list_head entry;
 };
 
 struct dcpim_sock {
@@ -626,6 +660,12 @@ struct dcpim_sock {
 		int next_matched_bytes;
 		int grant_index;
 		struct dcpim_grant* grant;
+		/* Short messages retransmission data structures */
+		struct list_head rtx_msg_list;
+		struct list_head rtx_msg_backlog;
+		atomic_t rtx_msg_bytes;
+		struct work_struct rtx_msg_work;
+		int num_msgs;
 		/* DCPIM metric */
 	    // uint64_t first_byte_send_time;
 	    // uint64_t start_time;
@@ -671,11 +711,16 @@ struct dcpim_sock {
 		uint32_t rtx_rcv_nxt;
 		/* 0: rtx timer is not set; 1: timer should be set; 2: timer is triggering; */
 		atomic_t rtx_status;
-		// atomic_t matched_bw;
+
+		/* Message data structure */
+		uint64_t rcv_msg_nxt;
 		/* protected by bh_lock_sock */
 		struct list_head msg_backlog;
 		/* protected by user socket lock */
 		struct list_head msg_list;
+		/* protected by bh lock */
+		struct list_head reordered_msgid_list;
+		struct list_head unfinished_list;
 		// struct work_struct token_xmit_struct;
 
 		/* protected by epoch->matched_lock */

@@ -125,6 +125,8 @@ struct dcpim_message* dcpim_message_new(struct dcpim_sock* dsk,
 	INIT_HLIST_NODE(&msg->hash_link);
 	INIT_LIST_HEAD(&msg->table_link);
 	msg->fin_skb = NULL;
+	msg->last_rtx_time = 0;
+	msg->timeout = dcpim_params.rtx_messages * ns_to_ktime(dcpim_params.rtt * 1000);
 	/* new message will be added to the hash table later*/
 	refcount_set(&msg->refcnt, 1);
 	return msg;
@@ -173,8 +175,10 @@ void dcpim_message_put(struct dcpim_message *msg) {
 void dcpim_message_destroy(struct dcpim_message *msg) {
 	struct sk_buff *skb, *n;
 	struct sock *sk = (struct sock*)(msg->dsk);
-	hrtimer_cancel(&msg->rtx_timer);
+	// bool tx = false;
+	// hrtimer_cancel(&msg->rtx_timer);
 	spin_lock_bh(&msg->lock);
+	// tx = (msg->state == DCPIM_WAIT_FIN_TX || msg->state == DCPIM_FIN_TX);
 	skb_queue_walk_safe(&msg->pkt_queue, skb, n) {
 		kfree_skb(skb);
 	}
@@ -184,6 +188,10 @@ void dcpim_message_destroy(struct dcpim_message *msg) {
 		msg->fin_skb = NULL;
 	}
 	spin_unlock_bh(&msg->lock);
+	// if(tx)
+	// 	dcpim_remove_message(dcpim_tx_messages, msg);
+	// else
+	// 	dcpim_remove_message(dcpim_rx_messages);
 	kfree(msg);
 	if(sk)
 		sock_put(sk);
@@ -202,6 +210,7 @@ bool dcpim_message_receive_data(struct dcpim_message *msg, struct sk_buff *skb) 
 	bool is_insert = false, is_complete = false;
 	__skb_pull(skb, (dcpim_hdr(skb)->doff >> 2)+ sizeof(struct data_segment));
 	if(msg->remaining_len == 0){
+		WARN_ON_ONCE(true);
 		kfree_skb(skb);
 		goto unlock_return;
 	}

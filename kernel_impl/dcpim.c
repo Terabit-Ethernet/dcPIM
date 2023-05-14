@@ -293,7 +293,7 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	dcpim_xmit_control(construct_flow_sync_msg_pkt(sk, dcpim_msg->id, dcpim_msg->total_len, 0), sk); 
 	dcpim_xmit_data_whole_message(dcpim_msg, dsk);
 	/* Intiiate hrtimer for retransmission */
-	hrtimer_start(&dcpim_msg->rtx_timer, dcpim_params.rtx_messages * ns_to_ktime(dcpim_params.rtt * 1000) + 
+	hrtimer_start(&dcpim_msg->rtx_timer, dcpim_msg->timeout + 
 		ns_to_ktime(dcpim_msg->total_len * 8 / dcpim_params.bandwidth) , HRTIMER_MODE_REL_PINNED_SOFT);
 sent_done:
 	return sent_len;
@@ -463,13 +463,23 @@ int dcpim_sendpage(struct sock *sk, struct page *page, int offset,
 
 void dcpim_destruct_sock(struct sock *sk)
 {
-
+	struct dcpim_message *temp;
+	struct dcpim_msgid_entry *entry = NULL, *etemp;
+	struct dcpim_sock *dsk = dcpim_sk(sk);
 	/* reclaim completely the forward allocated memory */
 	// unsigned int total = 0;
 	// struct sk_buff *skb;
 	// struct udp_hslot* hslot = udp_hashslot(sk->sk_prot->h.udp_table, sock_net(sk),
 	// 				     dcpim_sk(sk)->dcpim_port_hash);
-	printk("call destruct sock \n");
+	local_bh_disable();
+	list_for_each_entry_safe(entry, etemp, &dsk->receiver.reordered_msgid_list, entry) {
+		kfree(entry);
+	}
+	list_for_each_entry(temp, &dsk->receiver.unfinished_list, table_link) {
+		dcpim_remove_message(dcpim_rx_messages, temp);
+		dcpim_message_put(temp);
+	}
+	local_bh_enable();
 	/* clean the message*/
 	// skb_queue_splice_tail_init(&sk->sk_receive_queue, &dsk->reader_queue);
 	// while ((skb = __skb_dequeue(&dsk->reader_queue)) != NULL) {
@@ -518,8 +528,14 @@ int dcpim_init_sock(struct sock *sk)
 	
 	WRITE_ONCE(dsk->sender.syn_ack_recvd, false);
 	WRITE_ONCE(dsk->sender.sync_sent_times, 0);
+	atomic_set(&dsk->sender.rtx_msg_bytes, 0);
+
 	hrtimer_init(&dsk->sender.rtx_flow_sync_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
 	dsk->sender.rtx_flow_sync_timer.function = & dcpim_rtx_sync_timer_handler;
+	INIT_LIST_HEAD(&dsk->sender.rtx_msg_list);
+	INIT_LIST_HEAD(&dsk->sender.rtx_msg_backlog);
+	INIT_WORK(&dsk->sender.rtx_msg_work, dcpim_rtx_msg_handler);
+	WRITE_ONCE(dsk->sender.num_msgs, 0);
 
 	INIT_LIST_HEAD(&dsk->match_link);
 	INIT_LIST_HEAD(&dsk->entry);
@@ -543,6 +559,9 @@ int dcpim_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.rts_index, -1);
 	INIT_LIST_HEAD(&dsk->receiver.msg_list);
 	INIT_LIST_HEAD(&dsk->receiver.msg_backlog);
+
+	INIT_LIST_HEAD(&dsk->receiver.reordered_msgid_list);
+	INIT_LIST_HEAD(&dsk->receiver.unfinished_list);
 
 	// INIT_LIST_HEAD(&dsk->reciever.);
 
@@ -1199,6 +1218,8 @@ int dcpim_rcv(struct sk_buff *skb)
 		return dcpim_handle_fin_msg_pkt(skb);
 	} else if (dh->type == FIN_ACK_MSG) {
 		return dcpim_handle_fin_ack_msg_pkt(skb);
+	} else if (dh->type == RTX_MSG) {
+		return dcpim_handle_rtx_msg(skb, &dcpim_epoch);
 	}
 
 drop:
@@ -1214,9 +1235,19 @@ void dcpim_flush_msgs_handler(struct dcpim_sock *dsk) {
 	struct list_head *list, *temp;
 	struct dcpim_message *msg;
 	/* for now, only add to list if dsk is in established state. */
+	list_for_each_safe(list, temp, &dsk->sender.rtx_msg_list) {
+		msg = list_entry(list, struct dcpim_message, table_link);
+		list_del(&msg->table_link);
+		atomic_sub(msg->total_len, &msg->dsk->host->total_unsent_bytes);
+		atomic_sub(msg->total_len, &msg->dsk->host->rtx_msg_bytes);
+		/* don't check the state since number of locks needed to get are the same here */
+		dcpim_remove_message(dcpim_tx_messages, msg);
+		dcpim_message_put(msg);
+	}
 	list_for_each_safe(list, temp, &dsk->receiver.msg_list) {
 		msg = list_entry(list, struct dcpim_message, table_link);
 		list_del(&msg->table_link);
+		/* no need to remove since preivously removed when msg is finished */
 		dcpim_message_put(msg);
 	}
 }
@@ -1233,9 +1264,10 @@ void dcpim_destroy_sock(struct sock *sk)
 	if(sk->sk_priority != 7) {
 		if(dsk->host)
 			atomic_sub((uint32_t)(dsk->sender.write_seq - dsk->sender.snd_una), &dsk->host->total_unsent_bytes);
-		/* delete from flow matching table */
-		dcpim_remove_mat_tab(&dcpim_epoch, sk);
+		/* To Do: remove short flow inflight bytes */
 	}
+	/* delete from flow matching table */
+	dcpim_remove_mat_tab(&dcpim_epoch, sk);
 	dcpim_flush_msgs_handler(dsk);
 	// release_sock(sk);
 
@@ -1275,7 +1307,8 @@ void dcpim_destroy_sock(struct sock *sk)
 	// }
 	// dcpim_flush_pending_frames(sk);
 	release_sock(sk);
-
+	/* cancel the work after release the lock */
+	cancel_work_sync(&dsk->sender.rtx_msg_work);
 	// printk("sk->sk_wmem_queued:%d\n",sk->sk_wmem_queued);
 	spin_lock_bh(&entry->lock);
 	// printk("dsk->match_link:%p\n", &up->match_link);

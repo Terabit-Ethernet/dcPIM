@@ -738,8 +738,6 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 				if(child) {
 					dsk = dcpim_sk(child);
 					if(fh->message_size == UINT_MAX) {
-						/* add to flow table */
-						dcpim_add_mat_tab(&dcpim_epoch, child);
 						/* this line needed to change later */
 						if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
 							hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
@@ -749,6 +747,8 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 						/* small msg socket */
 						child->sk_priority = 7;
 					}
+					/* add to flow table */
+					dcpim_add_mat_tab(&dcpim_epoch, child);
 					/* send flow syn ack back */
 					dcpim_xmit_control(construct_syn_ack_pkt(child, fh->message_id, fh->message_size, fh->start_time), child); 
 				}
@@ -1317,7 +1317,44 @@ drop:
 	// kfree_skb(skb);
 }
 
+static bool dcpim_handle_msgid_entry(struct dcpim_message *msg, struct dcpim_sock *dsk) {
+	struct dcpim_msgid_entry *entry = NULL, *temp;
+	bool append = false;
+	if(msg->id < dsk->receiver.rcv_msg_nxt)
+		return false;
+	else if(msg->id == dsk->receiver.rcv_msg_nxt) {
+		dsk->receiver.rcv_msg_nxt += 1;
+		goto remove_entry;
+		return true;
+	}
+	list_for_each_entry(entry, &dsk->receiver.reordered_msgid_list, entry) {
+		if(temp->msg_id == msg->id)
+			return false;
+		if(temp->msg_id < msg->id)
+			continue;
+		if(temp->msg_id > msg->id) {
+			entry = kzalloc(sizeof(struct dcpim_msgid_entry), GFP_ATOMIC);
+			list_add_tail(&entry->entry, &temp->entry);
+			append = true;
+			break;
+		}
+	}
+	if(!append) {
+		entry = kzalloc(sizeof(struct dcpim_msgid_entry), GFP_ATOMIC);
+		list_add_tail(&entry->entry, &dsk->receiver.reordered_msgid_list);
+	}
+	return true;
+remove_entry:
+	list_for_each_entry_safe(entry, temp, &dsk->receiver.reordered_msgid_list, entry) {
+		if(entry->msg_id == dsk->receiver.rcv_msg_nxt) {
+			dsk->receiver.rcv_msg_nxt += 1;
+			list_del_init(&entry->entry);
+			kfree(entry);
+		}
 
+	}
+	return true;
+}
 
 /**
  * dcpim_handle_flow_sync_msg_pkt() - Handler for incoming FLOW_SYNC packets of message
@@ -1329,19 +1366,37 @@ drop:
 int dcpim_handle_flow_sync_msg_pkt(struct sk_buff *skb) {
 	struct dcpim_flow_sync_hdr *fh;
 	struct dcpim_message *msg;
-	const struct iphdr *iph = ip_hdr(skb);
-	bool free_skb = true, insert = false;
+	struct sock* sk;
+	const struct iphdr *iph = NULL;
+	bool free_skb = true, insert = false, success = false, refcounted = false;
+	int sdif = inet_sdif(skb);
 	// struct dcpim_message *msg;
 	if (!pskb_may_pull(skb, sizeof(struct dcpim_flow_sync_hdr))) {
 		goto drop;		/* No space for header. */
 	}
 	fh =  dcpim_flow_sync_hdr(skb);
+	iph = ip_hdr(skb);
+	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&fh->common), fh->common.source,
+			fh->common.dest, sdif, &refcounted);
+	if(!sk)
+		goto drop;
 	msg = dcpim_message_new(NULL, iph->daddr,  fh->common.dest, iph->saddr, fh->common.source, fh->message_id, fh->message_size);
 	if(msg == NULL) {
 		WARN_ON(true);
 		goto drop;
 	}
 	msg->state = DCPIM_WAIT_FIN_RX;
+	bh_lock_sock(sk);
+	success = dcpim_handle_msgid_entry(msg, dcpim_sk(sk));
+	if(success) {
+		list_add_tail(&msg->table_link, &dcpim_sk(sk)->receiver.unfinished_list);
+		dcpim_message_hold(msg);
+	}
+	bh_unlock_sock(sk);
+	if(!success) {
+		kfree(msg);
+		goto drop;
+	}
 	insert = dcpim_insert_message(dcpim_rx_messages, msg);
 
 	if(!insert) {
@@ -1356,6 +1411,9 @@ int dcpim_handle_flow_sync_msg_pkt(struct sk_buff *skb) {
 	}
 
 drop:
+    if (refcounted) {
+        sock_put(sk);
+    }
 	if(free_skb)
 		kfree_skb(skb);
 	return 0;
@@ -1394,6 +1452,7 @@ int dcpim_handle_data_msg_pkt(struct sk_buff *skb) {
 		goto drop;
 	spin_lock(&msg->lock);
 	if(msg->state == DCPIM_WAIT_FIN_RX) {
+		/* skb is handled by receive data; not need to free */
 		is_complete = dcpim_message_receive_data(msg, skb);
 		if(is_complete) {
 			msg->state = DCPIM_WAIT_ACK;
@@ -1411,6 +1470,7 @@ int dcpim_handle_data_msg_pkt(struct sk_buff *skb) {
 		if(dev_queue_xmit(fin_skb)) {
 			WARN_ON_ONCE(true);
 		}
+		dcpim_message_hold(msg);
 		hrtimer_start(&msg->rtx_timer, dcpim_params.rtx_messages * ns_to_ktime(dcpim_params.control_pkt_rtt * 1000) , HRTIMER_MODE_REL_PINNED_SOFT);
 
 		// msg->fin_skb = NULL;
@@ -1418,6 +1478,8 @@ int dcpim_handle_data_msg_pkt(struct sk_buff *skb) {
 		if(sk) {
 			dsk = dcpim_sk(sk);
 			bh_lock_sock(sk);
+			list_del_init(&msg->table_link);
+			dcpim_message_put(msg);
 			if(!sock_owned_by_user(sk)) {
 				if(sk->sk_state == DCPIM_ESTABLISHED) { 
 					/* construct the fin */
@@ -1467,7 +1529,7 @@ int dcpim_handle_fin_msg_pkt(struct sk_buff *skb) {
 	iph = ip_hdr(skb);
 	fh =  dcpim_fin_hdr(skb);
 	msg = dcpim_lookup_message(dcpim_tx_messages,  iph->daddr, fh->common.dest, iph->saddr, fh->common.source, fh->message_id);
-
+	/* TO DO: change the state of message */
 	/* send fin_ack */
 	dcpim_flip_header(skb, FIN_ACK_MSG);
 	if(dev_queue_xmit(skb)) {
@@ -1476,6 +1538,9 @@ int dcpim_handle_fin_msg_pkt(struct sk_buff *skb) {
 
 	if(msg) {
 		dcpim_remove_message(dcpim_tx_messages, msg);
+		spin_lock(&msg->lock);
+		msg->state = DCPIM_FINISH_TX;
+		spin_unlock(&msg->lock);
 		dcpim_message_put(msg);
 	}
 	return 0;
@@ -1508,7 +1573,7 @@ int dcpim_handle_fin_ack_msg_pkt(struct sk_buff *skb) {
 		dcpim_remove_message(dcpim_rx_messages, msg);
 		spin_lock(&msg->lock);
 		if(msg->state == DCPIM_WAIT_ACK)
-			msg->state = DCPIM_FINISH;
+			msg->state = DCPIM_FINISH_RX;
 		spin_unlock(&msg->lock);
 		dcpim_message_put(msg);
 	}
