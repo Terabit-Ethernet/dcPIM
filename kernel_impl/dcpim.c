@@ -295,6 +295,7 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	/* Intiiate hrtimer for retransmission */
 	hrtimer_start(&dcpim_msg->rtx_timer, dcpim_msg->timeout + 
 		ns_to_ktime(dcpim_msg->total_len * 8 / dcpim_params.bandwidth) , HRTIMER_MODE_REL_PINNED_SOFT);
+	dcpim_message_hold(dcpim_msg);
 sent_done:
 	return sent_len;
 	// if(sent_len == 0) {
