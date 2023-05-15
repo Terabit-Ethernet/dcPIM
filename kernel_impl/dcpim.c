@@ -477,6 +477,9 @@ void dcpim_destruct_sock(struct sock *sk)
 		kfree(entry);
 	}
 	list_for_each_entry(temp, &dsk->receiver.unfinished_list, table_link) {
+		spin_lock(&temp->lock);
+		temp->state = DCPIM_FINISH_RX;
+		spin_unlock(&temp->lock);
 		dcpim_remove_message(dcpim_rx_messages, temp);
 		dcpim_message_put(temp);
 	}
@@ -501,7 +504,6 @@ int dcpim_init_sock(struct sock *sk)
 	// dcpim_set_state(sk, DCPIM_CLOSE);
 	inet_sk_state_store(sk, DCPIM_CLOSE);
 	dsk->core_id = raw_smp_processor_id();
-	printk("init sock\n");
 	// next_going_id 
 	// printk("remaining tokens:%d\n", dcpim_epoch.remaining_tokens);
 	// atomic64_set(&dsk->next_outgoing_id, 1);

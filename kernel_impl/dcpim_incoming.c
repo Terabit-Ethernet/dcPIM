@@ -1325,9 +1325,8 @@ static bool dcpim_handle_msgid_entry(struct dcpim_message *msg, struct dcpim_soc
 	else if(msg->id == dsk->receiver.rcv_msg_nxt) {
 		dsk->receiver.rcv_msg_nxt += 1;
 		goto remove_entry;
-		return true;
 	}
-	list_for_each_entry(entry, &dsk->receiver.reordered_msgid_list, entry) {
+	list_for_each_entry(temp, &dsk->receiver.reordered_msgid_list, entry) {
 		if(temp->msg_id == msg->id)
 			return false;
 		if(temp->msg_id < msg->id)
@@ -1350,7 +1349,9 @@ remove_entry:
 			dsk->receiver.rcv_msg_nxt += 1;
 			list_del_init(&entry->entry);
 			kfree(entry);
+			continue;
 		}
+		break;
 
 	}
 	return true;
@@ -1444,12 +1445,12 @@ int dcpim_handle_data_msg_pkt(struct sk_buff *skb) {
 	dh =  dcpim_data_hdr(skb);
 	iph = ip_hdr(skb);
 	dcpim_v4_fill_cb(skb, iph, dh);
-	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&dh->common), dh->common.source,
-			dh->common.dest, sdif, &refcounted);
 	msg = dcpim_lookup_message(dcpim_rx_messages,  iph->daddr, 
 				dh->common.dest, iph->saddr, dh->common.source, dh->message_id);
 	if(!msg)
 		goto drop;
+	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&dh->common), dh->common.source,
+			dh->common.dest, sdif, &refcounted);
 	spin_lock(&msg->lock);
 	if(msg->state == DCPIM_WAIT_FIN_RX) {
 		/* skb is handled by receive data; not need to free */

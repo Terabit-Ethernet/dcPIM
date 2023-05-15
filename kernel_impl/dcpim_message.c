@@ -336,7 +336,7 @@ void dcpim_message_table_destroy(void) {
 	}
 	for (i = 0; i < DCPIM_BUCKETS; i++) {
 		hlist_for_each_entry_safe(msg, next, &message_table_tmp[i].slot, hash_link) {
-			hlist_del(&msg->hash_link);
+			hlist_del_init(&msg->hash_link);
 			dcpim_message_put(msg);
 		}
 	}
@@ -349,7 +349,7 @@ void dcpim_message_table_destroy(void) {
 	}
 	for (i = 0; i < DCPIM_BUCKETS; i++) {
 		hlist_for_each_entry_safe(msg, next, &message_table_tmp[i].slot, hash_link) {
-			hlist_del(&msg->hash_link);
+			hlist_del_init(&msg->hash_link);
 			dcpim_message_put(msg);
 		}
 	}
@@ -426,7 +426,7 @@ void dcpim_remove_message(struct dcpim_message_bucket *hashinfo, struct dcpim_me
 		spin_unlock(lock);
 		return;
 	}
-	hlist_del(&msg->hash_link);
+	hlist_del_init(&msg->hash_link);
 	spin_unlock(lock);
 	/* need to sync for deletion */
 	dcpim_message_put(msg);
