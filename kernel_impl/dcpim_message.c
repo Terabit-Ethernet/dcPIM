@@ -209,7 +209,7 @@ bool dcpim_message_receive_data(struct dcpim_message *msg, struct sk_buff *skb) 
 	struct sk_buff *iter, *tmp;
 	bool is_insert = false, is_complete = false;
 	__skb_pull(skb, (dcpim_hdr(skb)->doff >> 2)+ sizeof(struct data_segment));
-	if(msg->remaining_len == 0){
+	if(msg->remaining_len == 0 || DCPIM_SKB_CB(skb)->seq == DCPIM_SKB_CB(skb)->end_seq){
 		WARN_ON_ONCE(true);
 		kfree_skb(skb);
 		goto unlock_return;
@@ -217,7 +217,7 @@ bool dcpim_message_receive_data(struct dcpim_message *msg, struct sk_buff *skb) 
 	/* reverse traversing */
 	skb_queue_reverse_walk_safe(&msg->pkt_queue, iter, tmp) {
 		if (after(DCPIM_SKB_CB(skb)->end_seq, DCPIM_SKB_CB(iter)->end_seq)) {
-			if(before(DCPIM_SKB_CB(skb)->seq, DCPIM_SKB_CB(iter)->seq)) {
+			if(!after(DCPIM_SKB_CB(skb)->seq, DCPIM_SKB_CB(iter)->seq)) {
 				/* iter is covered by skb; remove it */
 				msg->remaining_len += DCPIM_SKB_CB(iter)->end_seq - DCPIM_SKB_CB(iter)->seq;
 				kfree_skb(iter);
@@ -226,20 +226,16 @@ bool dcpim_message_receive_data(struct dcpim_message *msg, struct sk_buff *skb) 
 			if(before(DCPIM_SKB_CB(skb)->seq, DCPIM_SKB_CB(iter)->end_seq) && 
 				after(DCPIM_SKB_CB(skb)->seq, DCPIM_SKB_CB(iter)->seq)) {
 				/* shrink skb as needed */
+				pskb_may_pull(skb, DCPIM_SKB_CB(iter)->end_seq - DCPIM_SKB_CB(skb)->seq);
 				__skb_pull(skb, DCPIM_SKB_CB(iter)->end_seq - DCPIM_SKB_CB(skb)->seq);
 				DCPIM_SKB_CB(skb)->seq = DCPIM_SKB_CB(iter)->end_seq;
 			} 
-			if(DCPIM_SKB_CB(skb)->seq == DCPIM_SKB_CB(skb)->end_seq) {
-				kfree_skb(skb);
-				skb = NULL;
-				break;
-			}
 			__skb_queue_after(&msg->pkt_queue, iter, skb);
 			is_insert = true;
 			msg->remaining_len -= DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq;
 			break;
 		} else {
-			if(after(DCPIM_SKB_CB(skb)->seq, DCPIM_SKB_CB(iter)->seq)) {
+			if(!before(DCPIM_SKB_CB(skb)->seq, DCPIM_SKB_CB(iter)->seq)) {
 				/* skb is covered by iter; remove it */
 				kfree_skb(skb);
 				skb = NULL;
@@ -247,6 +243,7 @@ bool dcpim_message_receive_data(struct dcpim_message *msg, struct sk_buff *skb) 
 			} else {
 				if(after(DCPIM_SKB_CB(skb)->end_seq, DCPIM_SKB_CB(iter)->seq)) {
 					/* pull iter due to overlapping */
+					pskb_may_pull(iter, DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(iter)->seq);
 					__skb_pull(iter, DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(iter)->seq);
 					msg->remaining_len += DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(iter)->seq;
 					DCPIM_SKB_CB(iter)->seq = DCPIM_SKB_CB(skb)->end_seq;

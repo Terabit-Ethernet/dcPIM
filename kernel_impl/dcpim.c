@@ -1267,9 +1267,9 @@ void dcpim_destroy_sock(struct sock *sk)
 			atomic_sub((uint32_t)(dsk->sender.write_seq - dsk->sender.snd_una), &dsk->host->total_unsent_bytes);
 		/* To Do: remove short flow inflight bytes */
 	}
+	dcpim_flush_msgs_handler(dsk);
 	/* delete from flow matching table */
 	dcpim_remove_mat_tab(&dcpim_epoch, sk);
-	dcpim_flush_msgs_handler(dsk);
 	// release_sock(sk);
 
 	// local_bh_disable();
