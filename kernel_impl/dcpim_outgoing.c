@@ -1698,7 +1698,7 @@ void dcpim_rtx_msg_handler(struct work_struct *work) {
 	struct list_head *list, *temp;
 	struct dcpim_message *msg;
 	int num_msgs = 0;
-	bool rtx = false, skip_destroy = false, established;
+	bool rtx = false, remove_message = false, established;
 	int tx_bytes, total_tx_bytes = atomic_read(&dsk->sender.rtx_msg_bytes);
 	ktime_t cur_time = ktime_get();
 	if(total_tx_bytes == 0)
@@ -1712,30 +1712,33 @@ void dcpim_rtx_msg_handler(struct work_struct *work) {
 	num_msgs = dsk->sender.num_msgs;
 	list_for_each_safe(list, temp, &dsk->sender.rtx_msg_list) {
 		rtx = false;
+		remove_message = false;
 		msg = list_entry(list, struct dcpim_message, table_link);
 		list_del(&msg->table_link);
 		dsk->sender.num_msgs -= 1;
 		spin_lock_bh(&msg->lock);
-		if(msg->state == DCPIM_WAIT_FIN_TX && cur_time - msg->last_rtx_time >= msg->timeout) {
+		if(msg->state == DCPIM_WAIT_FIN_TX) {
 			/* burst packets of short flows
 			* No need to hold the lock because we just initialize the message.
 			* Flow sync packet currently doesn't 
 			*/
-			rtx = true;
-			msg->last_rtx_time = ktime_get();
+			if(cur_time - msg->last_rtx_time >= msg->timeout) {
+				rtx = true;
+				msg->last_rtx_time = ktime_get();
+			}
 			list_add_tail(&msg->table_link, &dsk->sender.rtx_msg_list);
 			dsk->sender.num_msgs += 1;
 		} else if (msg->state == DCPIM_FINISH_TX)
-			skip_destroy = true;
+			remove_message = true;
 		spin_unlock_bh(&msg->lock);
 		if(rtx) {
 			dcpim_xmit_control(construct_flow_sync_msg_pkt(sk, msg->id, msg->total_len, 0), sk); 
 			dcpim_xmit_data_whole_message(msg, dsk);
 			/* at least transmit one short mtessage */
 			tx_bytes -= msg->total_len;
-		} else {
-			if(!skip_destroy)
-				dcpim_remove_message(dcpim_tx_messages, msg);
+		}
+		if(remove_message){
+			// dcpim_remove_message(dcpim_tx_messages, msg);
 			atomic_sub(msg->total_len, &msg->dsk->host->total_unsent_bytes);
 			atomic_sub(msg->total_len, &msg->dsk->host->rtx_msg_bytes);
 			dcpim_message_put(msg);
