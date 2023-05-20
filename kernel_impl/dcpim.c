@@ -560,9 +560,10 @@ int dcpim_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.max_congestion_win, 5 * dcpim_params.control_pkt_bdp);
 	WRITE_ONCE(dsk->receiver.rts, NULL);
 	WRITE_ONCE(dsk->receiver.rts_index, -1);
+	WRITE_ONCE(dsk->receiver.rcv_msg_nxt, 0);
 	INIT_LIST_HEAD(&dsk->receiver.msg_list);
 	INIT_LIST_HEAD(&dsk->receiver.msg_backlog);
-
+	
 	INIT_LIST_HEAD(&dsk->receiver.reordered_msgid_list);
 	INIT_LIST_HEAD(&dsk->receiver.unfinished_list);
 
