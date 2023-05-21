@@ -1333,6 +1333,7 @@ static bool dcpim_handle_msgid_entry(struct dcpim_message *msg, struct dcpim_soc
 			continue;
 		if(temp->msg_id > msg->id) {
 			entry = kzalloc(sizeof(struct dcpim_msgid_entry), GFP_ATOMIC);
+			entry->msg_id = msg->id;
 			list_add_tail(&entry->entry, &temp->entry);
 			append = true;
 			break;
@@ -1340,6 +1341,7 @@ static bool dcpim_handle_msgid_entry(struct dcpim_message *msg, struct dcpim_soc
 	}
 	if(!append) {
 		entry = kzalloc(sizeof(struct dcpim_msgid_entry), GFP_ATOMIC);
+		entry->msg_id = msg->id;
 		list_add_tail(&entry->entry, &dsk->receiver.reordered_msgid_list);
 	}
 	return true;

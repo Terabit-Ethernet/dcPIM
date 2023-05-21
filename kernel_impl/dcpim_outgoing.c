@@ -1781,7 +1781,6 @@ enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer) {
 	spin_lock(&msg->lock);
 	if(msg->state == DCPIM_WAIT_ACK) {
 		fin_skb = dcpim_message_get_fin(msg);
-		printk("rtx fin: %llu\n", msg->id);
 		spin_unlock(&msg->lock);
 		if(dev_queue_xmit(fin_skb)) {
 			WARN_ON_ONCE(true);
