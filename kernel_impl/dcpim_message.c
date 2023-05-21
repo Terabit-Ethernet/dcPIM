@@ -124,6 +124,7 @@ struct dcpim_message* dcpim_message_new(struct dcpim_sock* dsk,
 	msg->rtx_timer.function = dcpim_rtx_msg_timer_handler;
 	INIT_HLIST_NODE(&msg->hash_link);
 	INIT_LIST_HEAD(&msg->table_link);
+	INIT_LIST_HEAD(&msg->fin_link);
 	msg->fin_skb = NULL;
 	msg->last_rtx_time = 0;
 	msg->timeout = dcpim_params.rtx_messages * ns_to_ktime(dcpim_params.rtt * 1000);
@@ -167,6 +168,25 @@ void dcpim_message_put(struct dcpim_message *msg) {
 // 	dcpim_remove_message(hashinfo, msg);
 // 	return;
 // }
+
+ /**
+  * dcpim_message_flush_skb() - Destroy skb in msg; Called by tx side and assume msg->lock is hold. 
+  * @msg:	The dcpim_message.
+  */
+void dcpim_message_flush_skb(struct dcpim_message *msg) {
+	struct sk_buff *skb, *n;
+	struct sock *sk = (struct sock*)(msg->dsk);
+	// bool tx = false;
+	// hrtimer_cancel(&msg->rtx_timer);
+	// tx = (msg->state == DCPIM_WAIT_FIN_TX || msg->state == DCPIM_FIN_TX);
+	skb_queue_walk_safe(&msg->pkt_queue, skb, n) {
+		if(msg->state == DCPIM_FINISH_TX)
+			sk_wmem_queued_add((struct sock*)msg->dsk, -skb->truesize);
+		kfree_skb(skb);
+	}
+	skb_queue_head_init(&msg->pkt_queue);
+	return;
+}
 
  /**
   * dcpim_message_destroy() - Destroy msg: the last fucntion of msg lifecycle.
@@ -412,6 +432,7 @@ bool dcpim_insert_message(struct dcpim_message_bucket *hashinfo, struct dcpim_me
 	return true;
 }
 
+/* remove message from hash table and also cancenl the hrtimer; The message is done in the transport layer. */
 void dcpim_remove_message(struct dcpim_message_bucket *hashinfo, struct dcpim_message *msg)
 {
 	unsigned int slot; 
@@ -428,6 +449,8 @@ void dcpim_remove_message(struct dcpim_message_bucket *hashinfo, struct dcpim_me
 	}
 	hlist_del_init(&msg->hash_link);
 	spin_unlock(lock);
+	/* remove hrtimer */
+	hrtimer_cancel(&msg->rtx_timer);
 	/* need to sync for deletion */
 	dcpim_message_put(msg);
 	return;

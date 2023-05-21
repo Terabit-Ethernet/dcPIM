@@ -201,6 +201,7 @@ void dcpim_message_hold(struct dcpim_message *msg);
 void dcpim_message_put(struct dcpim_message *msg);
 void dcpim_message_finish(struct dcpim_message_bucket *hashinfo, struct dcpim_message *msg);
 void dcpim_message_destroy(struct dcpim_message *msg);
+void dcpim_message_flush_skb(struct dcpim_message *msg);
 struct sk_buff* dcpim_message_get_fin(struct dcpim_message *msg);
 bool dcpim_message_receive_data(struct dcpim_message *msg, struct sk_buff *skb);
 int dcpim_fill_packets_message(struct sock* sk, struct dcpim_message *dcpim_msg,
@@ -212,9 +213,10 @@ int dcpim_handle_flow_sync_msg_pkt(struct sk_buff *skb);
 int dcpim_handle_fin_msg_pkt(struct sk_buff *skb);
 int dcpim_handle_fin_ack_msg_pkt(struct sk_buff *skb);
 enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer);
-void dcpim_msg_fin_bg_handler(struct dcpim_sock *dsk);
 enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer);
 void dcpim_msg_rtx_bg_handler(struct dcpim_sock *dsk);
+void dcpim_msg_fin_rx_bg_handler(struct dcpim_sock *dsk);
+void dcpim_msg_fin_tx_bg_handler(struct dcpim_sock *dsk);
 void dcpim_rtx_msg_handler(struct work_struct *work);
 struct sk_buff* construct_flow_sync_msg_pkt(struct sock* sk, __u64 message_id, 
 	uint32_t message_size, __u64 start_time);

@@ -787,12 +787,6 @@ void dcpim_send_all_rts (struct dcpim_epoch* epoch) {
 					dcpim_fill_dst_entry(host->sk, skb,&inet->cork.fl);
 					dcpim_fill_ip_header(skb, host->src_ip, host->dst_ip);
 					err = ip_local_out(sock_net(host->sk), host->sk, skb);
-					if(unlikely(err > 0)) {
-							// WARN_ON(true);
-							// kfree_skb(skb);
-						printk("local out fails: %d\n", err);
-						// net_xmit_eval(err);
-					}
 					flow_size -= rts_size;
 					if(flow_size <= 0)
 							break;

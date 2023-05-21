@@ -243,13 +243,87 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	return sent_len;
 }
 
+static inline bool dcpim_message_memory_free(struct sock* sk) {
+	struct dcpim_sock *dsk = dcpim_sk(sk);
+	return dsk->sender.inflight_msgs <= dsk->sender.msg_threshold && sk_stream_memory_free(sk);
+}
+/**
+ * dcpim_stream_wait_memory - Wait for more memory for a socket
+ * @sk: socket to wait for memory
+ * @timeo_p: for how long
+ */
+int dcpim_stream_wait_memory(struct sock *sk, long *timeo_p)
+{
+	int err = 0;
+	long vm_wait = 0;
+	long current_timeo = *timeo_p;
+	DEFINE_WAIT_FUNC(wait, woken_wake_function);
+
+	if (dcpim_message_memory_free(sk))
+		current_timeo = vm_wait = (prandom_u32() % (HZ / 5)) + 2;
+
+	add_wait_queue(sk_sleep(sk), &wait);
+
+	while (1) {
+		sk_set_bit(SOCKWQ_ASYNC_NOSPACE, sk);
+
+		if (sk->sk_err || (sk->sk_shutdown & SEND_SHUTDOWN))
+			goto do_error;
+		if (!*timeo_p)
+			goto do_eagain;
+		if (signal_pending(current))
+			goto do_interrupted;
+		sk_clear_bit(SOCKWQ_ASYNC_NOSPACE, sk);
+		if (dcpim_message_memory_free(sk) && !vm_wait)
+			break;
+
+		set_bit(SOCK_NOSPACE, &sk->sk_socket->flags);
+		sk->sk_write_pending++;
+		sk_wait_event(sk, &current_timeo, sk->sk_err ||
+						  (sk->sk_shutdown & SEND_SHUTDOWN) ||
+						  (dcpim_message_memory_free(sk) &&
+						  !vm_wait), &wait);
+		sk->sk_write_pending--;
+
+		if (vm_wait) {
+			vm_wait -= current_timeo;
+			current_timeo = *timeo_p;
+			if (current_timeo != MAX_SCHEDULE_TIMEOUT &&
+			    (current_timeo -= vm_wait) < 0)
+				current_timeo = 0;
+			vm_wait = 0;
+		}
+		*timeo_p = current_timeo;
+	}
+out:
+	remove_wait_queue(sk_sleep(sk), &wait);
+	return err;
+
+do_error:
+	err = -EPIPE;
+	goto out;
+do_eagain:
+	/* Make sure that whenever EAGAIN is returned, EPOLLOUT event can
+	 * be generated later.
+	 * When TCP receives ACK packets that make room, tcp_check_space()
+	 * only calls tcp_new_space() if SOCK_NOSPACE is set.
+	 */
+	set_bit(SOCK_NOSPACE, &sk->sk_socket->flags);
+	err = -EAGAIN;
+	goto out;
+do_interrupted:
+	err = sock_intr_errno(*timeo_p);
+	goto out;
+}
+
 int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	// DECLARE_SOCKADDR(struct sockaddr_in *, usin, msg->msg_name);
 	// int corkreq = up->corkflag || msg->msg_flags&MSG_MORE;
 	struct dcpim_sock *dsk = dcpim_sk(sk);
 	struct inet_sock *inet = inet_sk(sk);
 	int sent_len = 0;
-	// long timeo;
+	int err = 0;
+	long timeo;
 	int flags;
 	struct dcpim_message *dcpim_msg = dcpim_message_new(dsk, inet->inet_saddr, inet->inet_sport, inet->inet_daddr, inet->inet_dport, dsk->short_message_id, len);
 
@@ -261,12 +335,13 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	if (sk->sk_state != DCPIM_ESTABLISHED) {
 		return -ENOTCONN;
 	}
-
-	// if(sk_stream_wspace(sk) <= 0) {
-	// 	timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
-	// 	sk_stream_wait_memory(sk, &timeo);
-	// }
-
+	/* we allow the actual socket buffer size is one msg size larger than the limit */
+	if(dcpim_message_memory_free(sk) <= 0) {
+		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
+		err = dcpim_stream_wait_memory(sk, &timeo);
+		if(err != 0)
+			goto do_error;
+	}
 	sent_len = dcpim_fill_packets_message(sk, dcpim_msg, msg, len);
 	if(sent_len <= 0) {
 		dcpim_message_put(dcpim_msg);
@@ -280,6 +355,7 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	}
  	dsk->short_message_id++;
 	dcpim_msg->state = DCPIM_WAIT_FIN_TX;
+	dsk->sender.inflight_msgs++;
 	/* add msg into sender_msg_table */
 	local_bh_disable();
 	if(!dcpim_insert_message(dcpim_tx_messages, dcpim_msg)) {
@@ -290,12 +366,12 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	 * No need to hold the lock because we just initialize the message.
 	 * Flow sync packet currently doesn't 
 	 */
+	hrtimer_start(&dcpim_msg->rtx_timer, ns_to_ktime(dcpim_msg->timeout + dcpim_msg->total_len * 8 / dcpim_params.bandwidth) , 
+		HRTIMER_MODE_REL_PINNED_SOFT);
 	dcpim_xmit_control(construct_flow_sync_msg_pkt(sk, dcpim_msg->id, dcpim_msg->total_len, 0), sk); 
 	dcpim_xmit_data_whole_message(dcpim_msg, dsk);
 	/* Intiiate hrtimer for retransmission */
-	hrtimer_start(&dcpim_msg->rtx_timer, dcpim_msg->timeout + 
-		ns_to_ktime(dcpim_msg->total_len * 8 / dcpim_params.bandwidth) , HRTIMER_MODE_REL_PINNED_SOFT);
-	dcpim_message_hold(dcpim_msg);
+	// dcpim_message_hold(dcpim_msg);
 sent_done:
 	return sent_len;
 	// if(sent_len == 0) {
@@ -323,7 +399,8 @@ sent_done:
 	// } 
 	// bh_unlock_sock(sk);
 	// local_bh_enable();
-	return sent_len;
+do_error:
+	return sk_stream_error(sk, flags, err);
 }
 
 int dcpim_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
@@ -538,8 +615,11 @@ int dcpim_init_sock(struct sock *sk)
 	INIT_LIST_HEAD(&dsk->sender.rtx_msg_list);
 	INIT_LIST_HEAD(&dsk->sender.rtx_msg_backlog);
 	INIT_WORK(&dsk->sender.rtx_msg_work, dcpim_rtx_msg_handler);
-	WRITE_ONCE(dsk->sender.num_msgs, 0);
+	WRITE_ONCE(dsk->sender.num_rtx_msgs, 0);
 
+	WRITE_ONCE(dsk->sender.inflight_msgs, 0);
+	INIT_LIST_HEAD(&dsk->sender.fin_msg_backlog);
+	WRITE_ONCE(dsk->sender.msg_threshold, 50);
 	INIT_LIST_HEAD(&dsk->match_link);
 	INIT_LIST_HEAD(&dsk->entry);
 	dsk->host = NULL;

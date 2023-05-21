@@ -60,6 +60,7 @@ enum dcpimcsq_enum {
 	DCPIM_RTX_TOKEN_TIMER_DEFERRED,
 	DCPIM_RTX_FLOW_SYNC_DEFERRED,
 	DCPIM_MSG_RX_DEFERRED,
+	DCPIM_MSG_TX_DEFERRED,
 	DCPIM_MSG_RTX_DEFERRED, 
 };
 
@@ -75,6 +76,7 @@ enum dcpimcsq_flags {
 	DCPIMF_RTX_TOKEN_TIMER_DEFERRED = (1UL << DCPIM_RTX_TOKEN_TIMER_DEFERRED),
 	DCPIMF_RTX_FLOW_SYNC_DEFERRED = (1UL << DCPIM_RTX_FLOW_SYNC_DEFERRED),
 	DCPIMF_MSG_RX_DEFERRED = (1UL << DCPIM_MSG_RX_DEFERRED),
+	DCPIMF_MSG_TX_DEFERRED = (1UL << DCPIM_MSG_TX_DEFERRED),
 	DCPIMF_MSG_RTX_DEFERRED = (1UL << DCPIM_MSG_RTX_DEFERRED),
 };
 
@@ -185,10 +187,16 @@ struct dcpim_message {
 	uint32_t hash;
 
 	/**
-	 * @match_link: Used to link this object into
-	 * &dcpim_match_list (sender) or &dcpim_socket.message_list (receiver).
+	 * @table_link: Used to link this object into
+	 * &sender.rtx_msg_list (sender) or &receiver.msg_list (receiver).
 	 */
 	struct list_head table_link;
+
+	/**
+	 * @fin_link: Used to link this object into
+	 * &sender.fin_backlog (sender).
+	 */
+	struct list_head fin_link;
 
 	/**
 	 * @refcnt: The reference count of dcPIM message. When the count is 0,
@@ -665,7 +673,11 @@ struct dcpim_sock {
 		struct list_head rtx_msg_backlog;
 		atomic_t rtx_msg_bytes;
 		struct work_struct rtx_msg_work;
-		int num_msgs;
+		int num_rtx_msgs;
+
+		struct list_head fin_msg_backlog;
+		int inflight_msgs;
+		int msg_threshold;
 		/* DCPIM metric */
 	    // uint64_t first_byte_send_time;
 	    // uint64_t start_time;

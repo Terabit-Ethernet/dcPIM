@@ -54,6 +54,7 @@
 			  DCPIMF_RMEM_CHECK_DEFERRED | \
 			  DCPIMF_RTX_DEFERRED | \
 			  DCPIMF_MSG_RX_DEFERRED | \
+			  DCPIMF_MSG_TX_DEFERRED | \
 			  DCPIMF_MSG_RTX_DEFERRED | \
 			  DCPIMF_WAIT_DEFERRED)
 
@@ -484,6 +485,8 @@ int dcpim_fill_packets_message(struct sock* sk, struct dcpim_message *dcpim_msg,
 		sent_len += current_len;
 		dcpim_set_skb_gso_segs(skb, max_pkt_data + sizeof(struct data_segment));
 		skb_queue_tail(&dcpim_msg->pkt_queue, skb);
+		/* we allow the actual socket buffer size is one msg size larger than the limit */
+		sk_wmem_queued_add(sk, skb->truesize);
 		// dcpim_add_write_queue_tail(sk, skb);
 	}
 	WRITE_ONCE(write_seq, write_seq + sent_len);
@@ -747,13 +750,18 @@ void dcpim_release_cb(struct sock *sk)
 		__sock_put(sk);
 	}
 	if(flags & DCPIMF_MSG_RX_DEFERRED) {
-		dcpim_msg_fin_bg_handler(dcpim_sk(sk));
+		dcpim_msg_fin_rx_bg_handler(dcpim_sk(sk));
 		__sock_put(sk);
 	} 
+	if(flags & DCPIMF_MSG_TX_DEFERRED) {
+		dcpim_msg_fin_tx_bg_handler(dcpim_sk(sk));
+		__sock_put(sk);
+	}
 	if(flags & DCPIMF_MSG_RTX_DEFERRED) {
 		dcpim_msg_rtx_bg_handler(dcpim_sk(sk));
 		__sock_put(sk);
 	}
+
 	// if (flags & DCPIMF_WAIT_DEFERRED) {
 	// 	dcpim_flow_wait_handler(sk);
 	// }
@@ -1697,7 +1705,7 @@ void dcpim_rtx_msg_handler(struct work_struct *work) {
 	struct sock* sk = (struct sock*)dsk;
 	struct list_head *list, *temp;
 	struct dcpim_message *msg;
-	int num_msgs = 0;
+	int num_rtx_msgs = 0;
 	bool rtx = false, remove_message = false, established;
 	int tx_bytes, total_tx_bytes = atomic_read(&dsk->sender.rtx_msg_bytes);
 	ktime_t cur_time = ktime_get();
@@ -1709,13 +1717,13 @@ void dcpim_rtx_msg_handler(struct work_struct *work) {
 	established = ((struct sock*)dsk)->sk_state == DCPIM_ESTABLISHED;
 	if(!established)
 		goto release_sock;
-	num_msgs = dsk->sender.num_msgs;
+	num_rtx_msgs = dsk->sender.num_rtx_msgs;
 	list_for_each_safe(list, temp, &dsk->sender.rtx_msg_list) {
 		rtx = false;
 		remove_message = false;
 		msg = list_entry(list, struct dcpim_message, table_link);
 		list_del(&msg->table_link);
-		dsk->sender.num_msgs -= 1;
+		dsk->sender.num_rtx_msgs -= 1;
 		spin_lock_bh(&msg->lock);
 		if(msg->state == DCPIM_WAIT_FIN_TX) {
 			/* burst packets of short flows
@@ -1727,24 +1735,24 @@ void dcpim_rtx_msg_handler(struct work_struct *work) {
 				msg->last_rtx_time = ktime_get();
 			}
 			list_add_tail(&msg->table_link, &dsk->sender.rtx_msg_list);
-			dsk->sender.num_msgs += 1;
+			dsk->sender.num_rtx_msgs += 1;
 		} else if (msg->state == DCPIM_FINISH_TX)
 			remove_message = true;
-		spin_unlock_bh(&msg->lock);
 		if(rtx) {
 			dcpim_xmit_control(construct_flow_sync_msg_pkt(sk, msg->id, msg->total_len, 0), sk); 
 			dcpim_xmit_data_whole_message(msg, dsk);
 			/* at least transmit one short mtessage */
 			tx_bytes -= msg->total_len;
 		}
+		spin_unlock_bh(&msg->lock);
 		if(remove_message){
 			// dcpim_remove_message(dcpim_tx_messages, msg);
 			atomic_sub(msg->total_len, &msg->dsk->host->total_unsent_bytes);
 			atomic_sub(msg->total_len, &msg->dsk->host->rtx_msg_bytes);
 			dcpim_message_put(msg);
 		}
-		num_msgs -= 1;
-		if(num_msgs == 0 || tx_bytes <= 0)
+		num_rtx_msgs -= 1;
+		if(num_rtx_msgs == 0 || tx_bytes <= 0)
 			break;
 	}
 release_sock:
@@ -1773,6 +1781,7 @@ enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer) {
 	spin_lock(&msg->lock);
 	if(msg->state == DCPIM_WAIT_ACK) {
 		fin_skb = dcpim_message_get_fin(msg);
+		printk("rtx fin: %llu\n", msg->id);
 		spin_unlock(&msg->lock);
 		if(dev_queue_xmit(fin_skb)) {
 			WARN_ON_ONCE(true);
@@ -1789,7 +1798,7 @@ enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer) {
 				/* add msg_list to the head of rtx_msg_list */
 				list_add(&msg->table_link, &dsk->sender.rtx_msg_list);
 				dcpim_message_hold(msg);
-				dsk->sender.num_msgs += 1;
+				dsk->sender.num_rtx_msgs += 1;
 				/* add to total unsent bytes */
 				atomic_add(msg->total_len, &msg->dsk->host->total_unsent_bytes);
 				atomic_add(msg->total_len, &msg->dsk->host->rtx_msg_bytes);
@@ -1807,16 +1816,16 @@ enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer) {
 		bh_unlock_sock(sk);
 		if(remove_msg)
 			dcpim_remove_message(dcpim_tx_messages, msg);
-		dcpim_message_put(msg);
+		// dcpim_message_put(msg);
 		return HRTIMER_NORESTART;
 	} else if (msg->state == DCPIM_WAIT_FIN_RX || msg->state == DCPIM_INIT)
 		WARN_ON(true);
 	spin_unlock(&msg->lock);
-	dcpim_message_put(msg);
+	// dcpim_message_put(msg);
 	return HRTIMER_NORESTART;
 }
 
-void dcpim_msg_fin_bg_handler(struct dcpim_sock *dsk) {
+void dcpim_msg_fin_rx_bg_handler(struct dcpim_sock *dsk) {
 	struct list_head *list, *temp;
 	struct dcpim_message *msg;
 	/* for now, only add to list if dsk is in established state. */
@@ -1835,6 +1844,25 @@ void dcpim_msg_fin_bg_handler(struct dcpim_sock *dsk) {
 	}
 }
 
+void dcpim_msg_fin_tx_bg_handler(struct dcpim_sock *dsk) {
+	struct list_head *list, *temp;
+	struct dcpim_message *msg;
+	/* for now, only add to list if dsk is in established state. */
+	bool established = ((struct sock*)dsk)->sk_state == DCPIM_ESTABLISHED;
+	list_for_each_safe(list, temp, &dsk->sender.fin_msg_backlog) {
+		msg = list_entry(list, struct dcpim_message, fin_link);
+		list_del(&msg->fin_link);
+		if(established) {
+			dsk->sender.inflight_msgs--;
+			spin_lock(&msg->lock);
+			dcpim_message_flush_skb(msg);
+			spin_unlock(&msg->lock);
+			sk_stream_write_space((struct sock*)dsk);
+		}
+		dcpim_message_put(msg);
+	}
+}
+
 void dcpim_msg_rtx_bg_handler(struct dcpim_sock *dsk) {
 	struct list_head *list, *temp;
 	struct dcpim_message *msg;
@@ -1846,7 +1874,7 @@ void dcpim_msg_rtx_bg_handler(struct dcpim_sock *dsk) {
 		if(established) {
 			/* add to the head of rtx_msg_list */
 			list_add(&msg->table_link, &dsk->sender.rtx_msg_list);
-			dsk->sender.num_msgs += 1;
+			dsk->sender.num_rtx_msgs += 1;
 			/* add to total unsent bytes */
 			atomic_add(msg->total_len, &msg->dsk->host->total_unsent_bytes);
 			atomic_add(msg->total_len, &msg->dsk->host->rtx_msg_bytes);
