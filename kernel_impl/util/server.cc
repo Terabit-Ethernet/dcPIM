@@ -1,6 +1,5 @@
 /* This is a test program that acts as a server for testing either
- * dcPIM or TCP; it simply accepts request packets of arbitrary length
- * and responds with packets whose length is determined by the request.
+ * dcPIM or TCP.
  * The program runs forever; use control-C to kill it.
  *
  * Usage:
@@ -246,71 +245,12 @@ void dcpim_connection(int fd, struct sockaddr_in source)
 
 			// return;
 		}
-		// printf("buffer:%s\n", buffer);
 		total_length += result;
 		count++;
 		if (result == 0)
 			break;
 		std::atomic_fetch_add(&agg_stats.interval_bytes, (unsigned long)result);
 		std::atomic_fetch_add(&agg_stats.total_bytes, (unsigned long)result);
-
-		// if(count % 1000 == 0) {
-		// 	end_cycle = rdtsc();
-		// 	printf("count:%lu\n", count);
-		// 	double rate = ((double) total_length)/ to_seconds(
-		// 		end_cycle - start_cycle);
-		// 	// if(count != 0) {
-		// 	// 	printf("DCPIM throughput: "
-		// 	// 	"%.2f Gbps, bytes: %f, time: %f\n", rate * 1e-09 * 8, (double) total_length, to_seconds(
-		// 	// 	end_cycle - start_cycle));
-		// 	// }
-		// 	total_length = 0;
-
-		// 	start_cycle = rdtsc();
-		// }
-		// /* The connection can be used in two modes. If the first
-		//  * word received is -1, then the connection is in streaming
-		//  * mode: we just read bytes and throw them away. If the
-		//  * first word isn't -1, then it's in message mode: we read
-		//  * full messages and respond to them.
-		//  */
-		// if (streaming)
-		// 	continue;
-		// if (int_buffer[0] < 0) {
-		// 	streaming = true;
-		// 	continue;
-		// }
-		// cur_length += result;
-
-		// /* First word of request contains expected length in bytes. */
-		// if ((cur_length >= 2*sizeof32(int))
-		// 		&& (cur_length >= int_buffer[0])) {
-		// 	if (cur_length != int_buffer[0])
-		// 		printf("Received %d bytes but buffer[0] = %d, "
-		// 			"buffer[1] = %d\n",
-		// 			cur_length, int_buffer[0],
-		// 			int_buffer[1]);
-		// 	if (validate) {
-		// 		int seed = check_buffer(&int_buffer[2],
-		// 			int_buffer[0] - 2*sizeof32(int));
-		// 		if (verbose)
-		// 			printf("Received message from %s with "
-		// 				"%d bytes, seed %d\n",
-		// 				print_address(&source),
-		// 				int_buffer[0], seed);
-		// 	} else if (verbose)
-		// 		printf("Received message from %s with %d "
-		// 			"bytes\n",
-		// 			print_address(&source), int_buffer[0]);
-		// 	cur_length = 0;
-		// 	if (int_buffer[1] <= 0)
-		// 		continue;
-		// 	if (write(fd, buffer, int_buffer[1]) != int_buffer[1]) {
-		// 		printf("Socket write failed: %s\n",
-		// 				strerror(errno));
-		// 		exit(1);
-		// 	};
-		// }
 	}
 		printf("done!");
 	if (verbose)
@@ -452,11 +392,6 @@ void udp_server(int port)
  */
 void dcpim_server(int port, bool pin)
 {
-	// char buffer[1000000];
-	// int result = 0;
-	// uint64_t start_cycle = 0, end_cycle = 0;
-	// uint64_t total_length = 0;
-	// int count = 0;
 	int listen_fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCPIM);
 	if (listen_fd == -1) {
 		printf("Couldn't open server socket: %s\n", strerror(errno));
@@ -506,41 +441,6 @@ void dcpim_server(int port, bool pin)
 		}
 		thread.detach();
 	}
-	// while (1) {
-	// 	struct sockaddr_in client_addr;
-	// 	socklen_t addr_len = sizeof(client_addr);
-
-	// 	result = recvfrom(listen_fd, (char *)buffer, sizeof(buffer),  
- //                MSG_WAITALL, ( struct sockaddr *) &client_addr, 
- //                &addr_len);
-	// 	// printf("%s", buffer);
-	// 	// printf("%c\n",  buffer[63999]);
-	// 	// printf("len: %d\n", result);
-	// 	if (result < 0) {
-	// 		if (errno == ECONNRESET)
-	// 			break;
-	// 		printf("Read error on socket: %s", strerror(errno));
-	// 		exit(1);
-	// 	}
-	// 	if (result == 0)
-	// 		break;
-	// 	if(count % 50000 == 0) {
-	// 		end_cycle = rdtsc();
-			
-	// 		double rate = ((double) total_length)/ to_seconds(
-	// 			end_cycle - start_cycle);
-	// 		total_length = 0;
-
-	// 		start_cycle = rdtsc();
-	// 		if(count != 0) {
-	// 			printf("DCPIM throughput: "
-	// 			"%.2f Gbps\n", rate * 1e-09 * 8);
-	// 		}
-	// 	}
-	// 	total_length += result;
-	// 	count += 1;
-	// }
-
 }
 
 int main(int argc, char** argv) {
