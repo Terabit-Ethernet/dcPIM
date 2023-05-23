@@ -51,7 +51,7 @@ sudo insmod dcpim_module.ko
 sudo rmmod dcpim_module.ko
 ```
 ## Application Interface 
-Will add soon 
+Coming soon.
 
 ## Run Sample Program
 1. Go to `util` folder, and on the server side
@@ -71,4 +71,4 @@ sudo -s
 The first prototype is close to be finished. More testing are needed to be done.
 
 ## What is the kernel patch for?
-Will add soon.
+Coming soon.
