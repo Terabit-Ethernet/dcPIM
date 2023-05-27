@@ -51,7 +51,20 @@ sudo insmod dcpim_module.ko
 sudo rmmod dcpim_module.ko
 ```
 ## Application Interface 
-Coming soon.
+dcPIM use standard socket interface and connect/accept/read/write syscalls which are same to TCP sockets. The example can be found at `util/dcpim_test.cc` (client code) and `util/server.cc` (server side).
+
+The only two differences:
+
+1. when creating socket,
+we need to specify for dcPIM socket.
+```
+fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCPIM);
+```
+
+2. To transmit short flows which bypass matching except retransmission, before perform connect system call on the client side,
+set socket priority to the highest priority:
+
+
 
 ## Run Sample Program
 1. Go to `util` folder, and on the server side
