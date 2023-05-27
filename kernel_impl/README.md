@@ -1,7 +1,7 @@
 # dcPIM Kernel Implementation
 
 
-## Install Kernel
+## Install kernel
 The default version is 6.0.3. On Ubuntu 20.04, you can use the following instructions to build and install the kernel.
 
 1. Download Linux kernel source directory.
@@ -39,7 +39,7 @@ sudo make modules_install
 sudo make install
 ```
 
-## Install Module 
+## Install module 
 1. Enter the directory, compile the module and install the module.
 ```
 cd dcpim_kernel
@@ -50,7 +50,7 @@ sudo insmod dcpim_module.ko
 ```
 sudo rmmod dcpim_module.ko
 ```
-## Application Interface 
+## Application interface 
 dcPIM utilizes a standard socket interface, making use of the connect/accept/read/write syscalls that are similar to TCP sockets. The provided example can be found in the following files:
 `util/dcpim_test.cc` (client code),
 `util/server.cc` (server side).
@@ -69,12 +69,12 @@ setsockopt(fd, SOL_SOCKET, SO_PRIORITY, &priority, sizeof(priority));
 ```
 It's important to note that data sent via a single send system call is treated as one short flow.
 
-## Run Sample Program
+## Run sample application
 
 Go to `util` folder, and on the server side
 ```
 cd util
-sudo taskset -c 0 /home/qizhe/dcpim_kernel/util/server --ip 192.168.10.125 --port 4000 --pin 
+sudo taskset -c 0 ./server --ip 192.168.10.125 --port 4000 --pin 
 ```
 
 On the client side,
