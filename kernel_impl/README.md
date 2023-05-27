@@ -51,32 +51,36 @@ sudo insmod dcpim_module.ko
 sudo rmmod dcpim_module.ko
 ```
 ## Application Interface 
-dcPIM use standard socket interface and connect/accept/read/write syscalls which are same to TCP sockets. The example can be found at `util/dcpim_test.cc` (client code) and `util/server.cc` (server side).
+dcPIM utilizes a standard socket interface, making use of the connect/accept/read/write syscalls that are similar to TCP sockets. The provided example can be found in the following files:
+`util/dcpim_test.cc` (client code),
+`util/server.cc` (server side).
 
-The only two differences:
+There are only two key distinctions from TCP sockets:
 
-1. when creating socket,
-we need to specify for dcPIM socket.
+1. When creating socket, we need to specify for dcPIM socket.
 ```
 fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCPIM);
 ```
 
-2. To transmit short flows which bypass matching except retransmission, before perform connect system call on the client side,
-set socket priority to the highest priority:
-
-
+2. Each socket corresponds to a long flow and is only transmitted when matching is approved. In order to transmit short flows that bypass matching, excluding retransmission, prior to performing the connect system call on the client side, the socket priority should be set to the highest priority using the following code:
+```
+int priority = 7;
+setsockopt(fd, SOL_SOCKET, SO_PRIORITY, &priority, sizeof(priority));
+```
+It's important to note that data sent via a single send system call is treated as one short flow.
 
 ## Run Sample Program
-1. Go to `util` folder, and on the server side
+
+Go to `util` folder, and on the server side
 ```
 cd util
-./run_server.sh 1
+sudo taskset -c 0 /home/qizhe/dcpim_kernel/util/server --ip 192.168.10.125 --port 4000 --pin 
 ```
+
 On the client side,
 ```
 cd util
-sudo -s
-./run_client.sh 1 0
+sudo ./dcpim_test 192.168.10.125:4000 --sp 100000 --count 1 dcpimping
 ```
 
 
