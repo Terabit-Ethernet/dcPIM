@@ -88,4 +88,16 @@ sudo ./dcpim_test 192.168.10.125:4000 --sp 100000 --count 1 dcpimping
 The first prototype is close to be finished. More testing are needed to be done.
 
 ## What is the kernel patch for?
-Coming soon.
+Modern NICs often come equipped with multiple hardware (HW) queues, with each HW queue corresponding to a CPU core. In the RX data path, when a packet is received, the NIC may calculate its hash and distribute it to a dedicated HW queue based on this hash. The hash value can be determined by either the five tuples or the two tuples (source and destination IP addresses). Typically, for TCP or UDP traffic, packets belonging to different flows can be routed to different HW queues based on their five tuples. This enables multiple CPU cores to be activated for processing packets, resulting in optimal performance.
+
+However, when introducing a new protocol like dcPIM, the NIC is unable to recognize its protocol number or understand the packet header format. Consequently, the NIC distributes packets based solely on the two tuples (source and destination IP addresses). As a result, a single CPU core may become a bottleneck in the system.
+
+To address this issue, the current temporary solution employed by dcPIM is to utilize the TCP protocol number but modify one bit in the Type of Service (TOS) field of the IP header. This modification indicates that the packets are dcPIM packets, allowing for their distribution across multiple cores on the RX side. However, it is crucial for the operating system (OS) on the RX side to revert the header format back to its original state before reaching the network layer. It is expected that with future HW support, this workaround will no longer be necessary.
+
+In the event that you prefer not to modify your kernel, you can simply run the following command:
+```
+sed -i -e 's/IPPROTO_TCP/IPPROTO_DCPIM/g' dcpim_outgoing.c
+```
+After making this change, recompile the module to ensure the desired functionality.
+
+Please note that the above solution serves as a temporary measure and we anticipate further advancements with HW support in the future.
