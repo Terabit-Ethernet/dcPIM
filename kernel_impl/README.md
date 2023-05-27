@@ -4,7 +4,7 @@
 ## Install Kernel
 The default version is 6.0.3. On Ubuntu 20.04, you can use the following instructions to build and install the kernel.
 
-1. Download Linux kernel source tree.
+1. Download Linux kernel source directory.
 
 ```
 cd ~
