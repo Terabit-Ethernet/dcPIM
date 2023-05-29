@@ -61,9 +61,12 @@ The workloads that provided in this repo are imc10, websearch and datamining.
 
 ### Configure Cloudlab Machines
 We conduct our experiment using the [m510](http://docs.cloudlab.us/hardware.html#%28part._cloudlab-utah%29) machines available at CloudLab.
-The attachment in the Hotcrp contains the cloudlab account info and private/public key pairs and the passcode.
-1. Login the [Cloudlab](https://www.cloudlab.us).  
-2. Find the [dcpim_chassis](https://www.cloudlab.us/p/ba9b05f3790cb9f88e84a10f480fb3193dd4d56c) profile in the Project Profiles and instantiate the profile (using chassis 13) to start the experiments.
+For your convenience, we have provided two profiles that you can choose from to initiate the experiment:
+
+dcpim_chassis.py: This profile requires you to reserve an entire chassis in m510 clusters in advance. To proceed with the reservation, please send an email to the CloudLab team, specifying your requirements.
+
+dcpim_m510.xml: This profile does not necessitate manual reservation through email. However, please note that the servers utilized may not belong to the same chassis. As a result, there may be slightly larger latency variance, although still within an acceptable range (<20 us).
+
 
 ### Run experiments
 
