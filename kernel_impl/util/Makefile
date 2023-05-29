@@ -2,7 +2,7 @@
 
 CFLAGS := -Wall -Werror -fno-strict-aliasing -O3 -I..
 
-BINS := tcp_mmap dcpim_test  server
+BINS := pingpong_client pingpong_server tcp_mmap dcpim_test  server
 
 OBJS := $(patsubst %,%.o,$(BINS))
 	
