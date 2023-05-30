@@ -105,7 +105,7 @@ void nd_pingpong()
 	// int flag = 1;
 	int fd = 0;
 	Conn_Data data;
-	int optval = 6;
+	int optval = 7;
 	unsigned optlen = 0;
 	char *buffer = (char*)malloc(2359104);
 	int flag;
