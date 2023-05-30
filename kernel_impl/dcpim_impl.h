@@ -230,7 +230,7 @@ struct dcpim_message* dcpim_lookup_message(struct dcpim_message_bucket *hashinfo
 				  const __be32 daddr, const u16 dport,
 				  const uint64_t id);
 bool dcpim_insert_message(struct dcpim_message_bucket *hashinfo, struct dcpim_message* msg);
-void dcpim_remove_message(struct dcpim_message_bucket *hashinfo, struct dcpim_message* msg);
+void dcpim_remove_message(struct dcpim_message_bucket *hashinfo, struct dcpim_message* msg, bool cancel_timer);
 
 #ifdef CONFIG_PROC_FS
 int udp4_seq_show(struct seq_file *seq, void *v);
