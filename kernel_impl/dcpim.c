@@ -557,7 +557,7 @@ void dcpim_destruct_sock(struct sock *sk)
 		spin_lock(&temp->lock);
 		temp->state = DCPIM_FINISH_RX;
 		spin_unlock(&temp->lock);
-		dcpim_remove_message(dcpim_rx_messages, temp);
+		dcpim_remove_message(dcpim_rx_messages, temp, true);
 		dcpim_message_put(temp);
 	}
 	local_bh_enable();
@@ -619,7 +619,7 @@ int dcpim_init_sock(struct sock *sk)
 
 	WRITE_ONCE(dsk->sender.inflight_msgs, 0);
 	INIT_LIST_HEAD(&dsk->sender.fin_msg_backlog);
-	WRITE_ONCE(dsk->sender.msg_threshold, 50);
+	WRITE_ONCE(dsk->sender.msg_threshold, 200);
 	INIT_LIST_HEAD(&dsk->match_link);
 	INIT_LIST_HEAD(&dsk->entry);
 	dsk->host = NULL;
@@ -1325,7 +1325,10 @@ void dcpim_flush_msgs_handler(struct dcpim_sock *dsk) {
 		atomic_sub(msg->total_len, &msg->dsk->host->total_unsent_bytes);
 		atomic_sub(msg->total_len, &msg->dsk->host->rtx_msg_bytes);
 		/* don't check the state since number of locks needed to get are the same here */
-		dcpim_remove_message(dcpim_tx_messages, msg);
+		spin_lock_bh(&msg->lock);
+		dcpim_message_flush_skb(msg);
+		spin_unlock_bh(&msg->lock);
+		dcpim_remove_message(dcpim_tx_messages, msg, true);
 		dcpim_message_put(msg);
 	}
 	list_for_each_safe(list, temp, &dsk->receiver.msg_list) {

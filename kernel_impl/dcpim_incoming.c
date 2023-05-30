@@ -1388,6 +1388,7 @@ int dcpim_handle_flow_sync_msg_pkt(struct sk_buff *skb) {
 		WARN_ON(true);
 		goto drop;
 	}
+	printk("recv msg new\n");
 	msg->state = DCPIM_WAIT_FIN_RX;
 	bh_lock_sock(sk);
 	success = dcpim_handle_msgid_entry(msg, dcpim_sk(sk));
@@ -1442,6 +1443,8 @@ int dcpim_handle_data_msg_pkt(struct sk_buff *skb) {
 
 	bool refcounted = false;
 	bool is_complete = false;
+	printk("recv data msg\n");
+
 	if (!pskb_may_pull(skb, sizeof(struct dcpim_data_hdr)))
 		goto drop;		/* No space for header. */
 	dh =  dcpim_data_hdr(skb);
@@ -1475,6 +1478,7 @@ int dcpim_handle_data_msg_pkt(struct sk_buff *skb) {
 		if(dev_queue_xmit(fin_skb)) {
 			WARN_ON_ONCE(true);
 		}
+		printk("pass to upper layer\n");
 
 		// msg->fin_skb = NULL;
 		/* add to socket */
@@ -1542,7 +1546,7 @@ int dcpim_handle_fin_msg_pkt(struct sk_buff *skb) {
 	}
 
 	if(msg) {
-		dcpim_remove_message(dcpim_tx_messages, msg);
+		dcpim_remove_message(dcpim_tx_messages, msg, true);
 		dsk = msg->dsk;
 		sk = (struct sock*)dsk;
 		bh_lock_sock(sk);
@@ -1592,7 +1596,7 @@ int dcpim_handle_fin_ack_msg_pkt(struct sk_buff *skb) {
 	fh =  dcpim_fin_ack_hdr(skb);
 	msg = dcpim_lookup_message(dcpim_rx_messages,  iph->daddr, fh->common.dest, iph->saddr, fh->common.source, fh->message_id);
 	if(msg) {
-		dcpim_remove_message(dcpim_rx_messages, msg);
+		dcpim_remove_message(dcpim_rx_messages, msg, true);
 		spin_lock(&msg->lock);
 		if(msg->state == DCPIM_WAIT_ACK)
 			msg->state = DCPIM_FINISH_RX;

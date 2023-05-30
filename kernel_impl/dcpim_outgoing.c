@@ -1813,8 +1813,12 @@ enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer) {
 			}
 		}
 		bh_unlock_sock(sk);
-		if(remove_msg)
-			dcpim_remove_message(dcpim_tx_messages, msg);
+		if(remove_msg) {
+			spin_lock_bh(&msg->lock);
+			dcpim_message_flush_skb(msg);
+			spin_unlock_bh(&msg->lock);
+			dcpim_remove_message(dcpim_tx_messages, msg, false);
+		}
 		// dcpim_message_put(msg);
 		return HRTIMER_NORESTART;
 	} else if (msg->state == DCPIM_WAIT_FIN_RX || msg->state == DCPIM_INIT)
@@ -1880,7 +1884,10 @@ void dcpim_msg_rtx_bg_handler(struct dcpim_sock *dsk) {
 		}
 		else {
 			/* remove message since the socket is closed */
-			dcpim_remove_message(dcpim_tx_messages, msg);
+			spin_lock_bh(&msg->lock);
+			dcpim_message_flush_skb(msg);
+			spin_unlock_bh(&msg->lock);
+			dcpim_remove_message(dcpim_tx_messages, msg, true);
 			dcpim_message_put(msg);
 		}
 	}

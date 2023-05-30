@@ -180,8 +180,7 @@ void dcpim_message_flush_skb(struct dcpim_message *msg) {
 	// hrtimer_cancel(&msg->rtx_timer);
 	// tx = (msg->state == DCPIM_WAIT_FIN_TX || msg->state == DCPIM_FIN_TX);
 	skb_queue_walk_safe(&msg->pkt_queue, skb, n) {
-		if(msg->state == DCPIM_FINISH_TX)
-			sk_wmem_queued_add((struct sock*)msg->dsk, -skb->truesize);
+		sk_wmem_queued_add((struct sock*)msg->dsk, -skb->truesize);
 		kfree_skb(skb);
 	}
 	skb_queue_head_init(&msg->pkt_queue);
@@ -433,7 +432,7 @@ bool dcpim_insert_message(struct dcpim_message_bucket *hashinfo, struct dcpim_me
 }
 
 /* remove message from hash table and also cancenl the hrtimer; The message is done in the transport layer. */
-void dcpim_remove_message(struct dcpim_message_bucket *hashinfo, struct dcpim_message *msg)
+void dcpim_remove_message(struct dcpim_message_bucket *hashinfo, struct dcpim_message *msg, bool cancel_timer)
 {
 	unsigned int slot; 
 	struct dcpim_message_bucket *head;
@@ -450,7 +449,8 @@ void dcpim_remove_message(struct dcpim_message_bucket *hashinfo, struct dcpim_me
 	hlist_del_init(&msg->hash_link);
 	spin_unlock(lock);
 	/* remove hrtimer */
-	hrtimer_cancel(&msg->rtx_timer);
+	if(cancel_timer)
+		hrtimer_cancel(&msg->rtx_timer);
 	/* need to sync for deletion */
 	dcpim_message_put(msg);
 	return;
