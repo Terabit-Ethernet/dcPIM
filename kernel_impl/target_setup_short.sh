@@ -5,37 +5,37 @@ cd /home/qizhe/synergylab-hardware
 python /home/qizhe/synergylab-hardware/setup-arps.py ens2f0
 cd -
 sudo ethtool -U ens2f0 flow-type tcp4 src-port 10000 dst-port 10000 action 0 loc 0
-sudo ethtool -U ens2f0 flow-type tcp4 src-port 10001 dst-port 10000 action 7 loc 1
+sudo ethtool -U ens2f0 flow-type tcp4 src-port 10001 dst-port 10000 action 8 loc 1
 sudo ethtool -U ens2f0 flow-type tcp4 src-port 10002 dst-port 10000 action 0 loc 2
-sudo ethtool -U ens2f0 flow-type tcp4 src-port 10003 dst-port 10000 action 7 loc 3
+sudo ethtool -U ens2f0 flow-type tcp4 src-port 10003 dst-port 10000 action 8 loc 3
 sudo ethtool -U ens2f0 flow-type tcp4 src-port 10004 dst-port 10000 action 0 loc 4
-sudo ethtool -U ens2f0 flow-type tcp4 src-port 10005 dst-port 10000 action 7 loc 5
+sudo ethtool -U ens2f0 flow-type tcp4 src-port 10005 dst-port 10000 action 8 loc 5
 sudo ethtool -U ens2f0 flow-type tcp4 src-port 10006 dst-port 10000 action 0 loc 6
-sudo ethtool -U ens2f0 flow-type tcp4 src-port 10007 dst-port 10000 action 7 loc 7
+sudo ethtool -U ens2f0 flow-type tcp4 src-port 10007 dst-port 10000 action 8 loc 7
 sudo ethtool -U ens2f0 flow-type tcp4 src-port 10008 dst-port 10000 action 0 loc 8
-sudo ethtool -U ens2f0 flow-type tcp4 src-port 10009 dst-port 10000 action 7 loc 9
+sudo ethtool -U ens2f0 flow-type tcp4 src-port 10009 dst-port 10000 action 8 loc 9
 sudo ethtool -U ens2f0 flow-type tcp4 src-port 10010 dst-port 10000 action 0 loc 10
-sudo ethtool -U ens2f0 flow-type tcp4 src-port 10011 dst-port 10000 action 7 loc 11
+sudo ethtool -U ens2f0 flow-type tcp4 src-port 10011 dst-port 10000 action 8 loc 11
 sudo ethtool -U ens2f0 flow-type tcp4 src-port 10012 dst-port 10000 action 0 loc 12
-sudo ethtool -U ens2f0 flow-type tcp4 src-port 10013 dst-port 10000 action 7 loc 13
+sudo ethtool -U ens2f0 flow-type tcp4 src-port 10013 dst-port 10000 action 8 loc 13
 sudo ethtool -U ens2f0 flow-type tcp4 src-port 10014 dst-port 10000 action 0 loc 14
-sudo ethtool -U ens2f0 flow-type tcp4 src-port 10015 dst-port 10000 action 7 loc 15
+sudo ethtool -U ens2f0 flow-type tcp4 src-port 10015 dst-port 10000 action 8 loc 15
 sudo ethtool -U ens2f0 flow-type tcp4 src-port 10016 dst-port 10000 action 0 loc 16
-sudo ethtool -U ens2f0 flow-type tcp4 src-port 10017 dst-port 10000 action 7 loc 17
+sudo ethtool -U ens2f0 flow-type tcp4 src-port 10017 dst-port 10000 action 8 loc 17
 sudo ethtool -U ens2f0 flow-type tcp4 src-port 10018 dst-port 10000 action 0 loc 18
-sudo ethtool -U ens2f0 flow-type tcp4 src-port 10019 dst-port 10000 action 7 loc 19
+sudo ethtool -U ens2f0 flow-type tcp4 src-port 10019 dst-port 10000 action 8 loc 19
 sudo ethtool -U ens2f0 flow-type tcp4 src-port 10020 dst-port 10000 action 0 loc 20
-sudo ethtool -U ens2f0 flow-type tcp4 src-port 10021 dst-port 10000 action 7 loc 21
+sudo ethtool -U ens2f0 flow-type tcp4 src-port 10021 dst-port 10000 action 8 loc 21
 sudo ethtool -U ens2f0 flow-type tcp4 src-port 10022 dst-port 10000 action 0 loc 22
-sudo ethtool -U ens2f0 flow-type tcp4 src-port 10023 dst-port 10000 action 7 loc 23
+sudo ethtool -U ens2f0 flow-type tcp4 src-port 10023 dst-port 10000 action 8 loc 23
 sudo ethtool -U ens2f0 flow-type tcp4 src-port 10024 dst-port 10000 action 0 loc 24
-sudo ethtool -U ens2f0 flow-type tcp4 src-port 10025 dst-port 10000 action 7 loc 25
+sudo ethtool -U ens2f0 flow-type tcp4 src-port 10025 dst-port 10000 action 8 loc 25
 sudo ethtool -U ens2f0 flow-type tcp4 src-port 10026 dst-port 10000 action 0 loc 26
-sudo ethtool -U ens2f0 flow-type tcp4 src-port 10027 dst-port 10000 action 7 loc 27
+sudo ethtool -U ens2f0 flow-type tcp4 src-port 10027 dst-port 10000 action 8 loc 27
 sudo ethtool -U ens2f0 flow-type tcp4 src-port 10028 dst-port 10000 action 0 loc 28
-sudo ethtool -U ens2f0 flow-type tcp4 src-port 10029 dst-port 10000 action 7 loc 29
+sudo ethtool -U ens2f0 flow-type tcp4 src-port 10029 dst-port 10000 action 8 loc 29
 sudo ethtool -U ens2f0 flow-type tcp4 src-port 10030 dst-port 10000 action 0 loc 30
-sudo ethtool -U ens2f0 flow-type tcp4 src-port 10031 dst-port 10000 action 7 loc 31
+sudo ethtool -U ens2f0 flow-type tcp4 src-port 10031 dst-port 10000 action 8 loc 31
 
 
 sudo ethtool -U ens2f0 flow-type tcp4 src-port 0 dst-port 0 action 0 loc 32
