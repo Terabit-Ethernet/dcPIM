@@ -40,7 +40,7 @@ sudo ifconfig $INTF mtu 9000
 #sudo ifconfig $INTF $TARGET
 # Enable aRFS and configure network
 sudo service irqbalance stop
-sudo ethtool -C $INTF adaptive-rx off adaptive-tx off
+sudo ethtool -C $INTF adaptive-rx off adaptive-tx off rx-usecs 6
 sudo ethtool -K $INTF ntuple off  gro on gso on tso on lro off
 #echo 32768 | sudo tee /proc/sys/net/core/rps_sock_flow_entries
 #for f in /sys/class/net/$INTF/queues/rx-*/rps_flow_cnt; do echo 32768 | sudo tee $f; done
