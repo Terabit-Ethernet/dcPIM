@@ -1785,7 +1785,7 @@ enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer) {
 		if(dev_queue_xmit(fin_skb)) {
 			WARN_ON_ONCE(true);
 		}
-		hrtimer_forward_now(timer, dcpim_params.rtx_messages * ns_to_ktime(dcpim_params.control_pkt_rtt * 1000));
+		hrtimer_forward_now(timer, msg->timeout);
 		return HRTIMER_RESTART;
 	} else if (msg->state == DCPIM_WAIT_FIN_TX) {
 		spin_unlock(&msg->lock);
