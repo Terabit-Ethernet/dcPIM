@@ -18,7 +18,6 @@
 #include "dcpim_hashtables.h"
 
 struct inet_timewait_death_row dcpim_death_row = {
-	.tw_refcount = REFCOUNT_INIT(1),
 	.sysctl_max_tw_buckets = NR_FILE * 2,
 	.hashinfo	= &dcpim_hashinfo,
 };
@@ -134,7 +133,7 @@ int dcpim_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	orig_sport = inet->inet_sport;
 	orig_dport = usin->sin_port;
 	fl4 = &inet->cork.fl.u.ip4;
-	rt = ip_route_connect(fl4, nexthop, inet->inet_saddr, sk->sk_bound_dev_if,
+	rt = ip_route_connect(fl4, nexthop, inet->inet_saddr, RT_CONN_FLAGS(sk), sk->sk_bound_dev_if,
 			      IPPROTO_DCPIM,
 			      orig_sport, orig_dport, sk);
 	if (IS_ERR(rt)) {
@@ -204,7 +203,7 @@ int dcpim_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 		// sk->sk_rx_dst = &rt->dst;
 		// inet_sk(sk)->rx_dst_ifindex = rt->rt_iif;
 		rcu_assign_pointer(sk->sk_rx_dst, &rt->dst);
-		sk->sk_rx_dst_ifindex = rt->rt_iif;
+		inet_sk(sk)->rx_dst_ifindex = rt->rt_iif;
 	}
 	rt = NULL;
 
@@ -302,7 +301,7 @@ int dcpim_listen(struct socket *sock, int backlog)
 		// 	fastopen_queue_tune(sk, backlog);
 		// 	tcp_fastopen_init_key_once(sock_net(sk));
 		// }
-		err = inet_csk_listen_start(sk);
+		err = inet_csk_listen_start(sk, backlog);
 		if (err)
 			goto out;
 		// tcp_call_bpf(sk, BPF_SOCK_OPS_TCP_LISTEN_CB, 0, NULL);
@@ -531,7 +530,7 @@ void inet_sk_rx_dst_set(struct sock *sk, const struct sk_buff *skb)
 
 	if (dst && dst_hold_safe(dst)) {
 		rcu_assign_pointer(sk->sk_rx_dst, dst);
-		sk->sk_rx_dst_ifindex = skb->skb_iif;
+		inet_sk(sk)->rx_dst_ifindex = skb->skb_iif;
 	}
 }
 /*

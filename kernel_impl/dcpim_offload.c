@@ -14,23 +14,10 @@ int skb_gro_receive(struct sk_buff *p, struct sk_buff *skb)
 	unsigned int headlen = skb_headlen(skb);
 	unsigned int len = skb_gro_len(skb);
 	unsigned int delta_truesize;
-	unsigned int gro_max_size;
-	unsigned int new_truesize;
 	struct sk_buff *lp;
 
-	/* pairs with WRITE_ONCE() in netif_set_gro_max_size() */
-	gro_max_size = READ_ONCE(p->dev->gro_max_size);
-
-	if (unlikely(p->len + len >= gro_max_size || NAPI_GRO_CB(skb)->flush))
+	if (unlikely(p->len + len >= 65536 || NAPI_GRO_CB(skb)->flush))
 		return -E2BIG;
-
-	if (unlikely(p->len + len >= GRO_LEGACY_MAX_SIZE)) {
-		if (p->protocol != htons(ETH_P_IPV6) ||
-		    skb_headroom(p) < sizeof(struct hop_jumbo_hdr) ||
-		    ipv6_hdr(p)->nexthdr != IPPROTO_TCP ||
-		    p->encapsulation)
-			return -E2BIG;
-	}
 
 	lp = NAPI_GRO_CB(p)->last;
 	pinfo = skb_shinfo(lp);
@@ -58,10 +45,10 @@ int skb_gro_receive(struct sk_buff *p, struct sk_buff *skb)
 		skb_frag_size_sub(frag, offset);
 
 		/* all fragments truesize : remove (head size + sk_buff) */
-		new_truesize = SKB_TRUESIZE(skb_end_offset(skb));
-		delta_truesize = skb->truesize - new_truesize;
+		delta_truesize = skb->truesize -
+				 SKB_TRUESIZE(skb_end_offset(skb));
 
-		skb->truesize = new_truesize;
+		skb->truesize -= skb->data_len;
 		skb->len -= skb->data_len;
 		skb->data_len = 0;
 
@@ -90,16 +77,12 @@ int skb_gro_receive(struct sk_buff *p, struct sk_buff *skb)
 		memcpy(frag + 1, skbinfo->frags, sizeof(*frag) * skbinfo->nr_frags);
 		/* We dont need to clear skbinfo->nr_frags here */
 
-		new_truesize = SKB_DATA_ALIGN(sizeof(struct sk_buff));
-		delta_truesize = skb->truesize - new_truesize;
-		skb->truesize = new_truesize;
+		delta_truesize = skb->truesize - SKB_DATA_ALIGN(sizeof(struct sk_buff));
 		NAPI_GRO_CB(skb)->free = NAPI_GRO_FREE_STOLEN_HEAD;
 		goto done;
 	}
 
 merge:
-	/* sk owenrship - if any - completely transferred to the aggregated packet */
-	skb->destructor = NULL;
 	delta_truesize = skb->truesize;
 	if (offset > headlen) {
 		unsigned int eat = offset - headlen;

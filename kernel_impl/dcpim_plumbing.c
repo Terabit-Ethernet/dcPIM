@@ -24,8 +24,8 @@ MODULE_VERSION("0.01");
 #define DCPIM_ADD_FLOW 0xFFAB
 #define DCPIM_REMOVE_FLOW 0xFFAC
 
-DEFINE_PER_CPU(int, dcpim_memory_per_cpu_fw_alloc);
-EXPORT_PER_CPU_SYMBOL_GPL(dcpim_memory_per_cpu_fw_alloc);
+// DEFINE_PER_CPU(int, dcpim_memory_per_cpu_fw_alloc);
+// EXPORT_PER_CPU_SYMBOL_GPL(dcpim_memory_per_cpu_fw_alloc);
 
 /* True means that the DCPIM module is in the process of unloading itself,
  * so everyone should clean up.
@@ -227,7 +227,6 @@ struct proto dcpim_prot = {
     // .rehash         = dcpim_v4_rehash,
     .get_port       = inet_csk_get_port,
     .memory_allocated   = &dcpim_memory_allocated,
-    .per_cpu_fw_alloc	= &dcpim_memory_per_cpu_fw_alloc,
     .sysctl_mem     = sysctl_dcpim_mem,
     .sysctl_wmem = &sysctl_dcpim_wmem_min,
     .sysctl_rmem = &sysctl_dcpim_rmem_min,

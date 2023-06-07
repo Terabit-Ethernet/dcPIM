@@ -706,7 +706,7 @@ bool dcpim_try_send_token(struct sock *sk) {
 	return false;
 }
 
-int dcpim_recvmsg_normal(struct sock *sk, struct msghdr *msg, size_t len,
+int dcpim_recvmsg_normal(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 		int flags, int *addr_len)
 {
 
@@ -737,14 +737,14 @@ int dcpim_recvmsg_normal(struct sock *sk, struct msghdr *msg, size_t len,
 
 	if (sk_can_busy_loop(sk) && skb_queue_empty_lockless(&sk->sk_receive_queue) &&
 	    (sk->sk_state == DCPIM_ESTABLISHED))
-		sk_busy_loop(sk, flags & MSG_DONTWAIT);
+		sk_busy_loop(sk, nonblock);
 
 	lock_sock(sk);
 	err = -ENOTCONN;
 
 
 	// cmsg_flags = tp->recvmsg_inq ? 1 : 0;
-	timeo = sock_rcvtimeo(sk, flags & MSG_DONTWAIT);
+	timeo = sock_rcvtimeo(sk, nonblock);
 
 	if (sk->sk_state != DCPIM_ESTABLISHED)
 		goto out;
@@ -1036,7 +1036,7 @@ int sk_msg_wait_data(struct dcpim_sock *dsk, long *timeo)
  * 	dcpim_recvmsg_msg for short messages
  * 	Guarantee: 
  */
-int dcpim_recvmsg_msg(struct sock *sk, struct msghdr *msg, size_t len,
+int dcpim_recvmsg_msg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 		int flags, int *addr_len)
 {
 	struct dcpim_sock *dsk = dcpim_sk(sk);
@@ -1057,12 +1057,12 @@ int dcpim_recvmsg_msg(struct sock *sk, struct msghdr *msg, size_t len,
 
 	if (sk_can_busy_loop(sk) && list_empty(&dsk->receiver.msg_list) &&
 	    (sk->sk_state == DCPIM_ESTABLISHED))
-		sk_busy_loop(sk, flags & MSG_DONTWAIT);
+		sk_busy_loop(sk, nonblock);
 
 	lock_sock(sk);
 	err = -ENOTCONN;
 	// cmsg_flags = tp->recvmsg_inq ? 1 : 0;
-	timeo = sock_rcvtimeo(sk, flags & MSG_DONTWAIT);
+	timeo = sock_rcvtimeo(sk, nonblock);
 	/* if sk_state is not established, go to out */
 	if (sk->sk_state != DCPIM_ESTABLISHED)
 		goto out;
@@ -1156,7 +1156,7 @@ out:
 	return err;
 }
 
-int dcpim_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
+int dcpim_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 		int flags, int *addr_len)
 {
 
@@ -1164,10 +1164,10 @@ int dcpim_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 	int ret = 0;
 	/* maybe we should change to the locked version later */
 	if(sk->sk_priority != 7)
-		ret = dcpim_recvmsg_normal(sk, msg, len, flags, addr_len);
+		ret = dcpim_recvmsg_normal(sk, msg, len, nonblock, flags, addr_len);
 	else 
 		/* recv_msg short flow message */
-		ret = dcpim_recvmsg_msg(sk, msg, len, flags, addr_len);
+		ret = dcpim_recvmsg_msg(sk, msg, len, nonblock, flags, addr_len);
 	return ret;
 }
 
