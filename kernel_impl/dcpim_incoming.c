@@ -1472,7 +1472,7 @@ int dcpim_handle_data_msg_pkt(struct sk_buff *skb) {
 		// dcpim_xmit_control(fin_skb, sk);
 		// skb_dump(KERN_WARNING, fin_skb, true);
 		// dcpim_message_hold(msg);
-		hrtimer_start(&msg->rtx_timer, dcpim_params.rtx_messages * ns_to_ktime(dcpim_params.control_pkt_rtt * 1000) , HRTIMER_MODE_REL_PINNED_SOFT);
+		hrtimer_start(&msg->rtx_timer, msg->timeout , HRTIMER_MODE_REL_PINNED_SOFT);
 		if(dev_queue_xmit(fin_skb)) {
 			WARN_ON_ONCE(true);
 		}

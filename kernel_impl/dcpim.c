@@ -366,7 +366,7 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	 * No need to hold the lock because we just initialize the message.
 	 * Flow sync packet currently doesn't 
 	 */
-	hrtimer_start(&dcpim_msg->rtx_timer, ns_to_ktime(dcpim_msg->timeout + dcpim_msg->total_len * 8 / dcpim_params.bandwidth) , 
+	hrtimer_start(&dcpim_msg->rtx_timer, ns_to_ktime(dcpim_msg->timeout) , 
 		HRTIMER_MODE_REL_PINNED_SOFT);
 	dcpim_xmit_control(construct_flow_sync_msg_pkt(sk, dcpim_msg->id, dcpim_msg->total_len, 0), sk); 
 	dcpim_xmit_data_whole_message(dcpim_msg, dsk);

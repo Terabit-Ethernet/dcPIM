@@ -127,7 +127,8 @@ struct dcpim_message* dcpim_message_new(struct dcpim_sock* dsk,
 	INIT_LIST_HEAD(&msg->fin_link);
 	msg->fin_skb = NULL;
 	msg->last_rtx_time = 0;
-	msg->timeout = dcpim_params.rtx_messages * ns_to_ktime(dcpim_params.rtt * 1000);
+	/* timeout set to be epoch_length; so it will join the next round of matching at tx side */
+	msg->timeout = dcpim_params.epoch_length;
 	/* new message will be added to the hash table later*/
 	refcount_set(&msg->refcnt, 1);
 	return msg;
