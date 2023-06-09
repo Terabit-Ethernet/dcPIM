@@ -1,6 +1,8 @@
---- linux-6.0.3/net/core/flow_dissector.c	2022-10-21 10:39:29.000000000 +0000
-+++ linux-6.0.3_qizhe/net/core/flow_dissector.c	2023-04-20 17:07:08.860164866 +0000
-@@ -36,6 +36,7 @@
+diff --git a/net/core/flow_dissector.c b/net/core/flow_dissector.c
+index 3ed7c98a98e1..7d0dbae059bf 100644
+--- a/net/core/flow_dissector.c
++++ b/net/core/flow_dissector.c
+@@ -34,6 +34,7 @@
  #endif
  #include <linux/bpf-netns.h>
  
@@ -8,7 +10,7 @@
  static void dissector_set_key(struct flow_dissector *flow_dissector,
  			      enum flow_dissector_key_id key_id)
  {
-@@ -1488,6 +1489,7 @@
+@@ -1390,6 +1391,7 @@ bool __skb_flow_dissect(const struct net *net,
  		break;
  
  	case IPPROTO_TCP:
@@ -16,16 +18,11 @@
  		__skb_flow_dissect_tcp(skb, flow_dissector, target_container,
  				       data, nhoff, hlen);
  		break;
---- linux-6.0.3/net/core/skbuff.c	2022-10-21 10:39:29.000000000 +0000
-+++ linux-6.0.3_qizhe/net/core/skbuff.c	2023-03-09 06:24:02.457721954 +0000
-@@ -6558,3 +6558,4 @@
- 	if (unlikely(kick) && !cmpxchg(&sd->defer_ipi_scheduled, 0, 1))
- 		smp_call_function_single_async(cpu, &sd->defer_csd);
- }
-+EXPORT_SYMBOL(skb_attempt_defer_free);
---- linux-6.0.3/net/ipv4/af_inet.c	2022-10-21 10:39:29.000000000 +0000
-+++ linux-6.0.3_qizhe/net/ipv4/af_inet.c	2023-04-20 16:32:28.653230702 +0000
-@@ -1438,7 +1438,7 @@
+diff --git a/net/ipv4/af_inet.c b/net/ipv4/af_inet.c
+index 2f94d221c00e..6b7e71a4e094 100644
+--- a/net/ipv4/af_inet.c
++++ b/net/ipv4/af_inet.c
+@@ -1437,7 +1437,7 @@ struct sk_buff *inet_gro_receive(struct list_head *head, struct sk_buff *skb)
  {
  	const struct net_offload *ops;
  	struct sk_buff *pp = NULL;
@@ -34,41 +31,31 @@
  	struct sk_buff *p;
  	unsigned int hlen;
  	unsigned int off;
-@@ -1454,9 +1454,15 @@
+@@ -1453,7 +1453,14 @@ struct sk_buff *inet_gro_receive(struct list_head *head, struct sk_buff *skb)
  		if (unlikely(!iph))
  			goto out;
  	}
 -
-+	/* dcPIM change */
++        /* dcPIM change */
 +        if(iph->tos & 0x1) {
-+		if (unlikely(ip_fast_csum((u8 *)iph, 5)))
-+                	goto out;
-+		iph->protocol = 0xFE;
-+                iph->tos &= ~(1UL);
-+		ip_send_check (iph);
++               if (unlikely(ip_fast_csum((u8 *)iph, 5)))
++                       goto out;
++               iph->protocol = 0xFE;
++               iph->tos &= ~(1UL);
++               ip_send_check (iph);
 +        }
  	proto = iph->protocol;
--
- 	ops = rcu_dereference(inet_offloads[proto]);
- 	if (!ops || !ops->callbacks.gro_receive)
- 		goto out;
---- linux-6.0.3/net/ipv4/ip_input.c	2022-10-21 10:39:29.000000000 +0000
-+++ linux-6.0.3_qizhe/net/ipv4/ip_input.c	2023-04-19 18:44:00.751987015 +0000
-@@ -502,7 +502,6 @@
- 		goto inhdr_error;
  
- 	iph = ip_hdr(skb);
--
- 	if (unlikely(ip_fast_csum((u8 *)iph, iph->ihl)))
- 		goto csum_error;
- 
---- linux-6.0.3/net/ipv4/ip_output.c	2022-10-21 10:39:29.000000000 +0000
-+++ linux-6.0.3_qizhe/net/ipv4/ip_output.c	2023-03-15 03:02:12.398612893 +0000
-@@ -506,13 +506,23 @@
+ 	rcu_read_lock();
+diff --git a/net/ipv4/ip_output.c b/net/ipv4/ip_output.c
+index c3efc7d658f6..7832a446ddc7 100644
+--- a/net/ipv4/ip_output.c
++++ b/net/ipv4/ip_output.c
+@@ -507,13 +507,22 @@ int __ip_queue_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl,
  	skb_push(skb, sizeof(struct iphdr) + (inet_opt ? inet_opt->opt.optlen : 0));
  	skb_reset_network_header(skb);
  	iph = ip_hdr(skb);
-+	/* dcPIM change */
++        /* dcPIM change */
 +        if(sk->sk_protocol == 0xFE) {
 +                tos = tos | 1;
 +        }
@@ -80,12 +67,11 @@
  	iph->ttl      = ip_select_ttl(inet, &rt->dst);
 -	iph->protocol = sk->sk_protocol;
 +        /* dcPIM change */
-+	if(sk->sk_protocol == 0xFE) {
-+                iph->protocol = 6;
++        if(sk->sk_protocol == 0xFE) {
++		iph->protocol = 6;
 +        } else {
 +                iph->protocol = sk->sk_protocol;
 +        }
-+	// iph->protocol = sk->sk_protocol;
  	ip_copy_addrs(iph, fl4);
  
  	/* Transport layer set skb->h.foo itself. */
