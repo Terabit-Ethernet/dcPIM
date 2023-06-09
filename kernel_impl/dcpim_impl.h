@@ -183,7 +183,7 @@ int dcpim_setsockopt(struct sock *sk, int level, int optname,
 int dcpim_getsockopt(struct sock *sk, int level, int optname,
 		   char __user *optval, int __user *optlen);
 
-int dcpim_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
+int dcpim_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 		int flags, int *addr_len);
 int dcpim_sendpage(struct sock *sk, struct page *page, int offset, size_t size,
 		 int flags);
