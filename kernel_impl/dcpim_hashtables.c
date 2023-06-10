@@ -63,6 +63,7 @@ void* allocate_hash_table(const char *tablename,
 
 void dcpim_hashtable_init(struct inet_hashinfo* hashinfo, unsigned long thash_entries) {
 		int i = 0;
+		inet_hashinfo_init(hashinfo);
         inet_hashinfo2_init_mod(hashinfo);
         hashinfo->bind_bucket_cachep =
                 kmem_cache_create("dcpim_bind_bucket",
