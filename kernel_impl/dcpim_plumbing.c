@@ -257,6 +257,7 @@ static struct net_protocol dcpim_protocol = {
         .handler =      dcpim_rcv,
         .err_handler =  dcpim_err,
         .no_policy =    1,
+	.netns_ok	= 1,
 };
 
 /* Used to configure sysctl access to dcPIM configuration parameters.*/
