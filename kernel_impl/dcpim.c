@@ -1536,11 +1536,6 @@ void __init dcpim_init(void)
 {
 	unsigned long limit;
 	// unsigned int i;
-
-	printk("try to add dcpim table \n");
-	printk("dcpim sock size:%ld\n", sizeof(struct dcpim_sock));
-	printk("tcp sock size:%ld\n", sizeof(struct tcp_sock));
-
 	dcpim_hashtable_init(&dcpim_hashinfo, 0);
 
 	limit = nr_free_buffer_pages() / 8;
@@ -1560,14 +1555,9 @@ void __init dcpim_init(void)
 	// 	spin_lock_init(dcpim_busylocks + i);
 	// if (register_pernet_subsys(&dcpim_sysctl_ops)) 
 	// 	panic("DCPIM: failed to init sysctl parameters.\n");
-
-	printk("DCPIM init complete\n");
-
 }
 
 void dcpim_destroy() {
-	printk("try to destroy peer table\n");
-	printk("try to destroy dcpim socket table\n");
 	dcpim_hashtable_destroy(&dcpim_hashinfo);
 	// kfree(dcpim_busylocks);
 }
