@@ -239,10 +239,8 @@ static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 		test_count += 1;
 		total_channels = host->next_pacing_rate / epoch->rate_per_channel;
 		num_flows = host->num_flows;
-		if(epoch->epoch % 100000 == 0)
-			printk("average pacing rate:%llu\n", test_pacing_rate / test_count);
-		// if((epoch->epoch - 1) % 10000 == 0)
-		// 	printk("dsk:%p, max_pacing_rate: %lu\n", dsk, max_pacing_rate);
+		//if(epoch->epoch % 100000 == 0)
+		//	printk("average pacing rate:%llu\n", test_pacing_rate / test_count);
 		// WRITE_ONCE(sk->sk_max_pacing_rate, max_pacing_rate);
 		// sock_setsockopt(((struct sock*)dsk)->sk_socket, SOL_SOCKET,
 		// 			SO_MAX_PACING_RATE, optval, sizeof(max_pacing_rate));

@@ -1403,7 +1403,6 @@ void dcpim_destroy_sock(struct sock *sk)
 		dcpim_pq_delete(&entry->flow_q, &dsk->match_link);
 	spin_unlock_bh(&entry->lock);
 
-	printk("refcount sock:%d %p\n", refcount_read(&sk->sk_refcnt), dsk);
 	// if (static_branch_unlikely(&dcpim_encap_needed_key)) {
 	// 	if (up->encap_type) {
 	// 		void (*encap_destroy)(struct sock *sk);
