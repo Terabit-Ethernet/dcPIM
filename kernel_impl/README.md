@@ -13,7 +13,7 @@ cd linux
 git checkout v5.13
 ```
 
-2. Download and apply the patch to the kernel source. The patch is mainly from the performance consideration and if you don't want to apply the patch, please directly go to the next step. More detail will be discussed [later] (#what-is-the-kernel-patch-for).
+2. Download and apply the patch to the kernel source. The patch is mainly from the performance consideration and if you don't want to apply the patch, please directly go to the next step. More detail will be discussed [later](#what-is-the-kernel-patch-for).
 
 ```
 git clone https://github.com/qizhe/dcpim_kernel.git](https://github.com/Terabit-Ethernet/dcPIM.git
