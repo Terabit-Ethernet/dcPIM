@@ -2,23 +2,24 @@
 
 
 ## Install kernel
-The default version is 6.0.3. On Ubuntu 20.04, you can use the following instructions to build and install the kernel.
+The Linux kernel version is 5.13.0. On Ubuntu 20.04, you can use the following instructions to build and install the kernel.
 
 1. Download Linux kernel source directory.
 
 ```
 cd ~
-wget https://mirrors.edge.kernel.org/pub/linux/kernel/v6.x/linux-6.0.3.tar.gz
-tar xzvf linux-6.0.3.tar.gz
+git clone https://github.com/torvalds/linux.git
+cd linux
+git checkout v5.13
 ```
 
-2. Download and apply the patch to the kernel source. The patch is mainly from the performance consideration. More detail will be discussed later.
+2. Download and apply the patch to the kernel source. The patch is mainly from the performance consideration and if you don't want to apply the patch, please directly go to the next step. More detail will be discussed [later] (## What-is-the-kernel-patch-for).
 
 ```
 git clone https://github.com/qizhe/dcpim_kernel.git](https://github.com/Terabit-Ethernet/dcPIM.git
-cd ~/linux-6.0.3/
+cd ~/linux/
 cp ~/dcPIM/kernel_impl/diff.patch .
-patch -R -p1 < diff.patch
+git apply diff.patch
 ```
 
 3. Update kernel configuration.
@@ -26,11 +27,10 @@ patch -R -p1 < diff.patch
 ```
 cp /boot/config-x.x.x .config
 make oldconfig
-scripts/config --disable DEBUG_INFO # Disables building debugging related files
 ```
 `x.x.x` is a kernel version. It can be your current kernel version or latest version your system has. Type  `uname -r` to see your current kernel version.
 
-5. Compile and install. The `LOCALVERSION=-profiling` option can be replaced by any custom marker. Remember to replace `profiling` with your own definition in the rest of the instructions.
+4. Compile and install. The `LOCALVERSION=-profiling` option can be replaced by any custom marker. Remember to replace `profiling` with your own definition in the rest of the instructions.
 
 ```
 sudo make -j32 bzImage
@@ -87,7 +87,7 @@ sudo ./dcpim_test 192.168.10.125:4000 --sp 100000 --count 1 dcpimping
 ## The current status of implementation
 The first prototype is close to be finished. More testing are needed to be done.
 
-## What is the kernel patch for?
+## What is the kernel patch for
 Modern NICs often come equipped with multiple hardware (HW) queues, with each HW queue corresponding to a CPU core. In the RX data path, when a packet is received, the NIC may calculate its hash and distribute it to a dedicated HW queue based on this hash. The hash value can be determined by either the five tuples or the two tuples (source and destination IP addresses). Typically, for TCP or UDP traffic, packets belonging to different flows can be routed to different HW queues based on their five tuples. This enables multiple CPU cores to be activated for processing packets, resulting in optimal performance.
 
 However, when introducing a new protocol like dcPIM, the NIC is unable to recognize its protocol number or understand the packet header format. Consequently, the NIC distributes packets based solely on the two tuples (source and destination IP addresses). As a result, a single CPU core may become a bottleneck in the system.
