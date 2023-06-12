@@ -40,13 +40,17 @@ sudo make install
 ```
 
 ## Install module 
-1. Enter the directory, compile the module and install the module.
+
+1. In the event that you prefer not to modify your kernel, you can simply run the following command (skip if you have applied the patch):
 ```
-cd dcpim_kernel
+sed -i -e 's/IPPROTO_TCP/IPPROTO_DCPIM/g' dcpim_outgoing.c
+```
+2. Compile the module and install the module.
+```
 make
 sudo insmod dcpim_module.ko
 ```
-2. To unload the module,
+3. To unload the module,
 ```
 sudo rmmod dcpim_module.ko
 ```
@@ -74,15 +78,15 @@ It's important to note that data sent via a single send system call is treated a
 Go to `util` folder, and on the server side
 ```
 cd util
-sudo taskset -c 0 ./server --ip 192.168.10.125 --port 4000 --pin 
+sudo taskset -c 0 ./server --ip 192.168.11.125 --port 10000 --pin 
 ```
 
-On the client side,
+On the client side,`
 ```
 cd util
-sudo ./dcpim_test 192.168.10.125:4000 --sp 100000 --count 1 dcpimping
+sudo ./dcpim_test 192.168.11.125:10000 --sp 100000 --count 1 dcpimping
 ```
-
+You might need to change the source IP address in the code: `addr_in.sin_addr.s_addr = inet_addr("192.168.11.124")`.
 
 ## The current status of implementation
 The first prototype is close to be finished. More testing are needed to be done.
