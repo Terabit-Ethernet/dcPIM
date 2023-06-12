@@ -240,7 +240,7 @@ int dcpim_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	}
 	dcpim_sk(sk)->sender.sync_sent_times += 1;
 	hrtimer_start(&dcpim_sk(sk)->sender.rtx_flow_sync_timer,
-		ns_to_ktime(dcpim_params.rtt * 1000), HRTIMER_MODE_REL_PINNED_SOFT);
+		ns_to_ktime(dcpim_params.epoch_length * 1000), HRTIMER_MODE_REL_PINNED_SOFT);
 	/* add to flow matching table */
 	dcpim_add_mat_tab(&dcpim_epoch, sk);
 	// dsk->total_length = flow_len;
