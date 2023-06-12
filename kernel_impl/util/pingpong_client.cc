@@ -89,7 +89,7 @@ void print_help(const char *name)
 }
 
 
-void test_ping_send(struct sockaddr *dest, int id, int io_depth, int flow_size)
+void test_ping_send(struct sockaddr *dest, int id, int io_depth, int flow_size, int src_port)
 {
 
 	std::queue<uint64_t> time_q;
@@ -110,7 +110,9 @@ void test_ping_send(struct sockaddr *dest, int id, int io_depth, int flow_size)
 	struct sockaddr_in client;
 	socklen_t clientsz = sizeof(client);
   	int priority = 7;
-
+	client.sin_family = AF_INET;
+	client.sin_port = htons(src_port);
+	client.sin_addr.s_addr = INADDR_ANY;
 //  	struct sched_param param;
 // 	param.sched_priority = 99;
 // 	sched_setscheduler(pid, SCHED_RR, &param);
@@ -128,6 +130,11 @@ void test_ping_send(struct sockaddr *dest, int id, int io_depth, int flow_size)
 	}
 	else 
 		fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (bind(fd, reinterpret_cast<sockaddr *>(&client), sizeof(client))
+			== -1) {
+		printf("Couldn't bind to port %d: %s\n", src_port, strerror(errno));
+		exit(1);
+	}
 	if (connect(fd, dest, sizeof(struct sockaddr_in)) == -1) {
 		printf("Couldn't connect to dest %s\n", strerror(errno));
 		exit(1);
@@ -406,7 +413,7 @@ int main(int argc, char** argv)
 	int status;
 	int i;
 	int threads_per_core;
-	// int srcPort = 0;
+	int src_port = 0;
 	int io_depth = 1;
 	stop_count = 0;
 	if ((argc >= 2) && (strcmp(argv[1], "--help") == 0)) {
@@ -457,8 +464,8 @@ int main(int argc, char** argv)
 				exit(1);
 			}
 			nextArg++;
-			// srcPort = get_int(argv[nextArg],
-			// 	"Bad srcPort %s; must be positive integer\n");
+			src_port = get_int(argv[nextArg],
+				"Bad srcPort %s; must be positive integer\n");
 		} else if (strcmp(argv[nextArg], "--iodepth") == 0) {
 			if (nextArg == (argc-1)) {
 				printf("No value provided for %s option\n",
@@ -505,7 +512,7 @@ int main(int argc, char** argv)
 		nextArg = tempArg;
 		for ( ; nextArg < argc; nextArg++) {
 			if (strcmp(argv[nextArg], "ping") == 0) {
-				workers.push_back(std::thread(test_ping_send, dest, i, io_depth, flow_size));
+				workers.push_back(std::thread(test_ping_send, dest, i, io_depth, flow_size, src_port + i));
 				if(pin) {
 					cpu_set_t cpuset;
 					CPU_ZERO(&cpuset);

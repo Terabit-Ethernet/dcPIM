@@ -87,6 +87,7 @@ void test_dcpimping(int fd, struct sockaddr *dest, char* buffer)
 		while(1) {
 			int result = write(fd, buffer, buffer_size);
 			if( result < 0 ) {
+				printf("result:%d\n", result);
 				break;
 			} else {
 				write_len += result;
@@ -255,7 +256,7 @@ int main(int argc, char** argv)
 		memset(&addr_in, 0, sizeof(addr_in));
 		addr_in.sin_family = AF_INET;
 		addr_in.sin_port = htons(srcPort + i);
-		addr_in.sin_addr.s_addr = inet_addr("192.168.10.124");
+		addr_in.sin_addr.s_addr = inet_addr("192.168.11.124");
 
 		for ( ; nextArg < argc; nextArg++) {
 			 if (strcmp(argv[nextArg], "dcpimping") == 0) {

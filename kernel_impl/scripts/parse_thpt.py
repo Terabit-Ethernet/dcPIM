@@ -19,9 +19,9 @@ def calc_thpt(file):
             if 'Gbps' not in line: 
                 continue
             # Split the line into its components
-            components = line.split(', ')
+            components = line.split()
 
-            throughput = float(components[0].split(': ')[1].replace(' Gbps', ''))
+            throughput = float(components[1])
             # bytes = float(components[1].split(': ')[1])
             # time = float(components[2].split(': ')[1])
 
@@ -34,6 +34,7 @@ def calc_thpt(file):
         if num_lines == 0:
             return 0
         avg_throughput = throughput_sum / num_lines
+        print(avg_throughput)
     return avg_throughput
 def main():
     # Get command line arguments
