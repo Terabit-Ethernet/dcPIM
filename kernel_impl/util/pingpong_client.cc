@@ -154,11 +154,12 @@ void test_ping_send(struct sockaddr *dest, int id, int io_depth, int flow_size, 
 			// 	flag = MSG_MORE;
 		//	printf("send time:%f\n", to_seconds(rdtsc()));
 			int result = send(fd, buffer + total, flow_size - total, flag);
-			if( result < 0 ) {
+			if( result <= 0 ) {
 				if(errno == EMSGSIZE) {
 					printf("Socket write failed: %s %d\n", strerror(errno), result);
-					break;
 				}
+				printf("send: %d\n", result);
+				break;
 			} else {
 				write_len += result;
 				total += result;
@@ -174,11 +175,12 @@ void test_ping_send(struct sockaddr *dest, int id, int io_depth, int flow_size, 
 		total = 0;
 		while(total < flow_size) {
 			int result = read(fd, buffer + total, flow_size - total);	
-			if( result < 0 ) {
+			if( result <= 0 ) {
 				if(errno == EMSGSIZE) {
 					printf("Socket write failed: %s %d\n", strerror(errno), result);
-					break;
 				}
+				printf("read: %d\n", result);
+				break;
 			} else {
 				total += result;
 			}
@@ -195,11 +197,12 @@ void test_ping_send(struct sockaddr *dest, int id, int io_depth, int flow_size, 
 		total = 0;
 		while(total < flow_size) {
 			int result = send(fd, buffer + total, flow_size - total, flag);
-			if( result < 0 ) {
+			if( result <= 0 ) {
 				if(errno == EMSGSIZE) {
 					printf("Socket write failed: %s %d\n", strerror(errno), result);
-					break;
 				}
+				printf("send: %d\n", result);
+				break;
 			} else {
 				write_len += result;
 				total += result;
