@@ -189,7 +189,7 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	// DECLARE_SOCKADDR(struct sockaddr_in *, usin, msg->msg_name);
 	// int corkreq = up->corkflag || msg->msg_flags&MSG_MORE;
 	struct dcpim_sock *dsk = dcpim_sk(sk);
-	int sent_len = 0;
+	int sent_len = 0, err = 0;
 	long timeo;
 	int flags;
 	flags = msg->msg_flags;
@@ -209,16 +209,20 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	// }
 	if(sk_stream_wspace(sk) <= 0) {
 		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
-		sk_stream_wait_memory(sk, &timeo);
+		err = sk_stream_wait_memory(sk, &timeo);
+		if (err)
+			goto out_error;
 	}
 
-	while(sent_len == 0) {
+	while(sent_len == 0 && err == 0) {
 		sent_len = dcpim_fill_packets(sk, msg, len);
 		if(sent_len < 0)
 			return sent_len;
 		if(sent_len == 0) {
 			timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
-			sk_stream_wait_memory(sk, &timeo);
+			err = sk_stream_wait_memory(sk, &timeo);
+			if (err)
+				goto out_error;
 		}
 	}
 	// if(dsk->total_length < dcpim_params.short_flow_size) {
@@ -243,6 +247,12 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	bh_unlock_sock(sk);
 	local_bh_enable();
 	return sent_len;
+out_error:
+	err = sk_stream_error(sk, flags, err);
+	/* make sure we wake any epoll edge trigger waiter */
+	// if (unlikely(skb_queue_len(&sk->sk_write_queue) == 0 && err == -EAGAIN))
+	// 	sk->sk_write_space(sk);
+	return err;
 }
 
 static inline bool dcpim_message_memory_free(struct sock* sk) {
