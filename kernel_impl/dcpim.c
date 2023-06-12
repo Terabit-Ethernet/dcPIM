@@ -212,12 +212,14 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 		sk_stream_wait_memory(sk, &timeo);
 	}
 
-	sent_len = dcpim_fill_packets(sk, msg, len);
-	if(sent_len < 0)
-		return sent_len;
-	if(sent_len == 0) {
-		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
-		sk_stream_wait_memory(sk, &timeo);
+	while(sent_len == 0) {
+		sent_len = dcpim_fill_packets(sk, msg, len);
+		if(sent_len < 0)
+			return sent_len;
+		if(sent_len == 0) {
+			timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
+			sk_stream_wait_memory(sk, &timeo);
+		}
 	}
 	// if(dsk->total_length < dcpim_params.short_flow_size) {
 	// 	struct sk_buff *skb;
