@@ -3,6 +3,9 @@
 DIR=$(realpath $(dirname $(readlink -f $0)))
 # Source the environment file
 source $DIR/env.sh
+sudo ifconfig $INTF mtu 9000
+sudo ifconfig $INTF $TARGET
+
 cd /home/qizhe/synergylab-hardware
 python /home/qizhe/synergylab-hardware/setup-arps.py $INTF
 cd -
@@ -37,13 +40,12 @@ sudo ethtool -U $INTF flow-type tcp4 src-port 12 dst-port 12 action 12 loc 27
 sudo ethtool -U $INTF flow-type tcp4 src-port 13 dst-port 13 action 13 loc 28
 sudo ethtool -U $INTF flow-type tcp4 src-port 14 dst-port 14 action 14 loc 29
 
-sudo ifconfig $INTF mtu 9000
-sudo ifconfig $INTF $TARGET
 
 #sudo ifconfig $INTF $TARGET
 # Enable aRFS and configure network
 sudo service irqbalance stop
-sudo ethtool -C $INTF adaptive-rx off adaptive-tx off rx-usecs 6
+sudo ethtool -C $INTF adaptive-rx off adaptive-tx off
+sudo ethtool -C $INTF rx-usecs 6
 sudo ethtool -K $INTF ntuple off  gro on gso on tso on lro off
 #echo 32768 | sudo tee /proc/sys/net/core/rps_sock_flow_entries
 #for f in /sys/class/net/$INTF/queues/rx-*/rps_flow_cnt; do echo 32768 | sudo tee $f; done
