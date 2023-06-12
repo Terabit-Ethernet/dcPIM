@@ -214,7 +214,7 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 			goto out_error;
 	}
 
-	while(sent_len == 0 && err == 0) {
+	while(sent_len == 0) {
 		sent_len = dcpim_fill_packets(sk, msg, len);
 		if(sent_len < 0)
 			return sent_len;
@@ -248,11 +248,10 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	local_bh_enable();
 	return sent_len;
 out_error:
-	err = sk_stream_error(sk, flags, err);
+	return sk_stream_error(sk, flags, err);
 	/* make sure we wake any epoll edge trigger waiter */
 	// if (unlikely(skb_queue_len(&sk->sk_write_queue) == 0 && err == -EAGAIN))
 	// 	sk->sk_write_space(sk);
-	return err;
 }
 
 static inline bool dcpim_message_memory_free(struct sock* sk) {
@@ -347,13 +346,14 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	if (sk->sk_state != DCPIM_ESTABLISHED) {
 		return -ENOTCONN;
 	}
-	/* we allow the actual socket buffer size is one msg size larger than the limit */
 	if(dcpim_message_memory_free(sk) <= 0) {
 		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
 		err = dcpim_stream_wait_memory(sk, &timeo);
 		if(err != 0)
 			goto do_error;
 	}
+
+	/* we allow the actual socket buffer size is one msg size larger than the limit; this is different from long flows */
 	sent_len = dcpim_fill_packets_message(sk, dcpim_msg, msg, len);
 	if(sent_len <= 0) {
 		dcpim_message_put(dcpim_msg);
