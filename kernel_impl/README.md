@@ -45,12 +45,17 @@ sudo make install
 ```
 sed -i -e 's/IPPROTO_TCP/IPPROTO_DCPIM/g' dcpim_outgoing.c
 ```
-2. Compile the module and install the module.
+2. Change the matching logic CPU core. It is better to change the matching logic CPU core within the same NUMA node as application cores:
+In the function `dcpim_epoch_init` of file `dcpim_matching`, change the following line as needed (the default is core 60):
+```
+epoch->cpu = 60;
+```
+3. Compile the module and install the module.
 ```
 make
 sudo insmod dcpim_module.ko
 ```
-3. To unload the module,
+4. To unload the module,
 ```
 sudo rmmod dcpim_module.ko
 ```
