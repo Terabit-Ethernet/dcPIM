@@ -49,10 +49,6 @@ void* allocate_hash_table(const char *tablename,
 	if (!table)
 		panic("Failed to allocate %s hash table\n", tablename);
 
-	pr_info("%s hash table entries: %ld (order: %d, %lu bytes, %s)\n",
-		tablename, 1UL << log2qty, ilog2(size) - PAGE_SHIFT, size,
-		"vmalloc");
-
 	if (_hash_shift)
 		*_hash_shift = log2qty;
 	if (_hash_mask)
@@ -114,5 +110,4 @@ void dcpim_hashtable_destroy(struct inet_hashinfo* hashinfo) {
 	kmem_cache_destroy(hashinfo->bind_bucket_cachep);
 	vfree(hashinfo->ehash);
 	inet_hashinfo2_free_mod(&dcpim_hashinfo);
-	printk("hash table destroy finish\n");
 }

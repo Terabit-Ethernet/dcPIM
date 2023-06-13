@@ -1639,7 +1639,7 @@ enum hrtimer_restart dcpim_rtx_sync_timer_handler(struct hrtimer *timer) {
 					/* to do: add short flow syn retransmission */
 				}
 				dsk->sender.sync_sent_times += 1;
-				hrtimer_forward_now(timer, ns_to_ktime(dcpim_params.rtt * 1000));
+				hrtimer_forward_now(timer, ns_to_ktime(dcpim_params.epoch_length));
 				bh_unlock_sock(sk);
 				return HRTIMER_RESTART;
 			}

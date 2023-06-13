@@ -189,7 +189,7 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	// DECLARE_SOCKADDR(struct sockaddr_in *, usin, msg->msg_name);
 	// int corkreq = up->corkflag || msg->msg_flags&MSG_MORE;
 	struct dcpim_sock *dsk = dcpim_sk(sk);
-	int sent_len = 0;
+	int sent_len = 0, err = 0;
 	long timeo;
 	int flags;
 	flags = msg->msg_flags;
@@ -209,15 +209,21 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	// }
 	if(sk_stream_wspace(sk) <= 0) {
 		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
-		sk_stream_wait_memory(sk, &timeo);
+		err = sk_stream_wait_memory(sk, &timeo);
+		if (err)
+			goto out_error;
 	}
 
-	sent_len = dcpim_fill_packets(sk, msg, len);
-	if(sent_len < 0)
-		return sent_len;
-	if(sent_len == 0) {
-		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
-		sk_stream_wait_memory(sk, &timeo);
+	while(sent_len == 0) {
+		sent_len = dcpim_fill_packets(sk, msg, len);
+		if(sent_len < 0)
+			return sent_len;
+		if(sent_len == 0) {
+			timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
+			err = sk_stream_wait_memory(sk, &timeo);
+			if (err)
+				goto out_error;
+		}
 	}
 	// if(dsk->total_length < dcpim_params.short_flow_size) {
 	// 	struct sk_buff *skb;
@@ -241,6 +247,11 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	bh_unlock_sock(sk);
 	local_bh_enable();
 	return sent_len;
+out_error:
+	return sk_stream_error(sk, flags, err);
+	/* make sure we wake any epoll edge trigger waiter */
+	// if (unlikely(skb_queue_len(&sk->sk_write_queue) == 0 && err == -EAGAIN))
+	// 	sk->sk_write_space(sk);
 }
 
 static inline bool dcpim_message_memory_free(struct sock* sk) {
@@ -335,13 +346,14 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	if (sk->sk_state != DCPIM_ESTABLISHED) {
 		return -ENOTCONN;
 	}
-	/* we allow the actual socket buffer size is one msg size larger than the limit */
 	if(dcpim_message_memory_free(sk) <= 0) {
 		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
 		err = dcpim_stream_wait_memory(sk, &timeo);
 		if(err != 0)
 			goto do_error;
 	}
+	
+	/* we allow the actual socket buffer size is one msg size larger than the limit; this is different from long flows */
 	sent_len = dcpim_fill_packets_message(sk, dcpim_msg, msg, len);
 	if(sent_len <= 0) {
 		dcpim_message_put(dcpim_msg);
@@ -1402,8 +1414,6 @@ void dcpim_destroy_sock(struct sock *sk)
 	if(dsk->receiver.in_pq)
 		dcpim_pq_delete(&entry->flow_q, &dsk->match_link);
 	spin_unlock_bh(&entry->lock);
-
-	printk("refcount sock:%d %p\n", refcount_read(&sk->sk_refcnt), dsk);
 	// if (static_branch_unlikely(&dcpim_encap_needed_key)) {
 	// 	if (up->encap_type) {
 	// 		void (*encap_destroy)(struct sock *sk);
@@ -1537,11 +1547,6 @@ void __init dcpim_init(void)
 {
 	unsigned long limit;
 	// unsigned int i;
-
-	printk("try to add dcpim table \n");
-	printk("dcpim sock size:%ld\n", sizeof(struct dcpim_sock));
-	printk("tcp sock size:%ld\n", sizeof(struct tcp_sock));
-
 	dcpim_hashtable_init(&dcpim_hashinfo, 0);
 
 	limit = nr_free_buffer_pages() / 8;
@@ -1561,14 +1566,9 @@ void __init dcpim_init(void)
 	// 	spin_lock_init(dcpim_busylocks + i);
 	// if (register_pernet_subsys(&dcpim_sysctl_ops)) 
 	// 	panic("DCPIM: failed to init sysctl parameters.\n");
-
-	printk("DCPIM init complete\n");
-
 }
 
 void dcpim_destroy() {
-	printk("try to destroy peer table\n");
-	printk("try to destroy dcpim socket table\n");
 	dcpim_hashtable_destroy(&dcpim_hashinfo);
 	// kfree(dcpim_busylocks);
 }

@@ -418,7 +418,6 @@ static inline struct dcpimhdr *dcpim_gro_dcpimhdr(struct sk_buff *skb)
 
 static inline void dcpim_lib_close(struct sock *sk, long timeout)
 {
-	printk("call socket close\n");
 	// sk_common_release(sk);
 	if (sk->sk_prot->destroy)
 		sk->sk_prot->destroy(sk);

@@ -239,10 +239,8 @@ static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 		test_count += 1;
 		total_channels = host->next_pacing_rate / epoch->rate_per_channel;
 		num_flows = host->num_flows;
-		if(epoch->epoch % 100000 == 0)
-			printk("average pacing rate:%llu\n", test_pacing_rate / test_count);
-		// if((epoch->epoch - 1) % 10000 == 0)
-		// 	printk("dsk:%p, max_pacing_rate: %lu\n", dsk, max_pacing_rate);
+		//if(epoch->epoch % 100000 == 0)
+		//	printk("average pacing rate:%llu\n", test_pacing_rate / test_count);
 		// WRITE_ONCE(sk->sk_max_pacing_rate, max_pacing_rate);
 		// sock_setsockopt(((struct sock*)dsk)->sk_socket, SOL_SOCKET,
 		// 			SO_MAX_PACING_RATE, optval, sizeof(max_pacing_rate));
@@ -1242,7 +1240,9 @@ int dcpim_handle_accept(struct sk_buff *skb, struct dcpim_epoch *epoch) {
     //         ah->common.dest, sdif, &refcounted);
 	// if(!sk)
 	// 	goto drop;
-	if(host) {
+	if(!host)
+		goto drop;
+
 		// spin_lock_bh(&epoch->receiver_lock);
 		/* TO DO: check round number and epoch number */
 		// dsk = dcpim_sk(sk);
@@ -1253,40 +1253,41 @@ int dcpim_handle_accept(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 			// if(flow == NULL) {
 			// 	goto drop;
 			// }
-			spin_lock(&epoch->matched_lock);
-			value = atomic_sub_return(ah->remaining_sz, &epoch->unmatched_recv_bytes);
-			if(value >= 0 && epoch->next_matched_hosts < epoch->k) {
-				// host->next_pacing_rate += dcpim_params.bandwidth * ah->remaining_sz / epoch->epoch_bytes * 1000000000 / 8;
-				/* only count long flow transmission rate */
-				if(ah->rtx_channel == 0)
-					host->next_pacing_rate  += epoch->rate_per_channel;
-				else {
-					if(epoch->rtx_msg_size < epoch->k) {
-						skip_free = false;
-						dcpim_modify_ctrl_pkt(skb, RTX_MSG, READ_ONCE(epoch->epoch), READ_ONCE(epoch->round));
-						dcpim_modify_ctrl_pkt_size(skb, ah->remaining_sz, true);
-						epoch->rtx_msg_array[epoch->rtx_msg_size] = skb;
-						epoch->rtx_msg_size += 1; 
-					} else {
-						WARN_ON(true);
-					}
-				}
-				// if(epoch->epoch % 10000 == 0)
-				// 	printk("dsk:%p ah->remaining_sz: %u %lu\n", dsk, ah->remaining_sz, dsk->receiver.next_pacing_rate );
-				epoch->next_matched_arr[epoch->next_matched_hosts] = host;
-				epoch->next_matched_hosts += 1;
-				dcpim_host_hold(host);
+	spin_lock(&epoch->matched_lock);
+	value = atomic_sub_return(ah->remaining_sz, &epoch->unmatched_recv_bytes);
+	if(value >= 0 && epoch->next_matched_hosts < epoch->k) {
+		// host->next_pacing_rate += dcpim_params.bandwidth * ah->remaining_sz / epoch->epoch_bytes * 1000000000 / 8;
+		/* only count long flow transmission rate */
+		if(ah->rtx_channel == 0)
+			host->next_pacing_rate  += epoch->rate_per_channel;
+		else {
+			if(epoch->rtx_msg_size < epoch->k) {
+				skip_free = false;
+				dcpim_modify_ctrl_pkt(skb, RTX_MSG, READ_ONCE(epoch->epoch), READ_ONCE(epoch->round));
+				dcpim_modify_ctrl_pkt_size(skb, ah->remaining_sz, true);
+				epoch->rtx_msg_array[epoch->rtx_msg_size] = skb;
+				epoch->rtx_msg_size += 1; 
+			} else {
+				WARN_ON(true);
 			}
-			spin_unlock(&epoch->matched_lock);
-			// max_pacing_rate = dcpim_params.bandwidth * ah->remaining_sz / epoch->epoch_bytes;
-			// optval = KERNEL_SOCKPTR(&max_pacing_rate);
-			// sock_setsockopt(sk->sk_socket, SOL_SOCKET,
-			// 			SO_MAX_PACING_RATE, optval, sizeof(max_pacing_rate));
-		// } else {
-		// 	/* TO DO: send reverse accept packet if needed */
-		// 	/* Add statistic counting here */
-		// }
+		}
+		// if(epoch->epoch % 10000 == 0)
+		// 	printk("dsk:%p ah->remaining_sz: %u %lu\n", dsk, ah->remaining_sz, dsk->receiver.next_pacing_rate );
+		epoch->next_matched_arr[epoch->next_matched_hosts] = host;
+		epoch->next_matched_hosts += 1;
+		dcpim_host_hold(host);
 	}
+	spin_unlock(&epoch->matched_lock);
+		// max_pacing_rate = dcpim_params.bandwidth * ah->remaining_sz / epoch->epoch_bytes;
+		// optval = KERNEL_SOCKPTR(&max_pacing_rate);
+		// sock_setsockopt(sk->sk_socket, SOL_SOCKET,
+		// 			SO_MAX_PACING_RATE, optval, sizeof(max_pacing_rate));
+	// } else {
+	// 	/* TO DO: send reverse accept packet if needed */
+	// 	/* Add statistic counting here */
+	// }
+	dcpim_host_put(host);
+	
 
 	// spin_unlock_bh(&epoch->receiver_lock);
 	// if(epoch->sock == NULL) {
@@ -1313,7 +1314,6 @@ int dcpim_handle_accept(struct sk_buff *skb, struct dcpim_epoch *epoch) {
     // if (refcounted) {
     //     sock_put(sk);
     // }
-	dcpim_host_put(host);
 drop:
 	if(skip_free)
 		kfree_skb(skb);
