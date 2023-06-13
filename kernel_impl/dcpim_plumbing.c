@@ -164,7 +164,6 @@ static int dcpimdevice_init(void) {
 		return ret;
 	}
 
-	printk(KERN_INFO "Custom device initialized");
 	return 0;
 }
 
@@ -343,9 +342,6 @@ void dcpim_params_init(struct dcpim_params* params) {
     params->short_flow_size = params->bdp;
     params->control_pkt_bdp = params->control_pkt_rtt * params->bandwidth * 1000 / 8;
     params->data_budget = 1000000;
-    printk("params->control_pkt_bdp:%d\n", params->control_pkt_bdp);
-    printk("params->round_length:%d\n", params->round_length);
-    printk("params->epoch_length:%d\n", params->epoch_length);
 }
 /**
  * dcpim_dointvec() - This function is a wrapper around proc_dointvec. It is
@@ -457,7 +453,6 @@ static int __init dcpim_load(void) {
                 goto out_cleanup;
         }
         status = dcpimv4_offload_init();
-        printk("init the offload\n");
         if (status != 0) {
                 printk(KERN_ERR "DCPIM couldn't init offloads\n");
                 goto out_cleanup;
@@ -480,11 +475,8 @@ out_cleanup:
         unregister_net_sysctl_table(dcpim_ctl_header);
         dcpim_destroy();
         inet_del_protocol(&dcpim_protocol, IPPROTO_DCPIM);
-        printk("inet delete protocol\n");
         inet_unregister_protosw(&dcpim_protosw);
-        printk("inet unregister protosw");
         proto_unregister(&dcpim_prot);
-        printk("unregister protocol\n");
 	flush_workqueue(dcpim_wq);
 	destroy_workqueue(dcpim_wq);
         // proto_unregister(&dcpimlite_prot);
@@ -501,11 +493,9 @@ static void __exit dcpim_unload(void) {
         dcpimdevice_exit();
         if (dcpimv4_offload_end() != 0)
             printk(KERN_ERR "DCPIM couldn't stop offloads\n");
-        printk("start to unload\n");
         dcpim_epoch_destroy(&dcpim_epoch);
         dcpim_message_table_destroy();
         unregister_net_sysctl_table(dcpim_ctl_header);
-        printk("unregister sysctl table\n");
         rcv_core_table_destory(&rcv_core_tab);
         xmit_core_table_destory(&xmit_core_tab);
 
@@ -513,14 +503,10 @@ static void __exit dcpim_unload(void) {
         // printk("remove match table\n");
 
         dcpim_destroy();
-        printk("remove dcpim table\n");
 
         inet_del_protocol(&dcpim_protocol, IPPROTO_DCPIM);
-        printk("reach here:%d\n", __LINE__);
         inet_unregister_protosw(&dcpim_protosw);
-        printk("reach here:%d\n", __LINE__);
         proto_unregister(&dcpim_prot);
-        printk("reach here:%d\n", __LINE__);
 	flush_workqueue(dcpim_wq);
 	destroy_workqueue(dcpim_wq);
 
