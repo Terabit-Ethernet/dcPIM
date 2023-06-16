@@ -299,8 +299,6 @@ static struct ctl_table dcpim_ctl_table[] = {
 static void dcpim_v4_reqsk_destructor(struct request_sock *req)
 {
 
-        printk("call reqsk destructor\n");
-        printk("ireq option is NULL:%d\n", inet_rsk(req)->ireq_opt == NULL);
         if(rcu_dereference_protected(inet_rsk(req)->ireq_opt, 1))
 		kfree(rcu_dereference_protected(inet_rsk(req)->ireq_opt, 1));
 }
