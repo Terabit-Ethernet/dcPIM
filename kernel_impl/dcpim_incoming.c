@@ -1550,11 +1550,11 @@ int dcpim_handle_fin_msg_pkt(struct sk_buff *skb) {
 		spin_lock(&msg->lock);
 		msg->state = DCPIM_FINISH_TX;
 		if(!sock_owned_by_user(sk)) {
-			if(sk->sk_state == DCPIM_ESTABLISHED) {
-				dsk->sender.inflight_msgs--;
-				dcpim_message_flush_skb(msg);
-				sk_stream_write_space(sk);
-			}
+			// if(sk->sk_state == DCPIM_ESTABLISHED) {
+			dsk->sender.inflight_msgs--;
+			dcpim_message_flush_skb(msg);
+			sk_stream_write_space(sk);
+			// }
 		} else {
 			list_add_tail(&msg->fin_link, &dsk->sender.fin_msg_backlog);
 			dcpim_message_hold(msg);
