@@ -336,16 +336,16 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	int err = 0;
 	long timeo;
 	int flags;
-	struct dcpim_message *dcpim_msg = dcpim_message_new(dsk, inet->inet_saddr, inet->inet_sport, inet->inet_daddr, inet->inet_dport, dsk->short_message_id, len);
-
+	struct dcpim_message *dcpim_msg = NULL;
+	if (sk->sk_state != DCPIM_ESTABLISHED) {
+		return -ENOTCONN;
+	}
+	dcpim_msg = dcpim_message_new(dsk, inet->inet_saddr, inet->inet_sport, inet->inet_daddr, inet->inet_dport, dsk->short_message_id, len);
 	if(dcpim_msg == NULL) {
 		WARN_ON(true);
 		return -ENOBUFS;
 	}
 	flags = msg->msg_flags;
-	if (sk->sk_state != DCPIM_ESTABLISHED) {
-		return -ENOTCONN;
-	}
 	if(dcpim_message_memory_free(sk) <= 0) {
 		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
 		err = dcpim_stream_wait_memory(sk, &timeo);
