@@ -1813,11 +1813,11 @@ enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer) {
 			}
 		}
 		bh_unlock_sock(sk);
-		if(remove_msg) {
-			spin_lock_bh(&msg->lock);
-			dcpim_message_flush_skb(msg);
-			spin_unlock_bh(&msg->lock);
-			dcpim_remove_message(dcpim_tx_messages, msg, false);
+		if(remove_msg) {	
+			spin_lock(&msg->lock);	
+			dcpim_message_flush_skb(msg);	
+			spin_unlock(&msg->lock);	
+			dcpim_remove_message(dcpim_tx_messages, msg, false);	
 		}
 		// dcpim_message_put(msg);
 		return HRTIMER_NORESTART;
@@ -1851,17 +1851,17 @@ void dcpim_msg_fin_tx_bg_handler(struct dcpim_sock *dsk) {
 	struct list_head *list, *temp;
 	struct dcpim_message *msg;
 	/* for now, only add to list if dsk is in established state. */
-	bool established = ((struct sock*)dsk)->sk_state == DCPIM_ESTABLISHED;
+	// bool established = ((struct sock*)dsk)->sk_state == DCPIM_ESTABLISHED;
 	list_for_each_safe(list, temp, &dsk->sender.fin_msg_backlog) {
 		msg = list_entry(list, struct dcpim_message, fin_link);
 		list_del(&msg->fin_link);
-		if(established) {
-			dsk->sender.inflight_msgs--;
-			spin_lock(&msg->lock);
-			dcpim_message_flush_skb(msg);
-			spin_unlock(&msg->lock);
-			sk_stream_write_space((struct sock*)dsk);
-		}
+			// if(established) {	
+		dsk->sender.inflight_msgs--;	
+		spin_lock(&msg->lock);	
+		dcpim_message_flush_skb(msg);	
+		spin_unlock(&msg->lock);	
+		sk_stream_write_space((struct sock*)dsk);	
+		// }
 		dcpim_message_put(msg);
 	}
 }

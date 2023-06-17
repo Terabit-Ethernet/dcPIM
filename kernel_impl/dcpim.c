@@ -207,23 +207,28 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	// if (len + dsk->sender.write_seq > dsk->total_length) {
 	// 	len = dsk->total_length - dsk->sender.write_seq;
 	// }
-	if(sk_stream_wspace(sk) <= 0) {
-		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
-		err = sk_stream_wait_memory(sk, &timeo);
-		if (err)
-			goto out_error;
-	}
-
-	while(sent_len == 0) {
-		sent_len = dcpim_fill_packets(sk, msg, len);
-		if(sent_len < 0)
-			return sent_len;
-		if(sent_len == 0) {
-			timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
-			err = sk_stream_wait_memory(sk, &timeo);
-			if (err)
-				goto out_error;
-		}
+		// if(sk_stream_wspace(sk) <= 0) {	
+	// 	timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);	
+	// 	err = sk_stream_wait_memory(sk, &timeo);	
+	// 	if (err)	
+	// 		goto out_error;	
+	// 	if (sk->sk_state != DCPIM_ESTABLISHED) {	
+	// 		return -ENOTCONN;	
+	// 	}	
+	// }	
+	while(sent_len == 0) {	
+		sent_len = dcpim_fill_packets(sk, msg, len);	
+		if(sent_len < 0)	
+			return sent_len;	
+		if(sent_len == 0) {	
+			timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);	
+			err = sk_stream_wait_memory(sk, &timeo);	
+			if (err)	
+				goto out_error;	
+			if (sk->sk_state != DCPIM_ESTABLISHED) {	
+				return -ENOTCONN;	
+			}	
+		}	
 	}
 	// if(dsk->total_length < dcpim_params.short_flow_size) {
 	// 	struct sk_buff *skb;
@@ -337,21 +342,23 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	long timeo;
 	int flags;
 	struct dcpim_message *dcpim_msg = NULL;
-	if (sk->sk_state != DCPIM_ESTABLISHED) {
-		return -ENOTCONN;
-	}
-	dcpim_msg = dcpim_message_new(dsk, inet->inet_saddr, inet->inet_sport, inet->inet_daddr, inet->inet_dport, dsk->short_message_id, len);
-	if(dcpim_msg == NULL) {
-		WARN_ON(true);
-		return -ENOBUFS;
-	}
+	if (sk->sk_state != DCPIM_ESTABLISHED) {	
+		return -ENOTCONN;	
+	}	
+	if(dcpim_message_memory_free(sk) <= 0) {	
+		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);	
+		err = dcpim_stream_wait_memory(sk, &timeo);	
+		if(err != 0)	
+			goto do_error;	
+		if(sk->sk_state != DCPIM_ESTABLISHED)	
+			return -ENOTCONN;	
+	}	
+	dcpim_msg = dcpim_message_new(dsk, inet->inet_saddr, inet->inet_sport, inet->inet_daddr, inet->inet_dport, dsk->short_message_id, len);	
+	if(dcpim_msg == NULL) {	
+		WARN_ON(true);	
+		return -ENOBUFS;	
+	}	
 	flags = msg->msg_flags;
-	if(dcpim_message_memory_free(sk) <= 0) {
-		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
-		err = dcpim_stream_wait_memory(sk, &timeo);
-		if(err != 0)
-			goto do_error;
-	}
 
 	/* we allow the actual socket buffer size is one msg size larger than the limit; this is different from long flows */
 	sent_len = dcpim_fill_packets_message(sk, dcpim_msg, msg, len);
