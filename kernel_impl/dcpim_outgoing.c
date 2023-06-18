@@ -1776,8 +1776,10 @@ enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer) {
 	struct dcpim_message *msg = container_of(timer, struct dcpim_message, rtx_timer);
 	struct sk_buff* fin_skb = NULL;
 	struct sock* sk = (struct sock*)(msg->dsk);
-	struct dcpim_sock* dsk = dcpim_sk(sk);
+	struct dcpim_sock* dsk = NULL;
 	bool remove_msg = false;
+	if(sk != NULL)
+		dsk = dcpim_sk(sk);
 	spin_lock(&msg->lock);
 	if(msg->state == DCPIM_WAIT_ACK) {
 		fin_skb = dcpim_message_get_fin(msg);
@@ -1789,7 +1791,6 @@ enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer) {
 		return HRTIMER_RESTART;
 	} else if (msg->state == DCPIM_WAIT_FIN_TX) {
 		spin_unlock(&msg->lock);
-		WARN_ON(!msg->dsk);
 		bh_lock_sock(sk);
 		/* for now, only retransmit if the socket is still in established state */
 		if(!sock_owned_by_user(sk)) {
@@ -1840,6 +1841,7 @@ void dcpim_msg_fin_rx_bg_handler(struct dcpim_sock *dsk) {
 			/* construct the fin */
 			// dcpim_xmit_control(construct_fin_msg_pkt(sk, msg->id), sk);
 			list_add_tail(&msg->table_link, &dsk->receiver.msg_list);
+			((struct sock*)dsk)->sk_data_ready(((struct sock*)dsk));
 		}
 		else
 			/* no need to remove since it is already removed before */

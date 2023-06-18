@@ -367,7 +367,6 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 		goto sent_done;
 
 	} else if(sent_len != dcpim_msg->total_len) {
-		printk("sent len:%d len:%d\n", sent_len, dcpim_msg->total_len);
 		dcpim_msg->total_len = sent_len;
 		dcpim_msg->remaining_len = sent_len;
 		WARN_ON_ONCE(true);
@@ -1069,7 +1068,8 @@ int dcpim_recvmsg_msg(struct sock *sk, struct msghdr *msg, size_t len,
 	// int target;		/* Read at least this many bytes */
 	long timeo;
 	// int trigger_tokens = 1;
-	struct sk_buff *skb, *last, *tmp;
+	struct sk_buff *skb, *tmp;
+
 	dcpim_rps_record_flow(sk);
 	// target = sock_rcvlowat(sk, flags & MSG_WAITALL, len);
 	// printk("target bytes:%d\n", target);
@@ -1104,6 +1104,7 @@ int dcpim_recvmsg_msg(struct sock *sk, struct msghdr *msg, size_t len,
 			goto out;
 		}
 		sk_msg_wait_data(dsk, &timeo);
+
 	}
 	message = list_first_entry(&dsk->receiver.msg_list, struct dcpim_message, table_link);
 	if(len < message->total_len) {
@@ -1115,10 +1116,7 @@ int dcpim_recvmsg_msg(struct sock *sk, struct msghdr *msg, size_t len,
 	do {
 		u32 offset;
 		/* Next get a buffer. */
-		last = skb_peek_tail(&message->pkt_queue);
 		skb_queue_walk_safe(&message->pkt_queue, skb, tmp) {
-			last = skb;
-
 			/* Now that we have two receive queues this
 			 * shouldn't happen.
 			 */
@@ -1142,7 +1140,6 @@ int dcpim_recvmsg_msg(struct sock *sk, struct msghdr *msg, size_t len,
 
 found_ok_skb:
 		/* Ok so how much can we use? */
-		WARN_ON(offset != 0);
 		used = skb->len - offset;
 		if (len < used)
 			used = len;
@@ -1157,8 +1154,10 @@ found_ok_skb:
 		WRITE_ONCE(seq, seq + used);
 		copied += used;
 		len -= used;
-		if (used + offset < skb->len)
+		if (used + offset < skb->len) {
+			WARN_ON(true);
 			continue;
+		}
 		spin_lock_bh(&message->lock);
 		__skb_unlink(skb, &message->pkt_queue);
 		spin_unlock_bh(&message->lock);
@@ -1167,6 +1166,7 @@ found_ok_skb:
 		continue;
 	} while (len > 0);
 	/* To Do: change the state of dcPIM message */
+
 	dcpim_message_put(message);
 	release_sock(sk);
 	return copied;
