@@ -933,6 +933,7 @@ int dcpim_handle_syn_ack_pkt(struct sk_buff *skb) {
 	struct sock *sk;
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
+	bool remove_timer = false;
 	// uint32_t old_snd_una = 0;
 	if (!pskb_may_pull(skb, sizeof(struct dcpim_ack_hdr))) {
 		kfree_skb(skb);		/* No space for header. */
@@ -951,14 +952,15 @@ int dcpim_handle_syn_ack_pkt(struct sk_buff *skb) {
 		if (!sock_owned_by_user(sk)) {
 			if(sk->sk_state == DCPIM_ESTABLISHED) {
 				dsk->sender.syn_ack_recvd = true;
-				hrtimer_cancel(&dsk->sender.rtx_flow_sync_timer);
+				remove_timer = true;
 			}
 			kfree_skb(skb);
         } else {
 			dcpim_add_backlog(sk, skb, true);
 	    }
         bh_unlock_sock(sk);
-	
+		if(remove_timer)
+			hrtimer_cancel(&dsk->sender.rtx_flow_sync_timer);
 		// printk("socket address: %p LINE:%d\n", dsk,  __LINE__);
 	} else {
 		kfree_skb(skb);
@@ -1276,13 +1278,13 @@ int dcpim_handle_data_pkt(struct sk_buff *skb) {
 				}
 				sock_rps_save_rxhash(sk, skb);
 				dcpim_data_queue(sk, skb);
-			}
+			} else
+				discard = true;
 			// dcpim_check_flow_finished_at_receiver(dsk);;
         } else {
         	// printk("add to backlog\n");
             if (dcpim_add_backlog(sk, skb, true)) {
             	discard = true;
-				goto discard_skb;
                 // goto discard_and_relse;
             }
         }
@@ -1290,11 +1292,10 @@ int dcpim_handle_data_pkt(struct sk_buff *skb) {
 	} else {
 		discard = true;
 	}
-discard_skb:
 	if (discard) {
-	    printk("seq num:%u\n", DCPIM_SKB_CB(skb)->seq);
-	    printk("discard packet:%d\n", __LINE__);
-		sk_drops_add(sk, skb);
+	    // printk("seq num:%u\n", DCPIM_SKB_CB(skb)->seq);
+	    // printk("discard packet:%d\n", __LINE__);
+		// sk_drops_add(sk, skb);
 		kfree_skb(skb);
 	}
 
@@ -1390,10 +1391,12 @@ int dcpim_handle_flow_sync_msg_pkt(struct sk_buff *skb) {
 	}
 	msg->state = DCPIM_WAIT_FIN_RX;
 	bh_lock_sock(sk);
-	success = dcpim_handle_msgid_entry(msg, dcpim_sk(sk));
-	if(success) {
-		list_add_tail(&msg->table_link, &dcpim_sk(sk)->receiver.unfinished_list);
-		dcpim_message_hold(msg);
+    if(sk->sk_state == DCPIM_ESTABLISHED) {
+		success = dcpim_handle_msgid_entry(msg, dcpim_sk(sk));
+		if(success) {
+			list_add_tail(&msg->table_link, &dcpim_sk(sk)->receiver.unfinished_list);
+			dcpim_message_hold(msg);
+		}
 	}
 	bh_unlock_sock(sk);
 	if(!success) {
@@ -1550,7 +1553,7 @@ int dcpim_handle_fin_msg_pkt(struct sk_buff *skb) {
 		spin_lock(&msg->lock);
 		msg->state = DCPIM_FINISH_TX;
 		if(!sock_owned_by_user(sk)) {
-				// if(sk->sk_state == DCPIM_ESTABLISHED) {	
+			// if(sk->sk_state == DCPIM_ESTABLISHED) {	
 			dsk->sender.inflight_msgs--;	
 			dcpim_message_flush_skb(msg);	
 			sk_stream_write_space(sk);	
@@ -1684,13 +1687,16 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 			if(child) {
 				dsk = dcpim_sk(child);
 				if(fh->message_size == UINT_MAX) {
-					dcpim_add_mat_tab(&dcpim_epoch, child);
 					/* this line needed to change later */
 					if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
 						hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
 						// sock_hold(child);
 					}
-				} 
+				} else {
+					/* small msg socket */
+					child->sk_priority = 7;
+				}
+				dcpim_add_mat_tab(&dcpim_epoch, child);
 				/* send syn ack back */
 				dcpim_xmit_control(construct_syn_ack_pkt(child, fh->message_id, fh->message_size, fh->start_time), child); 
 			}  

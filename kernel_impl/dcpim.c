@@ -1069,7 +1069,7 @@ int dcpim_recvmsg_msg(struct sock *sk, struct msghdr *msg, size_t len, int nonbl
 	// int target;		/* Read at least this many bytes */
 	long timeo;
 	// int trigger_tokens = 1;
-	struct sk_buff *skb, *last, *tmp;
+	struct sk_buff *skb, *tmp;
 	dcpim_rps_record_flow(sk);
 	// target = sock_rcvlowat(sk, flags & MSG_WAITALL, len);
 	// printk("target bytes:%d\n", target);
@@ -1115,9 +1115,7 @@ int dcpim_recvmsg_msg(struct sock *sk, struct msghdr *msg, size_t len, int nonbl
 	do {
 		u32 offset;
 		/* Next get a buffer. */
-		last = skb_peek_tail(&message->pkt_queue);
 		skb_queue_walk_safe(&message->pkt_queue, skb, tmp) {
-			last = skb;
 
 			/* Now that we have two receive queues this
 			 * shouldn't happen.
@@ -1142,7 +1140,6 @@ int dcpim_recvmsg_msg(struct sock *sk, struct msghdr *msg, size_t len, int nonbl
 
 found_ok_skb:
 		/* Ok so how much can we use? */
-		WARN_ON(offset != 0);
 		used = skb->len - offset;
 		if (len < used)
 			used = len;
