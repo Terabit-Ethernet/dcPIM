@@ -298,10 +298,8 @@ static struct ctl_table dcpim_ctl_table[] = {
  */
 static void dcpim_v4_reqsk_destructor(struct request_sock *req)
 {
-        printk("inet_rsk(req)->ireq_opt:%p\n", inet_rsk(req)->ireq_opt);
         if(rcu_dereference_protected(inet_rsk(req)->ireq_opt, 1))
 		kfree(rcu_dereference_protected(inet_rsk(req)->ireq_opt, 1));
-        printk("finish\n");
 }
 
 struct request_sock_ops dcpim_request_sock_ops __read_mostly = {
