@@ -176,7 +176,7 @@ void dcpim_message_put(struct dcpim_message *msg) {
   */
 void dcpim_message_flush_skb(struct dcpim_message *msg) {
 	struct sk_buff *skb, *n;
-	struct sock *sk = (struct sock*)(msg->dsk);
+	// struct sock *sk = (struct sock*)(msg->dsk);
 	// bool tx = false;
 	// hrtimer_cancel(&msg->rtx_timer);
 	// tx = (msg->state == DCPIM_WAIT_FIN_TX || msg->state == DCPIM_FIN_TX);
@@ -462,14 +462,14 @@ void dcpim_remove_message(struct dcpim_message_bucket *hashinfo, struct dcpim_me
  * dcpim_message_get_fin() - Assume the spin_lock is hold by the caller.
  * @msg:	The dcpim_message. 
  */
-struct sk_buff* dcpim_message_get_fin(struct dcpim_message *msg) {
+// struct sk_buff* dcpim_message_get_fin(struct dcpim_message *msg) {
 
-	struct sk_buff *skb = NULL;
-	if(msg->fin_skb) {
-		if (unlikely(skb_cloned(msg->fin_skb))) 
-			skb = pskb_copy(msg->fin_skb,  GFP_ATOMIC);
-		else
-			skb = skb_clone(msg->fin_skb, GFP_ATOMIC);
-	}
-	return skb;
-}
+// 	struct sk_buff *skb = NULL;
+// 	if(msg->fin_skb) {
+// 		if (unlikely(skb_cloned(msg->fin_skb))) 
+// 			skb = pskb_copy(msg->fin_skb,  GFP_ATOMIC);
+// 		else
+// 			skb = skb_clone(msg->fin_skb, GFP_ATOMIC);
+// 	}
+// 	return skb;
+// }

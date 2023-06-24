@@ -163,7 +163,7 @@ struct sk_buff* construct_fin_ack_pkt(struct sock* sk, __u64 message_id);
 int dcpim_xmit_control(struct sk_buff* skb, struct sock *dcpim_sk);
 void dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk);
 void dcpim_retransmit_data(struct sk_buff *skb, struct dcpim_sock* dsk);
-void __dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool free_token, uint64_t msg_id);
+void __dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool free_token, uint64_t msg_id, uint32_t msg_size, bool flow_sync);
 void dcpim_retransmit(struct sock* sk);
 uint32_t dcpim_check_rtx_token(struct dcpim_sock* dsk);
 
@@ -202,11 +202,10 @@ void dcpim_message_put(struct dcpim_message *msg);
 void dcpim_message_finish(struct dcpim_message_bucket *hashinfo, struct dcpim_message *msg);
 void dcpim_message_destroy(struct dcpim_message *msg);
 void dcpim_message_flush_skb(struct dcpim_message *msg);
-struct sk_buff* dcpim_message_get_fin(struct dcpim_message *msg);
 bool dcpim_message_receive_data(struct dcpim_message *msg, struct sk_buff *skb);
 int dcpim_fill_packets_message(struct sock* sk, struct dcpim_message *dcpim_msg,
 		struct msghdr *msg, size_t len);
-void dcpim_xmit_data_message(struct sk_buff* skb, struct dcpim_sock* dsk, uint64_t id);
+void dcpim_xmit_data_message(struct sk_buff* skb, struct dcpim_sock* dsk, uint64_t id, uint32_t msg_bytes, bool flow_sync);
 void dcpim_xmit_data_whole_message(struct dcpim_message* msg, struct dcpim_sock* dsk);
 int dcpim_handle_data_msg_pkt(struct sk_buff *skb);
 int dcpim_handle_flow_sync_msg_pkt(struct sk_buff *skb);

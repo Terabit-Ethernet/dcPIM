@@ -386,7 +386,7 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	 */
 	hrtimer_start(&dcpim_msg->rtx_timer, ns_to_ktime(dcpim_msg->timeout) , 
 		HRTIMER_MODE_REL_PINNED_SOFT);
-	dcpim_xmit_control(construct_flow_sync_msg_pkt(sk, dcpim_msg->id, dcpim_msg->total_len, 0), sk); 
+	// dcpim_xmit_control(construct_flow_sync_msg_pkt(sk, dcpim_msg->id, dcpim_msg->total_len, 0), sk); 
 	dcpim_xmit_data_whole_message(dcpim_msg, dsk);
 	/* Intiiate hrtimer for retransmission */
 	// dcpim_message_hold(dcpim_msg);
@@ -575,7 +575,7 @@ void dcpim_destruct_sock(struct sock *sk)
 		spin_lock(&temp->lock);
 		temp->state = DCPIM_FINISH_RX;
 		spin_unlock(&temp->lock);
-		dcpim_remove_message(dcpim_rx_messages, temp, true);
+		dcpim_remove_message(dcpim_rx_messages, temp, false);
 		dcpim_message_put(temp);
 	}
 	local_bh_enable();
@@ -1166,7 +1166,8 @@ found_ok_skb:
 		continue;
 	} while (len > 0);
 	/* To Do: change the state of dcPIM message */
-
+	/* transmit the fin packet */
+	dcpim_xmit_control(construct_fin_msg_pkt(sk, message->id), sk);
 	dcpim_message_put(message);
 	release_sock(sk);
 	return copied;

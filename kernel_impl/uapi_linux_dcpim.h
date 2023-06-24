@@ -96,12 +96,13 @@ struct data_segment {
 
 struct dcpim_data_hdr {
 	struct dcpimhdr common;
-	__u8 free_token;
+	__be64 message_id;
+	__be32 msg_size;
+	__u8 flow_sync;
 	/* padding*/
 	__u8 unused1;
 	__u16 unused2;
 	// __u8 priority;
-	__be64 message_id;
 	/* token seq number */
 	// __be32 seq_no;
 	// __be32 data_seq_no;

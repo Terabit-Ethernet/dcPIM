@@ -1318,7 +1318,7 @@ void dcpim_xmit_data(struct sk_buff* skb, struct dcpim_sock* dsk)
 		skb = pskb_copy(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
 	else
 		skb = skb_clone(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
-	__dcpim_xmit_data(skb, dsk, 0, 0);
+	__dcpim_xmit_data(skb, dsk, 0, 0, 0, 0);
 	/* change the state of queue and metadata*/
 
 	// dcpim_unlink_write_queue(oskb, sk);
@@ -1330,7 +1330,7 @@ void dcpim_xmit_data(struct sk_buff* skb, struct dcpim_sock* dsk)
 /** dcpim_xmit_data_message - send skb of a short message
  * 
  */
-void dcpim_xmit_data_message(struct sk_buff* skb, struct dcpim_sock* dsk, uint64_t id)
+void dcpim_xmit_data_message(struct sk_buff* skb, struct dcpim_sock* dsk, uint64_t id, uint32_t msg_bytes, bool flow_sync)
 {
 	struct sock* sk = (struct sock*)(dsk);
 	struct sk_buff* oskb;
@@ -1340,7 +1340,7 @@ void dcpim_xmit_data_message(struct sk_buff* skb, struct dcpim_sock* dsk, uint64
 		skb = pskb_copy(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
 	else
 		skb = skb_clone(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
-	__dcpim_xmit_data(skb, dsk, true, id);
+	__dcpim_xmit_data(skb, dsk, true, id, msg_bytes, flow_sync);
 }
 
 /** dcpim_xmit_data_message - send the whole short message. Assume caller holds the lock.
@@ -1349,8 +1349,11 @@ void dcpim_xmit_data_message(struct sk_buff* skb, struct dcpim_sock* dsk, uint64
 void dcpim_xmit_data_whole_message(struct dcpim_message* msg, struct dcpim_sock* dsk)
 {
 	struct sk_buff* skb;
+	bool flow_sync = true;
 	skb_queue_walk(&msg->pkt_queue, skb) {
-		dcpim_xmit_data_message(skb, dsk, msg->id);
+		dcpim_xmit_data_message(skb, dsk, msg->id, msg->total_len, flow_sync);
+		if(flow_sync)
+			flow_sync = false;
 	}
 }
 
@@ -1363,7 +1366,7 @@ void dcpim_retransmit_data(struct sk_buff* skb, struct dcpim_sock* dsk)
 		skb = pskb_copy(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
 	else
 		skb = skb_clone(oskb,  sk_gfp_mask(sk, GFP_ATOMIC));
-	__dcpim_xmit_data(skb, dsk, 0, 0);
+	__dcpim_xmit_data(skb, dsk, 0, 0, 0, 0);
 }
 
 /**
@@ -1376,7 +1379,7 @@ void dcpim_retransmit_data(struct sk_buff* skb, struct dcpim_sock* dsk)
  * @msg_id:   The ID of message.
 
  */
-void __dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool is_short, uint64_t msg_id)
+void __dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool is_short, uint64_t msg_id, uint32_t msg_size, bool flow_sync)
 {
 	int err;
 	__u8 tos = 0;
@@ -1424,9 +1427,10 @@ void __dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool is_shor
 	else 
 		h->common.type = DATA;
 	// printk("type: %d %u \n", h->common.type, skb->len);
-	h->free_token = is_short;
 	/* doesn't change to network order for now */
+	h->msg_size = msg_size;
 	h->message_id = msg_id;
+	h->flow_sync = flow_sync;
 	dcpim_set_doff(h);
 	
 	skb_set_hash_from_sk(skb, sk);
@@ -1739,7 +1743,7 @@ void dcpim_rtx_msg_handler(struct work_struct *work) {
 		} else if (msg->state == DCPIM_FINISH_TX)
 			remove_message = true;
 		if(rtx) {
-			dcpim_xmit_control(construct_flow_sync_msg_pkt(sk, msg->id, msg->total_len, 0), sk); 
+			// dcpim_xmit_control(construct_flow_sync_msg_pkt(sk, msg->id, msg->total_len, 0), sk); 
 			dcpim_xmit_data_whole_message(msg, dsk);
 			/* at least transmit one short mtessage */
 			tx_bytes -= msg->total_len;
@@ -1774,22 +1778,23 @@ enum hrtimer_restart dcpim_rtx_fin_timer_handler(struct hrtimer *timer) {
 enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer) {
 
 	struct dcpim_message *msg = container_of(timer, struct dcpim_message, rtx_timer);
-	struct sk_buff* fin_skb = NULL;
+	// struct sk_buff* fin_skb = NULL;
 	struct sock* sk = (struct sock*)(msg->dsk);
 	struct dcpim_sock* dsk = NULL;
 	bool remove_msg = false;
 	if(sk != NULL)
 		dsk = dcpim_sk(sk);
 	spin_lock(&msg->lock);
-	if(msg->state == DCPIM_WAIT_ACK) {
-		fin_skb = dcpim_message_get_fin(msg);
-		spin_unlock(&msg->lock);
-		if(dev_queue_xmit(fin_skb)) {
-			WARN_ON_ONCE(true);
-		}
-		hrtimer_forward_now(timer, msg->timeout);
-		return HRTIMER_RESTART;
-	} else if (msg->state == DCPIM_WAIT_FIN_TX) {
+	// if(msg->state == DCPIM_WAIT_ACK) {
+	// 	fin_skb = dcpim_message_get_fin(msg);
+	// 	spin_unlock(&msg->lock);
+	// 	if(dev_queue_xmit(fin_skb)) {
+	// 		WARN_ON_ONCE(true);
+	// 	}
+	// 	hrtimer_forward_now(timer, msg->timeout);
+	// 	return HRTIMER_RESTART;
+	// } else
+	 if (msg->state == DCPIM_WAIT_FIN_TX) {
 		spin_unlock(&msg->lock);
 		bh_lock_sock(sk);
 		/* for now, only retransmit if the socket is still in established state */
