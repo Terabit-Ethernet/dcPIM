@@ -1458,7 +1458,7 @@ int dcpim_handle_data_msg_pkt(struct sk_buff *skb) {
 		if(!sk) {
 			goto find_msg;
 		}
-		msg = dcpim_message_new(NULL, iph->daddr,  dh->common.dest, iph->saddr, dh->common.source, dh->message_id, dh->msg_size);
+		msg = dcpim_message_new(NULL, iph->daddr,  dh->common.dest, iph->saddr, dh->common.source, dh->message_id, dh->message_size);
 		if(msg == NULL) {
 			goto find_msg;
 		}

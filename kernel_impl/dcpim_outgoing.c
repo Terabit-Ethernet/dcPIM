@@ -1428,7 +1428,7 @@ void __dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool is_shor
 		h->common.type = DATA;
 	// printk("type: %d %u \n", h->common.type, skb->len);
 	/* doesn't change to network order for now */
-	h->msg_size = msg_size;
+	h->message_size = msg_size;
 	h->message_id = msg_id;
 	h->flow_sync = flow_sync;
 	dcpim_set_doff(h);
