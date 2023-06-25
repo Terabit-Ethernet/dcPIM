@@ -1844,7 +1844,7 @@ void dcpim_msg_fin_rx_bg_handler(struct dcpim_sock *dsk) {
 		list_del(&msg->table_link);
 		if(established) {
 			/* construct the fin */
-			// dcpim_xmit_control(construct_fin_msg_pkt(sk, msg->id), sk);
+			dcpim_xmit_control(construct_fin_msg_pkt(((struct sock*)dsk), msg->id), ((struct sock*)dsk));
 			list_add_tail(&msg->table_link, &dsk->receiver.msg_list);
 			((struct sock*)dsk)->sk_data_ready(((struct sock*)dsk));
 		}

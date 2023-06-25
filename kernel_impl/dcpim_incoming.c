@@ -1540,7 +1540,7 @@ find_msg:
 			if(!sock_owned_by_user(sk)) {
 				if(sk->sk_state == DCPIM_ESTABLISHED) { 
 					/* construct the fin */
-					// dcpim_xmit_control(construct_fin_msg_pkt(sk, msg->id), sk);
+					dcpim_xmit_control(construct_fin_msg_pkt(sk, msg->id), sk);
 					list_add_tail(&msg->table_link, &dsk->receiver.msg_list);
 					dcpim_message_hold(msg);
 					sk->sk_data_ready(sk);
@@ -1605,7 +1605,11 @@ int dcpim_handle_fin_msg_pkt(struct sk_buff *skb) {
 			// if(sk->sk_state == DCPIM_ESTABLISHED) {
 			dsk->sender.inflight_msgs--;
 			dcpim_message_flush_skb(msg);
-			sk_stream_write_space(sk);
+			/* copied from TCP socket */
+			smp_mb();
+			if (sk->sk_socket && test_bit(SOCK_NOSPACE, &sk->sk_socket->flags)) {
+				sk_stream_write_space(sk);
+			}
 			// }
 		} else {
 			list_add_tail(&msg->fin_link, &dsk->sender.fin_msg_backlog);

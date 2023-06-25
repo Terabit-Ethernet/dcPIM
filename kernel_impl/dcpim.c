@@ -1167,7 +1167,7 @@ found_ok_skb:
 	} while (len > 0);
 	/* To Do: change the state of dcPIM message */
 	/* transmit the fin packet */
-	dcpim_xmit_control(construct_fin_msg_pkt(sk, message->id), sk);
+	// dcpim_xmit_control(construct_fin_msg_pkt(sk, message->id), sk);
 	dcpim_message_put(message);
 	release_sock(sk);
 	return copied;
