@@ -122,24 +122,26 @@ class FlowRTS : public Packet
 
 class PIMREQ : public Packet{
     public:
-        PIMREQ(Flow *flow, Host *src, Host *dst, int iter, int epoch, int remaining, int total_links);
+        PIMREQ(Flow *flow, Host *src, Host *dst, int iter, int epoch, int remaining, int total_links, int prompt_links);
         int iter;
         int epoch;
         int remaining_sz;
         int total_links;
+        int prompt_links;
 };
 
 class GrantsR : public Packet{
     public:
-        GrantsR(Flow *flow, Host *src, Host *dst, int iter, int epoch, int total_links);
+        GrantsR(Flow *flow, Host *src, Host *dst, int iter, int epoch, int total_links, int prompt_links);
         int iter;
         int epoch;
         int total_links;
+        int prompt_links;
 };
 
 class AcceptPkt : public Packet{
     public:
-        AcceptPkt(Flow *flow, Host *src, Host *dst, int iter, int epoch, int total_links);
+        AcceptPkt(Flow *flow, Host *src, Host *dst, int iter, int epoch, int total_links, int prompt_links);
         int iter;
         int epoch;
         int total_links;
@@ -148,7 +150,7 @@ class AcceptPkt : public Packet{
 
 class PIMGrants : public Packet{
     public:
-        PIMGrants(Flow *flow, Host *src, Host *dst, int iter, int epoch, int remaining_sz, int total_links, bool prompt);
+        PIMGrants(Flow *flow, Host *src, Host *dst, int iter, int epoch, int remaining_sz, int total_links, int prompt_links);
         int iter;
         int epoch;
         int remaining_sz;

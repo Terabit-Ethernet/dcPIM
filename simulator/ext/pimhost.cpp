@@ -180,6 +180,7 @@ void PimEpoch::receive_req(PIMREQ *p) {
     req.iter = p->iter;
     req.remaining_sz = p->remaining_sz;
     req.total_links = p->total_links;
+    req.prompt_links = p->prompt_links;
     this->req_q.push_back(req);
     // if(this->min_req.f == NULL || this->min_req.remaining_sz > req.remaining_sz) {
     //     this->min_req.f = req.f;
@@ -201,25 +202,38 @@ void PimEpoch::receive_grantsr(GrantsR *p) {
     }
     // assert(this->match_sender == p->flow->src);
     // this->match_sender = NULL;
-    for(unsigned int i = 0; i < match_sender_links.size();) {
+    std::cout << "receive grantsr " << std::endl;
+    for(unsigned int i = 0; i < match_sender_links.size();i++) {
         if(p->total_links == 0)
             break;
         if(match_sender_links[i].target == p->flow->src) {
-            if(match_sender_links[i].total_links <= p->total_links) {
-                p->total_links -= match_sender_links[i].total_links;
-                match_sender_links.erase(match_sender_links.begin() + i);
-            } else {
-                match_sender_links[i].total_links -= p->total_links;
+            // if(match_sender_links[i].total_links <= p->total_links) {
+            //     p->total_links -= match_sender_links[i].total_links;
+            //     if(match_sender_links[i].token_send_evt != NULL) {
+            //         match_sender_links[i].token_send_evt->cancelled = true;
+            //         match_sender_links[i].token_send_evt = NULL;
+            //     }     
+            // }
+            //     match_sender_links.erase(match_sender_links.begin() + i);
+            // } else {
+                if(match_sender_links[i].total_links < p->total_links)
+                    match_sender_links[i].total_links = 0;
+                else 
+                    match_sender_links[i].total_links -= p->total_links;
+                if(match_sender_links[i].prompt_links < p->prompt_links)
+                    match_sender_links[i].prompt_links = 0;
+                else
+                    match_sender_links[i].prompt_links -= p->prompt_links;
+                if(match_sender_links[i].prompt_links == 0){
+                    if(match_sender_links[i].token_send_evt != NULL) {
+                        match_sender_links[i].token_send_evt->cancelled = true;
+                        match_sender_links[i].token_send_evt = NULL;
+                    }    
+                }
                 p->total_links = 0;
                 break;
-            }
-            continue;
-        } 
-        i++;
-    }
-    if(p->total_links != 0) {
-        std::cout << p->total_links << std::endl;
-    }
+        }
+    } 
     assert(p->total_links == 0);
     // if(this->host->cur_epoch == this->epoch || this->prompt) {
     // 	this->host->sender = this->match_sender;
@@ -273,21 +287,26 @@ void PimEpoch::receive_accept_pkt(AcceptPkt *p) {
     // if(p->accept) {
     if(this->num_rx_link + p->total_links > params.pim_k) {
         int diff = p->total_links + this->num_rx_link - params.pim_k;
+        int prompt_diff = 0;
         p->total_links = p->total_links - diff;
-        ((PimFlow*)p->flow)->send_grantsr(this->iter, this->epoch, diff);
+        if(p->prompt_links > p->total_links)
+            prompt_diff = p->prompt_links - p->total_links;
+        p->prompt_links = p->prompt_links - prompt_diff;
+        assert(p->prompt_links >= 0 && prompt_diff >= 0);
+        ((PimFlow*)p->flow)->send_grantsr(this->iter, this->epoch, diff, prompt_diff);
     }
     if(p->total_links == 0)
         return;
     // if(debug_host(this->host->id)) {
     //     std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " match src " << p->flow->src->id << " to dst:" << p->flow->dst->id  << " q delay:" << p->total_queuing_delay << std::endl; 
     // }
-    assert(this->num_rx_link < params.pim_k);
     // for non-pipeline
     // for (int i = 0; i < p->total_links; i++) {
     bool find_link = false;
     for (int i = 0; i < this->match_receiver_links.size(); i++) {
         if(this->match_receiver_links[i].target == (PimHost*)p->src) {
             this->match_receiver_links[i].total_links += p->total_links;
+            this->match_receiver_links[i].prompt_links += p->prompt_links;
             find_link = true;
         }
     }
@@ -297,7 +316,7 @@ void PimEpoch::receive_accept_pkt(AcceptPkt *p) {
         link.target = (PimHost*)p->src;
         link.host = this->host;
         link.total_links = p->total_links;
-        link.prompt_links = 0;
+        link.prompt_links = p->prompt_links;
         this->match_receiver_links.push_back(link);
     }
     if(debug_host(this->host->id)) {
@@ -305,6 +324,9 @@ void PimEpoch::receive_accept_pkt(AcceptPkt *p) {
             << " total link:" << p->total_links << " q delay:" << p->total_queuing_delay << std::endl;
     }
     this->num_rx_link += p->total_links;
+    this->num_rx_prompt_link += p->prompt_links;
+    assert(this->num_rx_link <= params.pim_k);
+    assert(this->num_rx_prompt_link <= params.pim_k);
     // }
 
     // this->host->sender = this->match_sender;
@@ -318,6 +340,7 @@ void PimEpoch::send_all_req() {
     if(this->num_tx_link == params.pim_k)
         return;
     int avail_link = params.pim_k - this->num_tx_link;
+    int avail_prompt_link = params.pim_k - this->num_tx_prompt_link;
     int per_link_pkt = params.pim_link_pkts;
     // printf("per link pkt:%d\n", per_link_pkt);
     for(auto i = this->host->src_to_flows.begin(); i != this->host->src_to_flows.end();) {
@@ -356,7 +379,9 @@ void PimEpoch::send_all_req() {
 
             if(grant_size * per_link_pkt < best_flow->remaining_pkts()){
                 int need_link = std::min(int(ceil(best_flow->remaining_pkts() / (double)per_link_pkt) - grant_size), avail_link);
-                best_flow->send_req(this->iter, this->epoch, need_link);
+                int prompt_link = std::min(need_link, avail_prompt_link);
+                assert(prompt_link >= 0);
+                best_flow->send_req(this->iter, this->epoch, need_link, prompt_link);
             }
         }
         while(!flows_tried.empty()) {
@@ -381,6 +406,7 @@ void PimEpoch::handle_all_req() {
     uint32_t index = 0;
     bool select_min_r = false;
     int avail_link = params.pim_k - this->num_rx_link;
+    int avail_prompt_link = params.pim_k - this->num_rx_prompt_link;
     // int per_link_pkt = params.pim_epoch_pkts / params.pim_k;
     if(debug_host(this->host->id)) {
         std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " handle of all rts dst:" << this->host->id << std::endl; 
@@ -404,10 +430,14 @@ void PimEpoch::handle_all_req() {
             continue;
         }
         int need_link = std::min(avail_link, req_q[index].total_links);
+        int prompt_link = std::min(need_link, req_q[index].prompt_links);
+        prompt_link = std::min(prompt_link, avail_prompt_link);
         /* TO DO: add prompt optimization */
         // std::cout << "send grant:"
-        req_q[index].f->send_grants(this->iter, this->epoch, req_q[index].remaining_sz, need_link, false);
+        assert(prompt_link >= 0);
+        req_q[index].f->send_grants(this->iter, this->epoch, req_q[index].remaining_sz, need_link, prompt_link);
         avail_link -= need_link;
+        avail_prompt_link -= prompt_link;
         this->req_q.erase(this->req_q.begin() + index);
     }
     
@@ -424,6 +454,7 @@ void PimEpoch::handle_all_grants() {
     // int min_size = INT_MAX;
     bool select_min_r = false;
     int avail_link = params.pim_k - this->num_tx_link;
+    int avail_prompt_link = params.pim_k - this->num_tx_prompt_link;
     PimFlow *f = NULL;
     // PIM_Grants *grant = NULL;
     if(params.pim_select_min_iters > 0 && this->iter <= params.pim_select_min_iters) {
@@ -442,15 +473,26 @@ void PimEpoch::handle_all_grants() {
         }
         int need_link = this->grants_q[index].total_links;
         need_link = std::min(avail_link, need_link);
+        int prompt_link = this->grants_q[index].prompt_links;
+        prompt_link = std::min(avail_prompt_link, prompt_link);
+        prompt_link = std::min(need_link, prompt_link);
         f = grants_q[index].f;
-        f->send_accept_pkt(this->iter, this->epoch, need_link);
+        f->send_accept_pkt(this->iter, this->epoch, need_link, prompt_link);
         if(debug_host(f->dst->id) || debug_host(f->src->id)) {
             std::cout << get_current_time() << " epoch " << this->epoch << " iter " << this->iter << " dst " << this->host->id << " accept " << f->src->id << std::endl;
         }
         for (int i = 0; i < this->match_sender_links.size(); i++) {
             if (this->match_sender_links[i].target == (PimHost*)(f->src)) {
                 this->match_sender_links[i].total_links += need_link;
+                this->match_sender_links[i].prompt_links += prompt_link;
                 find = true;
+                if(prompt_link > 0) {
+                    if(this->match_sender_links[i].token_send_evt != NULL) {
+                        this->match_sender_links[i].token_send_evt->cancelled = true;
+                        this->match_sender_links[i].token_send_evt = NULL;
+                    }                 
+                    this->match_sender_links[i].schedule_token_proc_evt(0, false);
+                }
             }
         }
         if(!find) {
@@ -459,15 +501,23 @@ void PimEpoch::handle_all_grants() {
             link.target = (PimHost*)(f->src);
             link.host = this->host;
             link.total_links = need_link;
-            link.prompt_links = 0;
+            link.prompt_links = prompt_link;
             link.shortest_flow_size = this->grants_q[index].remaining_sz;
+            assert(link.token_send_evt == NULL);
+            /* give the lowest priority for prompting link */
+            link.priority = 7;
             // link.prompt = false;
             this->match_sender_links.push_back(link);
+            if(link.prompt_links > 0) {
+                this->match_sender_links[this->match_sender_links.size() - 1].schedule_token_proc_evt(0, false);
+            }
         }
         // for (int j = 0; j < need_link; j++) {
 
         this->num_tx_link += need_link;
-        this->num_tx_prompt_link += 0;
+        this->num_tx_prompt_link += prompt_link;
+        assert(this->num_tx_prompt_link <= params.pim_k);
+
         // }
         // this->match_sender = (PimHost*)(f->src);
         // if(grant->prompt && this->host->sender == NULL && this->host->cur_epoch == this->epoch - 1) {
@@ -482,6 +532,7 @@ void PimEpoch::handle_all_grants() {
         //     }
         // }
         avail_link -= need_link;
+        avail_prompt_link -= prompt_link;
         this->grants_q.erase(this->grants_q.begin() + index);
     }
     
@@ -560,6 +611,16 @@ void PimEpoch::schedule_receiver_iter_evt() {
                 this->host->match_sender_links[i].token_send_evt = NULL;
             }
         }
+        /* stop prompt link token event */
+       if(debug_host(this->host->id)) {
+            std::cout << get_current_time() << " stop prompt link: " << this->epoch  << std::endl;
+        }
+        for(unsigned int i = 0; i < this->match_sender_links.size(); i++) {
+            if(this->match_sender_links[i].token_send_evt != NULL) {
+                this->match_sender_links[i].token_send_evt->cancelled = true;
+                this->match_sender_links[i].token_send_evt = NULL;
+            }
+        }
         /* sort the sender link based on the shortest flow size */
         std::sort(this->match_sender_links.begin(), this->match_sender_links.end());
         /* change the id and priority */
@@ -572,8 +633,9 @@ void PimEpoch::schedule_receiver_iter_evt() {
         // pipeline code
         this->host->match_sender_links = this->match_sender_links;
         this->host->match_receiver_links = this->match_receiver_links;
-
         for(unsigned int i = 0; i < this->host->match_sender_links.size(); i++) {
+            /* remove prompt link */
+            this->host->match_sender_links[i].prompt_links =  0;
             this->host->match_sender_links[i].schedule_token_proc_evt(0, false);
         }
         // this->host->receiver = this->match_receiver;
@@ -636,12 +698,21 @@ void PimHost::start_new_epoch(double time, int epoch) {
     this->epochs[epoch].epoch = epoch;
     this->epochs[epoch].iter = 0;
     this->epochs[epoch].host = this;
+    if(epoch == 0) {
+        this->epochs[epoch].num_tx_prompt_link = 0;
+        this->epochs[epoch].num_rx_prompt_link = 0;
+    }
+    else {
+        this->epochs[epoch].num_tx_prompt_link = this->epochs[epoch - 1].num_tx_link;
+        this->epochs[epoch].num_rx_prompt_link = this->epochs[epoch - 1].num_rx_link;
+    }
     this->epochs[epoch].num_tx_link = 0;
     this->epochs[epoch].num_rx_link = 0;
-    this->epochs[epoch].num_tx_prompt_link = 0;
-    this->epochs[epoch].num_rx_prompt_link = 0;
     this->epochs[epoch].match_sender_links.clear();
     this->epochs[epoch].match_receiver_links.clear();
+    this->epochs[epoch].match_sender_links.reserve(params.pim_iter_limit * params.pim_k);
+    this->epochs[epoch].match_receiver_links.reserve(params.pim_iter_limit * params.pim_k);
+
     this->epochs[epoch].proc_receiver_iter_evt = new ProcessReceiverIterEvent(time, &this->epochs[epoch]);
     this->epochs[epoch].proc_sender_iter_evt = new ProcessSenderIterEvent(time + params.pim_iter_epoch / 2, &this->epochs[epoch]);
     // pipeline
@@ -884,6 +955,11 @@ void PIM_Vlink::send_token() {
     this->host->total_token_schd_evt_count++;
     double closet_timeout = 999999;
     std::queue<PimFlow*> flows_tried;
+    int num_links = this->total_links;
+    if(this->prompt_links > 0)
+        num_links = this->prompt_links;
+    if(num_links == 0)
+        return;
     if(TOKEN_HOLD && this->host->hold_on > 0){
         this->host->hold_on--;
         token_sent = true;
@@ -939,13 +1015,13 @@ void PIM_Vlink::send_token() {
                 f->redundancy_ctrl_timeout = -1;
                 f->token_goal += f->remaining_pkts();
             }
-            if(f->token_gap() > params.token_window / params.pim_k * this->total_links)
+            if(f->token_gap() > params.token_window / params.pim_k * num_links)
             {
                 if(get_current_time() >= f->latest_token_sent_time + params.token_window_timeout) {
                     if(debug_host(this->id)) {
                         std::cout << get_current_time() << " host " << this->id << " relax token gap for flow " << f->id << std::endl;
                     }
-                    f->relax_token_gap(params.token_window / params.pim_k * this->total_links);
+                    f->relax_token_gap(params.token_window / params.pim_k * num_links);
                 }
                 else{
                     if(f->latest_token_sent_time + params.token_window_timeout < closet_timeout)
@@ -958,7 +1034,7 @@ void PIM_Vlink::send_token() {
                 }
 
             }
-            if(f->token_gap() <= double(params.token_window) / params.pim_k * this->total_links)
+            if(f->token_gap() <= double(params.token_window) / params.pim_k * num_links)
             {
                 if(debug_host(id)) {
                         std::cout << get_current_time() << " sending tokens for flow " << f->id << std::endl;   
@@ -989,7 +1065,8 @@ void PIM_Vlink::send_token() {
     if(token_sent)// pkt sent
     {
         this->schedule_token_proc_evt(params.get_full_pkt_tran_delay(1500/* + 40*/)
-            * params.pim_k / this->total_links, false);
+            * params.pim_k / num_links, false);
+
     }
     else if(closet_timeout < 999999) //has unsend flow, but its within timeout
     {
