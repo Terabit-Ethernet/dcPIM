@@ -1601,6 +1601,51 @@ put_sock:
 	// sock_put(sk);
 	return HRTIMER_NORESTART;
 }
+void dcpim_xmit_token_work(struct work_struct *work) {
+	struct dcpim_sock *dsk = container_of(work, struct dcpim_sock, receiver.token_work);
+	struct sock *sk = (struct sock*)dsk;
+	unsigned long matched_bw;
+	unsigned long token_bytes;
+	ktime_t time_delta;
+	int rtx_bytes = 0;
+	lock_sock(sk);
+	matched_bw = READ_ONCE(sk->sk_max_pacing_rate);
+	token_bytes = dcpim_avail_token_space((struct sock*)dsk);
+	time_delta = ktime_get() - dsk->receiver.latest_token_sent_time;
+	if(sk->sk_state != DCPIM_ESTABLISHED)
+		goto release_sock;
+	if(matched_bw == 0)
+		goto release_sock;
+	if(token_bytes < dsk->receiver.token_batch)
+		goto release_sock;
+	/* perform retransmission */
+	if(atomic_read(&dsk->receiver.rtx_status) == 1) {
+		if(dsk->receiver.rtx_rcv_nxt == dsk->receiver.rcv_nxt) {
+			// printk("epoch:%llu value: %u %u \n", dcpim_epoch.epoch, dsk->receiver.rtx_rcv_nxt, dsk->receiver.rcv_nxt);
+			dcpim_xmit_control(construct_rtx_token_pkt((struct sock*)dsk, 3, dsk->receiver.token_nxt, dsk->receiver.token_nxt, &rtx_bytes), sk);
+		}	
+		atomic_set(&dsk->receiver.rtx_status, 0);
+	}
+	if(time_delta < ns_to_ktime(token_bytes * 1000000000 / matched_bw)) {
+		if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
+			hrtimer_start(&dsk->receiver.token_pace_timer,
+				ns_to_ktime(token_bytes * 1000000000 / matched_bw) - time_delta, HRTIMER_MODE_REL_PINNED_SOFT);
+		}
+		goto release_sock;
+	}
+	token_bytes = dcpim_xmit_token(dsk, token_bytes);
+	dsk->receiver.latest_token_sent_time += time_delta;
+	// printk("defer token_bytes:%u %u\n", token_bytes, dsk->receiver.token_nxt);
+	if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
+		hrtimer_start(&dsk->receiver.token_pace_timer,
+			ns_to_ktime(token_bytes * 1000000000 / matched_bw), HRTIMER_MODE_REL_PINNED_SOFT);
+	}
+release_sock:
+	sock_put(sk);
+	atomic_set(&dsk->receiver.token_work_status, 0);
+	release_sock(sk);
+	return;
+}
 
 /* hrtimer may fire twice for some reaons; need to check what happens later. */
 enum hrtimer_restart dcpim_rtx_token_handler(struct hrtimer *timer) {

@@ -700,7 +700,7 @@ void dcpim_data_ready(struct sock *sk)
 {
         const struct dcpim_sock *dsk = dcpim_sk(sk);
         int avail = dsk->receiver.rcv_nxt - dsk->receiver.copied_seq;
-
+		// printk("avail:%d sk->sk_rcvlowat:%d\n", avail, sk->sk_rcvlowat);
         if ((avail < sk->sk_rcvlowat) && !sock_flag(sk, SOCK_DONE)) {
         	return;
         }

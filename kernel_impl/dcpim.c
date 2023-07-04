@@ -672,9 +672,11 @@ int dcpim_init_sock(struct sock *sk)
 	atomic_set(&dsk->receiver.backlog_len, 0);
 	atomic_set(&dsk->receiver.inflight_bytes, 0);
 	atomic_set(&dsk->receiver.rtx_status, 0);
+	atomic_set(&dsk->receiver.token_work_status, 0);
 	// atomic_set(&dsk->receiver.matched_bw, 100);
 	WRITE_ONCE(sk->sk_max_pacing_rate, 0); // bytes per second
 	WRITE_ONCE(dsk->receiver.next_pacing_rate, 0); // bytes per second
+	INIT_WORK(&dsk->receiver.token_work, dcpim_xmit_token_work);
 
 	// dsk->start_time = ktime_get();
 	hrtimer_init(&dsk->receiver.token_pace_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
@@ -685,6 +687,7 @@ int dcpim_init_sock(struct sock *sk)
 	
 	WRITE_ONCE(sk->sk_sndbuf, dcpim_params.wmem_default);
 	WRITE_ONCE(sk->sk_rcvbuf, dcpim_params.rmem_default);
+	WRITE_ONCE(sk->sk_rcvlowat, dsk->receiver.token_batch);
 	// sk->sk_tx_skb_cache = NULL;
 	/* reuse tcp rtx queue*/
 	sk->tcp_rtx_queue = RB_ROOT;
@@ -893,7 +896,7 @@ int dcpim_recvmsg_normal(struct sock *sk, struct msghdr *msg, size_t len,
 			release_sock(sk);
 			lock_sock(sk);
 		} else {
-			dcpim_try_send_token(sk);
+			// dcpim_try_send_token(sk);
 			sk_wait_data(sk, &timeo, last);
 		}
 
@@ -956,7 +959,7 @@ found_ok_skb:
 		// 	trigger_tokens += 1;
 			
 		// }
-		dcpim_try_send_token(sk);
+		// dcpim_try_send_token(sk);
 
 		// tcp_rcv_space_adjust(sk);
 

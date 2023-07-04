@@ -327,13 +327,13 @@ struct dcpim_host {
 	/* sender only: for sending RTS */
 	struct list_head entry;
 	refcount_t refcnt;
-	/* grant_index is protected by sender_lock */
+	/* grant_index is protected by receiver_lock */
 	int grant_index;
-	/* grant is protected by sender_lock */
+	/* grant is protected by receiver_lock */
 	struct dcpim_grant* grant;
-	/* rts_index is protected by receiver_lock */
+	/* rts_index is protected by sender_lock */
 	int rts_index;	
-	/* rts is protected by receiver_lock */
+	/* rts is protected by sender_lock */
 	struct dcpim_rts* rts;
 
 };
@@ -379,25 +379,27 @@ struct dcpim_epoch {
 	/* it has DCPIM_MATCH_DEFAULT_HOST_BITS slots */
 	DECLARE_HASHTABLE(host_table, DCPIM_MATCH_DEFAULT_HOST_BITS);
 
+	struct dcpim_accept *accept_array;
 	spinlock_t matched_lock;
 
-	spinlock_t receiver_lock;
+	spinlock_t sender_lock;
 	struct dcpim_rts *rts_array;
 	struct sk_buff** rts_skb_array;
-	atomic_t unmatched_recv_bytes;
 	int rts_size;
+	atomic_t unmatched_sent_bytes;
+
 	// int rts_size;
 
-	spinlock_t sender_lock;
+	spinlock_t receiver_lock;
 	struct dcpim_grant *grants_array;
 	struct sk_buff** grant_skb_array;
 
-	int unmatched_sent_bytes;
 	int grant_size;
 	// int grant_size;
 	struct sk_buff** rtx_msg_array;
 	struct sk_buff** temp_rtx_msg_array;
 	int rtx_msg_size;
+	int unmatched_recv_bytes;
 
 	int epoch_bytes_per_k;
 	int epoch_bytes;
@@ -442,6 +444,7 @@ struct dcpim_rts {
     int remaining_sz;
 	int skb_size;
 	int rtx_channel;
+	int flow_size;
 	struct sk_buff **skb_arr;
  	// struct list_head entry;
 	// struct llist_node lentry;
@@ -466,6 +469,13 @@ struct dcpim_grant {
 	// __be16 dport;
 	// struct list_head entry;
 	// struct llist_node lentry;
+};
+
+struct dcpim_accept {
+    // bool prompt;
+    struct dcpim_host *host;
+    int remaining_sz;
+	int rtx_channel;
 };
 
 // struct dcpim_match_entry {
@@ -721,9 +731,11 @@ struct dcpim_sock {
 		struct hrtimer token_pace_timer;
 		struct hrtimer rtx_timer;
 		uint32_t rtx_rcv_nxt;
-		/* 0: rtx timer is not set; 1: timer should be set; 2: timer is triggering; */
+		/* 0: rtx timer is not set; 1: timer should be set; */
 		atomic_t rtx_status;
-
+		/* 0: work is not queued; 1: work is queued */
+		atomic_t token_work_status;
+		struct work_struct token_work;
 		/* Message data structure */
 		uint64_t rcv_msg_nxt;
 		/* protected by bh_lock_sock */

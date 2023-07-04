@@ -44,6 +44,7 @@ int rtx_bytes_count(struct dcpim_sock* dsk, __u32 prev_grant_nxt);
 enum hrtimer_restart dcpim_xmit_token_handler(struct hrtimer *timer);
 enum hrtimer_restart dcpim_rtx_token_handler(struct hrtimer *timer);
 enum hrtimer_restart dcpim_rtx_sync_timer_handler(struct hrtimer *timer);
+void dcpim_xmit_token_work(struct work_struct *work);
 void dcpim_rtx_sync_handler(struct dcpim_sock *dsk);
 void rtx_fin_handler(struct work_struct *work);
 enum hrtimer_restart dcpim_rtx_fin_timer_handler(struct hrtimer *timer);
