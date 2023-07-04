@@ -228,7 +228,7 @@ static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 		test_pacing_rate += host->next_pacing_rate;
 		test_count += 1;
 		total_channels = host->next_pacing_rate / epoch->rate_per_channel;
-		num_flows = host->num_flows;
+		num_flows = host->num_long_flows;
 		// if(epoch->epoch % 100000 == 0)
 		// 	printk("average pacing rate:%llu\n", test_pacing_rate / test_count);
 		// WRITE_ONCE(sk->sk_max_pacing_rate, max_pacing_rate);
@@ -785,7 +785,7 @@ void dcpim_send_all_rts (struct dcpim_epoch* epoch) {
 		//      continue;
 		flow_size = total_flow_size;
 		if(host->sk == NULL)
-			continue;
+			goto unlock_host;
 		for(i = 0; i < epoch->k; i++) {
 			rtx_channel = false;
 			rts_size = min(epoch->epoch_bytes_per_k, flow_size);
@@ -804,6 +804,7 @@ void dcpim_send_all_rts (struct dcpim_epoch* epoch) {
 					break;
 			epoch->port = (epoch->port + 1) % epoch->port_range;
 		}
+unlock_host:
 				// __ip_queue_xmit(ftemp->sock, skb, &inet->cork.fl, IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL);
 		spin_unlock_bh(&host->lock);
 	}

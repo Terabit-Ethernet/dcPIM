@@ -1534,8 +1534,11 @@ int dcpim_token_timer_defer_handler(struct sock *sk) {
 		return 0;
 	if(matched_bw == 0)
 		return 0;
-	if(token_bytes < dsk->receiver.token_batch)
+	if(token_bytes == 0)
 		return 0;
+	/* allow window to be one token_batch larger */
+	if(token_bytes < dsk->receiver.token_batch)
+		token_bytes = dsk->receiver.token_batch;
 	if(time_delta < ns_to_ktime(token_bytes * 1000000000 / matched_bw)) {
 		if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
 			hrtimer_start(&dsk->receiver.token_pace_timer,
@@ -1569,6 +1572,8 @@ enum hrtimer_restart dcpim_xmit_token_handler(struct hrtimer *timer) {
 	if (!sock_owned_by_user(sk)) {
 		token_bytes = dcpim_avail_token_space((struct sock*)dsk);
 		delta = current_time - dsk->receiver.latest_token_sent_time;
+		if(token_bytes == 0)
+			goto unlock_sock;
 		if(delta < ns_to_ktime(token_bytes * 1000000000 / matched_bw)) {
 			if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
 				hrtimer_forward_now(timer, ns_to_ktime(token_bytes * 1000000000 / matched_bw) - delta);
@@ -1576,17 +1581,18 @@ enum hrtimer_restart dcpim_xmit_token_handler(struct hrtimer *timer) {
 			bh_unlock_sock(sk);
 			return HRTIMER_RESTART;
 		}
-		if(token_bytes >= dsk->receiver.token_batch) {
-			dcpim_xmit_token(dsk, token_bytes);
-			dsk->receiver.latest_token_sent_time = current_time;
-			// printk("timer token_bytes:%u %u\n", token_bytes, dsk->receiver.token_nxt);
-			if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
-				hrtimer_forward_now(timer, ns_to_ktime(token_bytes * 1000000000 / matched_bw));
-			}
-			bh_unlock_sock(sk);
-			/* still need to sock_hold */
-			return HRTIMER_RESTART;
+		/* allow window one token_batch larger than the window */
+		if(token_bytes < dsk->receiver.token_batch)
+			token_bytes = dsk->receiver.token_batch;
+		dcpim_xmit_token(dsk, token_bytes);
+		dsk->receiver.latest_token_sent_time = current_time;
+		// printk("timer token_bytes:%u %u\n", token_bytes, dsk->receiver.token_nxt);
+		if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
+			hrtimer_forward_now(timer, ns_to_ktime(token_bytes * 1000000000 / matched_bw));
 		}
+		bh_unlock_sock(sk);
+		/* still need to sock_hold */
+		return HRTIMER_RESTART;
 	} else {
 		/* delegate our work to dcpim_release_cb() */
 		// WARN_ON(sk->sk_state == DCPIM_CLOSE);
@@ -1596,6 +1602,7 @@ enum hrtimer_restart dcpim_xmit_token_handler(struct hrtimer *timer) {
 		}
 
 	}
+unlock_sock:
 	bh_unlock_sock(sk);
 put_sock:
 	// sock_put(sk);
@@ -1616,8 +1623,7 @@ void dcpim_xmit_token_work(struct work_struct *work) {
 		goto release_sock;
 	if(matched_bw == 0)
 		goto release_sock;
-	if(token_bytes < dsk->receiver.token_batch)
-		goto release_sock;
+	dsk->receiver.max_congestion_win = dcpim_params.bdp * (dcpim_params.bandwidth * 1000000000 / 8 /  matched_bw);
 	/* perform retransmission */
 	if(atomic_read(&dsk->receiver.rtx_status) == 1) {
 		if(dsk->receiver.rtx_rcv_nxt == dsk->receiver.rcv_nxt) {
@@ -1626,6 +1632,12 @@ void dcpim_xmit_token_work(struct work_struct *work) {
 		}	
 		atomic_set(&dsk->receiver.rtx_status, 0);
 	}
+	if(token_bytes == 0)
+		goto release_sock;
+	/* allow window one token_batch larger than the window */
+	if(token_bytes < dsk->receiver.token_batch)
+		token_bytes = dsk->receiver.token_batch;
+
 	if(time_delta < ns_to_ktime(token_bytes * 1000000000 / matched_bw)) {
 		if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
 			hrtimer_start(&dsk->receiver.token_pace_timer,
