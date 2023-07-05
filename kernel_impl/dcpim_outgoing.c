@@ -46,17 +46,11 @@
 #include "dcpim_impl.h"
 
 
-#define DCPIM_DEFERRED_ALL (DCPIMF_TSQ_DEFERRED |		\
-			  DCPIMF_CLEAN_TIMER_DEFERRED |	\
-			  DCPIMF_TOKEN_TIMER_DEFERRED |	\
-			  DCPIMF_RTX_TOKEN_TIMER_DEFERRED |	\
+#define DCPIM_DEFERRED_ALL (DCPIMF_TOKEN_TIMER_DEFERRED |	\
 			  DCPIMF_RTX_FLOW_SYNC_DEFERRED |	\
-			  DCPIMF_RMEM_CHECK_DEFERRED | \
-			  DCPIMF_RTX_DEFERRED | \
 			  DCPIMF_MSG_RX_DEFERRED | \
 			  DCPIMF_MSG_TX_DEFERRED | \
-			  DCPIMF_MSG_RTX_DEFERRED | \
-			  DCPIMF_WAIT_DEFERRED)
+			  DCPIMF_MSG_RTX_DEFERRED)
 
 static inline bool before(__u32 seq1, __u32 seq2)
 {
@@ -728,21 +722,8 @@ void dcpim_release_cb(struct sock *sk)
 	// sock_release_ownership(sk);
 
 	/* First check read memory */
-	// if (flags & DCPIMF_RMEM_CHECK_DEFERRED) {
-	// 	dcpim_rem_check_handler(sk);
-	// }
-
-	// if (flags & DCPIMF_CLEAN_TIMER_DEFERRED) {
-	// 	dcpim_clean_rtx_queue(sk);
-	// 	// __sock_put(sk);
-	// }
 	if (flags & DCPIMF_TOKEN_TIMER_DEFERRED) {
 		dcpim_token_timer_defer_handler(sk);
-		__sock_put(sk);
-	}
-	if(flags & DCPIMF_RTX_TOKEN_TIMER_DEFERRED) {
-		/* transmit retransmission tokens */
-		dcpim_check_rtx_token(dcpim_sk(sk));
 		__sock_put(sk);
 	}
 	if (flags & DCPIMF_RTX_FLOW_SYNC_DEFERRED) {
@@ -761,11 +742,6 @@ void dcpim_release_cb(struct sock *sk)
 		dcpim_msg_rtx_bg_handler(dcpim_sk(sk));
 		__sock_put(sk);
 	}
-
-	// if (flags & DCPIMF_WAIT_DEFERRED) {
-	// 	dcpim_flow_wait_handler(sk);
-	// }
-
 	// if (flags & TCPF_MTU_REDUCED_DEFERRED) {
 	// 	inet_csk(sk)->icsk_af_ops->mtu_reduced(sk);
 	// 	__sock_put(sk);
@@ -1497,33 +1473,6 @@ uint32_t dcpim_xmit_token(struct dcpim_sock* dsk, uint32_t token_bytes) {
 	return token_bytes;
 }
 
-uint32_t dcpim_check_rtx_token(struct dcpim_sock* dsk) {
-	// struct inet_sock *inet = inet_sk((struct sock*)dsk);
-	struct sock *sk = (struct sock*)dsk;
-	int rtx_bytes = 0;
-	/* don't add inflight bytes to rtx packets*/
-	// if(after(dsk->receiver.rtx_token_nxt, dsk->receiver.rcv_nxt)) {
-	/* handle rtx time */
-	if(atomic_read(&dsk->receiver.rtx_status) == 1) {
-		if(dsk->receiver.rtx_rcv_nxt == dsk->receiver.rcv_nxt) {
-			// printk("epoch:%llu value: %u %u \n", dcpim_epoch.epoch, dsk->receiver.rtx_rcv_nxt, dsk->receiver.rcv_nxt);
-			dcpim_xmit_control(construct_rtx_token_pkt((struct sock*)dsk, 3, dsk->receiver.token_nxt, dsk->receiver.token_nxt, &rtx_bytes), sk);
-		}	
-		// dsk->receiver.rtx_token_nxt = prev_token_nxt;
-		// hrtimer_start(&dsk->receiver.rtx_timer,
-		// 	ns_to_ktime(dcpim_params.bdp * 1000000000 / matched_bw), HRTIMER_MODE_REL_PINNED_SOFT);
-		// atomic_set(&dsk->receiver.rtx_status, 2);
-		atomic_set(&dsk->receiver.rtx_status, 0);
-	}
-	dsk->receiver.rtx_rcv_nxt = dsk->receiver.rcv_nxt;
-
-	// }
-	// atomic_set(&dsk->receiver.rtx_status, 0);
-	// atomic_add(rtx_bytes, &dsk->receiver.inflight_bytes);
-
-	return rtx_bytes;
-}
-
 int dcpim_token_timer_defer_handler(struct sock *sk) {
 	struct dcpim_sock *dsk = dcpim_sk(sk);
 	// uint32_t prev_token_nxt = dsk->receiver.token_nxt;
@@ -1570,6 +1519,8 @@ enum hrtimer_restart dcpim_xmit_token_handler(struct hrtimer *timer) {
 		goto put_sock;
 	bh_lock_sock(sk);
 	if (!sock_owned_by_user(sk)) {
+		if(sk->sk_state != DCPIM_ESTABLISHED)
+			goto unlock_sock;
 		token_bytes = dcpim_avail_token_space((struct sock*)dsk);
 		delta = current_time - dsk->receiver.latest_token_sent_time;
 		if(token_bytes == 0)
@@ -1657,27 +1608,6 @@ release_sock:
 	atomic_set(&dsk->receiver.token_work_status, 0);
 	release_sock(sk);
 	return;
-}
-
-/* hrtimer may fire twice for some reaons; need to check what happens later. */
-enum hrtimer_restart dcpim_rtx_token_handler(struct hrtimer *timer) {
-
-	struct dcpim_sock *dsk = container_of(timer, struct dcpim_sock, receiver.rtx_timer);
-	struct sock* sk = (struct sock *)dsk;
-
-	bh_lock_sock(sk);
-	if (!sock_owned_by_user(sk)) {
-		/* transmit retransmit tokens */
-		dcpim_check_rtx_token(dsk);
-	} else {
-		/* delegate our work to dcpim_release_cb() */
-		if (!test_and_set_bit(DCPIM_RTX_TOKEN_TIMER_DEFERRED, &sk->sk_tsq_flags)) {
-			sock_hold(sk);
-		}
-	}
-	bh_unlock_sock(sk);
-	// sock_put(sk);
-	return HRTIMER_NORESTART;
 }
 
 /* hrtimer may fire twice for some reaons; need to check what happens later. */

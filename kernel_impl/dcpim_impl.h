@@ -42,7 +42,6 @@ int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx);
 uint32_t dcpim_xmit_token(struct dcpim_sock* dsk, uint32_t token_bytes);
 int rtx_bytes_count(struct dcpim_sock* dsk, __u32 prev_grant_nxt);
 enum hrtimer_restart dcpim_xmit_token_handler(struct hrtimer *timer);
-enum hrtimer_restart dcpim_rtx_token_handler(struct hrtimer *timer);
 enum hrtimer_restart dcpim_rtx_sync_timer_handler(struct hrtimer *timer);
 void dcpim_xmit_token_work(struct work_struct *work);
 void dcpim_rtx_sync_handler(struct dcpim_sock *dsk);
@@ -166,7 +165,6 @@ void dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk);
 void dcpim_retransmit_data(struct sk_buff *skb, struct dcpim_sock* dsk);
 void __dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool free_token, uint64_t msg_id, uint32_t msg_size, bool flow_sync);
 void dcpim_retransmit(struct sock* sk);
-uint32_t dcpim_check_rtx_token(struct dcpim_sock* dsk);
 
 int dcpim_write_timer_handler(struct sock *sk);
 

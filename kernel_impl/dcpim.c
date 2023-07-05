@@ -681,8 +681,6 @@ int dcpim_init_sock(struct sock *sk)
 	// dsk->start_time = ktime_get();
 	hrtimer_init(&dsk->receiver.token_pace_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
 	dsk->receiver.token_pace_timer.function = &dcpim_xmit_token_handler;
-	hrtimer_init(&dsk->receiver.rtx_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
-	dsk->receiver.rtx_timer.function = & dcpim_rtx_token_handler;
 	dsk->receiver.rtx_rcv_nxt = 0;
 	
 	WRITE_ONCE(sk->sk_sndbuf, dcpim_params.wmem_default);
@@ -1402,10 +1400,6 @@ void dcpim_destroy_sock(struct sock *sk)
 	// if(sk->sk_state == DCPIM_ESTABLISHED) {
 	if(hrtimer_cancel(&dsk->receiver.token_pace_timer)) {
 		printk(" cancel hrtimer at:%d\n", __LINE__);	
-		// __sock_put(sk);
-	}
-	if(hrtimer_cancel(&dsk->receiver.rtx_timer)) {
-		printk(" cancel rtx hrtimer at:%d\n", __LINE__);	
 		// __sock_put(sk);
 	}
 	if(hrtimer_cancel(&dsk->sender.rtx_flow_sync_timer)) {

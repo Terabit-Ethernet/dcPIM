@@ -51,13 +51,7 @@ enum {
 enum dcpimcsq_enum {
 	// TSQ_THROTTLED, 
 	// TSQ_QUEUED, /* this twos are defined in tcp.h*/
-	DCPIM_TSQ_DEFERRED = 2,	   /* tcp_tasklet_func() found socket was owned */
-	DCPIM_CLEAN_TIMER_DEFERRED,  /* dcpim_handle_token_pkts() found socket was owned */
-	DCPIM_TOKEN_TIMER_DEFERRED, /* dcpim_xmit_token() found socket was owned */
-	DCPIM_RMEM_CHECK_DEFERRED,  /* Read Memory Check once release sock */
-	DCPIM_RTX_DEFERRED,
-	DCPIM_WAIT_DEFERRED,
-	DCPIM_RTX_TOKEN_TIMER_DEFERRED,
+	DCPIM_TOKEN_TIMER_DEFERRED,
 	DCPIM_RTX_FLOW_SYNC_DEFERRED,
 	DCPIM_MSG_RX_DEFERRED,
 	DCPIM_MSG_TX_DEFERRED,
@@ -67,13 +61,7 @@ enum dcpimcsq_enum {
 enum dcpimcsq_flags {
 	// TSQF_THROTTLED			= (1UL << TSQ_THROTTLED),
 	// TSQF_QUEUED			= (1UL << TSQ_QUEUED),
-	DCPIMF_TSQ_DEFERRED		= (1UL << DCPIM_TSQ_DEFERRED),
-	DCPIMF_CLEAN_TIMER_DEFERRED	= (1UL << DCPIM_CLEAN_TIMER_DEFERRED),
-	DCPIMF_TOKEN_TIMER_DEFERRED	= (1UL << DCPIM_TOKEN_TIMER_DEFERRED),
-	DCPIMF_RMEM_CHECK_DEFERRED	= (1UL << DCPIM_RMEM_CHECK_DEFERRED),
-	DCPIMF_RTX_DEFERRED	= (1UL << DCPIM_RTX_DEFERRED),
-	DCPIMF_WAIT_DEFERRED = (1UL << DCPIM_WAIT_DEFERRED),
-	DCPIMF_RTX_TOKEN_TIMER_DEFERRED = (1UL << DCPIM_RTX_TOKEN_TIMER_DEFERRED),
+	DCPIMF_TOKEN_TIMER_DEFERRED = (1UL << DCPIM_TOKEN_TIMER_DEFERRED),
 	DCPIMF_RTX_FLOW_SYNC_DEFERRED = (1UL << DCPIM_RTX_FLOW_SYNC_DEFERRED),
 	DCPIMF_MSG_RX_DEFERRED = (1UL << DCPIM_MSG_RX_DEFERRED),
 	DCPIMF_MSG_TX_DEFERRED = (1UL << DCPIM_MSG_TX_DEFERRED),
@@ -729,7 +717,6 @@ struct dcpim_sock {
 		atomic_t backlog_len;
 		atomic_t inflight_bytes;
 		struct hrtimer token_pace_timer;
-		struct hrtimer rtx_timer;
 		uint32_t rtx_rcv_nxt;
 		/* 0: rtx timer is not set; 1: timer should be set; */
 		atomic_t rtx_status;
