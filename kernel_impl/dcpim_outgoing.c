@@ -1583,6 +1583,7 @@ void dcpim_xmit_token_work(struct work_struct *work) {
 		}	
 		atomic_set(&dsk->receiver.rtx_status, 0);
 	}
+	dsk->receiver.rtx_rcv_nxt = dsk->receiver.rcv_nxt;
 	if(token_bytes == 0)
 		goto release_sock;
 	/* allow window one token_batch larger than the window */
