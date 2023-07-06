@@ -319,9 +319,9 @@ static struct ctl_table_header *dcpim_ctl_header;
 void dcpim_params_init(struct dcpim_params* params) {
     params->clean_match_sock = 0;
     params->match_socket_port = 3000;
-    params->bandwidth = 100; // in Gbps
+    params->bandwidth = 98; // in Gbps
     params->control_pkt_rtt = 20; // in us
-    params->rtt = 50; // in us
+    params->rtt = 60; // in us
     params->bdp  = params->rtt * params->bandwidth / 8 * 1000; // bytes
     /* retransmission time = rtx_message * controk pkt rtt for messages */
     params->rtx_messages = 5;

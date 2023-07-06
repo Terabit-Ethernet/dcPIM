@@ -670,7 +670,6 @@ int dcpim_init_sock(struct sock *sk)
 	/* token batch 64KB */
 	WRITE_ONCE(dsk->receiver.token_batch, 62636 * 2);
 	atomic_set(&dsk->receiver.backlog_len, 0);
-	atomic_set(&dsk->receiver.inflight_bytes, 0);
 	atomic_set(&dsk->receiver.rtx_status, 0);
 	atomic_set(&dsk->receiver.token_work_status, 0);
 	// atomic_set(&dsk->receiver.matched_bw, 100);
@@ -713,7 +712,7 @@ bool dcpim_try_send_token(struct sock *sk) {
 	token_bytes = dcpim_token_timer_defer_handler(sk);
 	if(token_bytes > 0)
 		return true;
-	if(token_bytes == 0 && dsk->receiver.rcv_nxt >= dsk->receiver.last_ack + dsk->receiver.token_batch) {
+	if(READ_ONCE(sk->sk_max_pacing_rate) == 0&& dsk->receiver.rcv_nxt >= dsk->receiver.last_ack + dsk->receiver.token_batch) {
 		dcpim_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk); 
 		dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
 	}

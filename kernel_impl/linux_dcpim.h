@@ -358,8 +358,10 @@ struct dcpim_epoch {
 	// __be32 match_src_addr;
 	// __be32 match_dst_addr;
 	struct dcpim_sock** cur_matched_arr;
-	struct dcpim_host** next_matched_arr;
+	struct dcpim_sock** next_matched_arr;
+	struct dcpim_host** next_matched_host_arr;
 	int cur_matched_flows;
+	int next_matched_flows;
 	int next_matched_hosts;
 	unsigned long rate_per_channel;
 	spinlock_t table_lock;
@@ -375,7 +377,8 @@ struct dcpim_epoch {
 	struct sk_buff** rts_skb_array;
 	int rts_size;
 	atomic_t unmatched_sent_bytes;
-
+	/* last epoch's unmatched sent bytes for prompt transmission */
+	atomic_t last_unmatched_sent_bytes;
 	// int rts_size;
 
 	spinlock_t receiver_lock;
@@ -388,7 +391,7 @@ struct dcpim_epoch {
 	struct sk_buff** temp_rtx_msg_array;
 	int rtx_msg_size;
 	int unmatched_recv_bytes;
-
+	int last_unmatched_recv_bytes;
 	int epoch_bytes_per_k;
 	int epoch_bytes;
 	int matched_bytes;
@@ -430,6 +433,7 @@ struct dcpim_rts {
 	uint64_t epoch;
 	uint32_t round;
     int remaining_sz;
+	int prompt_remaining_sz;
 	int skb_size;
 	int rtx_channel;
 	int flow_size;
@@ -443,6 +447,7 @@ struct dcpim_grant {
 	uint64_t epoch;
 	uint32_t round;
     int remaining_sz;
+	int prompt_remaining_sz;
 	int skb_size;
 	int rtx_channel;
 	struct sk_buff **skb_arr;
@@ -464,6 +469,7 @@ struct dcpim_accept {
     struct dcpim_host *host;
     int remaining_sz;
 	int rtx_channel;
+	int prompt_channel;
 };
 
 // struct dcpim_match_entry {
@@ -715,7 +721,6 @@ struct dcpim_sock {
 		uint32_t max_congestion_win;
 	    uint32_t token_batch;
 		atomic_t backlog_len;
-		atomic_t inflight_bytes;
 		struct hrtimer token_pace_timer;
 		uint32_t rtx_rcv_nxt;
 		/* 0: rtx timer is not set; 1: timer should be set; */

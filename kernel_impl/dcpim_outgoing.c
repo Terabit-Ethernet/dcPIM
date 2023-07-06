@@ -1023,7 +1023,7 @@ struct sk_buff* construct_fin_ack_msg_pkt(struct sock* sk, __u64 message_id) {
 	return skb;
 }
 
-struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short round, int epoch, int remaining_sz, bool rtx_channel) {
+struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short round, int epoch, int remaining_sz, bool rtx_channel, bool prompt_channel) {
 	// int extra_bytes = 0;
 	struct sk_buff* skb = __construct_control_skb(sk, 0);
 	struct dcpim_rts_hdr* fh;
@@ -1039,13 +1039,14 @@ struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short round, int epo
 	fh->epoch = epoch;
 	fh->remaining_sz = remaining_sz;
 	fh->rtx_channel = rtx_channel;
+	fh->prompt_channel = prompt_channel;
 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
 	// if (extra_bytes > 0)
 	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
 	return skb;
 }
 
-struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short round, int epoch, int remaining_sz, bool prompt, bool rtx_channel) {
+struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short round, int epoch, int remaining_sz, bool prompt, bool rtx_channel, bool prompt_channel) {
 	// int extra_bytes = 0;
 	struct sk_buff* skb = __construct_control_skb(sk, 0);
 	struct dcpim_grant_hdr* fh;
@@ -1061,6 +1062,7 @@ struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short round, int e
 	fh->epoch = epoch;
 	fh->remaining_sz = remaining_sz;
 	fh->rtx_channel = rtx_channel;
+	fh->prompt_channel = prompt_channel;
 	// fh->prompt = prompt;
 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
 	// if (extra_bytes > 0)
@@ -1068,7 +1070,7 @@ struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short round, int e
 	return skb;
 }
 
-struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short round, int epoch, int remaining_sz, bool rtx_channel) {
+struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short round, int epoch, int remaining_sz, bool rtx_channel, bool prompt_channel) {
 	// int extra_bytes = 0;
 	struct sk_buff* skb = __construct_control_skb(sk, 0);
 	struct dcpim_accept_hdr* fh;
@@ -1084,6 +1086,7 @@ struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short round, int 
 	fh->epoch = epoch;
 	fh->remaining_sz = remaining_sz;
 	fh->rtx_channel = rtx_channel;
+	fh->prompt_channel = prompt_channel;
 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
 	// if (extra_bytes > 0)
 	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
@@ -1467,7 +1470,6 @@ uint32_t dcpim_xmit_token(struct dcpim_sock* dsk, uint32_t token_bytes) {
 	dsk->receiver.prev_token_nxt = dsk->receiver.token_nxt;
 	dsk->receiver.token_nxt += token_bytes; 
 	dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
-	atomic_add(token_bytes, &dsk->receiver.inflight_bytes);
 	dcpim_xmit_control(construct_token_pkt((struct sock*)dsk, 3, dsk->receiver.token_nxt),
 	 	sk);
 	return token_bytes;
@@ -1565,7 +1567,7 @@ void dcpim_xmit_token_work(struct work_struct *work) {
 	unsigned long matched_bw;
 	unsigned long token_bytes;
 	ktime_t time_delta;
-	int rtx_bytes = 0;
+	int rtx_bytes = 0;		
 	lock_sock(sk);
 	matched_bw = READ_ONCE(sk->sk_max_pacing_rate);
 	token_bytes = dcpim_avail_token_space((struct sock*)dsk);
@@ -1574,18 +1576,26 @@ void dcpim_xmit_token_work(struct work_struct *work) {
 		goto release_sock;
 	if(matched_bw == 0)
 		goto release_sock;
-	dsk->receiver.max_congestion_win = dcpim_params.bdp * (dcpim_params.bandwidth * 1000000000 / 8 /  matched_bw);
+	dsk->receiver.max_congestion_win = dcpim_params.bdp / (dcpim_params.bandwidth * 1000000000 / 8 / matched_bw);
+	
 	/* perform retransmission */
 	if(atomic_read(&dsk->receiver.rtx_status) == 1) {
 		if(dsk->receiver.rtx_rcv_nxt == dsk->receiver.rcv_nxt) {
+			// printk("port: %d perform retransmission dsk->receiver.rcv_nxt: %u dsk->receiver.token_nxt: %u max_congestion_win: %u token_bytes: %lu \n", ntohs(inet_sk(sk)->inet_sport), 
+			// 	dsk->receiver.rcv_nxt, dsk->receiver.token_nxt, dsk->receiver.max_congestion_win, token_bytes);
+			// printk("dcpim_space: %u dcpim_congestion_space: %u atomic_read(&sk->sk_rmem_alloc): %u atomic_read(&dsk->receiver.backlog_len): %u", dcpim_space(sk), dcpim_congestion_space(sk),
+			// 	atomic_read(&sk->sk_rmem_alloc), atomic_read(&dsk->receiver.backlog_len));
 			// printk("epoch:%llu value: %u %u \n", dcpim_epoch.epoch, dsk->receiver.rtx_rcv_nxt, dsk->receiver.rcv_nxt);
 			dcpim_xmit_control(construct_rtx_token_pkt((struct sock*)dsk, 3, dsk->receiver.token_nxt, dsk->receiver.token_nxt, &rtx_bytes), sk);
 		}	
 		atomic_set(&dsk->receiver.rtx_status, 0);
+		dsk->receiver.rtx_rcv_nxt = dsk->receiver.rcv_nxt;
 	}
-	dsk->receiver.rtx_rcv_nxt = dsk->receiver.rcv_nxt;
-	if(token_bytes == 0)
+	
+	/* perfrom transmission */
+	if(token_bytes == 0) {
 		goto release_sock;
+	}
 	/* allow window one token_batch larger than the window */
 	if(token_bytes < dsk->receiver.token_batch)
 		token_bytes = dsk->receiver.token_batch;

@@ -153,9 +153,9 @@ struct sk_buff* construct_rtx_token_pkt(struct sock* sk, unsigned short priority
 	 __u32 prev_token_nxt, __u32 token_nxt, int *rtx_bytes);
 struct sk_buff* construct_fin_pkt(struct sock* sk);
 struct sk_buff* construct_ack_pkt(struct sock* sk, __be32 rcv_nxt);
-struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool rtx_channel);
-struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool prompt, bool rtx_channel);
-struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool rtx_channel);
+struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool rtx_channel, bool prompt_channel);
+struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool prompt, bool rtx_channel, bool prompt_channel);
+struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool rtx_channel, bool prompt_channel);
 struct sk_buff* construct_syn_ack_pkt(struct sock* sk, __u64 message_id, 
 	uint32_t message_size, __u64 start_time);
 struct sk_buff* construct_fin_ack_pkt(struct sock* sk, __u64 message_id);
