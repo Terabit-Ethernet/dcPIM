@@ -288,7 +288,7 @@ int dcpim_dcopy_queue_request(struct dcpim_dcopy_request *req) {
 
 int dcpim_dcopy_wait_all (struct ioat_dma_device *dma_device, int *result) {
     struct ioat_dma_desc *comp, *tmp;
-    unsigned long flags;
+    // unsigned long flags;
     // unsigned long timeout;
     // enum dma_status status;
     int dma_result = 0;
