@@ -5,6 +5,7 @@
 #include <linux/skbuff.h>
 #include <net/netns/hash.h>
 #include "uapi_linux_dcpim.h"
+#include "dcpim_ioat.h"
 
 struct dcpim_sock;
 
@@ -51,13 +52,7 @@ enum {
 enum dcpimcsq_enum {
 	// TSQ_THROTTLED, 
 	// TSQ_QUEUED, /* this twos are defined in tcp.h*/
-	DCPIM_TSQ_DEFERRED = 2,	   /* tcp_tasklet_func() found socket was owned */
-	DCPIM_CLEAN_TIMER_DEFERRED,  /* dcpim_handle_token_pkts() found socket was owned */
-	DCPIM_TOKEN_TIMER_DEFERRED, /* dcpim_xmit_token() found socket was owned */
-	DCPIM_RMEM_CHECK_DEFERRED,  /* Read Memory Check once release sock */
-	DCPIM_RTX_DEFERRED,
-	DCPIM_WAIT_DEFERRED,
-	DCPIM_RTX_TOKEN_TIMER_DEFERRED,
+	DCPIM_TOKEN_TIMER_DEFERRED,
 	DCPIM_RTX_FLOW_SYNC_DEFERRED,
 	DCPIM_MSG_RX_DEFERRED,
 	DCPIM_MSG_TX_DEFERRED,
@@ -67,13 +62,7 @@ enum dcpimcsq_enum {
 enum dcpimcsq_flags {
 	// TSQF_THROTTLED			= (1UL << TSQ_THROTTLED),
 	// TSQF_QUEUED			= (1UL << TSQ_QUEUED),
-	DCPIMF_TSQ_DEFERRED		= (1UL << DCPIM_TSQ_DEFERRED),
-	DCPIMF_CLEAN_TIMER_DEFERRED	= (1UL << DCPIM_CLEAN_TIMER_DEFERRED),
-	DCPIMF_TOKEN_TIMER_DEFERRED	= (1UL << DCPIM_TOKEN_TIMER_DEFERRED),
-	DCPIMF_RMEM_CHECK_DEFERRED	= (1UL << DCPIM_RMEM_CHECK_DEFERRED),
-	DCPIMF_RTX_DEFERRED	= (1UL << DCPIM_RTX_DEFERRED),
-	DCPIMF_WAIT_DEFERRED = (1UL << DCPIM_WAIT_DEFERRED),
-	DCPIMF_RTX_TOKEN_TIMER_DEFERRED = (1UL << DCPIM_RTX_TOKEN_TIMER_DEFERRED),
+	DCPIMF_TOKEN_TIMER_DEFERRED = (1UL << DCPIM_TOKEN_TIMER_DEFERRED),
 	DCPIMF_RTX_FLOW_SYNC_DEFERRED = (1UL << DCPIM_RTX_FLOW_SYNC_DEFERRED),
 	DCPIMF_MSG_RX_DEFERRED = (1UL << DCPIM_MSG_RX_DEFERRED),
 	DCPIMF_MSG_TX_DEFERRED = (1UL << DCPIM_MSG_TX_DEFERRED),
@@ -327,13 +316,13 @@ struct dcpim_host {
 	/* sender only: for sending RTS */
 	struct list_head entry;
 	refcount_t refcnt;
-	/* grant_index is protected by sender_lock */
+	/* grant_index is protected by receiver_lock */
 	int grant_index;
-	/* grant is protected by sender_lock */
+	/* grant is protected by receiver_lock */
 	struct dcpim_grant* grant;
-	/* rts_index is protected by receiver_lock */
+	/* rts_index is protected by sender_lock */
 	int rts_index;	
-	/* rts is protected by receiver_lock */
+	/* rts is protected by sender_lock */
 	struct dcpim_rts* rts;
 
 };
@@ -370,8 +359,10 @@ struct dcpim_epoch {
 	// __be32 match_src_addr;
 	// __be32 match_dst_addr;
 	struct dcpim_sock** cur_matched_arr;
-	struct dcpim_host** next_matched_arr;
+	struct dcpim_sock** next_matched_arr;
+	struct dcpim_host** next_matched_host_arr;
 	int cur_matched_flows;
+	int next_matched_flows;
 	int next_matched_hosts;
 	unsigned long rate_per_channel;
 	spinlock_t table_lock;
@@ -379,26 +370,29 @@ struct dcpim_epoch {
 	/* it has DCPIM_MATCH_DEFAULT_HOST_BITS slots */
 	DECLARE_HASHTABLE(host_table, DCPIM_MATCH_DEFAULT_HOST_BITS);
 
+	struct dcpim_accept *accept_array;
 	spinlock_t matched_lock;
 
-	spinlock_t receiver_lock;
+	spinlock_t sender_lock;
 	struct dcpim_rts *rts_array;
 	struct sk_buff** rts_skb_array;
-	atomic_t unmatched_recv_bytes;
 	int rts_size;
+	atomic_t unmatched_sent_bytes;
+	/* last epoch's unmatched sent bytes for prompt transmission */
+	atomic_t last_unmatched_sent_bytes;
 	// int rts_size;
 
-	spinlock_t sender_lock;
+	spinlock_t receiver_lock;
 	struct dcpim_grant *grants_array;
 	struct sk_buff** grant_skb_array;
 
-	int unmatched_sent_bytes;
 	int grant_size;
 	// int grant_size;
 	struct sk_buff** rtx_msg_array;
 	struct sk_buff** temp_rtx_msg_array;
 	int rtx_msg_size;
-
+	int unmatched_recv_bytes;
+	int last_unmatched_recv_bytes;
 	int epoch_bytes_per_k;
 	int epoch_bytes;
 	int matched_bytes;
@@ -440,8 +434,10 @@ struct dcpim_rts {
 	uint64_t epoch;
 	uint32_t round;
     int remaining_sz;
+	int prompt_remaining_sz;
 	int skb_size;
 	int rtx_channel;
+	int flow_size;
 	struct sk_buff **skb_arr;
  	// struct list_head entry;
 	// struct llist_node lentry;
@@ -452,6 +448,7 @@ struct dcpim_grant {
 	uint64_t epoch;
 	uint32_t round;
     int remaining_sz;
+	int prompt_remaining_sz;
 	int skb_size;
 	int rtx_channel;
 	struct sk_buff **skb_arr;
@@ -466,6 +463,14 @@ struct dcpim_grant {
 	// __be16 dport;
 	// struct list_head entry;
 	// struct llist_node lentry;
+};
+
+struct dcpim_accept {
+    // bool prompt;
+    struct dcpim_host *host;
+    int remaining_sz;
+	int rtx_channel;
+	int prompt_channel;
 };
 
 // struct dcpim_match_entry {
@@ -635,6 +640,7 @@ struct dcpim_sock {
 	int fin_sent_times;
 	struct work_struct rtx_fin_work;
 
+	struct ioat_dma_device *dma_device;
 
     // ktime_t start_time;
 	struct list_head match_link;
@@ -642,7 +648,7 @@ struct dcpim_sock {
 	struct list_head entry;
 	bool in_host_table;
 	struct dcpim_host* host;
-	
+
 	
     /* sender */
     struct dcpim_sender {
@@ -717,13 +723,17 @@ struct dcpim_sock {
 		uint32_t max_congestion_win;
 	    uint32_t token_batch;
 		atomic_t backlog_len;
-		atomic_t inflight_bytes;
 		struct hrtimer token_pace_timer;
-		struct hrtimer rtx_timer;
 		uint32_t rtx_rcv_nxt;
-		/* 0: rtx timer is not set; 1: timer should be set; 2: timer is triggering; */
+		/* 0: rtx timer is not set; 1: timer should be set; */
 		atomic_t rtx_status;
+		/* 0: work is not queued; 1: work is queued */
+		atomic_t token_work_status;
+		struct work_struct token_work;
 
+		/* I/OAT data structure */
+		atomic_t in_flight_copy_bytes;
+		struct llist_head	clean_req_list;
 		/* Message data structure */
 		uint64_t rcv_msg_nxt;
 		/* protected by bh_lock_sock */

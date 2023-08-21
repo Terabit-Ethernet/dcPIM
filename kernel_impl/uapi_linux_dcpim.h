@@ -174,6 +174,7 @@ struct dcpim_rts_hdr {
 	struct dcpimhdr common;
 	__u8 round;
 	__u8 rtx_channel;
+	__u8 prompt_channel;
 	__be64 epoch;
 	__be32 remaining_sz;
 };
@@ -182,6 +183,7 @@ struct dcpim_grant_hdr {
 	struct dcpimhdr common;
 	__u8 round;
 	__u8 rtx_channel;
+	__u8 prompt_channel;
 	__be64 epoch;
 	__be32 remaining_sz;
 	// __u8 prompt;
@@ -191,6 +193,7 @@ struct dcpim_accept_hdr {
 	struct dcpimhdr common;
 	__u8 round;
 	__u8 rtx_channel;
+	__u8 prompt_channel;
 	__be64 epoch;
 	__be32 remaining_sz;
 	// __u8 accept;
@@ -201,6 +204,7 @@ struct dcpim_rtx_msg_hdr {
 	struct dcpimhdr common;
 	__u8 round;
 	__u8 rtx_channel;
+	__u8 prompt_channel;
 	__be64 epoch;
 	__be32 remaining_sz;
 	// __u8 accept;

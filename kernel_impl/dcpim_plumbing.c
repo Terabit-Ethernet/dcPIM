@@ -14,6 +14,7 @@
 #include <asm/uaccess.h>
 #include "dcpim_impl.h"
 #include "dcpim_unittest.h"
+#include "dcpim_ioat.h"
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Qizhe");
 MODULE_DESCRIPTION("DCPIM transport protocol");
@@ -34,6 +35,9 @@ EXPORT_PER_CPU_SYMBOL_GPL(dcpim_memory_per_cpu_fw_alloc);
 static bool exiting = false;
 int sysctl_dcpim_rmem_min __read_mostly;
 int sysctl_dcpim_wmem_min __read_mostly;
+
+int dcpim_enable_ioat = 0;
+module_param(dcpim_enable_ioat, int ,0660);
 
 /* DCPIM's protocol number within the IP protocol space (this is not an
  * officially allocated slot).
@@ -319,9 +323,9 @@ static struct ctl_table_header *dcpim_ctl_header;
 void dcpim_params_init(struct dcpim_params* params) {
     params->clean_match_sock = 0;
     params->match_socket_port = 3000;
-    params->bandwidth = 100; // in Gbps
+    params->bandwidth = 98; // in Gbps
     params->control_pkt_rtt = 20; // in us
-    params->rtt = 50; // in us
+    params->rtt = 60; // in us
     params->bdp  = params->rtt * params->bandwidth / 8 * 1000; // bytes
     /* retransmission time = rtx_message * controk pkt rtt for messages */
     params->rtx_messages = 5;
@@ -334,7 +338,7 @@ void dcpim_params_init(struct dcpim_params* params) {
     params->num_rounds = 4;
     params->round_length = params->beta * params->control_pkt_rtt * 1000 / 10; // in ns
     params->epoch_length = params->num_rounds * params->round_length * params->alpha;
-    params->rmem_default = 4384520;
+    params->rmem_default = 6384520;
     params->wmem_default = 4384520;
     params->short_flow_size = params->bdp;
     params->control_pkt_bdp = params->control_pkt_rtt * params->bandwidth * 1000 / 8;
@@ -411,6 +415,7 @@ static int __init dcpim_load(void) {
         //     printk("value: %d\n", temp->value);
         // }
         printk(KERN_NOTICE "DCPIM module loading\n");
+        init_ioat_dma_devices();
         dcpim_wq = alloc_workqueue("dcpim_wq", WQ_MEM_RECLAIM | WQ_HIGHPRI, 0); 
         dcpim_params_init(&dcpim_params);
 
@@ -476,6 +481,7 @@ out_cleanup:
         proto_unregister(&dcpim_prot);
 	flush_workqueue(dcpim_wq);
 	destroy_workqueue(dcpim_wq);
+        release_ioat_dma_devices();
         // proto_unregister(&dcpimlite_prot);
 out:
         return status;
@@ -506,7 +512,7 @@ static void __exit dcpim_unload(void) {
         proto_unregister(&dcpim_prot);
 	flush_workqueue(dcpim_wq);
 	destroy_workqueue(dcpim_wq);
-
+        release_ioat_dma_devices();
         // proto_unregister(&dcpimlite_prot);
 }
 
