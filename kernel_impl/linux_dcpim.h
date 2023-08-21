@@ -5,6 +5,7 @@
 #include <linux/skbuff.h>
 #include <net/netns/hash.h>
 #include "uapi_linux_dcpim.h"
+#include "dcpim_ioat.h"
 
 struct dcpim_sock;
 
@@ -639,6 +640,7 @@ struct dcpim_sock {
 	int fin_sent_times;
 	struct work_struct rtx_fin_work;
 
+	struct ioat_dma_device *dma_device;
 
     // ktime_t start_time;
 	struct list_head match_link;
@@ -646,7 +648,7 @@ struct dcpim_sock {
 	struct list_head entry;
 	bool in_host_table;
 	struct dcpim_host* host;
-	
+
 	
     /* sender */
     struct dcpim_sender {
@@ -728,6 +730,10 @@ struct dcpim_sock {
 		/* 0: work is not queued; 1: work is queued */
 		atomic_t token_work_status;
 		struct work_struct token_work;
+
+		/* I/OAT data structure */
+		atomic_t in_flight_copy_bytes;
+		struct llist_head	clean_req_list;
 		/* Message data structure */
 		uint64_t rcv_msg_nxt;
 		/* protected by bh_lock_sock */

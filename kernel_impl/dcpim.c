@@ -19,6 +19,7 @@
 #include <linux/inet.h>
 #include <linux/netdevice.h>
 #include <linux/slab.h>
+#include <linux/uio.h>
 #include <net/tcp_states.h>
 #include <linux/skbuff.h>
 #include <linux/proc_fs.h>
@@ -43,6 +44,8 @@
 // #include "net_dcpim.h"
 // #include "net_dcpimlite.h"
 #include "uapi_linux_dcpim.h"
+#include "dcpim_ioat.h"
+
 // struct udp_table dcpim_table __read_mostly;
 // EXPORT_SYMBOL(dcpim_table);
 
@@ -72,12 +75,156 @@ struct dcpim_message_bucket dcpim_rx_messages[DCPIM_BUCKETS];
 
 #define MAX_DCPIM_PORTS 65536
 #define PORTS_PER_CHAIN (MAX_DCPIM_PORTS / DCPIM_HTABLE_SIZE_MIN)
+#define MAX_PIN_PAGES 48
+
+
 static inline bool before(__u32 seq1, __u32 seq2)
 {
         return (__s32)(seq1-seq2) < 0;
 }
 #define after(seq2, seq1) 	before(seq1, seq2)
 
+
+static inline bool page_is_mergeable(const struct bio_vec *bv,
+		struct page *page, unsigned int len, unsigned int off,
+		bool *same_page)
+{
+	size_t bv_end = bv->bv_offset + bv->bv_len;
+	phys_addr_t vec_end_addr = page_to_phys(bv->bv_page) + bv_end - 1;
+	phys_addr_t page_addr = page_to_phys(page);
+
+	if (vec_end_addr + 1 != page_addr + off)
+		return false;
+	// if (xen_domain() && !xen_biovec_phys_mergeable(bv, page))
+	// 	return false;
+
+	*same_page = ((vec_end_addr & PAGE_MASK) == page_addr);
+	if (*same_page)
+		return true;
+	return (bv->bv_page + bv_end / PAGE_SIZE) == (page + off / PAGE_SIZE);
+}
+
+bool __dcpim_try_merge_page(struct bio_vec *bv_arr, int nr_segs,  struct page *page,
+		unsigned int len, unsigned int off, bool *same_page)
+{
+	if (nr_segs > 0) {
+		struct bio_vec *bv = &bv_arr[nr_segs - 1];
+
+		if (page_is_mergeable(bv, page, len, off, same_page)) {
+			// if (bio->bi_iter.bi_size > UINT_MAX - len) {
+			// 	*same_page = false;
+			// 	return false;
+			// }
+			bv->bv_len += len;
+			return true;
+		}
+	}
+	return false;
+}
+
+static ssize_t dcpim_dcopy_iov_init(struct msghdr *msg, struct iov_iter *iter, struct bio_vec *vec_p,
+	u32 bytes, int max_segs) {
+	ssize_t copied, offset, left;
+	struct bio_vec *bv_arr;
+	struct page *pages[MAX_PIN_PAGES];
+	unsigned nr_segs = 0, i, len = 0;
+	bool same_page = false;
+	bv_arr = vec_p;
+	copied = iov_iter_get_pages2(&msg->msg_iter, pages, bytes, max_segs,
+					    &offset);
+	if(copied < 0)
+		WARN_ON(true);
+	for (left = copied, i = 0; left > 0; left -= len, i++) {
+		struct page *page = pages[i];
+		len = min_t(size_t, PAGE_SIZE - offset, left);
+		if (__dcpim_try_merge_page(bv_arr, nr_segs, page, len, offset, &same_page)) {
+			if (same_page)
+				put_page(page);
+			// pr_info("merge page\n");
+		} else {
+			struct bio_vec *bv = &bv_arr[nr_segs];
+			bv->bv_page = page;
+			bv->bv_offset = offset;
+			bv->bv_len = len;
+			nr_segs++;
+		}
+		offset = 0;
+	}
+	// pr_info("advance:%ld\n", copied);
+	iov_iter_bvec(iter, WRITE, bv_arr, nr_segs, copied);
+	// iov_iter_advance(&msg->msg_iter, copied);
+	// kfree(pages);
+	// pr_info("kfree:%ld\n", __LINE__);
+
+	return copied;
+}
+
+static inline bool dcpim_next_segment(struct bio_vec* bv_arr,
+				    struct bvec_iter_all *iter, int max_segs)
+{
+	/*hard code for now */
+	if (iter->idx >= max_segs)
+		return false;
+
+	bvec_advance(&bv_arr[iter->idx], iter);
+	return true;
+}
+
+#define dcpim_for_each_segment_all(bvl, bv_arr, iter, max_segs) \
+	for (bvl = bvec_init_iter_all(&iter); dcpim_next_segment((bv_arr), &iter, max_segs); )
+
+void dcpim_release_pages(struct bio_vec* bv_arr, bool mark_dirty, int max_segs)
+{
+	struct bvec_iter_all iter_all;
+	struct bio_vec *bvec;
+
+	dcpim_for_each_segment_all(bvec, bv_arr, iter_all, max_segs) {
+		if (mark_dirty && !PageCompound(bvec->bv_page))
+			set_page_dirty_lock(bvec->bv_page);
+		put_page(bvec->bv_page);
+	}
+}
+void dcpim_clean_dcopy_pages(struct sock *sk) {
+	struct dcpim_sock *dsk = dcpim_sk(sk);
+	struct dcpim_dcopy_request *req;
+	struct llist_node *node;
+	for (node = llist_del_all(&dsk->receiver.clean_req_list); node;) {
+		req = llist_entry(node, struct dcpim_dcopy_request, lentry);
+		node = node->next;
+		atomic_sub(req->len, &dsk->receiver.in_flight_copy_bytes);
+		// printk("inflight bytes: %d\n", atomic_read(&dsk->receiver.in_flight_copy_bytes));
+		if(req->bv_arr) {
+			dcpim_release_pages(req->bv_arr, true, req->max_segs);
+			kfree(req->bv_arr);
+		}
+		if(req->skb && req->clean_skb){
+			atomic_sub(req->skb->truesize, &sk->sk_rmem_alloc);
+			kfree_skb(req->skb);
+		}
+		kfree(req);
+	}
+	return;
+}
+
+static int sk_wait_data_copy(struct sock *sk, long *timeo)
+{
+	DEFINE_WAIT_FUNC(wait, woken_wake_function);
+	int rc = 0;
+	struct dcpim_sock* nsk = dcpim_sk(sk);
+	while(atomic_read(&nsk->receiver.in_flight_copy_bytes) != 0) {
+		dcpim_clean_dcopy_pages(sk);
+		schedule();
+		// schedule();
+		// nd_try_send_ack(sk, 1);
+		// add_wait_queue(sk_sleep(sk), &wait);
+		// sk_set_bit(SOCKWQ_ASYNC_WAITDATA, sk);
+		// rc = sk_wait_event(sk, timeo, atomic_read(&nsk->receiver.in_flight_copy_bytes) != 0, &wait);
+		// sk_clear_bit(SOCKWQ_ASYNC_WAITDATA, sk);
+		// remove_wait_queue(sk_sleep(sk), &wait);
+	}
+	dcpim_clean_dcopy_pages(sk);
+	return rc;
+}
 
 void dcpim_rbtree_insert(struct rb_root *root, struct sk_buff *skb)
 {
@@ -599,6 +746,8 @@ int dcpim_init_sock(struct sock *sk)
 	// dcpim_set_state(sk, DCPIM_CLOSE);
 	inet_sk_state_store(sk, DCPIM_CLOSE);
 	dsk->core_id = raw_smp_processor_id();
+	dsk->dma_device = NULL;
+
 	// next_going_id 
 	// printk("remaining tokens:%d\n", dcpim_epoch.remaining_tokens);
 	// atomic64_set(&dsk->next_outgoing_id, 1);
@@ -664,7 +813,8 @@ int dcpim_init_sock(struct sock *sk)
 	
 	INIT_LIST_HEAD(&dsk->receiver.reordered_msgid_list);
 	INIT_LIST_HEAD(&dsk->receiver.unfinished_list);
-
+	atomic_set(&dsk->receiver.in_flight_copy_bytes, 0);
+	init_llist_head(&dsk->receiver.clean_req_list);
 	// INIT_LIST_HEAD(&dsk->reciever.);
 
 	/* token batch 64KB */
@@ -684,7 +834,7 @@ int dcpim_init_sock(struct sock *sk)
 	
 	WRITE_ONCE(sk->sk_sndbuf, dcpim_params.wmem_default);
 	WRITE_ONCE(sk->sk_rcvbuf, dcpim_params.rmem_default);
-	WRITE_ONCE(sk->sk_rcvlowat, dsk->receiver.token_batch);
+	// WRITE_ONCE(sk->sk_rcvlowat, dsk->receiver.token_batch);
 	// sk->sk_tx_skb_cache = NULL;
 	/* reuse tcp rtx queue*/
 	sk->tcp_rtx_queue = RB_ROOT;
@@ -1026,6 +1176,236 @@ out:
 }
 
 
+int dcpim_recvmsg_normal_2(struct sock *sk, struct msghdr *msg, size_t len,
+		int flags, int *addr_len)
+{
+
+	struct dcpim_sock *dsk = dcpim_sk(sk);
+	int copied = 0;
+	// u32 peek_seq;
+	u32 *seq;
+	unsigned long used;
+	int err;
+	// int inq;
+	int target;		/* Read at least this many bytes */
+	long timeo;
+	struct sk_buff *skb, *last, *tmp;
+
+	/* variable for pin user pages */
+	int nr_segs = 0;
+	struct iov_iter biter;
+	struct bio_vec *bv_arr = NULL;
+	ssize_t blen = 0;
+	int max_segs = MAX_PIN_PAGES;
+	struct dcpim_dcopy_request *request;
+	dcpim_rps_record_flow(sk);
+	target = sock_rcvlowat(sk, flags & MSG_WAITALL, len);
+	if (sk_can_busy_loop(sk) && skb_queue_empty_lockless(&sk->sk_receive_queue) &&
+	    (sk->sk_state == DCPIM_ESTABLISHED))
+		sk_busy_loop(sk, flags & MSG_DONTWAIT);
+
+	lock_sock(sk);
+	err = -ENOTCONN;
+	timeo = sock_rcvtimeo(sk, flags & MSG_DONTWAIT);
+
+	if (sk->sk_state != DCPIM_ESTABLISHED)
+		goto out;
+	seq = &dsk->receiver.copied_seq;
+	do {
+		u32 offset;
+		/* Next get a buffer. */
+
+		last = skb_peek_tail(&sk->sk_receive_queue);
+		skb_queue_walk_safe(&sk->sk_receive_queue, skb, tmp) {
+			last = skb;
+
+			/* Now that we have two receive queues this
+			 * shouldn't happen.
+			 */
+			if (WARN(before(*seq, DCPIM_SKB_CB(skb)->seq),
+				 "DCPIM recvmsg seq # bug: copied %X, seq %X, rcvnxt %X, fl %X\n",
+				 *seq, DCPIM_SKB_CB(skb)->seq, dsk->receiver.rcv_nxt,
+				 flags))
+				break;
+
+			offset = *seq - DCPIM_SKB_CB(skb)->seq;
+			if (offset < skb->len) {
+				goto found_ok_skb; 
+			}
+			else {
+				WARN_ON(true);
+			}
+		}
+
+		/* Well, if we have backlog, try to process it now yet. */
+
+		if (copied >= target && !READ_ONCE(sk->sk_backlog.tail))
+			break;
+
+		if (copied) {
+			if (sk->sk_err ||
+			    sk->sk_state == DCPIM_CLOSE ||
+			    (sk->sk_shutdown & RCV_SHUTDOWN) ||
+			    !timeo ||
+			    signal_pending(current))
+				break;
+		} else {
+			if (sock_flag(sk, SOCK_DONE))
+				break;
+
+			if (sk->sk_err) {
+				copied = sock_error(sk);
+				break;
+			}
+
+			if (sk->sk_shutdown & RCV_SHUTDOWN)
+				break;
+
+			if (sk->sk_state == DCPIM_CLOSE) {
+				/* This occurs when user tries to read
+				 * from never connected socket.
+				 */
+				// copied = -ENOTCONN;
+				break;
+			}
+
+			if (!timeo) {
+				copied = -EAGAIN;
+				break;
+			}
+
+			if (signal_pending(current)) {
+				copied = sock_intr_errno(timeo);
+				break;
+			}
+		}
+		if (copied >= target) {
+			/* Do not sleep, just process backlog. */
+			/* Release sock will handle the backlog */
+			// printk("call release sock1\n");
+			release_sock(sk);
+			lock_sock(sk);
+		} else {
+			// dcpim_try_send_token(sk);
+			sk_wait_data(sk, &timeo, last);
+		}
+		continue;
+
+found_ok_skb:
+		/* Ok so how much can we use? */
+		used = skb->len - offset;
+		if (len < used)
+			used = len;
+		/* decide to do local or offload data copy*/
+		if(blen == 0) {
+			ssize_t bsize = len;
+			/* the same skb can either do local or remote but not both */
+			if(dcpim_enable_ioat && dsk->dma_device) {
+				goto pin_user_page;
+			} else {
+				goto local_copy;
+			}
+			// printk("dsk->receiver.nxt_dcopy_cpu:%d\n", dsk->receiver.nxt_dcopy_cpu);
+pin_user_page:
+			bv_arr = kmalloc(MAX_PIN_PAGES * sizeof(struct bio_vec), GFP_KERNEL);
+			blen = dcpim_dcopy_iov_init(msg, &biter, bv_arr, bsize, max_segs);
+			nr_segs = biter.nr_segs;
+		} 
+		if(blen == 0) {
+			WARN_ON_ONCE(true);
+			kfree(bv_arr);
+			bv_arr = NULL;
+			goto local_copy;
+		}
+		/* do data copy offload to I/OAT */
+		if(blen < used && blen > 0)
+			used = blen;
+		/* construct data copy request */
+		request = kzalloc(sizeof(struct dcpim_dcopy_request) ,GFP_KERNEL);
+		refcount_set(&request->refcnt, 1);
+		request->state = DCPIM_DCOPY_RECV;
+		/* no need to increment sk refcnt as syscall will end only after data copy finishes */
+		request->sk = sk;
+		request->clean_skb = (used + offset == skb->len);
+		request->skb = skb;
+		request->offset = offset;
+		request->len = used;
+		request->remain_len = used;
+		// dup_iter(&request->iter, &biter, GFP_KERNEL);
+		request->iter = biter;
+		request->device = dsk->dma_device;
+		// printk("queue_request:%d len:%d \n", dsk->receiver.nxt_dcopy_cpu, used);
+		/* update the biter */
+		iov_iter_advance(&biter, used);
+		blen -= used;
+
+		if(blen == 0) {
+			/* Assume I/OAT do in-order DMA */
+			request->bv_arr = bv_arr;
+			request->max_segs = nr_segs;
+			bv_arr = NULL;
+			nr_segs = 0;
+		}
+		// atomic_set(&dsk->receiver.copied_seq, atomic_read(&dsk->receiver.copied_seq) + used);
+		WRITE_ONCE(*seq, *seq + used);
+		copied += used;
+		len -= used;
+		if (used + offset < skb->len)
+			goto queue_request;
+		// pr_info("copied_seq:%d\n", seq);
+		WARN_ON(used + offset > skb->len);
+		__skb_unlink(skb, &sk->sk_receive_queue);
+queue_request:
+		atomic_add(used, &dsk->receiver.in_flight_copy_bytes);
+		/* queue the data copy request */
+		dcpim_dcopy_queue_request(request);
+		// printk("READ_ONCE(sk->sk_backlog.tail):%d", !READ_ONCE(sk->sk_backlog.tail));
+		// printk("copy :%d target: %d", copied, target);
+		continue;
+local_copy:
+		// dcpim_try_send_token(sk);
+		if (!(flags & MSG_TRUNC)) {
+			err = skb_copy_datagram_msg(skb, offset, msg, used);
+			// printk("copy data done: %d\n", used);
+			if (err) {
+				/* Exception. Bailout! */
+				if (!copied)
+					copied = -EFAULT;
+				break;
+			}
+		}
+
+		WRITE_ONCE(*seq, *seq + used);
+		copied += used;
+		len -= used;
+		if (used + offset < skb->len)
+			continue;
+		__skb_unlink(skb, &sk->sk_receive_queue);
+		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
+		kfree_skb(skb);
+		continue;
+
+// found_fin_ok:
+		/* Process the FIN. */
+		// WRITE_ONCE(*seq, *seq + 1);
+		// if (!(flags & MSG_PEEK))
+		// 	sk_eat_skb(sk, skb);
+		// break;
+	} while (len > 0);
+	/* free the bvec memory */
+	sk_wait_data_copy(sk, &timeo);
+	if(bv_arr) {
+		dcpim_release_pages(bv_arr, true, nr_segs);
+		kfree(bv_arr);
+	}
+	dcpim_try_send_token(sk);
+	release_sock(sk);
+	return copied;
+
+out:
+	release_sock(sk);
+	return err;
+}
 /**
  * sk_msg_wait_data - wait for message to arrive at message_list
  * @sk:    sock to wait on
@@ -1184,7 +1564,7 @@ int dcpim_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
 	int ret = 0;
 	/* maybe we should change to the locked version later */
 	if(sk->sk_priority != 7)
-		ret = dcpim_recvmsg_normal(sk, msg, len, flags, addr_len);
+		ret = dcpim_recvmsg_normal_2(sk, msg, len, flags, addr_len);
 	else 
 		/* recv_msg short flow message */
 		ret = dcpim_recvmsg_msg(sk, msg, len, flags, addr_len);
@@ -1371,6 +1751,11 @@ void dcpim_destroy_sock(struct sock *sk)
 	if(sk->sk_priority != 7) {
 		if(dsk->host)
 			atomic_sub((uint32_t)(dsk->sender.write_seq - dsk->sender.snd_una), &dsk->host->total_unsent_bytes);
+		if(dsk->dma_device) {
+			return_ioat_dma_device(dsk->dma_device);
+			dsk->dma_device = NULL;
+		}
+
 		/* To Do: remove short flow inflight bytes */
 	}
 	dcpim_flush_msgs_handler(dsk);

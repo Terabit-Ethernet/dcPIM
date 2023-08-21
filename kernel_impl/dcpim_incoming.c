@@ -42,6 +42,8 @@
 // #include "net_dcpimlite.h"
 #include "uapi_linux_dcpim.h"
 #include "dcpim_impl.h"
+#include "dcpim_ioat.h"
+
 // #include "dcpim_hashtables.h"
 
 // static inline struct sock *__dcpim4_lib_lookup_skb(struct sk_buff *skb,
@@ -749,6 +751,8 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 					}
 					/* add to flow table */
 					dcpim_add_mat_tab(&dcpim_epoch, child);
+					if(	dcpim_sk(child)->dma_device == NULL && dcpim_enable_ioat)
+						dcpim_sk(child)->dma_device = get_free_ioat_dma_device(child);
 					/* send flow syn ack back */
 					dcpim_xmit_control(construct_syn_ack_pkt(child, fh->message_id, fh->message_size, fh->start_time), child); 
 				}
@@ -1741,6 +1745,8 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 					child->sk_priority = 7;
 				}
 				dcpim_add_mat_tab(&dcpim_epoch, child);
+				if(dcpim_sk(child)->dma_device == NULL && dcpim_enable_ioat)
+					dcpim_sk(child)->dma_device = get_free_ioat_dma_device(child);
 				/* send syn ack back */
 				dcpim_xmit_control(construct_syn_ack_pkt(child, fh->message_id, fh->message_size, fh->start_time), child); 
 			}  

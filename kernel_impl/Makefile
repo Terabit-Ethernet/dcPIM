@@ -1,7 +1,8 @@
 # Makefile to build DCACP as a Linux module.
 
 obj-m += dcpim_module.o
-dcpim_module-y = dcpim_sock.o\
+dcpim_module-y = dcpim_ioat.o\
+				 dcpim_sock.o\
 				 dcpim_hashtables.o \
 				 dcpim_pq.o \
 				 dcpim_message.o\

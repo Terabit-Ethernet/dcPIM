@@ -8,6 +8,7 @@
 #include "net_dcpim.h"
 #include "dcpim_hashtables.h"
 #include "dcpim_sock.h"
+extern int dcpim_enable_ioat;
 extern struct inet_hashinfo dcpim_hashinfo;
 extern struct dcpim_peertab dcpim_peers_table;
 extern struct dcpim_match_tab dcpim_match_table;
