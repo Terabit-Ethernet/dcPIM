@@ -722,6 +722,7 @@ struct dcpim_sock {
 		uint32_t token_nxt;
 		uint32_t max_congestion_win;
 	    uint32_t token_batch;
+		int inflight_bytes;
 		atomic_t backlog_len;
 		struct hrtimer token_pace_timer;
 		uint32_t rtx_rcv_nxt;
