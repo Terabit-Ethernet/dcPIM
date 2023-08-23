@@ -539,7 +539,8 @@ static int dcpim_data_queue_ofo(struct sock *sk, struct sk_buff *skb)
 
 	p = &dsk->out_of_order_queue.rb_node;
 	if (RB_EMPTY_ROOT(&dsk->out_of_order_queue)) {
-		dsk->receiver.inflight_bytes -= skb->len;
+		WARN_ON_ONCE(true);
+		dsk->receiver.inflight_bytes -= (DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq);
 		/* Initial out of order segment, build 1 SACK. */
 		rb_link_node(&skb->rbnode, NULL, p);
 		rb_insert_color(&skb->rbnode, &dsk->out_of_order_queue);
@@ -586,6 +587,7 @@ static int dcpim_data_queue_ofo(struct sock *sk, struct sk_buff *skb)
 				// 		 TCP_SKB_CB(skb1)->end_seq);
 				// NET_INC_STATS(sock_net(sk),
 				// 	      LINUX_MIB_TCPOFOMERGE);
+				WARN_ON_ONCE(true);
 				dcpim_rmem_free_skb(sk, skb1);
 				dcpim_drop(sk, skb1);
 				dsk->receiver.inflight_bytes += skb1->len;
@@ -600,9 +602,10 @@ static int dcpim_data_queue_ofo(struct sock *sk, struct sk_buff *skb)
 	}
 // insert:
 	/* Insert segment into RB tree. */
+	WARN_ON_ONCE(true);
 	rb_link_node(&skb->rbnode, parent, p);
 	rb_insert_color(&skb->rbnode, &dsk->out_of_order_queue);
-	dsk->receiver.inflight_bytes -= skb->len;
+	dsk->receiver.inflight_bytes -= (DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq);
 merge_right:
 	/* Remove other segments covered by skb. */
 	while ((skb1 = skb_rb_next(skb)) != NULL) {
@@ -624,6 +627,7 @@ merge_right:
 		// tcp_dsack_extend(sk, TCP_SKB_CB(skb1)->seq,
 		// 		 TCP_SKB_CB(skb1)->end_seq);
 		// NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPOFOMERGE);
+		WARN_ON_ONCE(true);
 		dcpim_rmem_free_skb(sk, skb1);
 		dcpim_drop(sk, skb1);
 		dsk->receiver.inflight_bytes += skb1->len;
@@ -669,11 +673,13 @@ static void dcpim_ofo_queue(struct sock *sk)
 		rb_erase(&skb->rbnode, &dsk->out_of_order_queue);
 
 		if (unlikely(!after(DCPIM_SKB_CB(skb)->end_seq, dsk->receiver.rcv_nxt))) {
+			dsk->receiver.inflight_bytes += (DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq);
 			dcpim_rmem_free_skb(sk, skb);
 			dcpim_drop(sk, skb);
 			continue;
 		}
-
+		/* the overlap can happen, so we might need to reduce offset_bytes */
+		dsk->receiver.inflight_bytes += (dsk->receiver.rcv_nxt - DCPIM_SKB_CB(skb)->seq);
 		tail = skb_peek_tail(&sk->sk_receive_queue);
 		eaten = tail && dcpim_try_coalesce(sk, tail, skb, &fragstolen);
 		dcpim_rcv_nxt_update(dsk, DCPIM_SKB_CB(skb)->end_seq);
@@ -1092,7 +1098,8 @@ static int  dcpim_queue_rcv(struct sock *sk, struct sk_buff *skb,  bool *fragsto
 	struct sk_buff *tail = skb_peek_tail(&sk->sk_receive_queue);
 
 	/* update inflight bytes */
-	dcpim_sk(sk)->receiver.inflight_bytes -= skb->len;
+	/* Note since the overlap might happen, we need not use skb->len, but end_seq - rcv_nxt*/
+	dcpim_sk(sk)->receiver.inflight_bytes -= (DCPIM_SKB_CB(skb)->end_seq - dcpim_sk(sk)->receiver.rcv_nxt);
 	eaten = (tail &&
 		 dcpim_try_coalesce(sk, tail,
 				  skb, fragstolen)) ? 1 : 0;
@@ -1199,7 +1206,7 @@ queue_and_out:
 		// }
 		WARN_ON_ONCE(true);
 		old_skbsize = skb->truesize;
-		// printk("seq: %u end_seq: %u rcv_nxt:%u skb->truesize:%u\n", DCPIM_SKB_CB(skb)->seq, DCPIM_SKB_CB(skb)->end_seq, dsk->receiver.rcv_nxt, skb->truesize);
+		// printk("core:%d seq: %u end_seq: %u rcv_nxt:%u skb->truesize:%u\n", raw_smp_processor_id(), DCPIM_SKB_CB(skb)->seq, DCPIM_SKB_CB(skb)->end_seq, dsk->receiver.rcv_nxt, skb->truesize);
 		pskb_may_pull(skb, dsk->receiver.rcv_nxt - DCPIM_SKB_CB(skb)->seq);
 		atomic_add(skb->truesize - old_skbsize, &sk->sk_rmem_alloc);
 		__skb_pull(skb,  dsk->receiver.rcv_nxt - DCPIM_SKB_CB(skb)->seq);
@@ -1274,6 +1281,10 @@ int dcpim_handle_data_pkt(struct sk_buff *skb) {
 		dsk = dcpim_sk(sk);
 		iph = ip_hdr(skb);
  		bh_lock_sock(sk);
+		// if(raw_smp_processor_id() == 4) {
+		// 	printk("receive data pkt seq: %u end_seq: %u rcv_nxt:%u\n", DCPIM_SKB_CB(skb)->seq, DCPIM_SKB_CB(skb)->end_seq, dsk->receiver.rcv_nxt);
+
+		// }
  		/* inflight_bytes for now is best-effort estimation */
         // ret = 0;
 		// printk("data seq: %u rcv_nxt:%u \n", DCPIM_SKB_CB(skb)->seq, dsk->receiver.rcv_nxt);
