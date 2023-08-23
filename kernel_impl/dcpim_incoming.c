@@ -525,6 +525,7 @@ static int dcpim_data_queue_ofo(struct sock *sk, struct sk_buff *skb)
 	struct rb_node **p, *parent;
 	struct sk_buff *skb1;
 	u32 seq, end_seq;
+	int old_skbsize;
 	/* Disable header prediction. */
 	// tp->pred_flags = 0;
 	// inet_csk_schedule_ack(sk);
@@ -568,7 +569,9 @@ static int dcpim_data_queue_ofo(struct sock *sk, struct sk_buff *skb)
 				/* Partial overlap. */
 				// tcp_dsack_set(sk, seq, TCP_SKB_CB(skb1)->end_seq);
 				WARN_ON_ONCE(true);
+				old_skbsize = skb->truesize;
 				pskb_may_pull(skb, DCPIM_SKB_CB(skb1)->end_seq - DCPIM_SKB_CB(skb)->seq);
+				atomic_add(skb->truesize - old_skbsize, &sk->sk_rmem_alloc);
 				__skb_pull(skb,  DCPIM_SKB_CB(skb1)->end_seq - DCPIM_SKB_CB(skb)->seq);
 				DCPIM_SKB_CB(skb)->seq += DCPIM_SKB_CB(skb1)->end_seq - DCPIM_SKB_CB(skb)->seq;
 				seq = DCPIM_SKB_CB(skb)->seq;
@@ -610,8 +613,10 @@ merge_right:
 			// 		 end_seq);
 			WARN_ON_ONCE(true);
 			dsk->receiver.inflight_bytes += DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb1)->seq;
+			old_skbsize = skb1->truesize;
 			pskb_may_pull(skb1, DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb1)->seq);
-			__skb_pull(skb,  DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb1)->seq);
+			atomic_add(skb1->truesize - old_skbsize, &sk->sk_rmem_alloc);
+			__skb_pull(skb1,  DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb1)->seq);
 			DCPIM_SKB_CB(skb1)->seq += DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb1)->seq;
 			break;
 		}
@@ -1104,6 +1109,7 @@ int dcpim_data_queue(struct sock *sk, struct sk_buff *skb)
 	struct dcpim_sock *dsk = dcpim_sk(sk);
 	bool fragstolen;
 	int eaten;
+	int old_skbsize;
 	if (DCPIM_SKB_CB(skb)->seq == DCPIM_SKB_CB(skb)->end_seq) {
 		dcpim_rmem_free_skb(sk, skb);
 		return 0;
@@ -1192,7 +1198,10 @@ queue_and_out:
 		// 	goto out_of_window;
 		// }
 		WARN_ON_ONCE(true);
+		old_skbsize = skb->truesize;
+		// printk("seq: %u end_seq: %u rcv_nxt:%u skb->truesize:%u\n", DCPIM_SKB_CB(skb)->seq, DCPIM_SKB_CB(skb)->end_seq, dsk->receiver.rcv_nxt, skb->truesize);
 		pskb_may_pull(skb, dsk->receiver.rcv_nxt - DCPIM_SKB_CB(skb)->seq);
+		atomic_add(skb->truesize - old_skbsize, &sk->sk_rmem_alloc);
 		__skb_pull(skb,  dsk->receiver.rcv_nxt - DCPIM_SKB_CB(skb)->seq);
 		DCPIM_SKB_CB(skb)->seq = dsk->receiver.rcv_nxt;
 		goto queue_and_out;
