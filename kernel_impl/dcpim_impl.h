@@ -189,7 +189,8 @@ int dcpim_sendpage(struct sock *sk, struct page *page, int offset, size_t size,
 		 int flags);
 void dcpim_destroy_sock(struct sock *sk);
 
-
+__poll_t dcpim_poll(struct file *file, struct socket *sock,
+		struct poll_table_struct *wait);
 /* dcpim message functions */
 void dcpim_message_table_init(void);
 void dcpim_message_table_destroy(void);

@@ -702,7 +702,8 @@ struct dcpim_sock {
 		// struct hrtimer flow_wait_timer;
 	    ktime_t last_rtx_time;
 		ktime_t latest_token_sent_time;
-
+		/* track how many tokens being sent in one epoch */
+		int num_token_sent;
 		uint32_t copied_seq;
 	    uint32_t bytes_received;
 	    // uint32_t received_count;
@@ -722,6 +723,7 @@ struct dcpim_sock {
 		uint32_t token_nxt;
 		uint32_t max_congestion_win;
 	    uint32_t token_batch;
+		int inflight_bytes;
 		atomic_t backlog_len;
 		struct hrtimer token_pace_timer;
 		uint32_t rtx_rcv_nxt;

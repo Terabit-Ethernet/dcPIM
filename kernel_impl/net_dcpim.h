@@ -64,14 +64,14 @@ struct dcpim_skb_cb {
 static inline uint32_t dcpim_space(const struct sock *sk)
 {
 	struct dcpim_sock *dsk = dcpim_sk(sk);
-	uint32_t flow_control_window = READ_ONCE(sk->sk_rcvbuf) - (dsk->receiver.token_nxt - dsk->receiver.rcv_nxt) 
+	uint32_t flow_control_window = READ_ONCE(sk->sk_rcvbuf) - (dsk->receiver.inflight_bytes) 
 		- atomic_read(&sk->sk_rmem_alloc);
 	return flow_control_window > sk->sk_rcvbuf ? 0 : flow_control_window;
 }
 
 static inline uint32_t dcpim_congestion_space(const struct sock *sk) {
 	struct dcpim_sock *dsk = dcpim_sk(sk);
-	uint32_t congestion_window = dsk->receiver.max_congestion_win - (dsk->receiver.token_nxt - dsk->receiver.rcv_nxt);
+	uint32_t congestion_window = dsk->receiver.max_congestion_win - (dsk->receiver.inflight_bytes);
 	return congestion_window > dsk->receiver.max_congestion_win ? 0 : congestion_window; 
 }
 

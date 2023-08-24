@@ -508,10 +508,12 @@ void dcpim_send_all_rts (struct dcpim_epoch* epoch) {
 	struct inet_sock *inet;
 	int err = 0;
 	bool rtx_channel = false;
-	int total_flow_size = 0, prompt_flow_size, total_prompt_flow_size, prompt_size;
+	int total_flow_size = 0;
+	// int prompt_flow_size, total_prompt_flow_size, prompt_size;
 	spin_lock_bh(&epoch->receiver_lock);
 	total_flow_size = READ_ONCE(epoch->unmatched_recv_bytes);
-	total_prompt_flow_size = READ_ONCE(epoch->last_unmatched_recv_bytes);
+	/* remove prompt optimization for rts packet */
+	// total_prompt_flow_size = READ_ONCE(epoch->last_unmatched_recv_bytes);
 	if(total_flow_size == 0) {
 		goto unlock_receiver;
 	}
@@ -526,26 +528,26 @@ void dcpim_send_all_rts (struct dcpim_epoch* epoch) {
 		//      continue;
 		flow_size = total_flow_size;
 		/* for prompt transmission optimization */
-		prompt_flow_size = total_prompt_flow_size;
+		// prompt_flow_size = total_prompt_flow_size;
 		if(host->sk == NULL)
 			goto unlock_host;
 		for(i = 0; i < epoch->k; i++) {
 			rtx_channel = false;
 			rts_size = min(epoch->epoch_bytes_per_k, flow_size);
-			prompt_size = min(rts_size, prompt_flow_size);
+			// prompt_size = min(rts_size, prompt_flow_size);
 			if(rtx_size > 0) {
 				rtx_channel = true;
 				rtx_size -= rts_size;
 			}
 			inet = inet_sk(host->sk);
-			skb = construct_rts_pkt(host->sk, epoch->round, epoch->epoch, rts_size, rtx_channel, prompt_size == rts_size);
+			skb = construct_rts_pkt(host->sk, epoch->round, epoch->epoch, rts_size, rtx_channel, 1);
 			dcpim_fill_dcpim_header(skb, htons(epoch->port), htons(epoch->port));
 			dcpim_fill_dst_entry(host->sk, skb,&inet->cork.fl);
 			dcpim_fill_ip_header(skb, host->src_ip, host->dst_ip);
 			err = ip_local_out(sock_net(host->sk), host->sk, skb);
 			flow_size -= rts_size;
-			if(prompt_size > 0)
-				prompt_flow_size -= prompt_size;
+			// if(prompt_size > 0)
+			// 	prompt_flow_size -= prompt_size;
 			if(flow_size <= 0)
 					break;
 			epoch->port = (epoch->port + 1) % epoch->port_range;
