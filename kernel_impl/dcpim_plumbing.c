@@ -179,7 +179,7 @@ static void dcpimdevice_exit(void) {
 }
 
 const struct proto_ops dcpim_dgram_ops = {
-    .family        = PF_INET,
+    .family        = AF_INET,
     .owner         = THIS_MODULE,
     .release       = inet_release,
     .bind          = inet_bind,
@@ -187,7 +187,7 @@ const struct proto_ops dcpim_dgram_ops = {
     .socketpair    = sock_no_socketpair,
     .accept        = inet_accept,
     .getname       = inet_getname,
-    .poll          = udp_poll,
+    .poll          = dcpim_poll,
     .ioctl         = inet_ioctl,
     .gettstamp     = sock_gettstamp,
     .listen        = dcpim_listen,
@@ -218,8 +218,8 @@ struct proto dcpim_prot = {
     .ioctl          = dcpim_ioctl,
     .init           = dcpim_init_sock,
     .destroy        = dcpim_destroy_sock,
-    .setsockopt     = NULL,
-    .getsockopt     = NULL,
+    .setsockopt     = dcpim_setsockopt,
+    .getsockopt     = dcpim_lib_getsockopt,
     .sendmsg        = dcpim_sendmsg,
     .recvmsg        = dcpim_recvmsg,
     .sendpage       = dcpim_sendpage,
@@ -307,7 +307,7 @@ static void dcpim_v4_reqsk_destructor(struct request_sock *req)
 }
 
 struct request_sock_ops dcpim_request_sock_ops __read_mostly = {
-        .family         =       PF_INET,
+        .family         =       AF_INET,
         .obj_size       =       sizeof(struct dcpim_request_sock),
         .rtx_syn_ack    =       NULL,
         .send_ack       =       NULL,

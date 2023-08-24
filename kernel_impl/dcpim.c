@@ -747,7 +747,6 @@ int dcpim_init_sock(struct sock *sk)
 	inet_sk_state_store(sk, DCPIM_CLOSE);
 	dsk->core_id = raw_smp_processor_id();
 	dsk->dma_device = NULL;
-
 	// next_going_id 
 	// printk("remaining tokens:%d\n", dcpim_epoch.remaining_tokens);
 	// atomic64_set(&dsk->next_outgoing_id, 1);
@@ -1740,6 +1739,116 @@ void dcpim_flush_msgs_handler(struct dcpim_sock *dsk) {
 	}
 }
 
+void dcpim_csk_destroy_sock(struct sock *sk)
+{
+	// WARN_ON(sk->sk_state != TCP_CLOSE);
+	// WARN_ON(!sock_flag(sk, SOCK_DEAD));
+
+	/* It cannot be in hash table! */
+	// WARN_ON(!sk_unhashed(sk));
+
+	// /* If it has not 0 inet_sk(sk)->inet_num, it must be bound */
+	// WARN_ON(inet_sk(sk)->inet_num && !inet_csk(sk)->icsk_bind_hash);
+	bh_unlock_sock(sk);
+	local_bh_enable();
+	sk->sk_prot->destroy(sk);
+	local_bh_disable();
+	bh_lock_sock(sk);
+	sk_stream_kill_queues(sk);
+
+	xfrm_sk_free_policy(sk);
+
+	sk_refcnt_debug_release(sk);
+
+	this_cpu_dec(*sk->sk_prot->orphan_count);
+
+	sock_put(sk);
+}
+
+static void inet_child_forget(struct sock *sk, struct request_sock *req,
+			      struct sock *child)
+{
+	// sk->sk_prot->disconnect(child, O_NONBLOCK);
+	sock_orphan(child);
+	this_cpu_inc(*sk->sk_prot->orphan_count);
+	dcpim_csk_destroy_sock(child);
+}
+
+/*
+ *	This routine closes sockets which have been at least partially
+ *	opened, but not yet accepted.
+ */
+void dcpim_csk_listen_stop(struct sock *sk)
+{
+	struct inet_connection_sock *icsk = inet_csk(sk);
+	struct request_sock_queue *queue = &icsk->icsk_accept_queue;
+	struct request_sock *next, *req;
+
+	/* Following specs, it would be better either to send FIN
+	 * (and enter FIN-WAIT-1, it is normal close)
+	 * or to send active reset (abort).
+	 * Certainly, it is pretty dangerous while synflood, but it is
+	 * bad justification for our negligence 8)
+	 * To be honest, we are not able to make either
+	 * of the variants now.			--ANK
+	 */
+	while ((req = reqsk_queue_remove(queue, sk)) != NULL) {
+		struct sock *child = req->sk;
+		// struct request_sock *nreq;
+
+		local_bh_disable();
+		bh_lock_sock(child);
+		WARN_ON(sock_owned_by_user(child));
+		sock_hold(child);
+
+		// nsk = reuseport_migrate_sock(sk, child, NULL);
+		// if (nsk) {
+		// 	nreq = inet_reqsk_clone(req, nsk);
+		// 	if (nreq) {
+		// 		refcount_set(&nreq->rsk_refcnt, 1);
+
+		// 		if (inet_csk_reqsk_queue_add(nsk, nreq, child)) {
+		// 			__NET_INC_STATS(sock_net(nsk),
+		// 					LINUX_MIB_TCPMIGRATEREQSUCCESS);
+		// 			reqsk_migrate_reset(req);
+		// 		} else {
+		// 			__NET_INC_STATS(sock_net(nsk),
+		// 					LINUX_MIB_TCPMIGRATEREQFAILURE);
+		// 			reqsk_migrate_reset(nreq);
+		// 			__reqsk_free(nreq);
+		// 		}
+
+		// 		/* inet_csk_reqsk_queue_add() has already
+		// 		 * called inet_child_forget() on failure case.
+		// 		 */
+		// 		goto skip_child_forget;
+		// 	}
+		// }
+
+		inet_child_forget(sk, req, child);
+// skip_child_forget:
+		reqsk_put(req);
+		bh_unlock_sock(child);
+		local_bh_enable();
+		sock_put(child);
+
+		cond_resched();
+	}
+	if (queue->fastopenq.rskq_rst_head) {
+		/* Free all the reqs queued in rskq_rst_head. */
+		spin_lock_bh(&queue->fastopenq.lock);
+		req = queue->fastopenq.rskq_rst_head;
+		queue->fastopenq.rskq_rst_head = NULL;
+		spin_unlock_bh(&queue->fastopenq.lock);
+		while (req != NULL) {
+			next = req->dl_next;
+			reqsk_put(req);
+			req = next;
+		}
+	}
+	WARN_ON_ONCE(sk->sk_ack_backlog);
+}
+
 void dcpim_destroy_sock(struct sock *sk)
 {
 	// struct udp_hslot* hslot = udp_hashslot(sk->sk_prot->h.udp_table, sock_net(sk),
@@ -1749,6 +1858,7 @@ void dcpim_destroy_sock(struct sock *sk)
 	struct rcv_core_entry *entry = &rcv_core_tab.table[raw_smp_processor_id()];
 	/* To Do: flip the order; now the order was a mess */
 	lock_sock(sk);
+
 	if(sk->sk_priority != 7) {
 		if(dsk->host)
 			atomic_sub((uint32_t)(dsk->sender.write_seq - dsk->sender.snd_una), &dsk->host->total_unsent_bytes);
@@ -1770,9 +1880,17 @@ void dcpim_destroy_sock(struct sock *sk)
 	// bh_unlock_sock(sk);
 	// local_bh_enable();
 
+
 	// lock_sock(sk);
-	if(sk->sk_state == DCPIM_LISTEN)
-		inet_csk_listen_stop(sk);
+	if(sk->sk_state == DCPIM_LISTEN) {
+		local_bh_disable();
+		bh_lock_sock(sk);
+		/* need to sync with the matching side's ESTABLISHED_STATE checking */
+		dcpim_set_state(sk, DCPIM_CLOSE);
+		bh_unlock_sock(sk);
+		local_bh_enable();
+		dcpim_csk_listen_stop(sk);
+	}
 
 	local_bh_disable();
 	bh_lock_sock(sk);
@@ -1780,7 +1898,6 @@ void dcpim_destroy_sock(struct sock *sk)
 	dcpim_set_state(sk, DCPIM_CLOSE);
 	bh_unlock_sock(sk);
 	local_bh_enable();
-	
 	// hrtimer_cancel(&up->receiver.flow_wait_timer);
 	// if(sk->sk_state == DCPIM_ESTABLISHED) {
 	if(hrtimer_cancel(&dsk->receiver.token_pace_timer)) {
@@ -1823,7 +1940,8 @@ int dcpim_setsockopt(struct sock *sk, int level, int optname,
 	printk(KERN_WARNING "unimplemented setsockopt invoked on DCPIM socket:"
 			" level %d, optname %d, optlen %d\n",
 			level, optname, optlen);
-	return -EINVAL;
+	return 0;
+	// return -EINVAL;
 	// if (level == SOL_DCPIM)
 	// 	return dcpim_lib_setsockopt(sk, level, optname, optval, optlen,
 	// 				  dcpim_push_pending_frames);
@@ -1841,11 +1959,60 @@ int dcpim_setsockopt(struct sock *sk, int level, int optname,
 // }
 // #endif
 
+static inline bool dcpim_is_readable(const struct sock *sk, int target)
+{
+	const struct dcpim_sock *dsk = dcpim_sk(sk);
+	int avail = READ_ONCE(dsk->receiver.rcv_nxt) - READ_ONCE(dsk->receiver.copied_seq);
+	if(avail <= 0)
+		return false;
+	return (avail >= target);
+	// return  ((u32)atomic_read(&nsk->receiver.rcv_nxt) - (u32)atomic_read(&nsk->receiver.copied_seq))
+	// 		 - (u32)atomic_read(&nsk->receiver.in_flight_copy_bytes);
+}
+
+__poll_t dcpim_poll(struct file *file, struct socket *sock,
+		struct poll_table_struct *wait) {
+		struct sock *sk = sock->sk;
+		// struct dcpim_sock *dsk = dcpim_sk(sk);
+		__poll_t mask = 0;
+		int state = smp_load_acquire(&sk->sk_state);
+		// int target = sock_rcvlowat(sk, 0, INT_MAX);	
+		sock_poll_wait(file, sock, wait);
+		if(state == DCPIM_LISTEN) {
+			if(!reqsk_queue_empty(&inet_csk(sk)->icsk_accept_queue)) 
+				return EPOLLIN | EPOLLRDNORM;
+			else 
+				return 0;
+		}
+		/* copy from datagram poll*/
+		if (sk->sk_shutdown & RCV_SHUTDOWN)
+			mask |= EPOLLRDHUP | EPOLLIN | EPOLLRDNORM;
+		if (sk->sk_shutdown == SHUTDOWN_MASK)
+			mask |= EPOLLHUP;
+
+		/* Socket is not locked. We are protected from async events
+		* by poll logic and correct handling of state changes
+		* made by other threads is impossible in any case.
+		*/
+		if(sk_stream_memory_free(sk))
+			mask |= POLLOUT | POLLWRNORM | EPOLLWRBAND;
+		else
+			sk_set_bit(SOCKWQ_ASYNC_NOSPACE, sk);
+
+		if (dcpim_is_readable(sk, 0))
+			mask |= EPOLLIN | EPOLLRDNORM;
+		return mask;
+}
+
+EXPORT_SYMBOL(dcpim_poll);
+
+
 int dcpim_lib_getsockopt(struct sock *sk, int level, int optname,
 		       char __user *optval, int __user *optlen)
 {
 	printk(KERN_WARNING "unimplemented getsockopt invoked on DCPIM socket:"
 			" level %d, optname %d\n", level, optname);
+	return 0;
 	return -EINVAL;
 	// struct dcpim_sock *up = dcpim_sk(sk);
 	// int val, len;
@@ -1898,12 +2065,12 @@ int dcpim_getsockopt(struct sock *sk, int level, int optname,
 	return -EINVAL;
 }
 
-__poll_t dcpim_poll(struct file *file, struct socket *sock, poll_table *wait)
-{
-	printk(KERN_WARNING "unimplemented poll invoked on DCPIM socket\n");
-	return -ENOSYS;
-}
-EXPORT_SYMBOL(dcpim_poll);
+// __poll_t dcpim_poll(struct file *file, struct socket *sock, poll_table *wait)
+// {
+// 	printk(KERN_WARNING "unimplemented poll invoked on DCPIM socket\n");
+// 	return -ENOSYS;
+// }
+// EXPORT_SYMBOL(dcpim_poll);
 
 int dcpim_abort(struct sock *sk, int err)
 {

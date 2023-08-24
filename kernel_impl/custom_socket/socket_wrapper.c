@@ -14,18 +14,19 @@
 
 // #define DCPIM_ADD_FLOW 0xFFAB
 // #define DCPIM_REMOVE_FLOW 0xFFAC
-#define IPPROTO_DCPIM 0xFE
+// #define IPPROTO_DCPIM 0xFE
 // typedef int (*template_connect_t)(int, const struct sockaddr*, socklen_t);
 // typedef int (*template_accept_t)(int, struct sockaddr*, socklen_t*);
 // typedef int (*close_t)(int);
 typedef int (*real_socket_t)(int, int, int);
 int real_socket(int domain, int type, int protocol)
 {
+  printf("domain: %d,PF_INET:%d,  type: %d\n", domain, PF_INET, type);
   if((type & ~(SOCK_NONBLOCK | SOCK_CLOEXEC)) != SOCK_STREAM){
      return ((real_socket_t) dlsym(RTLD_NEXT, "socket")) (domain, type, protocol);
   }
   else
-     return ((real_socket_t) dlsym(RTLD_NEXT, "socket")) (domain, SOCK_DGRAM, IPPROTO_DCPIM);
+     return ((real_socket_t) dlsym(RTLD_NEXT, "socket")) (PF_INET, SOCK_DGRAM, IPPROTO_DCPIM);
 }
 
 int socket(int domain, int type, int protocol)
