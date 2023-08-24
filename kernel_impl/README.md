@@ -82,7 +82,32 @@ On the client side,
 cd util
 sudo ./dcpim_test 192.168.10.125:4000 --sp 100000 --count 1 dcpimping
 ```
+## Run Iperf
 
+Install iperf on servers,
+```
+sudo apt-get install iperf3
+```
+
+Compile socket redirect library
+
+```
+cd custom_socket/
+make
+cd -
+```
+
+Run iperf at the server side:
+
+```
+sudo LD_PRELOAD=~/dcPIM/kernel_impl/custom_socket/socket_wrapper.so taskset -c 0 iperf3 -s -p 10000 -4
+```
+
+Run iperf at the client side:
+
+```
+sudo LD_PRELOAD=~/dcPIM/kernel_impl/custom_socket/socket_wrapper.so taskset -c 0 iperf3 -c 192.168.11.125 -p 10000 --cport 10000 -t 100 -4
+```
 
 ## The current status of implementation
 The first prototype is close to be finished. More testing are needed to be done.
