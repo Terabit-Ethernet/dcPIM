@@ -808,6 +808,7 @@ int dcpim_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.rts_index, -1);
 	WRITE_ONCE(dsk->receiver.rcv_msg_nxt, 0);
 	WRITE_ONCE(dsk->receiver.inflight_bytes, 0);
+	WRITE_ONCE(dsk->receiver.num_token_sent, 0);
 	INIT_LIST_HEAD(&dsk->receiver.msg_list);
 	INIT_LIST_HEAD(&dsk->receiver.msg_backlog);
 	
