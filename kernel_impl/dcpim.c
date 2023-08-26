@@ -1938,9 +1938,9 @@ void dcpim_destroy_sock(struct sock *sk)
 int dcpim_setsockopt(struct sock *sk, int level, int optname,
 		   sockptr_t optval, unsigned int optlen)
 {
-	printk(KERN_WARNING "unimplemented setsockopt invoked on DCPIM socket:"
-			" level %d, optname %d, optlen %d\n",
-			level, optname, optlen);
+	// printk(KERN_WARNING "unimplemented setsockopt invoked on DCPIM socket:"
+	// 		" level %d, optname %d, optlen %d\n",
+	// 		level, optname, optlen);
 	return 0;
 	// return -EINVAL;
 	// if (level == SOL_DCPIM)
@@ -2011,8 +2011,8 @@ EXPORT_SYMBOL(dcpim_poll);
 int dcpim_lib_getsockopt(struct sock *sk, int level, int optname,
 		       char __user *optval, int __user *optlen)
 {
-	printk(KERN_WARNING "unimplemented getsockopt invoked on DCPIM socket:"
-			" level %d, optname %d\n", level, optname);
+	// printk(KERN_WARNING "unimplemented getsockopt invoked on DCPIM socket:"
+	// 		" level %d, optname %d\n", level, optname);
 	return 0;
 	return -EINVAL;
 	// struct dcpim_sock *up = dcpim_sk(sk);
