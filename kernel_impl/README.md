@@ -15,7 +15,7 @@ tar xzvf linux-6.0.3.tar.gz
 2. Download and apply the patch to the kernel source. The patch is mainly from the performance consideration. More detail will be discussed later.
 
 ```
-git clone https://github.com/qizhe/dcpim_kernel.git](https://github.com/Terabit-Ethernet/dcPIM.git
+git clone https://github.com/Terabit-Ethernet/dcPIM.git
 cd ~/linux-6.0.3/
 cp ~/dcPIM/kernel_impl/diff.patch .
 patch -R -p1 < diff.patch
