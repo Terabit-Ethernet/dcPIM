@@ -35,7 +35,7 @@ scripts/config --disable DEBUG_INFO # Disables building debugging related files
 ```
 sudo make -j32 bzImage
 sudo make -j32 modules
-make INSTALL_MOD_STRIP=1 modules_install
+sudo make INSTALL_MOD_STRIP=1 modules_install
 sudo make install
 ```
 
