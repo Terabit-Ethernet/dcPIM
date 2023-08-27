@@ -70,6 +70,7 @@ ulimit -n 8192
 
 cd ~/dcPIM/kernel_impl
 make
+sudo rmmod dcpim_module
 sudo insmod dcpim_module.ko
 cd ~/dcPIM/kernel_impl/custom_socket/
 make
