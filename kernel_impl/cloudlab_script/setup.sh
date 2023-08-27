@@ -67,3 +67,9 @@ sudo sysctl -w net.core.rmem_max=12582912
 
 # change the open file limit
 ulimit -n 8192
+
+cd ~/dcPIM/kernel_impl
+make
+sudo insmod dcpim_module.ko
+cd ~/dcPIM/kernel_impl/custom_socket/
+make
