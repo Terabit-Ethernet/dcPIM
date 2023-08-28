@@ -22,6 +22,8 @@ sudo set_irq_affinity.sh $INTF
 sudo sysctl -w net.core.wmem_max=12582912
 sudo sysctl -w net.core.rmem_max=12582912
 
+# Set up flow RFS rules
+./ethtool_setup.sh
 # Enable hardware timestamps
 # sudo hwstamp_ctl -i $INTF -r 1
 
