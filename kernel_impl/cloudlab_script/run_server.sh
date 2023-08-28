@@ -6,9 +6,9 @@ SYS=$1
 while (( server < NSERVER ));do
         if [[ $SYS == "dcpim" ]]
         then
-                sudo LD_PRELOAD=~/dcPIM/kernel_impl/custom_socket/socket_wrapper.so taskset -c $((core)) iperf -s -p $((10000 + server)) -4 > server_$((server)).log &
+                sudo LD_PRELOAD=~/dcPIM/kernel_impl/custom_socket/socket_wrapper.so taskset -c $((core)) iperf -s -p $((10000 + server))  > server_$((server)).log &
         else
-                sudo taskset -c $((core)) iperf -s -p $((10000 + server)) -4 > server_$((server)).log &
+                sudo taskset -c $((core)) iperf -s -p $((10000 + server))  > server_$((server)).log &
         fi
         ((core = (core + 4) % 64))
         (( server++))
