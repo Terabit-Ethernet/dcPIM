@@ -13,7 +13,7 @@ while (( flow < NCLIENT ));do
         then
                         sudo LD_PRELOAD=/home/qizhe/dcPIM/kernel_impl/custom_socket/socket_wrapper.so taskset -c $((core)) iperf3 -c $serverip -p $((dport)) --cport $dport  -t 120 -4  > client_"$flow".log &
         else
-                        sudo taskset -c $((core)) iperf -c $serverip -p $((dport)) --cport $dport -t 120 -4 > client_$((flow)).log &
+                        sudo taskset -c $((core)) iperf3 -c $serverip -p $((dport)) --cport $dport -t 120 -4 > client_$((flow)).log &
         fi
         ((core = (core + 4) % 64))
         (( flow++ ))
