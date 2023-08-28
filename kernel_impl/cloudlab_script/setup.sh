@@ -43,6 +43,9 @@ ulimit -n 8192
 cd ~/dcPIM/kernel_impl
 make
 sudo rmmod dcpim_module
-sudo insmod dcpim_module.ko
+sudo mkdir /lib/modules/6.0.3/extra
+sudo cp dcpim_module.ko /lib/modules/6.0.3/extra/
+sudo depmod -a
+sudo insmod /lib/modules/6.0.3/extra/dcpim_module.ko
 cd ~/dcPIM/kernel_impl/custom_socket/
 make
