@@ -864,7 +864,8 @@ bool dcpim_try_send_token(struct sock *sk) {
 	token_bytes = dcpim_token_timer_defer_handler(sk);
 	if(token_bytes > 0)
 		return true;
-	if(READ_ONCE(sk->sk_max_pacing_rate) == 0&& dsk->receiver.rcv_nxt >= dsk->receiver.last_ack + dsk->receiver.token_batch) {
+	/* To Do: add delay ack mechanism */
+	if(READ_ONCE(sk->sk_max_pacing_rate) == 0) {
 		dcpim_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk); 
 		dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
 	}
@@ -1145,6 +1146,7 @@ found_ok_skb:
 	/* Clean up data we have read: This will do ACK frames. */
 	// tcp_cleanup_rbuf(sk, copied);
 	dcpim_try_send_token(sk);
+
 	// if (dsk->receiver.copied_seq == dsk->total_length) {
 	// 	printk("call tcp close in the recv msg\n");
 	// 	dcpim_set_state(sk, DCPIM_CLOSE);
@@ -1401,6 +1403,7 @@ local_copy:
 		kfree(bv_arr);
 	}
 	dcpim_try_send_token(sk);
+	// printk("copied:%d\n", copied);
 	release_sock(sk);
 	return copied;
 
