@@ -809,7 +809,6 @@ int dcpim_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.rts_index, -1);
 	WRITE_ONCE(dsk->receiver.rcv_msg_nxt, 0);
 	WRITE_ONCE(dsk->receiver.inflight_bytes, 0);
-	WRITE_ONCE(dsk->receiver.num_token_sent, 0);
 	INIT_LIST_HEAD(&dsk->receiver.msg_list);
 	INIT_LIST_HEAD(&dsk->receiver.msg_backlog);
 	
@@ -833,7 +832,10 @@ int dcpim_init_sock(struct sock *sk)
 	hrtimer_init(&dsk->receiver.token_pace_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
 	dsk->receiver.token_pace_timer.function = &dcpim_xmit_token_handler;
 	dsk->receiver.rtx_rcv_nxt = 0;
-	
+
+	hrtimer_init(&dsk->receiver.delay_ack_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
+	dsk->receiver.delay_ack_timer.function = &dcpim_delay_ack_timer_handler;
+	INIT_WORK(&dsk->receiver.delay_ack_work, dcpim_delay_ack_work);
 	WRITE_ONCE(sk->sk_sndbuf, dcpim_params.wmem_default);
 	WRITE_ONCE(sk->sk_rcvbuf, dcpim_params.rmem_default);
 	// WRITE_ONCE(sk->sk_rcvlowat, dsk->receiver.token_batch);
@@ -858,17 +860,17 @@ int dcpim_ioctl(struct sock *sk, int cmd, unsigned long arg)
 EXPORT_SYMBOL(dcpim_ioctl);
 
 bool dcpim_try_send_token(struct sock *sk) {
-	struct dcpim_sock *dsk = dcpim_sk(sk);
+	// struct dcpim_sock *dsk = dcpim_sk(sk);
 	// struct inet_sock *inet = inet_sk(sk);
 	uint32_t token_bytes = 0;
 	token_bytes = dcpim_token_timer_defer_handler(sk);
 	if(token_bytes > 0)
 		return true;
-	/* To Do: add delay ack mechanism */
-	if(READ_ONCE(sk->sk_max_pacing_rate) == 0) {
-		dcpim_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk); 
-		dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
-	}
+	/* To Do: add delay ack mechanism: */
+	// if(after(dsk->receiver.rcv_nxt, dsk->receiver.last_ack)) {
+	// 	dcpim_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk); 
+	// 	dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
+	// }
 	// if(dsk->receiver.rcv_nxt >= dsk->receiver.last_ack + dsk->receiver.token_batch) {
 	// 	dcpim_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk, inet->inet_dport); 
 	// 	dsk->receiver.last_ack = dsk->receiver.rcv_nxt;

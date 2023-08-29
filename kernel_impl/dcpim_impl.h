@@ -107,6 +107,8 @@ void xmit_handle_new_token(struct xmit_core_table *tab, struct sk_buff* skb);
 void dcpim_xmit_data_event(struct work_struct *w);
 
 /* receiver */
+enum hrtimer_restart dcpim_delay_ack_timer_handler(struct hrtimer *timer);
+void dcpim_delay_ack_work(struct work_struct *work);
 void dcpim_xmit_token_event(struct work_struct *w);
 void rcv_handle_new_flow(struct dcpim_sock* dsk);
 void rcv_flowlet_done(struct rcv_core_entry *entry);
