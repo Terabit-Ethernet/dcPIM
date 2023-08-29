@@ -422,6 +422,7 @@ int dcpim_clean_rtx_queue(struct sock *sk)
 // 	}
 
 // }
+
 /* If we update dsk->receiver.rcv_nxt, also update dsk->receiver.bytes_received 
  * and send ack pkt if the flow is finished */
 static void dcpim_rcv_nxt_update(struct dcpim_sock *dsk, u32 seq)
@@ -436,9 +437,13 @@ static void dcpim_rcv_nxt_update(struct dcpim_sock *dsk, u32 seq)
 	WRITE_ONCE(dsk->receiver.rcv_nxt, seq);
 	// printk("update the seq:%d\n", dsk->receiver.rcv_nxt);
 	token_bytes = dcpim_token_timer_defer_handler(sk);
-	if(READ_ONCE(sk->sk_max_pacing_rate) == 0 && dsk->receiver.rcv_nxt >= dsk->receiver.last_ack + dsk->receiver.token_batch) {
-		dcpim_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk); 
-		dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
+	if(token_bytes <= 0) {
+		if(dsk->receiver.rcv_nxt > dsk->receiver.last_ack + dsk->receiver.token_batch) {
+			dcpim_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk); 
+			dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
+		} else if(!dsk->receiver.delay_ack){
+			hrtimer_start(&dsk->receiver.delay_ack_timer, ns_to_ktime(dcpim_params.rtt * 10 * 1000), HRTIMER_MODE_REL_PINNED_SOFT);
+		}
 	}
 }
 
