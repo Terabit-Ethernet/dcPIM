@@ -747,6 +747,7 @@ int dcpim_init_sock(struct sock *sk)
 	inet_sk_state_store(sk, DCPIM_CLOSE);
 	dsk->core_id = raw_smp_processor_id();
 	dsk->dma_device = NULL;
+	// printk("create sock\n");
 	// next_going_id 
 	// printk("remaining tokens:%d\n", dcpim_epoch.remaining_tokens);
 	// atomic64_set(&dsk->next_outgoing_id, 1);

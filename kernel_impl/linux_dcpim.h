@@ -471,6 +471,7 @@ struct dcpim_accept {
     int remaining_sz;
 	int rtx_channel;
 	int prompt_channel;
+	struct dcpim_sock *dsk;
 };
 
 // struct dcpim_match_entry {

@@ -189,12 +189,12 @@ void dcpim_remove_mat_tab(struct dcpim_epoch *epoch, struct sock *sk) {
 uint64_t test_pacing_rate = 0;
 uint64_t test_count = 0;
 static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
-	int i = 0, j = 0;
-	int total_channels, matched_channels, num_flows;
+	int i = 0;
+	// int total_channels, matched_channels, num_flows;
 	// unsigned long max_pacing_rate = 0;
 	// struct dcpim_host **temp_arr;
-	struct dcpim_sock *dsk, *temp;
-	struct dcpim_host *host;
+	struct dcpim_sock *dsk;
+	// struct dcpim_host *host;
 	int rtx_msg_size = 0;
 	struct sk_buff** temp_arr;
 	// sockptr_t optval;
@@ -216,49 +216,49 @@ static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 	epoch->rtx_msg_array = temp_arr;
 	epoch->rtx_msg_size = 0;
 	/* find flow to send tokens from hosts */
-	for (i = 0; i < epoch->next_matched_hosts; i++) {
-		j = 0;
-		host = epoch->next_matched_host_arr[i];
-		// max_pacing_rate = host->next_pacing_rate; // bytes per second
-		// optval = KERNEL_SOCKPTR(&max_pacing_rate);
-		if(host->next_pacing_rate == 0)
-			goto put_host;
-		test_pacing_rate += host->next_pacing_rate;
-		test_count += 1;
-		total_channels = host->next_pacing_rate / epoch->rate_per_channel;
-		num_flows = host->num_long_flows;
-		// if(epoch->epoch % 100000 == 0)
-		// 	printk("average pacing rate:%llu\n", test_pacing_rate / test_count);
-		spin_lock_bh(&host->lock);
-		list_for_each_entry_safe(dsk, temp, &host->flow_list, entry) {
-			if(j == host->num_long_flows)
-				break;
-			if(epoch->next_matched_flows >= epoch->max_array_size)
-				break;
-			// if(host->next_pacing_rate == 0)
-			// 	break;
-			if(total_channels == 0)
-				break;
-			if(total_channels <= num_flows)
-				matched_channels = 1;
-			else
-				matched_channels = total_channels / num_flows;
-			// max_pacing_rate = min(epoch->max_pacing_rate_per_flow, host->next_pacing_rate);
-			WRITE_ONCE(dsk->receiver.next_pacing_rate, READ_ONCE(dsk->receiver.next_pacing_rate) + matched_channels *  epoch->rate_per_channel);
-			epoch->next_matched_arr[epoch->next_matched_flows] = dsk;
-			sock_hold((struct sock*)dsk);
-			list_move_tail(&dsk->entry, &host->flow_list);
-			j++;
-			epoch->next_matched_flows++;
-			total_channels -= matched_channels;
-			num_flows--;
-			// host->next_pacing_rate -= max_pacing_rate;
-		}
-		spin_unlock_bh(&host->lock);
-		host->next_pacing_rate = 0;
-put_host:
-		dcpim_host_put(host);
-	}
+// 	for (i = 0; i < epoch->next_matched_hosts; i++) {
+// 		j = 0;
+// 		host = epoch->next_matched_host_arr[i];
+// 		// max_pacing_rate = host->next_pacing_rate; // bytes per second
+// 		// optval = KERNEL_SOCKPTR(&max_pacing_rate);
+// 		if(host->next_pacing_rate == 0)
+// 			goto put_host;
+// 		test_pacing_rate += host->next_pacing_rate;
+// 		test_count += 1;
+// 		total_channels = host->next_pacing_rate / epoch->rate_per_channel;
+// 		num_flows = host->num_long_flows;
+// 		if(epoch->epoch % 100000 == 0)
+// 			printk("average pacing rate:%llu num_long_flows: %d\n", test_pacing_rate / test_count, host->num_long_flows);
+// 		spin_lock_bh(&host->lock);
+// 		list_for_each_entry_safe(dsk, temp, &host->flow_list, entry) {
+// 			if(j == host->num_long_flows)
+// 				break;
+// 			if(epoch->next_matched_flows >= epoch->max_array_size)
+// 				break;
+// 			// if(host->next_pacing_rate == 0)
+// 			// 	break;
+// 			if(total_channels == 0)
+// 				break;
+// 			if(total_channels <= num_flows)
+// 				matched_channels = 1;
+// 			else
+// 				matched_channels = total_channels / num_flows;
+// 			// max_pacing_rate = min(epoch->max_pacing_rate_per_flow, host->next_pacing_rate);
+// 			WRITE_ONCE(dsk->receiver.next_pacing_rate, READ_ONCE(dsk->receiver.next_pacing_rate) + matched_channels *  epoch->rate_per_channel);
+// 			epoch->next_matched_arr[epoch->next_matched_flows] = dsk;
+// 			sock_hold((struct sock*)dsk);
+// 			list_move_tail(&dsk->entry, &host->flow_list);
+// 			j++;
+// 			epoch->next_matched_flows++;
+// 			total_channels -= matched_channels;
+// 			num_flows--;
+// 			// host->next_pacing_rate -= max_pacing_rate;
+// 		}
+// 		spin_unlock_bh(&host->lock);
+// 		host->next_pacing_rate = 0;
+// put_host:
+// 		dcpim_host_put(host);
+// 	}
 	epoch->cur_matched_flows = epoch->next_matched_flows;
 	/* swap two matched flow arr */
 	temp_match_arr = epoch->cur_matched_arr;
@@ -341,11 +341,13 @@ static void dcpim_modify_ctrl_pkt(struct sk_buff *skb, __u8 type,  __u8 round, _
 	}
 }
 
-static void dcpim_modify_ctrl_pkt_size(struct sk_buff *skb, __be32 size, bool rtx_channel, bool prompt_channel) {
+static void dcpim_modify_ctrl_pkt_size(struct sk_buff *skb, __be32 size, bool rtx_channel, bool prompt_channel, u16 source, u16 dest) {
 	struct dcpim_grant_hdr *gh = dcpim_grant_hdr(skb);
 	gh->remaining_sz = size;
 	gh->rtx_channel = rtx_channel;
 	gh->prompt_channel = prompt_channel;
+	gh->source = source;
+	gh->dest = dest;
 	skb_push(skb, skb->data - skb_mac_header(skb));
 }
 
@@ -472,7 +474,10 @@ void dcpim_epoch_destroy(struct dcpim_epoch *epoch) {
 		epoch->grants_array[i].skb_arr = NULL;
 		if(epoch->grants_array[i].host)
 			dcpim_host_put(epoch->grants_array[i].host);
+		if(epoch->rts_array[i].host)
+			dcpim_host_put(epoch->rts_array[i].host);
 		epoch->grants_array[i].host = NULL;
+		epoch->rts_array[i].host = NULL;
 	}
 
 	kfree(epoch->grants_array);
@@ -566,7 +571,7 @@ int dcpim_handle_rts (struct sk_buff *skb, struct dcpim_epoch *epoch) {
 	struct iphdr *iph;
 	// struct sock* sk;
 	struct dcpim_rts *rts;
-	struct dcpim_host *host;
+	struct dcpim_host *host, *temp_host = NULL;
 	// bool refcounted = false;
 	// int sdif = inet_sdif(skb);
 	int rts_index, flow_size;
@@ -614,7 +619,9 @@ int dcpim_handle_rts (struct sk_buff *skb, struct dcpim_epoch *epoch) {
 				rts->prompt_remaining_sz += rh->remaining_sz;
 			rts->flow_size = flow_size;
 			rts->rtx_channel = rh->rtx_channel;
+			temp_host = rts->host;
 			rts->host = host;
+			dcpim_host_hold(host);
 			// smp_wmb();
 			WRITE_ONCE(rts->epoch, READ_ONCE(epoch->epoch));
 			WRITE_ONCE(rts->round, READ_ONCE(epoch->round));
@@ -640,6 +647,8 @@ unlock_sender:
 
 	if(temp != NULL)
 		kfree_skb(temp);
+	if(temp_host != NULL)
+		dcpim_host_put(temp_host);
 	dcpim_host_put(host);
 
 	return 0;
@@ -659,6 +668,11 @@ void dcpim_handle_all_rts(struct dcpim_epoch *epoch) {
 	int unmatched_prompt_sent_bytes = atomic_read(&epoch->last_unmatched_sent_bytes);
 	int rts_size = 0, i = 0;
 	bool rtx_channel = false, prompt_channel = false;
+	struct dcpim_sock *dsk, *temp;
+	struct dcpim_host *host;
+	u16 src_port = 0, dst_port = 0;
+	bool find = false;
+	int num_flows = 0;
 	spin_lock_bh(&epoch->sender_lock);
 	rts_size = epoch->rts_size;
 
@@ -679,29 +693,56 @@ void dcpim_handle_all_rts(struct dcpim_epoch *epoch) {
 		}	
 		// printk("index:%d, rts->remaning_sz:%d, remaining_rts_size:%d unmatched_sent_bytes:%d sent_bytes:%d, rts->epoch:%llu, rts->round:%u \n",
 			// index, rts->remaining_sz, remaining_rts_size, unmatched_sent_bytes, sent_bytes, rts->epoch, rts->round);
-		cur_sent_bytes = min(rts->remaining_sz, epoch->epoch_bytes_per_k);
-		cur_sent_bytes= min(rts->flow_size, cur_sent_bytes);
+		cur_sent_bytes = epoch->epoch_bytes_per_k;
+		// cur_sent_bytes= min(rts->flow_size, cur_sent_bytes);
+		/* priortize short message retransmission first */
+		if(rts->rtx_channel > 0) {
+			rtx_channel = true;
+			rts->rtx_channel -= 1;
+		} else {
+			/* find long flow socket to match */
+			host = rts->host;
+			find = false;
+			spin_lock(&host->lock);
+			num_flows = host->num_long_flows;
+			list_for_each_entry_safe(dsk, temp, &host->flow_list, entry) {
+				// max_pacing_rate = min(epoch->max_pacing_rate_per_flow, host->next_pacing_rate);
+				if(num_flows == 0)
+					break;
+				list_move_tail(&dsk->entry, &host->flow_list);
+				if(READ_ONCE(((struct sock*)dsk)->sk_wmem_queued) > 0) {
+					src_port = inet_sk((struct sock*)dsk)->inet_sport;	
+					dst_port = inet_sk((struct sock*)dsk)->inet_dport;
+					find = true;					
+					break;
+				}
+				num_flows--;
+				// host->next_pacing_rate -= max_pacing_rate;
+			}
+			spin_unlock(&host->lock);
+			if(!find) {
+				rts->remaining_sz = 0;
+				rts->flow_size = 0;
+				goto continue_loop;
+			}
+
+		}
 		/* for prompt optimization */
 		if (rts->prompt_remaining_sz && cur_sent_bytes + prompt_sent_bytes <= unmatched_prompt_sent_bytes) {
 			prompt_channel = true;
 			prompt_sent_bytes += cur_sent_bytes;
 			rts->prompt_remaining_sz -= cur_sent_bytes;
 		}
-		/* priortize short message retransmission first */
-		if(rts->rtx_channel > 0) {
-			rtx_channel = true;
-			rts->rtx_channel -= 1;
-		}
-
-		dcpim_modify_ctrl_pkt_size(rts->skb_arr[rts->skb_size - 1], cur_sent_bytes, rtx_channel, prompt_channel);
+		dcpim_modify_ctrl_pkt_size(rts->skb_arr[rts->skb_size - 1], cur_sent_bytes, rtx_channel, prompt_channel, src_port, dst_port);
 		epoch->rts_skb_array[cur_k] = rts->skb_arr[rts->skb_size - 1];
 		cur_k += 1;
 		rts->skb_arr[rts->skb_size - 1] = NULL;
 		rts->skb_size--;
-		/* we will add epoch->epoch_bytes_per_k regardless cur_sent_bytes */
-		sent_bytes += epoch->epoch_bytes_per_k;
+
+		sent_bytes += cur_sent_bytes;
 		rts->remaining_sz -= cur_sent_bytes;
 		rts->flow_size -= cur_sent_bytes;
+continue_loop:
 		if(rts->remaining_sz <= 0 || rts->flow_size <= 0)
 			remaining_rts_size -= 1;
 	}
@@ -724,6 +765,9 @@ int dcpim_handle_grant(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 	if (!pskb_may_pull(skb, sizeof(struct dcpim_grant_hdr)))
 		goto drop;		/* No space for header. */
 	gh = dcpim_grant_hdr(skb);
+	// printk("handle grant grant_hdr->source: %d grant_hdr->dest: %d  __dcpim_hdrlen(&grant_hdr->common):%d sdif:%d\n",
+	// 	ntohs(gh->source), ntohs(gh->dest),  __dcpim_hdrlen(&gh->common), inet_sdif(skb));
+	// printk("srcip: %d dstip: %d\n", ip_hdr(skb)->saddr, ip_hdr(skb)->daddr);
 	/* TO DO: check round number and epoch number after time is synced */
 	// sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&gh->common), gh->common.source,
     //         gh->common.dest, sdif, &refcounted);
@@ -772,7 +816,7 @@ int dcpim_handle_grant(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 			goto unlock_receiver;
 		}
 	}
-	dcpim_modify_ctrl_pkt(skb, ACCEPT, READ_ONCE(epoch->epoch), READ_ONCE(epoch->round), true);
+	// dcpim_modify_ctrl_pkt(skb, ACCEPT, READ_ONCE(epoch->epoch), READ_ONCE(epoch->round), true);
 	temp = grant->skb_arr[grant->skb_size];
 	grant->skb_arr[grant->skb_size] = skb;
 	grant->skb_size++;
@@ -790,10 +834,12 @@ drop:
 }
 
 void dcpim_handle_all_grants(struct dcpim_epoch *epoch) {
-	struct dcpim_sock *dsk, *temp;
+	struct dcpim_sock *dsk;
 	struct dcpim_grant *grant;
-	struct dcpim_host *host;
-	struct sk_buff *skb;
+	struct dcpim_grant_hdr *grant_hdr;
+	// struct dcpim_host *host;
+	struct sk_buff *skb, *grant_skb;
+	struct sock* sk;
 	int recv_bytes = 0, prompt_recv_bytes = 0;
 	int cur_recv_bytes = 0;
 	int cur_k = 0;
@@ -802,7 +848,7 @@ void dcpim_handle_all_grants(struct dcpim_epoch *epoch) {
 	int grant_size;
 	int remaining_grant_size;
 	bool rtx_channel = false, prompt_channel = false;
-
+	bool refcounted = false;
 	// struct dcpim_flow* flow;
 	spin_lock_bh(&epoch->receiver_lock);
 	grant_size = epoch->grant_size;
@@ -821,92 +867,100 @@ void dcpim_handle_all_grants(struct dcpim_epoch *epoch) {
 		if (grant->remaining_sz <= 0) {
 			continue;
 		}
-		/* check the number of channels we need; whether used for prompt or rtx */
-		cur_recv_bytes = min(grant->remaining_sz, epoch->epoch_bytes_per_k);
+		cur_recv_bytes = epoch->epoch_bytes_per_k;
+		/* find corresponding long flow socket to grant channel */
+		grant_skb = grant->skb_arr[grant->skb_size - 1];
+		grant_hdr = dcpim_grant_hdr(grant_skb);
+		sk = NULL;
+		if(grant->rtx_channel <= 0) {
+			sk = __inet_lookup_skb(&dcpim_hashinfo, grant_skb, __dcpim_hdrlen(&grant_hdr->common), grant_hdr->source,
+				grant_hdr->dest, inet_sdif(grant_skb), &refcounted);
+			if(!sk || sk->sk_state  != DCPIM_ESTABLISHED) {
+				kfree_skb(grant_skb);
+				if(refcounted) {
+					sock_put(sk);
+				}
+				goto free_skb;
+			}
+		} else {
+			rtx_channel = true;
+			grant->rtx_channel -= 1;
+		}
+		/* check the number of channels we need; whether used for prompt */
 		if(grant->prompt_remaining_sz > 0 && prompt_recv_bytes + cur_recv_bytes <= epoch->last_unmatched_recv_bytes) {
 			prompt_channel = true;
 			prompt_recv_bytes += cur_recv_bytes;
 			grant->prompt_remaining_sz -= cur_recv_bytes;
 		}
-		if(grant->rtx_channel > 0) {
-			rtx_channel = true;
-			grant->rtx_channel -= 1;
-		}
 		/* update accept array */
-		epoch->accept_array[cur_k].host = grant->host;
+		// epoch->accept_array[cur_k].host = grant->host;
 		epoch->accept_array[cur_k].rtx_channel = rtx_channel;
 		epoch->accept_array[cur_k].remaining_sz = cur_recv_bytes;
 		epoch->accept_array[cur_k].prompt_channel = prompt_channel;
-		dcpim_host_hold(grant->host);
-
-		dcpim_modify_ctrl_pkt_size(grant->skb_arr[grant->skb_size - 1], cur_recv_bytes, rtx_channel, prompt_channel);
+		if(sk != NULL) {
+			epoch->accept_array[cur_k].dsk = dcpim_sk(sk);
+		}
+		// dcpim_host_hold(grant->host);
+		dcpim_modify_ctrl_pkt(grant->skb_arr[grant->skb_size - 1], ACCEPT, READ_ONCE(epoch->epoch), READ_ONCE(epoch->round), true);
+		dcpim_modify_ctrl_pkt_size(grant->skb_arr[grant->skb_size - 1], cur_recv_bytes, rtx_channel, prompt_channel, 0, 0);
 		epoch->grant_skb_array[cur_k] = grant->skb_arr[grant->skb_size - 1];
-		
+		recv_bytes += cur_recv_bytes;
+		cur_k += 1;
+free_skb:
 		/* update the metadata state */
 		grant->skb_arr[grant->skb_size - 1] = NULL;
 		grant->skb_size--;
 		// kfree_skb(skb);
-		/* sent bytes incremented by  epoch->epoch_bytes_per_k */
-		recv_bytes += epoch->epoch_bytes_per_k;
 		grant->remaining_sz -= cur_recv_bytes;
 		if(grant->remaining_sz <= 0) {
 			remaining_grant_size -= 1;
 		}
-		cur_k += 1;
 	}
 	epoch->unmatched_recv_bytes -= recv_bytes;
 	epoch->last_unmatched_recv_bytes -= prompt_recv_bytes;
 	epoch->grant_size = 0;
 	spin_unlock_bh(&epoch->receiver_lock);
-
+	/* update matched array */
     spin_lock_bh(&epoch->matched_lock);
 	for (i = 0; i < cur_k; i++) {
-		host = epoch->accept_array[i].host;
+		// host = epoch->accept_array[i].host;
         /* only count long flow transmission rate */
         if(epoch->accept_array[i].rtx_channel == 0) {
-			/* perform prompt optimization */
-			if(epoch->accept_array[i].prompt_channel) {
-				spin_lock(&host->lock);
-				list_for_each_entry_safe(dsk, temp, &host->flow_list, entry) {
+			dsk = epoch->accept_array[i].dsk;
+			WARN_ON_ONCE(dsk == NULL);
+			if(epoch->next_matched_flows < epoch->k) {
+				epoch->next_matched_arr[epoch->next_matched_flows] = dsk;
+				epoch->next_matched_flows += 1;
+				WRITE_ONCE(dsk->receiver.next_pacing_rate, READ_ONCE(dsk->receiver.next_pacing_rate) +  epoch->rate_per_channel);
+				/* perform prompt optimization */
+				if(epoch->accept_array[i].prompt_channel) {
 					// max_pacing_rate = min(epoch->max_pacing_rate_per_flow, host->next_pacing_rate);
 					WRITE_ONCE(((struct sock*)dsk)->sk_max_pacing_rate, READ_ONCE(((struct sock*)dsk)->sk_max_pacing_rate) + epoch->rate_per_channel);
-					WRITE_ONCE(dsk->receiver.next_pacing_rate, READ_ONCE(dsk->receiver.next_pacing_rate) +  epoch->rate_per_channel);
 					if(atomic_cmpxchg(&dsk->receiver.token_work_status, 0, 1) == 0) {
 						sock_hold((struct sock*)dsk);
 						queue_work_on(dsk->core_id, dcpim_wq, &dsk->receiver.token_work);
 					}
-					epoch->next_matched_arr[epoch->next_matched_flows] = dsk;
-					epoch->next_matched_flows += 1;
-					sock_hold((struct sock*)dsk);
-					list_move_tail(&dsk->entry, &host->flow_list);
-					break;
-					// host->next_pacing_rate -= max_pacing_rate;
+				
 				}
-				spin_unlock(&host->lock);
-				dcpim_host_put(host);
 			} else {
-				/* inherit host ref count from the accept arr */
-				host->next_pacing_rate  += epoch->rate_per_channel;
-				epoch->next_matched_host_arr[epoch->next_matched_hosts] = host;
-       	 		epoch->next_matched_hosts += 1;
+				WARN_ON_ONCE(true);
+				sock_put((struct sock*)dsk);
 			}
-		}
-        else {
+		} else {
 			/* To Do: check if we can send the rtx token directly if the channel is prompt. */
             if(epoch->rtx_msg_size < epoch->k) {
 				skb = skb_copy(epoch->grant_skb_array[i], GFP_ATOMIC);
                 dcpim_modify_ctrl_pkt(skb, RTX_MSG, READ_ONCE(epoch->epoch), READ_ONCE(epoch->round), false);
-                dcpim_modify_ctrl_pkt_size(skb,  epoch->accept_array[i].remaining_sz, true, true);
+                dcpim_modify_ctrl_pkt_size(skb,  epoch->accept_array[i].remaining_sz, true, true, 0, 0);
                 epoch->rtx_msg_array[epoch->rtx_msg_size] = skb;
                 epoch->rtx_msg_size += 1; 
             } else {
                 WARN_ON(true);
             }
-			dcpim_host_put(host);
+			// dcpim_host_put(host);
         }
 	}
     spin_unlock_bh(&epoch->matched_lock);
-
 	for (i = 0; i < cur_k; i++) {
 		/* need to add error checking here */
 		dev_queue_xmit(epoch->grant_skb_array[i]);
