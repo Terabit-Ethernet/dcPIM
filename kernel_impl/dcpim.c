@@ -819,7 +819,7 @@ int dcpim_init_sock(struct sock *sk)
 	// INIT_LIST_HEAD(&dsk->reciever.);
 
 	/* token batch 64KB */
-	WRITE_ONCE(dsk->receiver.token_batch, 62636 * 2);
+	WRITE_ONCE(dsk->receiver.token_batch, 62552 * 2);
 	atomic_set(&dsk->receiver.backlog_len, 0);
 	atomic_set(&dsk->receiver.rtx_status, 0);
 	atomic_set(&dsk->receiver.token_work_status, 0);
@@ -860,12 +860,15 @@ int dcpim_ioctl(struct sock *sk, int cmd, unsigned long arg)
 EXPORT_SYMBOL(dcpim_ioctl);
 
 bool dcpim_try_send_token(struct sock *sk) {
-	// struct dcpim_sock *dsk = dcpim_sk(sk);
+	struct dcpim_sock *dsk = dcpim_sk(sk);
 	// struct inet_sock *inet = inet_sk(sk);
 	uint32_t token_bytes = 0;
-	token_bytes = dcpim_token_timer_defer_handler(sk);
-	if(token_bytes > 0)
-		return true;
+	/* wait until there is enough bytes to lower the token retransmission overhead as */
+	if(dcpim_avail_token_space((struct sock*)dsk) >= dsk->receiver.token_batch) {
+		token_bytes = dcpim_token_timer_defer_handler(sk);
+		if(token_bytes > 0)
+			return true;
+	}
 	/* To Do: add delay ack mechanism: */
 	// if(after(dsk->receiver.rcv_nxt, dsk->receiver.last_ack)) {
 	// 	dcpim_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk); 
@@ -1389,6 +1392,7 @@ local_copy:
 		__skb_unlink(skb, &sk->sk_receive_queue);
 		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 		kfree_skb(skb);
+		dcpim_try_send_token(sk);
 		continue;
 
 // found_fin_ok:
@@ -1404,7 +1408,9 @@ local_copy:
 		dcpim_release_pages(bv_arr, true, nr_segs);
 		kfree(bv_arr);
 	}
-	dcpim_try_send_token(sk);
+	if(copied > 0)
+		dcpim_token_timer_defer_handler(sk);
+	// 	dcpim_try_send_token(sk);
 	// printk("copied:%d\n", copied);
 	release_sock(sk);
 	return copied;
