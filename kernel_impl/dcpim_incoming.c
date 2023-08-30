@@ -437,14 +437,17 @@ static void dcpim_rcv_nxt_update(struct dcpim_sock *dsk, u32 seq)
 	WRITE_ONCE(dsk->receiver.rcv_nxt, seq);
 	// printk("update the seq:%d\n", dsk->receiver.rcv_nxt);
 	token_bytes = dcpim_token_timer_defer_handler(sk);
-	if(token_bytes <= 0) {
-		if(dsk->receiver.rcv_nxt > dsk->receiver.last_ack + dsk->receiver.token_batch) {
-			dcpim_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk); 
-			dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
-		} else if(!dsk->receiver.delay_ack){
-			hrtimer_start(&dsk->receiver.delay_ack_timer, ns_to_ktime(dcpim_params.rtt * 10 * 1000), HRTIMER_MODE_REL_PINNED_SOFT);
-		}
-	}
+	// if(token_bytes <= 0) {
+	// 	if(dsk->receiver.rcv_nxt > dsk->receiver.last_ack + dsk->receiver.token_batch) {
+	// 		dcpim_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk); 
+	// 		dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
+	// 		if(hrtimer_is_queued(&dsk->receiver.delay_ack_timer))
+	// 			hrtimer_cancel(&dsk->receiver.delay_ack_timer);
+	// 	} 
+	// 	else if(!dsk->receiver.delay_ack){
+	// 		hrtimer_start(&dsk->receiver.delay_ack_timer, ns_to_ktime(dcpim_params.epoch_length * 10), HRTIMER_MODE_REL_PINNED_SOFT);
+	// 	}
+	// }
 }
 
 static void dcpim_drop(struct sock *sk, struct sk_buff *skb)

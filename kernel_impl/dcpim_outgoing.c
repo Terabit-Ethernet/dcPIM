@@ -569,6 +569,8 @@ int dcpim_fill_packets(struct sock *sk,
 		 // last_pkt_length;
 		
 		/* The sizeof(void*) creates extra space for dcpim_next_skb. */
+		if(sk_stream_wspace(sk) <= 0)
+			break;
 		skb = dcpim_stream_alloc_skb(sk, gso_size, GFP_KERNEL, true);
 		// if(sk->sk_tx_skb_cache != NULL) {
 		// 	skb = sk->sk_tx_skb_cache;
@@ -583,13 +585,13 @@ int dcpim_fill_packets(struct sock *sk,
 			err = -ENOMEM;
 			goto error;
 		}
-		if (skb->truesize > sk_stream_wspace(sk)) {
-			// if(!sk->sk_tx_skb_cache)
-			// 	sk->sk_tx_skb_cache = skb;
-			// else
-			kfree_skb(skb);
-			break;
-		}
+		// if (skb->truesize > sk_stream_wspace(sk)) {
+		// 	// if(!sk->sk_tx_skb_cache)
+		// 	// 	sk->sk_tx_skb_cache = skb;
+		// 	// else
+		// 	kfree_skb(skb);
+		// 	break;
+		// }
 
 		// if ((bytes_left > max_pkt_data)
 		// 		&& (max_gso_data > max_pkt_data)) {
@@ -1608,13 +1610,15 @@ void dcpim_xmit_token_work(struct work_struct *work) {
 			// 	atomic_read(&sk->sk_rmem_alloc), atomic_read(&dsk->receiver.backlog_len));
 			// printk("epoch:%llu value: %u %u \n", dcpim_epoch.epoch, dsk->receiver.rtx_rcv_nxt, dsk->receiver.rcv_nxt);
 			dcpim_xmit_control(construct_rtx_token_pkt((struct sock*)dsk, 3, dsk->receiver.token_nxt, dsk->receiver.token_nxt, &rtx_bytes), sk);
-		}
+		} 
 		atomic_set(&dsk->receiver.rtx_status, 0);
 		dsk->receiver.rtx_rcv_nxt = dsk->receiver.rcv_nxt;
 	}
 	
 	/* perfrom transmission */
 	if(token_bytes == 0) {
+		/* transmit ack packet to clean up the sender side buffer in case we don't send token */
+		dcpim_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk); 
 		goto release_sock;
 	}
 	/* allow window one token_batch larger than the window */
