@@ -14,6 +14,7 @@ void dcpim_host_init(struct dcpim_host *host) {
 	spin_lock_init(&host->lock);
 	refcount_set(&host->refcnt, 1);
 	INIT_LIST_HEAD(&host->flow_list);
+	INIT_LIST_HEAD(&host->idle_flow_list);
 	INIT_LIST_HEAD(&host->short_flow_list);
 	atomic_set(&host->total_unsent_bytes, 0);
 	atomic_set(&host->rtx_msg_bytes, 0);
@@ -24,6 +25,7 @@ void dcpim_host_init(struct dcpim_host *host) {
 	host->grant = NULL;
 	host->num_flows = 0;
 	host->num_long_flows = 0;
+	host->idle_long_flows = 0;
 	host->num_short_flows = 0;
 	host->sk = NULL;
 	INIT_LIST_HEAD(&host->entry);
@@ -52,8 +54,9 @@ void dcpim_host_add_sock(struct dcpim_host *host, struct sock *sk) {
 	sock_hold(sk);
 	dcpim_host_hold(host);
 	if(sk->sk_priority != 7) {
-		list_add_tail_rcu(&dcpim_sk(sk)->entry, &host->flow_list);
-		host->num_long_flows += 1;
+		list_add_tail_rcu(&dcpim_sk(sk)->entry, &host->idle_flow_list);
+		host->idle_long_flows += 1;
+		dcpim_sk(sk)->is_idle = true;
 	}
 	else {
 		list_add_tail_rcu(&dcpim_sk(sk)->entry, &host->short_flow_list);
@@ -62,6 +65,42 @@ void dcpim_host_add_sock(struct dcpim_host *host, struct sock *sk) {
 	host->num_flows += 1;
 	if(!host->sk)
 		host->sk = sk;
+	spin_unlock_bh(&host->lock);
+}
+
+void dcpim_host_set_sock_active(struct dcpim_host *host, struct sock *sk) {
+	spin_lock_bh(&host->lock);
+	WARN_ON(!dcpim_sk(sk)->in_host_table);
+	WARN_ON(sk->sk_priority == 7);
+	if(dcpim_sk(sk)->is_idle) {
+		list_del_rcu(&dcpim_sk(sk)->entry);
+		list_add_tail_rcu(&dcpim_sk(sk)->entry, &host->flow_list);
+		host->num_long_flows += 1;
+		host->idle_long_flows -= 1;
+		dcpim_sk(sk)->is_idle = false;
+		if(dcpim_sk(host->sk)->is_idle) {
+			if(!list_empty(&host->flow_list))
+				host->sk = (struct sock*)list_first_entry(&host->flow_list, struct dcpim_sock, entry);
+		}
+	}
+	spin_unlock_bh(&host->lock);
+}
+
+void dcpim_host_set_sock_idle(struct dcpim_host *host, struct sock *sk) {
+	spin_lock_bh(&host->lock);
+	WARN_ON(!dcpim_sk(sk)->in_host_table);
+	WARN_ON(sk->sk_priority == 7);
+	if(!dcpim_sk(sk)->is_idle) {
+		list_del_rcu(&dcpim_sk(sk)->entry);
+		list_add_tail_rcu(&dcpim_sk(sk)->entry, &host->idle_flow_list);
+		host->num_long_flows -= 1;
+		host->idle_long_flows += 1;
+		dcpim_sk(sk)->is_idle = true;
+		if(host->sk == sk) {
+			if(!list_empty(&host->flow_list))
+				host->sk = (struct sock*)list_first_entry(&host->flow_list, struct dcpim_sock, entry);
+		}
+	}
 	spin_unlock_bh(&host->lock);
 }
 
@@ -77,7 +116,10 @@ bool dcpim_host_delete_sock(struct dcpim_host *host, struct sock *sk) {
 		dcpim_sk(sk)->in_host_table = false;
 		host->num_flows -= 1;
 		if(sk->sk_priority != 7) {
-			host->num_long_flows -= 1;
+			if(dcpim_sk(sk)->is_idle)
+				host->idle_long_flows -= 1;
+			else
+				host->num_long_flows -= 1;
 		} else
 			host->num_short_flows -= 1;
 		if(host->sk == sk) {
@@ -87,10 +129,13 @@ bool dcpim_host_delete_sock(struct dcpim_host *host, struct sock *sk) {
 					host->sk = (struct sock*)list_first_entry(&host->flow_list, struct dcpim_sock, entry);
 				else if(!list_empty(&host->short_flow_list))
 					host->sk = (struct sock*)list_first_entry(&host->short_flow_list, struct dcpim_sock, entry);
-				else
+				else if(!list_empty(&host->idle_flow_list))
+					host->sk = (struct sock*)list_first_entry(&host->idle_flow_list, struct dcpim_sock, entry);
+				else	
 					WARN_ON(true);
 			}
 		}
+		dcpim_sk(sk)->is_idle = false;
 		spin_unlock_bh(&host->lock);
 		in_host_table = true;
 	} else {
@@ -276,6 +321,9 @@ static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 		dsk = epoch->cur_matched_arr[i];
 		sk = (struct sock*)dsk;
 		if(READ_ONCE(dsk->receiver.next_pacing_rate) != 0) {
+			// test_pacing_rate += READ_ONCE(dsk->receiver.next_pacing_rate);
+			// if(inet_sk(sk)->inet_sport != inet_sk(sk)->inet_dport)
+			// 	printk("epoch:%llu sk: %p src port: %d dst port:%d pacing_rate: %lu\n", epoch->epoch, sk, ntohs(inet_sk(sk)->inet_sport), ntohs(inet_sk(sk)->inet_dport), READ_ONCE(dsk->receiver.next_pacing_rate));
 			WRITE_ONCE(sk->sk_max_pacing_rate, READ_ONCE(dsk->receiver.next_pacing_rate));
 			WRITE_ONCE(dsk->receiver.next_pacing_rate, 0);
 			if(atomic_cmpxchg(&dsk->receiver.token_work_status, 0, 1) == 0) {
@@ -317,13 +365,13 @@ static void receiver_matching_handler(struct work_struct *work) {
 	// advance rounds
 	WRITE_ONCE(epoch->round, READ_ONCE(epoch->round) + 1);
 	if(epoch->round >= dcpim_params.num_rounds) {
+		/* update flow rate */
+		dcpim_update_flows_rate(epoch);
 		epoch->cur_epoch = epoch->epoch;
 		WRITE_ONCE(epoch->round, 0);
 		WRITE_ONCE(epoch->epoch, READ_ONCE(epoch->epoch) + 1);
 		atomic_set(&epoch->last_unmatched_sent_bytes, atomic_read(&epoch->unmatched_sent_bytes));
 		atomic_set(&epoch->unmatched_sent_bytes, epoch->epoch_bytes);
-		/* update flow rate */
-		dcpim_update_flows_rate(epoch);
 	} 
 	dcpim_send_all_rts(epoch);
 }
@@ -754,7 +802,6 @@ continue_loop:
 	}
 }
 
-
 int dcpim_handle_grant(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 	struct dcpim_host *host, *temp_host = NULL;
 	struct dcpim_grant_hdr *gh;
@@ -892,6 +939,10 @@ void dcpim_handle_all_grants(struct dcpim_epoch *epoch) {
 			prompt_recv_bytes += cur_recv_bytes;
 			grant->prompt_remaining_sz -= cur_recv_bytes;
 		}
+		// if(epoch->epoch % 1000 == 0) {
+		// 	printk("accept per epoch: %llu\n", total_accepts * 100/ (epoch->epoch - init_epoch));
+
+		// }
 		/* update accept array */
 		// epoch->accept_array[cur_k].host = grant->host;
 		epoch->accept_array[cur_k].rtx_channel = rtx_channel;

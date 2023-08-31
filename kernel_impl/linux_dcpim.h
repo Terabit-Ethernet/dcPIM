@@ -296,12 +296,15 @@ struct dcpim_host {
 	__be32 dst_ip;
 	/* lock only protects flow_list, sk, num_flows and hash */
 	spinlock_t lock;
-	/* socket list */
+	/* active long flow socket list */
 	struct list_head flow_list;
+	/* idle long flow socket list */
+	struct list_head idle_flow_list;
 	/* message socket list */
 	struct list_head short_flow_list;
 	int num_flows;
 	int num_long_flows;
+	int idle_long_flows;
 	int num_short_flows;
 	u32 hash;
 	/* one member of socket used for sending rts */
@@ -648,6 +651,7 @@ struct dcpim_sock {
 	/* protectd by dcpim_host lock */
 	struct list_head entry;
 	bool in_host_table;
+	bool is_idle;
 	struct dcpim_host* host;
 
 	

@@ -1445,16 +1445,38 @@ int dcpim_write_timer_handler(struct sock *sk)
 	struct dcpim_sock *dsk = dcpim_sk(sk);
 	struct sk_buff *skb;
 	int sent_bytes = 0;
+	int mss_now, mtu;
+	int ret, seg;
+	struct dst_entry *dst;
+	dst = sk_dst_get(sk);
+	WARN_ON_ONCE(dst == NULL);
+	mtu = dst_mtu(dst);
+	mss_now = mtu - sizeof(struct iphdr) - sizeof(struct dcpim_data_hdr);
 	if(dsk->sender.num_sacks > 0) {
 		// printk("retransmit\n");
 		dcpim_retransmit(sk);
 	}
-	while((skb = skb_dequeue(&sk->sk_write_queue)) != NULL) {
+	while((skb = skb_peek(&sk->sk_write_queue)) != NULL) {
 		if (after(dsk->sender.token_seq, DCPIM_SKB_CB(skb)->end_seq)) {
+			skb_dequeue(&sk->sk_write_queue);
+			dcpim_xmit_data(skb, dsk);
+			sent_bytes += DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq;
+		}  else if(after(dsk->sender.token_seq, DCPIM_SKB_CB(skb)->seq)) {
+			seg = (dsk->sender.token_seq - DCPIM_SKB_CB(skb)->seq) / mss_now;
+			if(seg == 0) {
+				break;
+			}
+			// printk("call fragment\n");
+			ret = dcpim_fragment(sk, DCPIM_FRAG_IN_WRITE_QUEUE, skb,
+				 seg * (mss_now + sizeof(struct data_segment)), mss_now  + sizeof(struct data_segment), GFP_ATOMIC);
+			// printk("finish call fragment\n");
+			if(ret < 0) {
+				break;
+			}
+			skb_dequeue(&sk->sk_write_queue);
 			dcpim_xmit_data(skb, dsk);
 			sent_bytes += DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq;
 		} else {
-			skb_queue_head(&sk->sk_write_queue, skb);
 			break;
 		}
 		/* To Do: grant_nxt might be somewhere in the middle of seq and end_seq; need to split skb to do the transmission */
@@ -1591,15 +1613,15 @@ void dcpim_xmit_token_work(struct work_struct *work) {
 	ktime_t time_delta;
 	int rtx_bytes = 0;		
 	lock_sock(sk);
+	// sk->sk_max_pacing_rate = 3062500000;
 	matched_bw = READ_ONCE(sk->sk_max_pacing_rate);
-	token_bytes = dcpim_avail_token_space((struct sock*)dsk);
 	time_delta = ktime_get() - dsk->receiver.latest_token_sent_time;
 	if(sk->sk_state != DCPIM_ESTABLISHED)
 		goto release_sock;
 	if(matched_bw == 0)
 		goto release_sock;
 	dsk->receiver.max_congestion_win = dcpim_params.bdp / (dcpim_params.bandwidth * 1000000000 / 8 / matched_bw);
-	
+	token_bytes = dcpim_avail_token_space((struct sock*)dsk);
 	/* perform retransmission */
 	if(atomic_read(&dsk->receiver.rtx_status) == 1) {
 		/* avoid retransmission because user doesn't call recvmsg() for a long time */
