@@ -40,11 +40,11 @@
  	}
 -
 +	/* dcPIM change */
-+        if(iph->tos & 0x1) {
++        if(iph->tos & 0x4) {
 +		if (unlikely(ip_fast_csum((u8 *)iph, 5)))
 +                	goto out;
 +		iph->protocol = 0xFE;
-+                iph->tos &= ~(1UL);
++                iph->tos &= ~(4UL);
 +		ip_send_check (iph);
 +        }
  	proto = iph->protocol;
@@ -52,16 +52,6 @@
  	ops = rcu_dereference(inet_offloads[proto]);
  	if (!ops || !ops->callbacks.gro_receive)
  		goto out;
---- linux-6.0.3/net/ipv4/ip_input.c	2022-10-21 10:39:29.000000000 +0000
-+++ linux-6.0.3_qizhe/net/ipv4/ip_input.c	2023-04-19 18:44:00.751987015 +0000
-@@ -502,7 +502,6 @@
- 		goto inhdr_error;
- 
- 	iph = ip_hdr(skb);
--
- 	if (unlikely(ip_fast_csum((u8 *)iph, iph->ihl)))
- 		goto csum_error;
- 
 --- linux-6.0.3/net/ipv4/ip_output.c	2022-10-21 10:39:29.000000000 +0000
 +++ linux-6.0.3_qizhe/net/ipv4/ip_output.c	2023-03-15 03:02:12.398612893 +0000
 @@ -506,13 +506,23 @@
@@ -70,7 +60,7 @@
  	iph = ip_hdr(skb);
 +	/* dcPIM change */
 +        if(sk->sk_protocol == 0xFE) {
-+                tos = tos | 1;
++                tos = tos | 4;
 +        }
  	*((__be16 *)iph) = htons((4 << 12) | (5 << 8) | (tos & 0xff));
  	if (ip_dont_fragment(sk, &rt->dst) && !skb->ignore_df)

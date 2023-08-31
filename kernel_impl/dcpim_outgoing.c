@@ -97,7 +97,7 @@ void dcpim_fill_ip_header(struct sk_buff *skb, __be32 saddr, __be32 daddr) {
 
     iph->ihl = 5;
     iph->version = 4;
-    iph->tos =  iph->tos | 1;
+    iph->tos =  iph->tos | 4;
     iph->tot_len= htons(skb->len); 
     iph->frag_off = 0; 
     iph->ttl = 64;
@@ -121,7 +121,7 @@ void dcpim_swap_ip_header(struct sk_buff *skb) {
 	iph->frag_off = 0;
 	iph->id = 0;
 	/* mask to identify it is dcPIM packet; hacky!! */
-	iph->tos = iph->tos | 1;
+	iph->tos = iph->tos | 4;
 	ip_send_check(iph);
     skb->pkt_type = PACKET_OUTGOING;
 	skb->no_fcs = 1;
