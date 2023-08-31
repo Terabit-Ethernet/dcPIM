@@ -339,6 +339,7 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	int sent_len = 0, err = 0;
 	long timeo;
 	int flags;
+	int fill_batch = 0, cur_sent_len;
 	flags = msg->msg_flags;
 	if (sk->sk_state != DCPIM_ESTABLISHED) {
 		return -ENOTCONN;
@@ -363,19 +364,25 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	// 		return -ENOTCONN;
 	// 	}
 	// }
-	while(sent_len == 0) {
-		sent_len = dcpim_fill_packets(sk, msg, len);
-		if(sent_len < 0)
-			return sent_len;
-		if(sent_len == 0) {
+	while(sent_len < len) {
+		fill_batch = min_t(u32, dsk->receiver.token_batch, len - sent_len);
+		cur_sent_len = dcpim_fill_packets(sk, msg, fill_batch);
+		/* try to read token packet in the backlog */
+		sk_flush_backlog(sk);
+		if(!skb_queue_empty(&sk->sk_write_queue)
+			&& after(dsk->sender.token_seq, DCPIM_SKB_CB(dcpim_send_head(sk))->seq)) {
+			dcpim_write_timer_handler(sk);
+		} 
+		if(cur_sent_len < 0) {
+			goto do_error;
+		}
+		if(cur_sent_len == 0) {
 			timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
 			err = sk_stream_wait_memory(sk, &timeo);
 			if (err)
-				goto out_error;
-			if (sk->sk_state != DCPIM_ESTABLISHED) {
-				return -ENOTCONN;
-			}
+				goto do_error;
 		}
+		sent_len += cur_sent_len;
 	}
 	if(sk->sk_wmem_queued > 0 && dsk->host && READ_ONCE(dsk->is_idle)) {
 		dcpim_host_set_sock_active(dsk->host, (struct sock*)dsk);
@@ -393,16 +400,11 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	// 	sk_stream_wait_memory(sk, &timeo);
 	// }
 	/*temporary solution */
-	local_bh_disable();
-	bh_lock_sock(sk);
-	if(!skb_queue_empty(&sk->sk_write_queue)
-		&& after(dsk->sender.token_seq, DCPIM_SKB_CB(dcpim_send_head(sk))->seq)) {
- 		dcpim_write_timer_handler(sk);
-	} 
-	bh_unlock_sock(sk);
-	local_bh_enable();
+out:
 	return sent_len;
-out_error:
+do_error:
+	if(sent_len > 0)
+		goto out;
 	return sk_stream_error(sk, flags, err);
 	/* make sure we wake any epoll edge trigger waiter */
 	// if (unlikely(skb_queue_len(&sk->sk_write_queue) == 0 && err == -EAGAIN))
