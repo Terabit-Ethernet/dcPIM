@@ -339,11 +339,12 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	int sent_len = 0, err = 0;
 	long timeo;
 	int flags;
+	int fill_batch = 0, cur_sent_len;
 	flags = msg->msg_flags;
 	if (sk->sk_state != DCPIM_ESTABLISHED) {
 		return -ENOTCONN;
 	}
-
+	sk_clear_bit(SOCKWQ_ASYNC_NOSPACE, sk);
 	/* the bytes from user larger than the flow size */
 	// if (dsk->sender.write_seq >= dsk->total_length) {
 	// 	timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
@@ -363,19 +364,28 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	// 		return -ENOTCONN;
 	// 	}
 	// }
-	while(sent_len == 0) {
-		sent_len = dcpim_fill_packets(sk, msg, len);
-		if(sent_len < 0)
-			return sent_len;
-		if(sent_len == 0) {
+	while(sent_len < len) {
+		fill_batch = min_t(u32, dsk->receiver.token_batch, len - sent_len);
+		cur_sent_len = dcpim_fill_packets(sk, msg, fill_batch);
+		/* try to read token packet in the backlog */
+		sk_flush_backlog(sk);
+		if(!skb_queue_empty(&sk->sk_write_queue)
+			&& after(dsk->sender.token_seq, DCPIM_SKB_CB(dcpim_send_head(sk))->seq)) {
+			dcpim_write_timer_handler(sk);
+		} 
+		if(cur_sent_len < 0) {
+			goto do_error;
+		}
+		if(cur_sent_len == 0) {
 			timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
 			err = sk_stream_wait_memory(sk, &timeo);
 			if (err)
-				goto out_error;
-			if (sk->sk_state != DCPIM_ESTABLISHED) {
-				return -ENOTCONN;
-			}
+				goto do_error;
 		}
+		sent_len += cur_sent_len;
+	}
+	if(sk->sk_wmem_queued > 0 && dsk->host && READ_ONCE(dsk->is_idle)) {
+		dcpim_host_set_sock_active(dsk->host, (struct sock*)dsk);
 	}
 	// if(dsk->total_length < dcpim_params.short_flow_size) {
 	// 	struct sk_buff *skb;
@@ -390,16 +400,11 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	// 	sk_stream_wait_memory(sk, &timeo);
 	// }
 	/*temporary solution */
-	local_bh_disable();
-	bh_lock_sock(sk);
-	if(!skb_queue_empty(&sk->sk_write_queue)
-		&& after(dsk->sender.token_seq, DCPIM_SKB_CB(dcpim_send_head(sk))->end_seq)) {
- 		dcpim_write_timer_handler(sk);
-	} 
-	bh_unlock_sock(sk);
-	local_bh_enable();
+out:
 	return sent_len;
-out_error:
+do_error:
+	if(sent_len > 0)
+		goto out;
 	return sk_stream_error(sk, flags, err);
 	/* make sure we wake any epoll edge trigger waiter */
 	// if (unlikely(skb_queue_len(&sk->sk_write_queue) == 0 && err == -EAGAIN))
@@ -747,6 +752,7 @@ int dcpim_init_sock(struct sock *sk)
 	inet_sk_state_store(sk, DCPIM_CLOSE);
 	dsk->core_id = raw_smp_processor_id();
 	dsk->dma_device = NULL;
+	// printk("create sock\n");
 	// next_going_id 
 	// printk("remaining tokens:%d\n", dcpim_epoch.remaining_tokens);
 	// atomic64_set(&dsk->next_outgoing_id, 1);
@@ -790,6 +796,7 @@ int dcpim_init_sock(struct sock *sk)
 	INIT_LIST_HEAD(&dsk->entry);
 	dsk->host = NULL;
 	dsk->in_host_table = false;
+	dsk->is_idle = false;
 	WRITE_ONCE(dsk->receiver.finished_at_receiver, false);
 	WRITE_ONCE(dsk->receiver.flow_finish_wait, false);
 	WRITE_ONCE(dsk->receiver.rmem_exhausted, 0);
@@ -808,7 +815,6 @@ int dcpim_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.rts_index, -1);
 	WRITE_ONCE(dsk->receiver.rcv_msg_nxt, 0);
 	WRITE_ONCE(dsk->receiver.inflight_bytes, 0);
-	WRITE_ONCE(dsk->receiver.num_token_sent, 0);
 	INIT_LIST_HEAD(&dsk->receiver.msg_list);
 	INIT_LIST_HEAD(&dsk->receiver.msg_backlog);
 	
@@ -819,7 +825,7 @@ int dcpim_init_sock(struct sock *sk)
 	// INIT_LIST_HEAD(&dsk->reciever.);
 
 	/* token batch 64KB */
-	WRITE_ONCE(dsk->receiver.token_batch, 62636 * 2);
+	WRITE_ONCE(dsk->receiver.token_batch, 62552 * 2);
 	atomic_set(&dsk->receiver.backlog_len, 0);
 	atomic_set(&dsk->receiver.rtx_status, 0);
 	atomic_set(&dsk->receiver.token_work_status, 0);
@@ -832,7 +838,10 @@ int dcpim_init_sock(struct sock *sk)
 	hrtimer_init(&dsk->receiver.token_pace_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
 	dsk->receiver.token_pace_timer.function = &dcpim_xmit_token_handler;
 	dsk->receiver.rtx_rcv_nxt = 0;
-	
+
+	hrtimer_init(&dsk->receiver.delay_ack_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
+	dsk->receiver.delay_ack_timer.function = &dcpim_delay_ack_timer_handler;
+	INIT_WORK(&dsk->receiver.delay_ack_work, dcpim_delay_ack_work);
 	WRITE_ONCE(sk->sk_sndbuf, dcpim_params.wmem_default);
 	WRITE_ONCE(sk->sk_rcvbuf, dcpim_params.rmem_default);
 	// WRITE_ONCE(sk->sk_rcvlowat, dsk->receiver.token_batch);
@@ -860,13 +869,17 @@ bool dcpim_try_send_token(struct sock *sk) {
 	struct dcpim_sock *dsk = dcpim_sk(sk);
 	// struct inet_sock *inet = inet_sk(sk);
 	uint32_t token_bytes = 0;
-	token_bytes = dcpim_token_timer_defer_handler(sk);
-	if(token_bytes > 0)
-		return true;
-	if(READ_ONCE(sk->sk_max_pacing_rate) == 0&& dsk->receiver.rcv_nxt >= dsk->receiver.last_ack + dsk->receiver.token_batch) {
-		dcpim_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk); 
-		dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
+	/* wait until there is enough bytes to lower the token retransmission overhead as */
+	if(dcpim_avail_token_space((struct sock*)dsk) >= dsk->receiver.token_batch) {
+		token_bytes = dcpim_token_timer_defer_handler(sk);
+		if(token_bytes > 0)
+			return true;
 	}
+	/* To Do: add delay ack mechanism: */
+	// if(after(dsk->receiver.rcv_nxt, dsk->receiver.last_ack)) {
+	// 	dcpim_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk); 
+	// 	dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
+	// }
 	// if(dsk->receiver.rcv_nxt >= dsk->receiver.last_ack + dsk->receiver.token_batch) {
 	// 	dcpim_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk, inet->inet_dport); 
 	// 	dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
@@ -1144,6 +1157,7 @@ found_ok_skb:
 	/* Clean up data we have read: This will do ACK frames. */
 	// tcp_cleanup_rbuf(sk, copied);
 	dcpim_try_send_token(sk);
+
 	// if (dsk->receiver.copied_seq == dsk->total_length) {
 	// 	printk("call tcp close in the recv msg\n");
 	// 	dcpim_set_state(sk, DCPIM_CLOSE);
@@ -1384,6 +1398,7 @@ local_copy:
 		__skb_unlink(skb, &sk->sk_receive_queue);
 		atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 		kfree_skb(skb);
+		dcpim_try_send_token(sk);
 		continue;
 
 // found_fin_ok:
@@ -1399,7 +1414,11 @@ local_copy:
 		dcpim_release_pages(bv_arr, true, nr_segs);
 		kfree(bv_arr);
 	}
-	dcpim_try_send_token(sk);
+	if(copied > 0)
+		dcpim_token_timer_defer_handler(sk);
+
+	// 	dcpim_try_send_token(sk);
+	// printk("copied:%d\n", copied);
 	release_sock(sk);
 	return copied;
 
@@ -1938,9 +1957,9 @@ void dcpim_destroy_sock(struct sock *sk)
 int dcpim_setsockopt(struct sock *sk, int level, int optname,
 		   sockptr_t optval, unsigned int optlen)
 {
-	printk(KERN_WARNING "unimplemented setsockopt invoked on DCPIM socket:"
-			" level %d, optname %d, optlen %d\n",
-			level, optname, optlen);
+	// printk(KERN_WARNING "unimplemented setsockopt invoked on DCPIM socket:"
+	// 		" level %d, optname %d, optlen %d\n",
+	// 		level, optname, optlen);
 	return 0;
 	// return -EINVAL;
 	// if (level == SOL_DCPIM)
@@ -1990,13 +2009,13 @@ __poll_t dcpim_poll(struct file *file, struct socket *sock,
 			mask |= EPOLLRDHUP | EPOLLIN | EPOLLRDNORM;
 		if (sk->sk_shutdown == SHUTDOWN_MASK)
 			mask |= EPOLLHUP;
-
+		
 		/* Socket is not locked. We are protected from async events
 		* by poll logic and correct handling of state changes
 		* made by other threads is impossible in any case.
 		*/
 		if(sk_stream_memory_free(sk))
-			mask |= POLLOUT | POLLWRNORM | EPOLLWRBAND;
+			mask |= POLLOUT | POLLWRNORM;
 		else
 			sk_set_bit(SOCKWQ_ASYNC_NOSPACE, sk);
 
@@ -2011,8 +2030,8 @@ EXPORT_SYMBOL(dcpim_poll);
 int dcpim_lib_getsockopt(struct sock *sk, int level, int optname,
 		       char __user *optval, int __user *optlen)
 {
-	printk(KERN_WARNING "unimplemented getsockopt invoked on DCPIM socket:"
-			" level %d, optname %d\n", level, optname);
+	// printk(KERN_WARNING "unimplemented getsockopt invoked on DCPIM socket:"
+	// 		" level %d, optname %d\n", level, optname);
 	return 0;
 	return -EINVAL;
 	// struct dcpim_sock *up = dcpim_sk(sk);

@@ -18,7 +18,7 @@ tar xzvf linux-6.0.3.tar.gz
 git clone https://github.com/Terabit-Ethernet/dcPIM.git
 cd ~/linux-6.0.3/
 cp ~/dcPIM/kernel_impl/diff.patch .
-patch -R -p1 < diff.patch
+patch -p1 < diff.patch
 ```
 
 3. Update kernel configuration.
@@ -35,7 +35,7 @@ scripts/config --disable DEBUG_INFO # Disables building debugging related files
 ```
 sudo make -j32 bzImage
 sudo make -j32 modules
-sudo make modules_install
+sudo make INSTALL_MOD_STRIP=1 modules_install
 sudo make install
 ```
 

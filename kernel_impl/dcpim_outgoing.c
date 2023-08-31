@@ -97,7 +97,7 @@ void dcpim_fill_ip_header(struct sk_buff *skb, __be32 saddr, __be32 daddr) {
 
     iph->ihl = 5;
     iph->version = 4;
-    iph->tos =  iph->tos | 1;
+    iph->tos =  iph->tos | 4;
     iph->tot_len= htons(skb->len); 
     iph->frag_off = 0; 
     iph->ttl = 64;
@@ -121,7 +121,7 @@ void dcpim_swap_ip_header(struct sk_buff *skb) {
 	iph->frag_off = 0;
 	iph->id = 0;
 	/* mask to identify it is dcPIM packet; hacky!! */
-	iph->tos = iph->tos | 1;
+	iph->tos = iph->tos | 4;
 	ip_send_check(iph);
     skb->pkt_type = PACKET_OUTGOING;
 	skb->no_fcs = 1;
@@ -569,6 +569,8 @@ int dcpim_fill_packets(struct sock *sk,
 		 // last_pkt_length;
 		
 		/* The sizeof(void*) creates extra space for dcpim_next_skb. */
+		if(sk_stream_wspace(sk) <= 0)
+			break;
 		skb = dcpim_stream_alloc_skb(sk, gso_size, GFP_KERNEL, true);
 		// if(sk->sk_tx_skb_cache != NULL) {
 		// 	skb = sk->sk_tx_skb_cache;
@@ -583,13 +585,13 @@ int dcpim_fill_packets(struct sock *sk,
 			err = -ENOMEM;
 			goto error;
 		}
-		if (skb->truesize > sk_stream_wspace(sk)) {
-			// if(!sk->sk_tx_skb_cache)
-			// 	sk->sk_tx_skb_cache = skb;
-			// else
-			kfree_skb(skb);
-			break;
-		}
+		// if (skb->truesize > sk_stream_wspace(sk)) {
+		// 	// if(!sk->sk_tx_skb_cache)
+		// 	// 	sk->sk_tx_skb_cache = skb;
+		// 	// else
+		// 	kfree_skb(skb);
+		// 	break;
+		// }
 
 		// if ((bytes_left > max_pkt_data)
 		// 		&& (max_gso_data > max_pkt_data)) {
@@ -1443,16 +1445,38 @@ int dcpim_write_timer_handler(struct sock *sk)
 	struct dcpim_sock *dsk = dcpim_sk(sk);
 	struct sk_buff *skb;
 	int sent_bytes = 0;
+	int mss_now, mtu;
+	int ret, seg;
+	struct dst_entry *dst;
+	dst = sk_dst_get(sk);
+	WARN_ON_ONCE(dst == NULL);
+	mtu = dst_mtu(dst);
+	mss_now = mtu - sizeof(struct iphdr) - sizeof(struct dcpim_data_hdr);
 	if(dsk->sender.num_sacks > 0) {
 		// printk("retransmit\n");
 		dcpim_retransmit(sk);
 	}
-	while((skb = skb_dequeue(&sk->sk_write_queue)) != NULL) {
+	while((skb = skb_peek(&sk->sk_write_queue)) != NULL) {
 		if (after(dsk->sender.token_seq, DCPIM_SKB_CB(skb)->end_seq)) {
+			skb_dequeue(&sk->sk_write_queue);
+			dcpim_xmit_data(skb, dsk);
+			sent_bytes += DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq;
+		}  else if(after(dsk->sender.token_seq, DCPIM_SKB_CB(skb)->seq)) {
+			seg = (dsk->sender.token_seq - DCPIM_SKB_CB(skb)->seq) / mss_now;
+			if(seg == 0) {
+				break;
+			}
+			// printk("call fragment\n");
+			ret = dcpim_fragment(sk, DCPIM_FRAG_IN_WRITE_QUEUE, skb,
+				 seg * (mss_now + sizeof(struct data_segment)), mss_now  + sizeof(struct data_segment), GFP_ATOMIC);
+			// printk("finish call fragment\n");
+			if(ret < 0) {
+				break;
+			}
+			skb_dequeue(&sk->sk_write_queue);
 			dcpim_xmit_data(skb, dsk);
 			sent_bytes += DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq;
 		} else {
-			skb_queue_head(&sk->sk_write_queue, skb);
 			break;
 		}
 		/* To Do: grant_nxt might be somewhere in the middle of seq and end_seq; need to split skb to do the transmission */
@@ -1471,7 +1495,6 @@ uint32_t dcpim_xmit_token(struct dcpim_sock* dsk, uint32_t token_bytes) {
 	dsk->receiver.token_nxt += token_bytes; 
 	dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
 	dsk->receiver.inflight_bytes += token_bytes;
-	dsk->receiver.num_token_sent += 1;
 	dcpim_xmit_control(construct_token_pkt((struct sock*)dsk, 3, dsk->receiver.token_nxt),
 	 	sk);
 	return token_bytes;
@@ -1508,6 +1531,24 @@ int dcpim_token_timer_defer_handler(struct sock *sk) {
 	}
 	return token_bytes;
 }
+
+enum hrtimer_restart dcpim_delay_ack_timer_handler(struct hrtimer *timer) {
+	struct dcpim_sock *dsk = container_of(timer, struct dcpim_sock, receiver.delay_ack_timer);
+	queue_work_on(dsk->core_id, dcpim_wq, &dsk->receiver.delay_ack_work);
+	return HRTIMER_NORESTART;
+}
+
+void dcpim_delay_ack_work(struct work_struct *work) {
+	struct dcpim_sock *dsk = container_of(work, struct dcpim_sock, receiver.delay_ack_work);
+	struct sock *sk = (struct sock*) dsk;
+	lock_sock(sk);
+	if(sk->sk_state == DCPIM_ESTABLISHED) {
+		dcpim_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk);
+	}
+	dsk->receiver.delay_ack = false;
+	release_sock(sk);
+}
+
 
 /* hrtimer may fire twice for some reaons; need to check what happens later. */
 enum hrtimer_restart dcpim_xmit_token_handler(struct hrtimer *timer) {
@@ -1563,6 +1604,7 @@ put_sock:
 	// sock_put(sk);
 	return HRTIMER_NORESTART;
 }
+
 void dcpim_xmit_token_work(struct work_struct *work) {
 	struct dcpim_sock *dsk = container_of(work, struct dcpim_sock, receiver.token_work);
 	struct sock *sk = (struct sock*)dsk;
@@ -1571,34 +1613,34 @@ void dcpim_xmit_token_work(struct work_struct *work) {
 	ktime_t time_delta;
 	int rtx_bytes = 0;		
 	lock_sock(sk);
+	// sk->sk_max_pacing_rate = 3062500000;
 	matched_bw = READ_ONCE(sk->sk_max_pacing_rate);
-	token_bytes = dcpim_avail_token_space((struct sock*)dsk);
 	time_delta = ktime_get() - dsk->receiver.latest_token_sent_time;
 	if(sk->sk_state != DCPIM_ESTABLISHED)
 		goto release_sock;
 	if(matched_bw == 0)
 		goto release_sock;
 	dsk->receiver.max_congestion_win = dcpim_params.bdp / (dcpim_params.bandwidth * 1000000000 / 8 / matched_bw);
-	
+	token_bytes = dcpim_avail_token_space((struct sock*)dsk);
 	/* perform retransmission */
 	if(atomic_read(&dsk->receiver.rtx_status) == 1) {
-		if(dsk->receiver.rtx_rcv_nxt == dsk->receiver.rcv_nxt && dsk->receiver.num_token_sent > 0) {
+		/* avoid retransmission because user doesn't call recvmsg() for a long time */
+		if(dsk->receiver.rtx_rcv_nxt == dsk->receiver.rcv_nxt && (int)(dsk->receiver.rcv_nxt - dsk->receiver.copied_seq) >  READ_ONCE(sk->sk_rcvbuf) / 2) {
 			// printk("port: %d perform retransmission dsk->receiver.rcv_nxt: %u dsk->receiver.token_nxt: %u max_congestion_win: %u token_bytes: %lu \n", ntohs(inet_sk(sk)->inet_sport), 
 			// 	dsk->receiver.rcv_nxt, dsk->receiver.token_nxt, dsk->receiver.max_congestion_win, token_bytes);
 			// printk("dcpim_space: %u dcpim_congestion_space: %u atomic_read(&sk->sk_rmem_alloc): %u atomic_read(&dsk->receiver.backlog_len): %u", dcpim_space(sk), dcpim_congestion_space(sk),
 			// 	atomic_read(&sk->sk_rmem_alloc), atomic_read(&dsk->receiver.backlog_len));
 			// printk("epoch:%llu value: %u %u \n", dcpim_epoch.epoch, dsk->receiver.rtx_rcv_nxt, dsk->receiver.rcv_nxt);
 			dcpim_xmit_control(construct_rtx_token_pkt((struct sock*)dsk, 3, dsk->receiver.token_nxt, dsk->receiver.token_nxt, &rtx_bytes), sk);
-			dsk->receiver.num_token_sent = 1;
-		} else {
-			dsk->receiver.num_token_sent = 0;
-		}
+		} 
 		atomic_set(&dsk->receiver.rtx_status, 0);
 		dsk->receiver.rtx_rcv_nxt = dsk->receiver.rcv_nxt;
 	}
 	
 	/* perfrom transmission */
 	if(token_bytes == 0) {
+		/* transmit ack packet to clean up the sender side buffer in case we don't send token */
+		dcpim_xmit_control(construct_ack_pkt(sk, dsk->receiver.rcv_nxt), sk); 
 		goto release_sock;
 	}
 	/* allow window one token_batch larger than the window */

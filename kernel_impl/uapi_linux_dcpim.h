@@ -175,6 +175,8 @@ struct dcpim_rts_hdr {
 	__u8 round;
 	__u8 rtx_channel;
 	__u8 prompt_channel;
+	__u16 source;
+	__u16 dest;
 	__be64 epoch;
 	__be32 remaining_sz;
 };
@@ -184,6 +186,10 @@ struct dcpim_grant_hdr {
 	__u8 round;
 	__u8 rtx_channel;
 	__u8 prompt_channel;
+	/* src port of socket to match */
+	__u16 source;
+	/* dst port of socket to match */
+	__u16 dest;
 	__be64 epoch;
 	__be32 remaining_sz;
 	// __u8 prompt;
@@ -194,6 +200,8 @@ struct dcpim_accept_hdr {
 	__u8 round;
 	__u8 rtx_channel;
 	__u8 prompt_channel;
+	__u16 source;
+	__u16 dest;
 	__be64 epoch;
 	__be32 remaining_sz;
 	// __u8 accept;
@@ -205,6 +213,8 @@ struct dcpim_rtx_msg_hdr {
 	__u8 round;
 	__u8 rtx_channel;
 	__u8 prompt_channel;
+	__u16 source;
+	__u16 dest;
 	__be64 epoch;
 	__be32 remaining_sz;
 	// __u8 accept;

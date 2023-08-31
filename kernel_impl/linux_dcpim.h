@@ -296,12 +296,15 @@ struct dcpim_host {
 	__be32 dst_ip;
 	/* lock only protects flow_list, sk, num_flows and hash */
 	spinlock_t lock;
-	/* socket list */
+	/* active long flow socket list */
 	struct list_head flow_list;
+	/* idle long flow socket list */
+	struct list_head idle_flow_list;
 	/* message socket list */
 	struct list_head short_flow_list;
 	int num_flows;
 	int num_long_flows;
+	int idle_long_flows;
 	int num_short_flows;
 	u32 hash;
 	/* one member of socket used for sending rts */
@@ -471,6 +474,7 @@ struct dcpim_accept {
     int remaining_sz;
 	int rtx_channel;
 	int prompt_channel;
+	struct dcpim_sock *dsk;
 };
 
 // struct dcpim_match_entry {
@@ -647,6 +651,7 @@ struct dcpim_sock {
 	/* protectd by dcpim_host lock */
 	struct list_head entry;
 	bool in_host_table;
+	bool is_idle;
 	struct dcpim_host* host;
 
 	
@@ -702,14 +707,15 @@ struct dcpim_sock {
 		// struct hrtimer flow_wait_timer;
 	    ktime_t last_rtx_time;
 		ktime_t latest_token_sent_time;
-		/* track how many tokens being sent in one epoch */
-		int num_token_sent;
 		uint32_t copied_seq;
 	    uint32_t bytes_received;
 	    // uint32_t received_count;
 	    /* current received bytes + 1*/
 	    uint32_t rcv_nxt;
 	    uint32_t last_ack;
+		bool delay_ack;
+		struct hrtimer delay_ack_timer;
+		struct work_struct delay_ack_work;
 	    // struct dcpim_sack_block duplicate_sack[1]; /* D-SACK block */
 	    // uint32_t max_seq_no_recv;
 		/** @priority: Priority level to include in future GRANTS. */

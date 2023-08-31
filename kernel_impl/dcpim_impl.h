@@ -63,7 +63,8 @@ int dcpim_pq_size(struct dcpim_pq* pq);
 // 	bool(*comp)(const struct list_head*, const struct list_head*));
 void dcpim_remove_mat_tab(struct dcpim_epoch *epoch, struct sock *sk);
 void dcpim_add_mat_tab(struct dcpim_epoch *epoch, struct sock *sk);
-
+void dcpim_host_set_sock_idle(struct dcpim_host *host, struct sock *sk);
+void dcpim_host_set_sock_active(struct dcpim_host *host, struct sock *sk);
 void dcpim_mattab_destroy(struct dcpim_match_tab *table);
 void dcpim_mattab_add_new_sock(struct dcpim_match_tab *table, struct sock *sk);
 void dcpim_mattab_delete_sock(struct dcpim_match_tab *table, struct sock *sk);
@@ -107,6 +108,8 @@ void xmit_handle_new_token(struct xmit_core_table *tab, struct sk_buff* skb);
 void dcpim_xmit_data_event(struct work_struct *w);
 
 /* receiver */
+enum hrtimer_restart dcpim_delay_ack_timer_handler(struct hrtimer *timer);
+void dcpim_delay_ack_work(struct work_struct *work);
 void dcpim_xmit_token_event(struct work_struct *w);
 void rcv_handle_new_flow(struct dcpim_sock* dsk);
 void rcv_flowlet_done(struct rcv_core_entry *entry);
