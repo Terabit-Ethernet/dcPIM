@@ -343,7 +343,7 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	if (sk->sk_state != DCPIM_ESTABLISHED) {
 		return -ENOTCONN;
 	}
-
+	sk_clear_bit(SOCKWQ_ASYNC_NOSPACE, sk);
 	/* the bytes from user larger than the flow size */
 	// if (dsk->sender.write_seq >= dsk->total_length) {
 	// 	timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
@@ -376,6 +376,9 @@ int dcpim_sendmsg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 				return -ENOTCONN;
 			}
 		}
+	}
+	if(sk->sk_wmem_queued > 0 && dsk->host && READ_ONCE(dsk->is_idle)) {
+		dcpim_host_set_sock_active(dsk->host, (struct sock*)dsk);
 	}
 	// if(dsk->total_length < dcpim_params.short_flow_size) {
 	// 	struct sk_buff *skb;
@@ -791,6 +794,7 @@ int dcpim_init_sock(struct sock *sk)
 	INIT_LIST_HEAD(&dsk->entry);
 	dsk->host = NULL;
 	dsk->in_host_table = false;
+	dsk->is_idle = false;
 	WRITE_ONCE(dsk->receiver.finished_at_receiver, false);
 	WRITE_ONCE(dsk->receiver.flow_finish_wait, false);
 	WRITE_ONCE(dsk->receiver.rmem_exhausted, 0);
@@ -1410,6 +1414,7 @@ local_copy:
 	}
 	if(copied > 0)
 		dcpim_token_timer_defer_handler(sk);
+
 	// 	dcpim_try_send_token(sk);
 	// printk("copied:%d\n", copied);
 	release_sock(sk);
@@ -2002,13 +2007,13 @@ __poll_t dcpim_poll(struct file *file, struct socket *sock,
 			mask |= EPOLLRDHUP | EPOLLIN | EPOLLRDNORM;
 		if (sk->sk_shutdown == SHUTDOWN_MASK)
 			mask |= EPOLLHUP;
-
+		
 		/* Socket is not locked. We are protected from async events
 		* by poll logic and correct handling of state changes
 		* made by other threads is impossible in any case.
 		*/
 		if(sk_stream_memory_free(sk))
-			mask |= POLLOUT | POLLWRNORM | EPOLLWRBAND;
+			mask |= POLLOUT | POLLWRNORM;
 		else
 			sk_set_bit(SOCKWQ_ASYNC_NOSPACE, sk);
 

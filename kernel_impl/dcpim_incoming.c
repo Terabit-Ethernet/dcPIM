@@ -384,6 +384,10 @@ int dcpim_clean_rtx_queue(struct sock *sk)
 		dcpim_rtx_queue_unlink_and_free(skb, sk);
 		sk_stream_write_space(sk);
 	}
+	/* change socket to idle if needed */
+	if(sk->sk_wmem_queued == 0 && dsk->host && !READ_ONCE(dsk->is_idle)) {
+		dcpim_host_set_sock_idle(dsk->host, (struct sock*)dsk);
+	}
 	return flag;
 }
 
