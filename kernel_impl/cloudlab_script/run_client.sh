@@ -12,7 +12,7 @@ while (( flow < NCLIENT ));do
         serverip="10.10.1.$serverindex"
         if [[ $SYS == "dcpim" ]]
         then
-                        sudo LD_PRELOAD=/home/caiqizhe/dcPIM/kernel_impl/custom_socket/socket_wrapper.so taskset -c $((core)) iperf3 -c $serverip -p $((dport)) --cport $dport  -t 120 -4  > client_"$serverindex"_"$flow".log &
+                        sudo LD_PRELOAD=/users/caiqizhe/dcPIM/kernel_impl/custom_socket/socket_wrapper.so taskset -c $((core)) iperf3 -c $serverip -p $((dport)) --cport $dport  -t 120 -4  > client_"$serverindex"_"$flow".log &
         else
                         sudo taskset -c $((core)) iperf3 -c $serverip -p $((dport)) --cport $dport -t 120 -4 > client_"$serverindex"_$((flow)).log &
         fi

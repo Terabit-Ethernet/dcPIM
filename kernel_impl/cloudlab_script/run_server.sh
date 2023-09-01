@@ -10,7 +10,7 @@ while (( server < servers ));do
 
         if [[ $SYS == "dcpim" ]]
         then
-                sudo LD_PRELOAD=/home/caiqizhe/dcPIM/kernel_impl/custom_socket/socket_wrapper.so taskset -c $((core)) iperf3 -s -p $((4000 * (server + 1) + iperf))  > server_"$server"_"$iperf".log &
+                sudo LD_PRELOAD=/users/caiqizhe/dcPIM/kernel_impl/custom_socket/socket_wrapper.so taskset -c $((core)) iperf3 -s -p $((4000 * (server + 1) + iperf))  > server_"$server"_"$iperf".log &
         else
                 sudo taskset -c $((core)) iperf3 -s -p $((4000 * (server + 1) + iperf))  > server_"$server"_"$iperf".log &
         fi
