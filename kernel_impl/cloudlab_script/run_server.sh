@@ -4,7 +4,7 @@ numiperf=15
 SYS=$1
 servers=$2
 while (( server < servers ));do
-	core=0
+	core=1
 	iperf=0
 	while (( iperf < numiperf ));do
 
@@ -14,7 +14,7 @@ while (( server < servers ));do
         else
                 sudo taskset -c $((core)) iperf3 -s -p $((4000 * (server + 1) + iperf))  > server_"$server"_"$iperf".log &
         fi
-        ((core = (core + 4) % 64))
+        ((core = (core + 2) % 65))
         (( iperf++ ))
     done
     (( server++ ))
