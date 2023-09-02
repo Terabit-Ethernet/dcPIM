@@ -1,6 +1,6 @@
 tASKSET="0,4,8,12,16,20,24,28,32,36,40,44,48,52,56"
 server=0
-numiperf=15
+numiperf=16
 SYS=$1
 servers=$2
 while (( server < servers ));do
