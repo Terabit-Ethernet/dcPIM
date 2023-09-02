@@ -1625,7 +1625,7 @@ void dcpim_xmit_token_work(struct work_struct *work) {
 	/* perform retransmission */
 	if(atomic_read(&dsk->receiver.rtx_status) == 1) {
 		/* avoid retransmission because user doesn't call recvmsg() for a long time */
-		if(dsk->receiver.rtx_rcv_nxt == dsk->receiver.rcv_nxt && (int)(dsk->receiver.rcv_nxt - dsk->receiver.copied_seq) >  READ_ONCE(sk->sk_rcvbuf) / 2) {
+		if(dsk->receiver.rtx_rcv_nxt == dsk->receiver.rcv_nxt && (int)(dsk->receiver.rcv_nxt - dsk->receiver.copied_seq) <  READ_ONCE(sk->sk_rcvbuf) / 2) {
 			// printk("port: %d perform retransmission dsk->receiver.rcv_nxt: %u dsk->receiver.token_nxt: %u max_congestion_win: %u token_bytes: %lu \n", ntohs(inet_sk(sk)->inet_sport), 
 			// 	dsk->receiver.rcv_nxt, dsk->receiver.token_nxt, dsk->receiver.max_congestion_win, token_bytes);
 			// printk("dcpim_space: %u dcpim_congestion_space: %u atomic_read(&sk->sk_rmem_alloc): %u atomic_read(&dsk->receiver.backlog_len): %u", dcpim_space(sk), dcpim_congestion_space(sk),
