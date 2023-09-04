@@ -830,7 +830,7 @@ int dcpim_init_sock(struct sock *sk)
 	atomic_set(&dsk->receiver.rtx_status, 0);
 	atomic_set(&dsk->receiver.token_work_status, 0);
 	// atomic_set(&dsk->receiver.matched_bw, 100);
-	WRITE_ONCE(sk->sk_max_pacing_rate, 0); // bytes per second
+	atomic64_set(&dsk->receiver.pacing_rate, 0); // bytes per second
 	WRITE_ONCE(dsk->receiver.next_pacing_rate, 0); // bytes per second
 	INIT_WORK(&dsk->receiver.token_work, dcpim_xmit_token_work);
 

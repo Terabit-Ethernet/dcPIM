@@ -755,7 +755,7 @@ struct dcpim_sock {
 
 		/* protected by epoch->matched_lock */
 		unsigned long next_pacing_rate;
-
+		atomic64_t pacing_rate;
 		/* proteced by epoch->receiver_lock */
 		int rts_index;
 		struct dcpim_rts* rts;

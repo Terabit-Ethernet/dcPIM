@@ -248,7 +248,8 @@ static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 	/* set the current matching flow rates to be zero */
 	for (i = 0; i < epoch->cur_matched_flows; i++) {
 		dsk = epoch->cur_matched_arr[i];
-		WRITE_ONCE(((struct sock*)dsk)->sk_max_pacing_rate, 0);
+		if(dsk->receiver.next_pacing_rate == 0)
+			atomic64_set(&dsk->receiver.pacing_rate, 0);
 		/* need to check retransmission when new epoch starts */	
 		atomic_cmpxchg(&dsk->receiver.rtx_status, 0, 1);
 		sock_put((struct sock*)dsk);
@@ -324,7 +325,7 @@ static void dcpim_update_flows_rate(struct dcpim_epoch *epoch) {
 			// test_pacing_rate += READ_ONCE(dsk->receiver.next_pacing_rate);
 			// if(inet_sk(sk)->inet_sport != inet_sk(sk)->inet_dport)
 			// 	printk("epoch:%llu sk: %p src port: %d dst port:%d pacing_rate: %lu\n", epoch->epoch, sk, ntohs(inet_sk(sk)->inet_sport), ntohs(inet_sk(sk)->inet_dport), READ_ONCE(dsk->receiver.next_pacing_rate));
-			WRITE_ONCE(sk->sk_max_pacing_rate, READ_ONCE(dsk->receiver.next_pacing_rate));
+			atomic64_set(&dsk->receiver.pacing_rate, READ_ONCE(dsk->receiver.next_pacing_rate));
 			WRITE_ONCE(dsk->receiver.next_pacing_rate, 0);
 			if(atomic_cmpxchg(&dsk->receiver.token_work_status, 0, 1) == 0) {
 				sock_hold(sk);
@@ -986,7 +987,7 @@ free_skb:
 				/* perform prompt optimization */
 				if(epoch->accept_array[i].prompt_channel) {
 					// max_pacing_rate = min(epoch->max_pacing_rate_per_flow, host->next_pacing_rate);
-					WRITE_ONCE(((struct sock*)dsk)->sk_max_pacing_rate, READ_ONCE(((struct sock*)dsk)->sk_max_pacing_rate) + epoch->rate_per_channel);
+					atomic64_set(&dsk->receiver.pacing_rate, atomic64_read(&dsk->receiver.pacing_rate) + epoch->rate_per_channel);
 					if(atomic_cmpxchg(&dsk->receiver.token_work_status, 0, 1) == 0) {
 						sock_hold((struct sock*)dsk);
 						queue_work_on(dsk->core_id, dcpim_wq, &dsk->receiver.token_work);

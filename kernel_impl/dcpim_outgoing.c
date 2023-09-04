@@ -1503,7 +1503,7 @@ uint32_t dcpim_xmit_token(struct dcpim_sock* dsk, uint32_t token_bytes) {
 int dcpim_token_timer_defer_handler(struct sock *sk) {
 	struct dcpim_sock *dsk = dcpim_sk(sk);
 	// uint32_t prev_token_nxt = dsk->receiver.token_nxt;
-	unsigned long matched_bw = READ_ONCE(sk->sk_max_pacing_rate);
+	unsigned long matched_bw = atomic64_read(&dsk->receiver.pacing_rate);
 	unsigned long token_bytes = dcpim_avail_token_space((struct sock*)dsk);
 	ktime_t time_delta = ktime_get() - dsk->receiver.latest_token_sent_time;
 	if(sk->sk_state != DCPIM_ESTABLISHED)
@@ -1555,7 +1555,7 @@ enum hrtimer_restart dcpim_xmit_token_handler(struct hrtimer *timer) {
 
 	struct dcpim_sock *dsk = container_of(timer, struct dcpim_sock, receiver.token_pace_timer);
 	struct sock* sk = (struct sock *)dsk;
-	unsigned long matched_bw = READ_ONCE(sk->sk_max_pacing_rate);
+	unsigned long matched_bw = atomic64_read(&dsk->receiver.pacing_rate);
 	unsigned long token_bytes = 0;
 	ktime_t current_time = ktime_get();
 	ktime_t delta = 0;
@@ -1614,7 +1614,7 @@ void dcpim_xmit_token_work(struct work_struct *work) {
 	int rtx_bytes = 0;		
 	lock_sock(sk);
 	// sk->sk_max_pacing_rate = 3062500000;
-	matched_bw = READ_ONCE(sk->sk_max_pacing_rate);
+	matched_bw = atomic64_read(&dsk->receiver.pacing_rate);
 	time_delta = ktime_get() - dsk->receiver.latest_token_sent_time;
 	if(sk->sk_state != DCPIM_ESTABLISHED)
 		goto release_sock;
