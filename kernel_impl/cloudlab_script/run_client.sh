@@ -8,7 +8,7 @@ NSERVER=16
 TASKSET="0,4,8,12,16,20,24,28,32,36,40,44,48,52,56"
 echo "NUM client: $NCLIENT"
 while (( flow < NCLIENT ));do
-        dport=$((4000 * clientindex + flow % NSERVER))
+        dport=$((4000 * serverindex + 256 * clientindex + flow % NSERVER))
         serverip="10.10.1.$serverindex"
         echo  taskset -c $((core)) iperf3 -c $serverip -p $((dport)) --cport $dport  -t 120 -4 -l 1M
 	if [[ $SYS == "dcpim" ]]
