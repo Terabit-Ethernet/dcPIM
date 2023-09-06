@@ -10,7 +10,8 @@ echo "NUM client: $NCLIENT"
 while (( flow < NCLIENT ));do
         dport=$((4000 * clientindex + flow % NSERVER))
         serverip="10.10.1.$serverindex"
-        if [[ $SYS == "dcpim" ]]
+        echo  taskset -c $((core)) iperf3 -c $serverip -p $((dport)) --cport $dport  -t 120 -4 -l 1M
+	if [[ $SYS == "dcpim" ]]
         then
                         sudo LD_PRELOAD=/users/caiqizhe/dcPIM/kernel_impl/custom_socket/socket_wrapper.so taskset -c $((core)) iperf3 -c $serverip -p $((dport)) --cport $dport  -t 120 -4 -l 1M  > client_"$serverindex"_"$flow".log &
         else
