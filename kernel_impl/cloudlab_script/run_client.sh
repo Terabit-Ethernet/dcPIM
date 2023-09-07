@@ -3,7 +3,7 @@ SYS=$2
 serverindex=$3
 clientindex=$4
 flow=0
-core=1
+core=33
 NSERVER=16
 TASKSET="0,4,8,12,16,20,24,28,32,36,40,44,48,52,56"
 echo "NUM client: $NCLIENT"
