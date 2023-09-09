@@ -18,8 +18,6 @@ extern struct dcpim_params dcpim_params;
 extern struct dcpim_epoch dcpim_epoch;
 extern struct request_sock_ops dcpim_request_sock_ops;
 
-extern struct xmit_core_table xmit_core_tab;
-extern struct rcv_core_table rcv_core_tab;
 extern struct dcpim_message_bucket dcpim_tx_messages[DCPIM_BUCKETS];
 extern struct dcpim_message_bucket dcpim_rx_messages[DCPIM_BUCKETS];
 

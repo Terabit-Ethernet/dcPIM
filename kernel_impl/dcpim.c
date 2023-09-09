@@ -1875,7 +1875,6 @@ void dcpim_destroy_sock(struct sock *sk)
 	// 				     dcpim_sk(sk)->dcpim_port_hash);
 	struct dcpim_sock *dsk = dcpim_sk(sk);
 	// struct inet_sock *inet = inet_sk(sk);
-	struct rcv_core_entry *entry = &rcv_core_tab.table[raw_smp_processor_id()];
 	/* To Do: flip the order; now the order was a mess */
 	lock_sock(sk);
 
@@ -1936,11 +1935,6 @@ void dcpim_destroy_sock(struct sock *sk)
 	/* cancel the work after release the lock */
 	cancel_work_sync(&dsk->sender.rtx_msg_work);
 	// printk("sk->sk_wmem_queued:%d\n",sk->sk_wmem_queued);
-	spin_lock_bh(&entry->lock);
-	// printk("dsk->match_link:%p\n", &up->match_link);
-	if(dsk->receiver.in_pq)
-		dcpim_pq_delete(&entry->flow_q, &dsk->match_link);
-	spin_unlock_bh(&entry->lock);
 	// if (static_branch_unlikely(&dcpim_encap_needed_key)) {
 	// 	if (up->encap_type) {
 	// 		void (*encap_destroy)(struct sock *sk);

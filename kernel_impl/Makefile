@@ -4,13 +4,11 @@ obj-m += dcpim_module.o
 dcpim_module-y = dcpim_ioat.o\
 				 dcpim_sock.o\
 				 dcpim_hashtables.o \
-				 dcpim_pq.o \
 				 dcpim_message.o\
 				 dcpim_matching.o\
 				 dcpim_incoming.o\
 				 dcpim_outgoing.o \
 				 dcpim.o \
-				 dcpim_scheduling.o\
 				 dcpim_offload.o\
 				 dcpim_plumbing.o
 
