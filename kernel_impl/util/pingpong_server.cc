@@ -3,6 +3,7 @@
 #include <chrono>         // std::chrono::seconds
 
 #include <iostream>
+#include <fstream>
 #include <mutex>
 #include <condition_variable>
 #include <list>
@@ -223,6 +224,8 @@ close:
 }
 
 
+std::atomic<int> thread_id(0);
+
 /**
  * nd_pong() - Handles messages arriving on a given socket in pure-receive mode.
  * @fd:           File descriptor for the socket over which messages
@@ -242,6 +245,9 @@ void nd_pong()
 	// int iodepth;
 	int flow_size;
 	unsigned int cpu, node;
+	std::vector<double> latency;
+	std::ofstream lfile;
+	lfile.open("temp/netperf-" + std::to_string(thread_id.fetch_add(1))+".log");
     std::unique_lock lk(m);
     cv.wait(lk, []{return !socklist.empty();});
 	data = socklist.front();
@@ -261,6 +267,9 @@ void nd_pong()
 	// uint64_t start_cycle = 0, end_cycle = 0;
 	struct sockaddr_in sin;
 	socklen_t len = sizeof(sin);
+	long long start_time = 0;
+	long long finish_time = 0;
+	struct timespec current_time;
 	// int which = PRIO_PROCESS;
 	pid_t pid = syscall(__NR_gettid);
 	if (verbose)
@@ -302,10 +311,22 @@ void nd_pong()
 			// 	break;
 			// return;
 		}
+		/* Read the current time from CLOCK_REALTIME */
+    	if (clock_gettime(CLOCK_REALTIME, &current_time) != 0) {
+        	perror("clock_gettime");
+        	break;
+   		}
+		finish_time = (long long)current_time.tv_sec * 1000000000 + (long long)current_time.tv_nsec;
+		start_time = *(long long*)buffer;
+		latency.push_back((start_time - finish_time) / 1000000000.0);
 		count++;
 	}
 		printf( "total len:%" PRIu64 "\n", total_length);
 		printf("done!");
+		for(uint32_t i = 0; i < latency.size(); i++) {
+			lfile << "finish time: " << latency[i] << "\n"; 
+			// std::cout << "finish time: " << latency[i] << "\n"; 
+		}
 	if (verbose)
 		printf("Closing TCP socket from %s\n", print_address(&source));
 close:
@@ -960,7 +981,7 @@ int main(int argc, char** argv) {
 			next_arg++;
 			count = get_int(argv[next_arg],
 				"Bad num of threads %s; must be positive integer\n");
-		} else if (strcmp(argv[next_arg], "--one_side") == 0) {
+		} else if (strcmp(argv[next_arg], "--oneside") == 0) {
 			one_side = true;
 		} else {
 			printf("Unknown option %s; type '%s --help' for help\n",

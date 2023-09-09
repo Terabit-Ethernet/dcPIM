@@ -240,16 +240,18 @@ void test_ping_oneside_send(struct sockaddr *dest, int id, int io_depth, int flo
 	uint64_t start_time = rdtsc();
 	uint64_t end = rdtsc();
 	uint64_t sent_bytes = 0;
-	uint64_t max_size = 10000000;
+	uint64_t max_size = 1000000;
 	std::ofstream lfile, tfile;
 	pid_t pid = syscall(__NR_gettid);
 	struct sockaddr_in client;
 	socklen_t clientsz = sizeof(client);
   	int priority = 7;
 	int total = 0;
+	struct timespec current_time;
 	client.sin_family = AF_INET;
 	client.sin_port = htons(src_port);
 	client.sin_addr.s_addr = INADDR_ANY;
+	long long nanoseconds = 0;
 //  	struct sched_param param;
 // 	param.sched_priority = 99;
 // 	sched_setscheduler(pid, SCHED_RR, &param);
@@ -287,6 +289,13 @@ void test_ping_oneside_send(struct sockaddr *dest, int id, int io_depth, int flo
 		end = rdtsc();
 		/* receive one response */
 		total = 0;
+		/* Read the current time from CLOCK_REALTIME */
+    	if (clock_gettime(CLOCK_REALTIME, &current_time) != 0) {
+        	perror("clock_gettime");
+        	break;
+   		}
+		nanoseconds = (long long)current_time.tv_sec * 1000000000 + (long long)current_time.tv_nsec;
+		*(long long*)buffer = nanoseconds;
 		while(total < flow_size) {
 			int result = send(fd, buffer + total, flow_size - total, flag);
 			if( result <= 0 ) {
@@ -581,7 +590,7 @@ int main(int argc, char** argv)
 			flow_size = get_int(argv[nextArg],
 				"Bad flow size %s; must be positive integer\n");
 			std::cout << "flow size:" << flow_size << std::endl;
-		} else if (strcmp(argv[nextArg], "--one_side") == 0) {
+		} else if (strcmp(argv[nextArg], "--oneside") == 0) {
 			one_side = true;
 		} else {
 			printf("Unknown option %s; type '%s --help' for help\n",
@@ -589,6 +598,7 @@ int main(int argc, char** argv)
 			exit(1);
 		}
 	}
+	std::cout << "one side: " << one_side << std::endl;
 	// get destination address
 	memset(&hints, 0, sizeof(struct addrinfo));
 	hints.ai_family = AF_INET;
