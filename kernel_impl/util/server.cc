@@ -29,7 +29,7 @@
 #include <thread>
 #include <vector>
 #include "test_utils.h"
-#include "../uapi_linux_dcpim.h"
+// #include "../uapi_linux_dcpim.h"
 /* Log events to standard output. */
 bool verbose = false;
 
@@ -245,6 +245,7 @@ void dcpim_connection(int fd, struct sockaddr_in source)
 
 			// return;
 		}
+		// printf("%s\n", buffer);
 		total_length += result;
 		count++;
 		if (result == 0)
@@ -263,9 +264,10 @@ void dcpim_connection(int fd, struct sockaddr_in source)
  * (one thread per connection) and processes messages on those connections.
  * @port:  Port number on which to listen.
  */
-void tcp_server(int port, bool pin)
+void tcp_server(int port, bool pin, bool for_message)
 {
 	int listen_fd = socket(PF_INET, SOCK_STREAM, 0);
+	int flag = 1;
 	if (listen_fd == -1) {
 		printf("Couldn't open server socket: %s\n", strerror(errno));
 		exit(1);
@@ -300,6 +302,10 @@ void tcp_server(int port, bool pin)
 			printf("Couldn't accept incoming connection: %s",
 				strerror(errno));
 			exit(1);
+		}
+		if(for_message) {
+			setsockopt(stream, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(int));
+			setsockopt(stream, IPPROTO_TCP, TCP_QUICKACK, &flag, sizeof(int));
 		}
 		std::thread thread(dcpim_connection, stream, client_addr);
 		if(pin) {
@@ -448,6 +454,7 @@ int main(int argc, char** argv) {
 	// int num_ports = 1;
 	std::string ip;
 	bool pin = false;
+	bool for_message = false;
 	if ((argc >= 2) && (strcmp(argv[1], "--help") == 0)) {
 		print_help(argv[0]);
 		exit(0);
@@ -480,6 +487,8 @@ int main(int argc, char** argv) {
 			validate = true;
 		} else if (strcmp(argv[next_arg], "--verbose") == 0) {
 			verbose = true;
+		} else if (strcmp(argv[next_arg], "--message") == 0) {
+			for_message = true;
 		} else {
 			printf("Unknown option %s; type '%s --help' for help\n",
 				argv[next_arg], argv[0]);
@@ -488,7 +497,7 @@ int main(int argc, char** argv) {
 	}
  	std::vector<std::thread> workers;
 
-	workers.push_back(std::thread(tcp_server, port, pin));
+	workers.push_back(std::thread(tcp_server, port, pin, for_message));
 	workers.push_back(std::thread(udp_server, port));
 	workers.push_back(std::thread(dcpim_server, port, pin));
 	workers.push_back(std::thread(aggre_thread, &agg_stats));

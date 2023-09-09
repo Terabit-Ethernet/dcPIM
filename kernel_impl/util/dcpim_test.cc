@@ -19,7 +19,7 @@
 
 #include <thread>
 
-#include "../uapi_linux_dcpim.h"
+// #include "../uapi_linux_dcpim.h"
 #include "test_utils.h"
 #ifndef ETH_MAX_MTU
 #define ETH_MAX_MTU	0xFFFFU
@@ -108,10 +108,13 @@ void test_dcpim_tx_messages(int fd, struct sockaddr *dest, char* buffer)
 	uint64_t start, end;
 	uint64_t cycles_per_sec = get_cycles_per_sec();
   	int priority = 7;
-	int inflight = 0;
+	int flag = 1;
   	if(setsockopt(fd, SOL_SOCKET, SO_PRIORITY, &priority, sizeof(priority)) < 0){
 		printf("set priority failed\n");
 	}
+	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(int));
+	setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &flag, sizeof(int));
+
 	if (connect(fd, dest, sizeof(struct sockaddr_in)) == -1) {
 		printf("Couldn't connect to dest %s\n", strerror(errno));
 		exit(1);
@@ -127,11 +130,6 @@ void test_dcpim_tx_messages(int fd, struct sockaddr *dest, char* buffer)
 			write_len += result;
 		}
 		end = rdtsc();
-		inflight ++;
-		if(inflight == 5000) {
-			sleep(0.01);
-			inflight = 0;
-		}
 		if(end - start > cycles_per_sec * 120)
 			break;
 	}
