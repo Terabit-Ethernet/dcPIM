@@ -281,15 +281,6 @@ struct xmit_core_table {
 
 }; 
 
-// struct dcpim_flow {
-// 	/* the sock of the corresponding flow */
-// 	struct sock* sock;
-// 	bool matched;
-// 	int cur_matched_bytes;
-// 	int next_matched_bytes;
-// 	struct list_head entry;
-// };
-
 struct dcpim_host {
 	/* key of the host */
 	__be32 src_ip;
@@ -329,20 +320,6 @@ struct dcpim_host {
 	struct dcpim_rts* rts;
 
 };
-// struct dcpim_matched_flow {
-// 	/* the sock of the corresponding flow */
-// 	struct sock* sock;
-// 	int matched_bytes;
-// 	struct net *net;
-//  	/* ip hdr */
-// 	__be32 saddr;
-// 	__be32 daddr;
-// 	/* tcp port number */
-// 	__be16 sport;
-// 	__be16 dport;
-// 	int dif;
-// 	int sdif;
-// };
 
 struct dcpim_epoch {
 
@@ -401,25 +378,6 @@ struct dcpim_epoch {
 	int matched_bytes;
 	struct dcpim_rts *min_rts;
 	struct dcpim_grant *min_grant;
-	// struct rte_timer epoch_timer;
-	// struct rte_timer sender_iter_timers[10];
-	// struct rte_timer receiver_iter_timers[10];
-	// struct pim_timer_params pim_timer_params;
-	// uint64_t start_cycle;
-	/* remaining tokens */
-	// atomic_t remaining_tokens;
-	// atomic_t pending_flows;
-	// struct hrtimer token_xmit_timer;
-	// struct work_struct token_xmit_struct;
-	/* for phost queue */
-	// struct dcpim_pq flow_q;
-
-	// current epoch and address
-	// uint32_t cur_match_src_addr;
-	// uint32_t cur_match_dst_addr;
-
-	// thread for running Matching logic
-	// struct task_struct thread;
 	struct hrtimer epoch_timer;
 	struct hrtimer sender_round_timer;
 	struct hrtimer receiver_round_timer;
@@ -442,8 +400,6 @@ struct dcpim_rts {
 	int rtx_channel;
 	int flow_size;
 	struct sk_buff **skb_arr;
- 	// struct list_head entry;
-	// struct llist_node lentry;
 };
 struct dcpim_grant {
     // bool prompt;
@@ -455,17 +411,6 @@ struct dcpim_grant {
 	int skb_size;
 	int rtx_channel;
 	struct sk_buff **skb_arr;
-	/* ether hdr */
-	// unsigned char	h_dest[ETH_ALEN];	/* destination eth addr	*/
-	// unsigned char	h_source[ETH_ALEN];	/* source ether addr	*/
-	/* ip hdr */
-	// __be32 saddr;
-	// __be32 daddr;
-	/* tcp port number */
-	// __be16 sport;
-	// __be16 dport;
-	// struct list_head entry;
-	// struct llist_node lentry;
 };
 
 struct dcpim_accept {
@@ -476,44 +421,6 @@ struct dcpim_accept {
 	int prompt_channel;
 	struct dcpim_sock *dsk;
 };
-
-// struct dcpim_match_entry {
-// 	struct spinlock lock;
-// 	struct dcpim_pq pq;
-// 	struct hlist_node hash_link;
-// 	struct list_head list_link;
-// 	// struct dcpim_peer *peer;
-// 	__be32 dst_addr;
-// };
-
-// struct dcpim_match_slot {
-// 	struct hlist_head head;
-// 	int	count;
-// 	struct spinlock	lock;
-// };
-// struct dcpim_match_tab {
-// 	/* hash table: matching ip_address => list pointer*/
-// 	struct dcpim_match_slot *buckets;
-
-// 	/* the lock is for the hash_list, not for buckets.*/
-// 	struct spinlock lock;
-// 	/* list of current active hash entry for iteration*/
-// 	struct list_head hash_list;
-// 	bool (*comp)(const struct list_head*, const struct list_head*);
-
-// 	// struct list_node rts_list;
-// 	// struct list_node grant_list;
-
-// 	// struct list_node *current_entry;
-// 	// struct list_node
-// };
-// /* DCPIM match table slot */
-// static inline struct dcpim_match_slot *dcpim_match_bucket(
-// 		struct dcpim_match_tab *table, __be32 addr)
-// {
-// 	return &table->buckets[addr & (DCPIM_BUCKETS - 1)];
-// }
-
 
 static inline struct dcpimhdr *dcpim_hdr(const struct sk_buff *skb)
 {
@@ -617,9 +524,6 @@ struct dcpim_sock {
 	int			(*gro_complete)(struct sock *sk,
 						struct sk_buff *skb,
 						int nhoff);
-
-	/* dcpim_recvmsg try to use this before splicing sk_receive_queue */
-	
 	/**
 	 * flow id
 	 */
@@ -629,11 +533,6 @@ struct dcpim_sock {
 	 */
 	uint64_t short_message_id;
 	struct rb_root	out_of_order_queue;
-	/**
-	 * size of flow in bytes
-	 */
-    // uint32_t total_length;
-	
 	/* protected by socket user lock; this is for receiver */
     uint32_t num_sacks;
 	struct dcpim_sack_block selective_acks[16]; /* The SACKS themselves*/
@@ -643,9 +542,7 @@ struct dcpim_sock {
 	struct hrtimer rtx_fin_timer;
 	int fin_sent_times;
 	struct work_struct rtx_fin_work;
-
 	struct ioat_dma_device *dma_device;
-
     // ktime_t start_time;
 	struct list_head match_link;
 	/* protectd by dcpim_host lock */
@@ -665,9 +562,6 @@ struct dcpim_sock {
 
 	    /* the last unack byte.*/
 	    uint32_t snd_una;
-
-	    // uint32_t total_bytes_sent;
-	    // uint32_t bytes_from_user;
 	    int remaining_pkts_at_sender;
    		uint32_t num_sacks;
 		struct dcpim_sack_block selective_acks[16]; /* The SACKS themselves*/
@@ -689,11 +583,6 @@ struct dcpim_sock {
 		struct list_head fin_msg_backlog;
 		int inflight_msgs;
 		int msg_threshold;
-		/* DCPIM metric */
-	    // uint64_t first_byte_send_time;
-	    // uint64_t start_time;
-	    // uint64_t finish_time;
-	    // double latest_data_pkt_sent_time;
     } sender;
     struct dcpim_receiver {
 		// link for DCPIM matching table
@@ -704,20 +593,16 @@ struct dcpim_sock {
 		bool flow_finish_wait;
 		int rmem_exhausted;
 		/* short flow waiting timer or long flow waiting timer; after all tokens arer granted */
-		// struct hrtimer flow_wait_timer;
 	    ktime_t last_rtx_time;
 		ktime_t latest_token_sent_time;
 		uint32_t copied_seq;
 	    uint32_t bytes_received;
-	    // uint32_t received_count;
 	    /* current received bytes + 1*/
 	    uint32_t rcv_nxt;
 	    uint32_t last_ack;
 		bool delay_ack;
 		struct hrtimer delay_ack_timer;
 		struct work_struct delay_ack_work;
-	    // struct dcpim_sack_block duplicate_sack[1]; /* D-SACK block */
-	    // uint32_t max_seq_no_recv;
 		/** @priority: Priority level to include in future GRANTS. */
 		int priority;
 		/* DCPIM metric */
@@ -768,19 +653,6 @@ struct dcpim_sock {
 
 struct dcpim_request_sock {
 	struct inet_request_sock 	req;
-	// const struct tcp_request_sock_ops *af_specific;
-	// u64				snt_synack;  first SYNACK sent time 
-	// bool				tfo_listener;
-	// bool				is_mptcp;
-	// u32				txhash;
-	// u32				rcv_isn;
-	// u32				snt_isn;
-	// u32				ts_off;
-	// u32				last_oow_ack_time;  last SYNACK 
-	// u32				rcv_nxt; /* the ack # by SYNACK. For
-	// 					  * FastOpen it's the seq#
-	// 					  * after data-in-SYN.
-	// 					  */
 };
 
 
