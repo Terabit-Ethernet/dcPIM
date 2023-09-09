@@ -32,7 +32,7 @@
 #include <sched.h>
 //#include "../uapi_linux_nd.h"
 #include "test_utils.h"
-#include "../uapi_linux_dcpim.h"
+// #include "../uapi_linux_dcpim.h"
 #ifndef ETH_MAX_MTU
 #define ETH_MAX_MTU	0xFFFFU
 #endif
@@ -194,6 +194,98 @@ void test_ping_send(struct sockaddr *dest, int id, int io_depth, int flow_size, 
 		/* send out one request */
 		total = 0;
 		time_q.push(rdtsc());
+		total = 0;
+		while(total < flow_size) {
+			int result = send(fd, buffer + total, flow_size - total, flag);
+			if( result <= 0 ) {
+				if(errno == EMSGSIZE) {
+					printf("Socket write failed: %s %d\n", strerror(errno), result);
+				}
+				printf("send: %d\n", result);
+				break;
+			} else {
+				write_len += result;
+				total += result;
+				sent_bytes += result;	
+			}
+		}
+		// time_q.push(end);
+		if(stop_count == 1)
+			break;
+	
+	}
+	tfile <<   pid << " " << ntohs(client.sin_port) << " " << sent_bytes  / to_seconds(end - start_time) / flow_size  << std::endl;
+	max_size = (latency.size() > max_size) ? max_size : latency.size();
+	for(uint32_t i = 0; i < max_size; i++) {
+		lfile << "finish time: " << latency[i] << "\n"; 
+		// std::cout << "finish time: " << latency[i] << "\n"; 
+	}
+	lfile.close();
+	tfile.close();
+	close(fd);
+}
+
+void test_ping_oneside_send(struct sockaddr *dest, int id, int io_depth, int flow_size, int src_port)
+{
+
+	std::queue<uint64_t> time_q;
+	char *buffer = (char*)malloc(1000000);
+	int fd;
+	unsigned int cpu, node;
+	// uint64_t flow_size = 10000000000000;
+	// int times = 100;
+	int flag = 0;
+	std::vector<double> latency;
+	uint64_t write_len = 0;
+	uint64_t start_time = rdtsc();
+	uint64_t end = rdtsc();
+	uint64_t sent_bytes = 0;
+	uint64_t max_size = 10000000;
+	std::ofstream lfile, tfile;
+	pid_t pid = syscall(__NR_gettid);
+	struct sockaddr_in client;
+	socklen_t clientsz = sizeof(client);
+  	int priority = 7;
+	int total = 0;
+	client.sin_family = AF_INET;
+	client.sin_port = htons(src_port);
+	client.sin_addr.s_addr = INADDR_ANY;
+//  	struct sched_param param;
+// 	param.sched_priority = 99;
+// 	sched_setscheduler(pid, SCHED_RR, &param);
+	lfile.open("temp/netperf-" + std::to_string(id)+".log");
+	tfile.open("temp/netperf-" + std::to_string(id)+"_thpt.log");
+	//int q_depth = 64, count = 0;
+	    // for (int i = 0; i < count * 100; i++) {
+		/* init burst io_depth packet */
+	if(protocol == "dcpim") {
+		fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_DCPIM);
+		/* set packet priority */
+		if(setsockopt(fd, SOL_SOCKET, SO_PRIORITY, &priority, sizeof(priority)) < 0){
+			printf("set priority failed\n");
+		}
+	}
+	else {
+		fd = socket(AF_INET, SOCK_STREAM, 0);
+		flag = 1;
+		setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(int));
+		setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &flag, sizeof(int));
+	}
+	if (bind(fd, reinterpret_cast<sockaddr *>(&client), sizeof(client))
+			== -1) {
+		printf("Couldn't bind to port %d: %s\n", src_port, strerror(errno));
+		exit(1);
+	}
+	if (connect(fd, dest, sizeof(struct sockaddr_in)) == -1) {
+		printf("Couldn't connect to dest %s\n", strerror(errno));
+		exit(1);
+	}
+	getsockname(fd, (struct sockaddr *) &client, &clientsz);
+	getcpu(&cpu, &node);
+	printf("cpu: %d pid: %d client port: %d\n", cpu, pid, ntohs(client.sin_port));
+	while(1) {
+		end = rdtsc();
+		/* receive one response */
 		total = 0;
 		while(total < flow_size) {
 			int result = send(fd, buffer + total, flow_size - total, flag);
@@ -418,6 +510,7 @@ int main(int argc, char** argv)
 	int threads_per_core;
 	int src_port = 0;
 	int io_depth = 1;
+	bool one_side = 0;
 	stop_count = 0;
 	if ((argc >= 2) && (strcmp(argv[1], "--help") == 0)) {
 		print_help(argv[0]);
@@ -488,6 +581,8 @@ int main(int argc, char** argv)
 			flow_size = get_int(argv[nextArg],
 				"Bad flow size %s; must be positive integer\n");
 			std::cout << "flow size:" << flow_size << std::endl;
+		} else if (strcmp(argv[nextArg], "--one_side") == 0) {
+			one_side = true;
 		} else {
 			printf("Unknown option %s; type '%s --help' for help\n",
 				argv[nextArg], argv[0]);
@@ -515,7 +610,10 @@ int main(int argc, char** argv)
 		nextArg = tempArg;
 		for ( ; nextArg < argc; nextArg++) {
 			if (strcmp(argv[nextArg], "ping") == 0) {
-				workers.push_back(std::thread(test_ping_send, dest, i, io_depth, flow_size, src_port + i));
+				if(one_side)
+					workers.push_back(std::thread(test_ping_oneside_send, dest, i, io_depth, flow_size, src_port + i));
+				else 
+					workers.push_back(std::thread(test_ping_send, dest, i, io_depth, flow_size, src_port + i));
 				if(pin) {
 					cpu_set_t cpuset;
 					CPU_ZERO(&cpuset);

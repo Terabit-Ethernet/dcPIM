@@ -24,7 +24,7 @@
 #include <vector>
 // #include "homa.h"
 #include "test_utils.h"
-#include "../uapi_linux_dcpim.h"
+// #include "../uapi_linux_dcpim.h"
 #include <sys/resource.h>
 //#include "../uapi_linux_nd.h"
 /* Log events to standard output. */
@@ -143,7 +143,9 @@ void nd_pingpong()
 	// int *int_buffer = reinterpret_cast<int*>(buffer);
 	if (verbose)
 		printf("New ND socket from %s\n", print_address(&source));
-	// setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
+	flag = 1;
+	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
+	setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &flag, sizeof(flag));
 	if (getpeername(fd, (struct sockaddr *)&sin, &len) == -1)
 	    perror("getsockname");
 	getcpu(&cpu, &node);
@@ -219,6 +221,98 @@ close:
 	close(fd);
 	free(buffer);
 }
+
+
+/**
+ * nd_pong() - Handles messages arriving on a given socket in pure-receive mode.
+ * @fd:           File descriptor for the socket over which messages
+ *                will arrive.
+ * @client_addr:  Information about the client (for messages).
+ */
+void nd_pong()
+{
+	// int flag = 1;
+	int fd = 0;
+	Conn_Data data;
+	int optval = 7;
+	unsigned optlen = 0;
+	char *buffer = (char*)malloc(2359104);
+	int flag;
+	struct sockaddr_in source;
+	// int iodepth;
+	int flow_size;
+	unsigned int cpu, node;
+    std::unique_lock lk(m);
+    cv.wait(lk, []{return !socklist.empty();});
+	data = socklist.front();
+	socklist.pop_front();
+    lk.unlock();
+	fd = data.fd;
+	source = data.source;
+	// iodepth = data.iodepth;
+	flow_size = data.flow_size;
+    // cv.notify_one();
+
+	// int times = 10000;
+	// int cur_length = 0;
+	// bool streaming = false;
+	uint64_t count = 0;
+	uint64_t total_length = 0;
+	// uint64_t start_cycle = 0, end_cycle = 0;
+	struct sockaddr_in sin;
+	socklen_t len = sizeof(sin);
+	// int which = PRIO_PROCESS;
+	pid_t pid = syscall(__NR_gettid);
+	if (verbose)
+		printf("New ND socket from %s\n", print_address(&source));
+	flag = 1;
+	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
+	setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &flag, sizeof(flag));
+	if (getpeername(fd, (struct sockaddr *)&sin, &len) == -1)
+	    perror("getsockname");
+	getcpu(&cpu, &node);
+	printf("core: %d pid: %d port number: %d\n",cpu,  pid, ntohs(sin.sin_port));
+	fflush (stdout);
+	// start_cycle = rdtsc();
+	setsockopt(fd, SOL_SOCKET, SO_PRIORITY, &optval, unsigned(sizeof(optval)));   
+	getsockopt(fd, SOL_SOCKET, SO_PRIORITY, &optval, &optlen);
+
+	// printf("sizeof buffer:%ld\n", sizeof(buffer));
+	while (1) {
+		int copied = 0;
+		int rpc_length = flow_size;
+		// times--;
+		// int burst = iodepth;
+		while(1) {
+			int result = read(fd, buffer + copied,
+				rpc_length);
+			if (result <= 0) {
+					goto close;
+			}
+			rpc_length -= result;
+			copied += result;
+			// total_length += result;
+			if(rpc_length == 0) {
+				rpc_length = flow_size;
+				copied = 0;
+				// burst -= 1;
+				break;
+			}
+			// if(burst == 0)
+			// 	break;
+			// return;
+		}
+		count++;
+	}
+		printf( "total len:%" PRIu64 "\n", total_length);
+		printf("done!");
+	if (verbose)
+		printf("Closing TCP socket from %s\n", print_address(&source));
+close:
+	close(fd);
+	free(buffer);
+}
+
 /**
  * homa_server() - Opens a Homa socket and handles all requests arriving on
  * that socket.
@@ -427,7 +521,7 @@ void tcp_connection(int fd, struct sockaddr_in source)
  * (one thread per connection) and processes messages on those connections.
  * @port:  Port number on which to listen.
  */
-void tcp_server(int port, int num_threads, int iodepth, int flow_size, bool pin)
+void tcp_server(int port, int num_threads, int iodepth, int flow_size, bool pin, bool one_side)
 {
 	int cpu_list[16] = {0, 32, 4, 36, 8, 40, 12, 44, 16, 48, 20, 52, 24, 56, 28, 60};
 	// int cpu_list[2] = {0, 32};
@@ -448,14 +542,25 @@ void tcp_server(int port, int num_threads, int iodepth, int flow_size, bool pin)
 		exit(1);
 	}
 	for (i = 0; i < num_threads; i++) {
-		std::thread thread(nd_pingpong);
-		if(pin) {
-			cpu_set_t cpuset;
-			CPU_ZERO(&cpuset);
-			CPU_SET(cpu_list[i / threads_per_core], &cpuset);
-			pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
+		if(one_side) {
+			std::thread thread(nd_pong);
+			if(pin) {
+				cpu_set_t cpuset;
+				CPU_ZERO(&cpuset);
+				CPU_SET(cpu_list[i / threads_per_core], &cpuset);
+				pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
+			}
+			thread.detach();
+		} else {
+			std::thread thread(nd_pingpong);
+			if(pin) {
+				cpu_set_t cpuset;
+				CPU_ZERO(&cpuset);
+				CPU_SET(cpu_list[i / threads_per_core], &cpuset);
+				pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
+			}
+			thread.detach();
 		}
-	    thread.detach();
 	}
 	struct sockaddr_in addr;
 	addr.sin_family = AF_INET;
@@ -695,7 +800,7 @@ void udp_server(int port)
  * nd_server()
  *
  */
-void dcpim_server(int port, int num_threads, int iodepth, int flow_size, bool pin)
+void dcpim_server(int port, int num_threads, int iodepth, int flow_size, bool pin, bool one_side)
 {
 	int cpu_list[16] = {0, 32, 4, 36, 8, 40, 12, 44, 16, 48, 20, 52, 24, 56, 28, 60};
 	// int cpu_list[2] = {0, 32};
@@ -716,14 +821,26 @@ void dcpim_server(int port, int num_threads, int iodepth, int flow_size, bool pi
 		exit(1);
 	}
 	for (i = 0; i < num_threads; i++) {
-		std::thread thread(nd_pingpong);
-		if(pin) {
-			cpu_set_t cpuset;
-			CPU_ZERO(&cpuset);
-			CPU_SET(cpu_list[i / threads_per_core], &cpuset);
-			pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
+		if(one_side) {
+			std::thread thread(nd_pong);
+			if(pin) {
+				cpu_set_t cpuset;
+				CPU_ZERO(&cpuset);
+				CPU_SET(cpu_list[i / threads_per_core], &cpuset);
+				pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
+			}
+			thread.detach();
 		}
-	    thread.detach();
+		else {
+			std::thread thread(nd_pingpong);
+			if(pin) {
+				cpu_set_t cpuset;
+				CPU_ZERO(&cpuset);
+				CPU_SET(cpu_list[i / threads_per_core], &cpuset);
+				pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
+			}
+			thread.detach();
+		}
 	}
 	struct sockaddr_in addr;
 	addr.sin_family = AF_INET;
@@ -773,6 +890,7 @@ int main(int argc, char** argv) {
 	int flow_size = 64; // bytes
 	bool pin = false;
 	int count = 1;
+	int one_side = 0;
 	std::string ip;
 	if ((argc >= 2) && (strcmp(argv[1], "--help") == 0)) {
 		print_help(argv[0]);
@@ -842,7 +960,9 @@ int main(int argc, char** argv) {
 			next_arg++;
 			count = get_int(argv[next_arg],
 				"Bad num of threads %s; must be positive integer\n");
-		}  else {
+		} else if (strcmp(argv[next_arg], "--one_side") == 0) {
+			one_side = true;
+		} else {
 			printf("Unknown option %s; type '%s --help' for help\n",
 				argv[next_arg], argv[0]);
 			exit(1);
@@ -854,9 +974,9 @@ int main(int argc, char** argv) {
 	// 	printf("port number:%i\n", port + i);
 	// 	workers.push_back(std::thread (homa_server, ip, port+i));
 	// }
-	workers.push_back(std::thread(tcp_server, port, count, iodepth, flow_size, pin));
+	workers.push_back(std::thread(tcp_server, port, count, iodepth, flow_size, pin, one_side));
 	// workers.push_back(std::thread(udp_server, port));
-	workers.push_back(std::thread(dcpim_server, port, count, iodepth, flow_size, pin));
+	workers.push_back(std::thread(dcpim_server, port, count, iodepth, flow_size, pin, one_side));
 	// workers.push_back(std::thread(aggre_thread, &agg_stats));
 	for(int i = 0; i < num_ports; i++) {
 		workers[i].join();
