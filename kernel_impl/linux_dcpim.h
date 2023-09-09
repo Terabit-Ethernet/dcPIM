@@ -210,13 +210,6 @@ struct dcpim_message {
 
 };
 
-struct dcpim_pq {
-	struct list_head list;
-	// struct spinlock lock;
-	int count;
-	bool (*comp)(const struct list_head*, const struct list_head*);
-};
-
 // struct message_table {
 // 	struct message_hslot* hash;
 // };
@@ -232,54 +225,6 @@ struct dcpim_message_bucket {
 	/** @bucket: list of messages that hash to this slot. */
 	struct hlist_head slot;
 };
-
-
-struct rcv_core_entry {
-	int state;
-	int core_id;
-
-	struct spinlock lock;
-	struct hrtimer flowlet_done_timer;
-	/*receiver side */
-	/* remaining tokens */
-	atomic_t remaining_tokens;
-	// atomic_t pending_flows;
-	// struct hrtimer token_xmit_timer;
-	// struct work_struct token_xmit_struct;
-	/* for phost queue */
-	struct dcpim_pq flow_q;
-	struct list_head list_link;
-	struct work_struct token_xmit_struct;
-
-};
-
-struct rcv_core_table {
-	struct spinlock lock;
-	// atomic_t remaining_tokens;
-	int num_active_cores;
-	struct list_head sche_list;
-	struct rcv_core_entry table[NR_CPUS];
-	struct workqueue_struct *wq;
-
-};
-
-struct xmit_core_entry {
-	int core_id;
-	struct spinlock lock;
-	struct sk_buff_head token_q;
-	// struct hrtimer data_xmit_timer;
-	struct list_head list_link;
-	struct work_struct data_xmit_struct;
-};
-struct xmit_core_table {
-	struct spinlock lock;
-	int num_active_cores;
-	struct xmit_core_entry table[NR_CPUS];
-	struct list_head sche_list;
-
-	struct workqueue_struct *wq;
-
-}; 
 
 struct dcpim_host {
 	/* key of the host */

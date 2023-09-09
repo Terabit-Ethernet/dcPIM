@@ -79,7 +79,6 @@ enum hrtimer_restart dcpim_delay_ack_timer_handler(struct hrtimer *timer);
 void dcpim_delay_ack_work(struct work_struct *work);
 void dcpim_xmit_token_event(struct work_struct *w);
 void rcv_handle_new_flow(struct dcpim_sock* dsk);
-void rcv_flowlet_done(struct rcv_core_entry *entry);
 enum hrtimer_restart flowlet_done_event(struct hrtimer *timer);
 
 int dcpim_fragment(struct sock *sk, enum dcpim_queue dcpim_queue,
