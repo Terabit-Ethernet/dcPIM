@@ -247,7 +247,7 @@ void nd_pong()
 	unsigned int cpu, node;
 	std::vector<double> latency;
 	std::ofstream lfile;
-	lfile.open("temp/netperf-" + std::to_string(thread_id.fetch_add(1))+".log");
+	lfile.open("netperf-" + std::to_string(thread_id.fetch_add(1))+".log");
     std::unique_lock lk(m);
     cv.wait(lk, []{return !socklist.empty();});
 	data = socklist.front();
@@ -263,7 +263,7 @@ void nd_pong()
 	// int cur_length = 0;
 	// bool streaming = false;
 	uint64_t count = 0;
-	uint64_t total_length = 0;
+	// uint64_t total_length = 0;
 	// uint64_t start_cycle = 0, end_cycle = 0;
 	struct sockaddr_in sin;
 	socklen_t len = sizeof(sin);
@@ -318,18 +318,16 @@ void nd_pong()
    		}
 		finish_time = (long long)current_time.tv_sec * 1000000000 + (long long)current_time.tv_nsec;
 		start_time = *(long long*)buffer;
-		latency.push_back((start_time - finish_time) / 1000000000.0);
+		latency.push_back((finish_time - start_time) / 1000000000.0);
 		count++;
 	}
-		printf( "total len:%" PRIu64 "\n", total_length);
-		printf("done!");
-		for(uint32_t i = 0; i < latency.size(); i++) {
-			lfile << "finish time: " << latency[i] << "\n"; 
-			// std::cout << "finish time: " << latency[i] << "\n"; 
-		}
 	if (verbose)
 		printf("Closing TCP socket from %s\n", print_address(&source));
 close:
+	for(uint32_t i = 0; i < latency.size(); i++) {
+		lfile << "finish time: " << latency[i] << "\n"; 
+		// std::cout << "finish time: " << latency[i] << "\n"; 
+	}
 	close(fd);
 	free(buffer);
 }

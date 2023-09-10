@@ -294,6 +294,7 @@ void test_ping_oneside_send(struct sockaddr *dest, int id, int io_depth, int flo
         	perror("clock_gettime");
         	break;
    		}
+		flag = 0;
 		nanoseconds = (long long)current_time.tv_sec * 1000000000 + (long long)current_time.tv_nsec;
 		*(long long*)buffer = nanoseconds;
 		while(total < flow_size) {
