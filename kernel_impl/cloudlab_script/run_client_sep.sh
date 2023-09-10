@@ -10,7 +10,7 @@ echo "NUM client: $NCLIENT"
 while (( flow < NCLIENT ));do
         dport=$((4000 * serverindex + 256 * clientindex + flow))
         serverip="10.10.1.$serverindex"
-       ((core = 2 * (flow % (3) + (client_index - 1 + 8) * 3) + 1))
+       ((core = 2 * (flow % (3) + (serverindex - 1 + 8) * 3) + 1))
         echo  taskset -c $((core)) iperf3 -c $serverip -p $((dport)) --cport $dport  -t 120 -4 -l 1M
 	if [[ $SYS == "dcpim" ]]
         then
