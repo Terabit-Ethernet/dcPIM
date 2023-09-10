@@ -272,6 +272,7 @@ void test_ping_oneside_send(struct sockaddr *dest, int id, int io_depth, int flo
 		flag = 1;
 		setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(int));
 		setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &flag, sizeof(int));
+		printf("set nodelay quickack\n");
 	}
 	if (bind(fd, reinterpret_cast<sockaddr *>(&client), sizeof(client))
 			== -1) {

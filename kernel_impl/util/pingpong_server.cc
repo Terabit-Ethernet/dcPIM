@@ -318,6 +318,7 @@ void nd_pong()
    		}
 		finish_time = (long long)current_time.tv_sec * 1000000000 + (long long)current_time.tv_nsec;
 		start_time = *(long long*)buffer;
+		std::cout << (finish_time - start_time ) << std::endl;
 		latency.push_back((finish_time - start_time) / 1000000000.0);
 		count++;
 	}
