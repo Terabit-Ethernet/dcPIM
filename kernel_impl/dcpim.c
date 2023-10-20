@@ -666,49 +666,6 @@ int dcpim_sendpage(struct sock *sk, struct page *page, int offset,
 // 	return false;
 }
 
-/* fully reclaim rmem/fwd memory allocated for skb */
-// static void dcpim_rmem_release(struct sock *sk, int size, int partial,
-// 			     bool rx_queue_lock_held)
-// {
-// 	struct dcpim_sock *up = dcpim_sk(sk);
-// 	struct sk_buff_head *sk_queue;
-// 	int amt;
-
-// 	if (likely(partial)) {
-// 		up->forward_deficit += size;
-// 		size = up->forward_deficit;
-// 		if (size < (sk->sk_rcvbuf >> 2) &&
-// 		    !skb_queue_empty(&up->reader_queue))
-// 			return;
-// 	} else {
-// 		size += up->forward_deficit;
-// 	}
-// 	up->forward_deficit = 0;
-
-// 	/* acquire the sk_receive_queue for fwd allocated memory scheduling,
-// 	 * if the called don't held it already
-// 	 */
-// 	sk_queue = &sk->sk_receive_queue;
-// 	if (!rx_queue_lock_held)
-// 		spin_lock(&sk_queue->lock);
-
-
-// 	sk->sk_forward_alloc += size;
-// 	amt = (sk->sk_forward_alloc - partial) & ~(PAGE_SIZE - 1);
-// 	sk->sk_forward_alloc -= amt;
-
-// 	if (amt)
-// 		__sk_mem_reduce_allocated(sk, amt >> PAGE_SHIFT);
-
-// 	atomic_sub(size, &sk->sk_rmem_alloc);
-
-// 	/* this can save us from acquiring the rx queue lock on next receive */
-// 	skb_queue_splice_tail_init(sk_queue, &up->reader_queue);
-
-// 	if (!rx_queue_lock_held)
-// 		spin_unlock(&sk_queue->lock);
-// }
-
 void dcpim_destruct_sock(struct sock *sk)
 {
 	struct dcpim_message *temp;
@@ -731,14 +688,6 @@ void dcpim_destruct_sock(struct sock *sk)
 		dcpim_message_put(temp);
 	}
 	local_bh_enable();
-	/* clean the message*/
-	// skb_queue_splice_tail_init(&sk->sk_receive_queue, &dsk->reader_queue);
-	// while ((skb = __skb_dequeue(&dsk->reader_queue)) != NULL) {
-	// 	total += skb->truesize;
-	// 	kfree_skb(skb);
-	// }
-
-	// dcpim_rmem_release(sk, total, 0, true);
 	/* need to confirm whether we need to reclaim */
 	sk_mem_reclaim(sk);
 	inet_sock_destruct(sk);
@@ -830,7 +779,7 @@ int dcpim_init_sock(struct sock *sk)
 	atomic_set(&dsk->receiver.rtx_status, 0);
 	atomic_set(&dsk->receiver.token_work_status, 0);
 	// atomic_set(&dsk->receiver.matched_bw, 100);
-	WRITE_ONCE(sk->sk_max_pacing_rate, 0); // bytes per second
+	atomic64_set(&dsk->receiver.pacing_rate, 0); // bytes per second
 	WRITE_ONCE(dsk->receiver.next_pacing_rate, 0); // bytes per second
 	INIT_WORK(&dsk->receiver.token_work, dcpim_xmit_token_work);
 
@@ -1632,52 +1581,6 @@ int dcpim_disconnect(struct sock *sk, int flags)
 }
 EXPORT_SYMBOL(dcpim_disconnect);
 
-// int dcpim_v4_early_demux(struct sk_buff *skb)
-// {
-// 	// struct net *net = dev_net(skb->dev);
-// 	// struct in_device *in_dev = NULL;
-// 	const struct iphdr *iph;
-// 	const struct dcpimhdr *uh;
-// 	struct sock *sk = NULL;
-// 	// struct dst_entry *dst;
-// 	// int dif = skb->dev->ifindex;
-// 	int sdif = inet_sdif(skb);
-// 	// int ours;
-
-// 	/* validate the packet */
-// 	// printk("early demux");
-// 	if(skb->pkt_type != PACKET_HOST) {
-// 		return 0;
-// 	}
-// 	if (!pskb_may_pull(skb, skb_transport_offset(skb) + sizeof(struct dcpimhdr)))
-// 		return 0;
-
-// 	iph = ip_hdr(skb);
-// 	uh = dcpim_hdr(skb);
-
-//     // if (th->doff < sizeof(struct tcphdr) / 4)
-//     //             return 0;
-//     sk = __dcpim_lookup_established(dev_net(skb->dev), &dcpim_hashinfo,
-//                                    iph->saddr, uh->source,
-//                                    iph->daddr, ntohs(uh->dest),
-//                                    skb->skb_iif, sdif);
-
-//     if (sk) {
-//             skb->sk = sk;
-//             skb->destructor = sock_edemux;
-//             if (sk_fullsock(sk)) {
-//                     struct dst_entry *dst = READ_ONCE(sk->sk_rx_dst);
-
-//                     if (dst)
-//                             dst = dst_check(dst, 0);
-//                     if (dst &&
-//                         inet_sk(sk)->rx_dst_ifindex == skb->skb_iif)
-//                             skb_dst_set_noref(skb, dst);
-//             }
-//     }
-// 	return 0;
-// }
-
 int dcpim_rcv(struct sk_buff *skb)
 {
 	// printk("receive dcpim rcv\n");
@@ -1875,7 +1778,6 @@ void dcpim_destroy_sock(struct sock *sk)
 	// 				     dcpim_sk(sk)->dcpim_port_hash);
 	struct dcpim_sock *dsk = dcpim_sk(sk);
 	// struct inet_sock *inet = inet_sk(sk);
-	struct rcv_core_entry *entry = &rcv_core_tab.table[raw_smp_processor_id()];
 	/* To Do: flip the order; now the order was a mess */
 	lock_sock(sk);
 
@@ -1936,11 +1838,6 @@ void dcpim_destroy_sock(struct sock *sk)
 	/* cancel the work after release the lock */
 	cancel_work_sync(&dsk->sender.rtx_msg_work);
 	// printk("sk->sk_wmem_queued:%d\n",sk->sk_wmem_queued);
-	spin_lock_bh(&entry->lock);
-	// printk("dsk->match_link:%p\n", &up->match_link);
-	if(dsk->receiver.in_pq)
-		dcpim_pq_delete(&entry->flow_q, &dsk->match_link);
-	spin_unlock_bh(&entry->lock);
 	// if (static_branch_unlikely(&dcpim_encap_needed_key)) {
 	// 	if (up->encap_type) {
 	// 		void (*encap_destroy)(struct sock *sk);
@@ -1967,17 +1864,6 @@ int dcpim_setsockopt(struct sock *sk, int level, int optname,
 	// 				  dcpim_push_pending_frames);
 	// return ip_setsockopt(sk, level, optname, optval, optlen);
 }
-
-// #ifdef CONFIG_COMPAT
-// int compat_dcpim_setsockopt(struct sock *sk, int level, int optname,
-// 			  char __user *optval, unsigned int optlen)
-// {
-// 	if (level == SOL_DCPIM)
-// 		return dcpim_lib_setsockopt(sk, level, optname, optval, optlen,
-// 					  dcpim_push_pending_frames);
-// 	return compat_ip_setsockopt(sk, level, optname, optval, optlen);
-// }
-// #endif
 
 static inline bool dcpim_is_readable(const struct sock *sk, int target)
 {
@@ -2033,47 +1919,6 @@ int dcpim_lib_getsockopt(struct sock *sk, int level, int optname,
 	// printk(KERN_WARNING "unimplemented getsockopt invoked on DCPIM socket:"
 	// 		" level %d, optname %d\n", level, optname);
 	return 0;
-	return -EINVAL;
-	// struct dcpim_sock *up = dcpim_sk(sk);
-	// int val, len;
-
-	// if (get_user(len, optlen))
-	// 	return -EFAULT;
-
-	// len = min_t(unsigned int, len, sizeof(int));
-
-	// if (len < 0)
-	// 	return -EINVAL;
-
-	// switch (optname) {
-	// case DCPIM_CORK:
-	// 	val = up->corkflag;
-	// 	break;
-
-	// case DCPIM_ENCAP:
-	// 	val = up->encap_type;
-	// 	break;
-
-	// case DCPIM_NO_CHECK6_TX:
-	// 	val = up->no_check6_tx;
-	// 	break;
-
-	// case DCPIM_NO_CHECK6_RX:
-	// 	val = up->no_check6_rx;
-	// 	break;
-
-	// case DCPIM_SEGMENT:
-	// 	val = up->gso_size;
-	// 	break;
-	// default:
-	// 	return -ENOPROTOOPT;
-	// }
-
-	// if (put_user(len, optlen))
-	// 	return -EFAULT;
-	// if (copy_to_user(optval, &val, len))
-	// 	return -EFAULT;
-	// return 0;
 }
 EXPORT_SYMBOL(dcpim_lib_getsockopt);
 
@@ -2099,27 +1944,6 @@ int dcpim_abort(struct sock *sk, int err)
 }
 EXPORT_SYMBOL_GPL(dcpim_abort);
 
-
-// static void __dcpim_sysctl_init(struct net *net)
-// {
-// 	net->ipv4.sysctl_udp_rmem_min = SK_MEM_QUANTUM;
-// 	net->ipv4.sysctl_udp_wmem_min = SK_MEM_QUANTUM;
-
-// #ifdef CONFIG_NET_L3_MASTER_DEV
-// 	net->ipv4.sysctl_udp_l3mdev_accept = 0;
-// #endif
-// }
-
-// static int __net_init dcpim_sysctl_init(struct net *net)
-// {
-// 	__dcpim_sysctl_init(net);
-// 	return 0;
-// }
-
-// static struct pernet_operations __net_initdata dcpim_sysctl_ops = {
-// 	.init	= dcpim_sysctl_init,
-// };
-
 void __init dcpim_init(void)
 {
 	unsigned long limit;
@@ -2131,18 +1955,6 @@ void __init dcpim_init(void)
 	sysctl_dcpim_mem[0] = limit / 4 * 3;
 	sysctl_dcpim_mem[1] = limit;
 	sysctl_dcpim_mem[2] = sysctl_dcpim_mem[0] * 2;
-
-	// __dcpim_sysctl_init(&init_net);
-	/* 16 spinlocks per cpu */
-	// dcpim_busylocks_log = ilog2(nr_cpu_ids) + 4;
-	// dcpim_busylocks = kmalloc(sizeof(spinlock_t) << dcpim_busylocks_log,
-	// 			GFP_KERNEL);
-	// if (!dcpim_busylocks)
-	// 	panic("DCPIM: failed to alloc dcpim_busylocks\n");
-	// for (i = 0; i < (1U << dcpim_busylocks_log); i++)
-	// 	spin_lock_init(dcpim_busylocks + i);
-	// if (register_pernet_subsys(&dcpim_sysctl_ops)) 
-	// 	panic("DCPIM: failed to init sysctl parameters.\n");
 }
 
 void dcpim_destroy() {

@@ -1,3 +1,3 @@
 #!/bin/bash
-INTF=ens2f0
+INTF=ens2f1np1
 NUM_CPUS=32

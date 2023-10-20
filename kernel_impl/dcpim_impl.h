@@ -1,7 +1,5 @@
-#ifndef _UDP4_IMPL_H
-#define _UDP4_IMPL_H
-#include <net/udp.h>
-#include <net/udplite.h>
+#ifndef _DCPIM_IMPL_H
+#define _DCPIM_IMPL_H
 #include <net/protocol.h>
 #include <net/inet_common.h>
 
@@ -18,8 +16,6 @@ extern struct dcpim_params dcpim_params;
 extern struct dcpim_epoch dcpim_epoch;
 extern struct request_sock_ops dcpim_request_sock_ops;
 
-extern struct xmit_core_table xmit_core_tab;
-extern struct rcv_core_table rcv_core_tab;
 extern struct dcpim_message_bucket dcpim_tx_messages[DCPIM_BUCKETS];
 extern struct dcpim_message_bucket dcpim_rx_messages[DCPIM_BUCKETS];
 
@@ -37,30 +33,14 @@ int dcpim_dointvec(struct ctl_table *table, int write,
 void dcpim_sysctl_changed(struct dcpim_params *params);
 void dcpim_params_init(struct dcpim_params *params);
 // DCPIM matching logic
-// DCPIM priority queue
-int calc_grant_bytes(struct sock *sk);
-int xmit_batch_token(struct sock *sk, int grant_bytes, bool handle_rtx);
 uint32_t dcpim_xmit_token(struct dcpim_sock* dsk, uint32_t token_bytes);
-int rtx_bytes_count(struct dcpim_sock* dsk, __u32 prev_grant_nxt);
 enum hrtimer_restart dcpim_xmit_token_handler(struct hrtimer *timer);
 enum hrtimer_restart dcpim_rtx_sync_timer_handler(struct hrtimer *timer);
 void dcpim_xmit_token_work(struct work_struct *work);
 void dcpim_rtx_sync_handler(struct dcpim_sock *dsk);
 void rtx_fin_handler(struct work_struct *work);
 enum hrtimer_restart dcpim_rtx_fin_timer_handler(struct hrtimer *timer);
-void dcpim_pq_init(struct dcpim_pq* pq, bool(*comp)(const struct list_head*, const struct list_head*));
-bool dcpim_pq_empty(struct dcpim_pq* pq);
-bool dcpim_pq_empty_lockless(struct dcpim_pq* pq);
-struct list_head* dcpim_pq_pop(struct dcpim_pq* pq);
-void dcpim_pq_push(struct dcpim_pq* pq, struct list_head* node);
-struct list_head* dcpim_pq_peek(struct dcpim_pq* pq); 
-void dcpim_pq_delete(struct dcpim_pq* pq, struct list_head* node);
-int dcpim_pq_size(struct dcpim_pq* pq);
 
-// void dcpim_match_entry_init(struct dcpim_match_entry* entry, __be32 addr, 
-//  bool(*comp)(const struct list_head*, const struct list_head*));
-// void dcpim_mattab_init(struct dcpim_match_tab *table,
-// 	bool(*comp)(const struct list_head*, const struct list_head*));
 void dcpim_remove_mat_tab(struct dcpim_epoch *epoch, struct sock *sk);
 void dcpim_add_mat_tab(struct dcpim_epoch *epoch, struct sock *sk);
 void dcpim_host_set_sock_idle(struct dcpim_host *host, struct sock *sk);
@@ -93,41 +73,19 @@ void dcpim_fill_dst_entry(struct sock *sk, struct sk_buff *skb, struct flowi *fl
 void dcpim_swap_dcpim_header(struct sk_buff *skb);
 void dcpim_swap_ip_header(struct sk_buff *skb);
 void dcpim_swap_eth_header(struct sk_buff *skb);
-/* scheduling */
-bool flow_compare(const struct list_head* node1, const struct list_head* node2);
-void rcv_core_entry_init(struct rcv_core_entry *entry, int core_id);
-int rcv_core_table_init(struct rcv_core_table *tab);
-void xmit_core_entry_init(struct xmit_core_entry *entry, int core_id);
-int xmit_core_table_init(struct xmit_core_table *tab);
-void rcv_core_table_destory(struct rcv_core_table *tab);
-void xmit_core_table_destory(struct xmit_core_table *tab);
-void dcpim_update_and_schedule_sock(struct dcpim_sock *dsk);
-void dcpim_unschedule_sock(struct dcpim_sock *dsk);
-/* sender */
-void xmit_handle_new_token(struct xmit_core_table *tab, struct sk_buff* skb);
-void dcpim_xmit_data_event(struct work_struct *w);
 
 /* receiver */
 enum hrtimer_restart dcpim_delay_ack_timer_handler(struct hrtimer *timer);
 void dcpim_delay_ack_work(struct work_struct *work);
 void dcpim_xmit_token_event(struct work_struct *w);
 void rcv_handle_new_flow(struct dcpim_sock* dsk);
-void rcv_flowlet_done(struct rcv_core_entry *entry);
 enum hrtimer_restart flowlet_done_event(struct hrtimer *timer);
-
-
 
 int dcpim_fragment(struct sock *sk, enum dcpim_queue dcpim_queue,
 		 struct sk_buff *skb, u32 len,
 		 unsigned int mss_now, gfp_t gfp);
 int dcpim_fill_packets(struct sock *sk,
 		struct msghdr *msg, size_t len);
-
-/*DCPIM peer table*/
-int dcpim_peertab_init(struct dcpim_peertab *peertab);
-void dcpim_peertab_destroy(struct dcpim_peertab *peertab);
-struct dcpim_peer *dcpim_peer_find(struct dcpim_peertab *peertab, __be32 addr,
-	struct inet_sock *inet);
 
 /*DCPIM incoming function*/
 bool dcpim_try_send_token(struct sock *sk);
@@ -175,11 +133,8 @@ int dcpim_write_timer_handler(struct sock *sk);
 void dcpim_write_queue_purge(struct sock *sk);
 
 void dcpim_release_cb(struct sock *sk);
-int __dcpim4_lib_rcv(struct sk_buff *, struct udp_table *, int);
-int __dcpim4_lib_err(struct sk_buff *, u32, struct udp_table *);
 
 int dcpim_v4_get_port(struct sock *sk, unsigned short snum);
-void dcpim_v4_rehash(struct sock *sk);
 
 int dcpim_setsockopt(struct sock *sk, int level, int optname,
 		   sockptr_t optval, unsigned int optlen);
@@ -235,7 +190,4 @@ struct dcpim_message* dcpim_lookup_message(struct dcpim_message_bucket *hashinfo
 bool dcpim_insert_message(struct dcpim_message_bucket *hashinfo, struct dcpim_message* msg);
 void dcpim_remove_message(struct dcpim_message_bucket *hashinfo, struct dcpim_message* msg, bool cancel_timer);
 
-#ifdef CONFIG_PROC_FS
-int udp4_seq_show(struct seq_file *seq, void *v);
-#endif
-#endif	/* _UDP4_IMPL_H */
+#endif	/* _DCPIM_IMPL_H */

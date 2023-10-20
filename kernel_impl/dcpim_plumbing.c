@@ -438,15 +438,6 @@ static int __init dcpim_load(void) {
         }
         dcpim_epoch_init(&dcpim_epoch);
         dcpim_message_table_init();
-        /* initialize rcv_core table and xmit_core table */
-        status = rcv_core_table_init(&rcv_core_tab);
-        if(status != 0) {
-            goto out_cleanup;
-        }
-        status = xmit_core_table_init(&xmit_core_tab);
-        if(status != 0) {
-            goto out_cleanup;
-        }
         dcpim_ctl_header = register_net_sysctl(&init_net, "net/dcpim",
                         dcpim_ctl_table);
         if (!dcpim_ctl_header) {
@@ -472,8 +463,6 @@ out_cleanup:
             printk(KERN_ERR "DCPIM couldn't stop offloads\n");
         dcpim_epoch_destroy(&dcpim_epoch);
         dcpim_message_table_destroy();
-        rcv_core_table_destory(&rcv_core_tab);
-        xmit_core_table_destory(&xmit_core_tab);
         unregister_net_sysctl_table(dcpim_ctl_header);
         dcpim_destroy();
         inet_del_protocol(&dcpim_protocol, IPPROTO_DCPIM);
@@ -499,8 +488,6 @@ static void __exit dcpim_unload(void) {
         dcpim_epoch_destroy(&dcpim_epoch);
         dcpim_message_table_destroy();
         unregister_net_sysctl_table(dcpim_ctl_header);
-        rcv_core_table_destory(&rcv_core_tab);
-        xmit_core_table_destory(&xmit_core_tab);
 
         // dcpim_mattab_destroy(&dcpim_match_table);
         // printk("remove match table\n");
