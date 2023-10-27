@@ -235,22 +235,4 @@ enum {
  */
 #define IPPROTO_DCPIM 0xFE
 // #define IPPROTO_DCPIMLITE 19
-
-/* DCPIM socket options */
-#define DCPIM_CORK	1	/* Never send partially complete segments */
-#define DCPIM_ENCAP	100	/* Set the socket to accept encapsulated packets */
-#define DCPIM_NO_CHECK6_TX 101	/* Disable sending checksum for DCPIM6X */
-#define DCPIM_NO_CHECK6_RX 102	/* Disable accpeting checksum for DCPIM6 */
-#define DCPIM_SEGMENT	103	/* Set GSO segmentation size */
-#define DCPIM_GRO		104	/* This socket can receive DCPIM GRO packets */
-
-/* DCPIM encapsulation types */
-#define DCPIM_ENCAP_ESPINDCPIM_NON_IKE	1 /* draft-ietf-ipsec-nat-t-ike-00/01 */
-#define DCPIM_ENCAP_ESPINDCPIM	2 /* draft-ietf-ipsec-dcpim-encaps-06 */
-#define DCPIM_ENCAP_L2TPINDCPIM	3 /* rfc2661 */
-#define DCPIM_ENCAP_GTP0		4 /* GSM TS 09.60 */
-#define DCPIM_ENCAP_GTP1U		5 /* 3GPP TS 29.060 */
-#define DCPIM_ENCAP_RXRPC		6
-#define TCP_ENCAP_ESPINTCP	7 /* Yikes, this is really xfrm encap types. */
-
 #endif /* _UAPI_LINUX_DCPIM_H */
