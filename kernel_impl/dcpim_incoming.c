@@ -746,6 +746,7 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
             dh->dest, sdif, &refcounted);
 		// sk = __dcpim4_lib_lookup_skb(skb, fh->common.source, fh->common.dest, &dcpim_table);
 	// }
+	printk("receive flow sync\n");
 	if(sk) {
 		bh_lock_sock(sk);
 		if(!sock_owned_by_user(sk)) {
@@ -1748,7 +1749,7 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 			dcpim_clean_rtx_queue(sk);		
 		} else if (dh->type == NOTIFICATION_LONG || dh->type == NOTIFICATION_SHORT) {
 			/* send syn ack back */
-			struct dcpim_flow_sync_hdr *fh = dcpim_flow_sync_hdr(skb);
+			// struct dcpim_flow_sync_hdr *fh = dcpim_flow_sync_hdr(skb);
 			dcpim_xmit_control(construct_syn_ack_pkt(sk), sk); 
 		} else if (dh->type == SYN_ACK) {
 			dsk->sender.syn_ack_recvd = true;
@@ -1766,7 +1767,7 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 			child = dcpim_conn_request(sk, skb);
 			if(child) {
 				dsk = dcpim_sk(child);
-				if(fh->message_size == UINT_MAX) {
+				if(dh->type == NOTIFICATION_LONG) {
 					/* this line needed to change later */
 					if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer)) {
 						hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
