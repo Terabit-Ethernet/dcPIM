@@ -236,9 +236,9 @@ int dcpim_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 
 	/* in-case the socket priority is 7, the socket are used for sending short flows only. */
 	if(sk->sk_priority == 7) {
-		dcpim_xmit_control(construct_flow_sync_pkt(sk, 0, 0, 0), sk); 
+		dcpim_xmit_control(construct_flow_sync_pkt(sk, NOTIFICATION_SHORT), sk); 
 	} else {
-		dcpim_xmit_control(construct_flow_sync_pkt(sk, 0, UINT_MAX, 0), sk); 
+		dcpim_xmit_control(construct_flow_sync_pkt(sk, NOTIFICATION_LONG), sk); 
 		if(dcpim_sk(sk)->dma_device == NULL && dcpim_enable_ioat)
 			dcpim_sk(sk)->dma_device = get_free_ioat_dma_device(sk);
 	}
