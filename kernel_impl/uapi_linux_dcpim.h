@@ -16,7 +16,9 @@ enum dcpim_packet_type {
 	// For Phost
 	DATA               = 0x20,
 	TOKEN             ,
-	NOTIFICATION	  ,
+	RTX_TOKEN		  ,
+	NOTIFICATION_LONG ,
+	NOTIFICATION_SHORT ,
 	ACK  			  ,
 	//For PIM
 	RTS               ,
@@ -26,6 +28,7 @@ enum dcpim_packet_type {
 	FIN               , 
 	SYN_ACK		 	  ,
 	FIN_ACK		      , 
+	/* per-msg granularity for short messages */
 	NOTIFICATION_MSG  , 
 	DATA_MSG		  , 
 	FIN_MSG			  , 
@@ -43,26 +46,26 @@ struct dcpimhdr {
 	 */
 	__be32 seq;
 	
-	__be32 unused2;
-
+	__be32 ack_seq;
 	/**
 	 * @doff: High order 4 bits holds the number of 4-byte chunks in a
 	 * data_header (low-order bits unused). Used only for DATA packets;
 	 * must be in the same position as the data offset in a TCP header.
 	 */
 	__u8 doff;
-
-	__u8 unused3;
+	/* flags field in TCP; not touched by dcPIM */
+	__u8 flag;
 	/** @type: One of the values of &enum packet_type. */
 	__u8 type;
 	__u8 unused4;
-	
 	/**
-	 * @check: not used by dcPIM, but must occupy the same bytes as
-	 * the checksum in a TCP header (TSO may modify this?).*/
+	* @check: not used by dcPIM, but must occupy the same bytes as
+	* the checksum in a TCP header (TSO may modify this?).*/
 	__be16 check;
 
 	__be16 len;
+
+
 
 	// *
 	//  * @priority: the priority at which the packet was set; used
@@ -134,7 +137,6 @@ struct dcpim_flow_sync_hdr {
 	__be64 message_id;
 	/*UINT32_MAX refers to long flow; otherwise, the flow is the short flow. */
 	__be32 message_size;
-	__be64 start_time;
 };
 
 struct dcpim_syn_ack_hdr {
@@ -142,7 +144,6 @@ struct dcpim_syn_ack_hdr {
 	__be64 message_id;
 	/*UINT32_MAX refers to long flow; otherwise, the flow is the short flow. */
 	__be32 message_size;
-	__be64 start_time;
 };
 
 struct dcpim_fin_ack_hdr {
@@ -150,7 +151,6 @@ struct dcpim_fin_ack_hdr {
 	__be64 message_id;
 	/*UINT32_MAX refers to long flow; otherwise, the flow is the short flow. */
 	__be32 message_size;
-	__be64 start_time;
 };
 
 struct dcpim_fin_hdr {
@@ -158,7 +158,6 @@ struct dcpim_fin_hdr {
 	__be64 message_id;
 	/*UINT32_MAX refers to long flow; otherwise, the flow is the short flow. */
 	__be32 message_size;
-	__be64 start_time;
 };
 
 // _Static_assert(sizeof(struct dcpim_flow_sync_hdr) <= DCPIM_HEADER_MAX_SIZE,

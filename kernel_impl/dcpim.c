@@ -740,7 +740,7 @@ int dcpim_init_sock(struct sock *sk)
 
 	WRITE_ONCE(dsk->sender.inflight_msgs, 0);
 	INIT_LIST_HEAD(&dsk->sender.fin_msg_backlog);
-	WRITE_ONCE(dsk->sender.msg_threshold, 200);
+	WRITE_ONCE(dsk->sender.msg_threshold, 62500);
 	INIT_LIST_HEAD(&dsk->match_link);
 	INIT_LIST_HEAD(&dsk->entry);
 	dsk->host = NULL;
@@ -1595,7 +1595,7 @@ int dcpim_rcv(struct sk_buff *skb)
 	if(dh->type == DATA) {
 		return dcpim_handle_data_pkt(skb);
 		// return __dcpim4_lib_rcv(skb, &dcpim_table, IPPROTO_DCPIM);
-	} else if (dh->type == NOTIFICATION) {
+	} else if (dh->type == NOTIFICATION_LONG || dh->type == NOTIFICATION_SHORT) {
 		return dcpim_handle_flow_sync_pkt(skb);
 	} else if (dh->type == TOKEN) {
 		return dcpim_handle_token_pkt(skb);
