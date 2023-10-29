@@ -736,9 +736,9 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 	// const struct iphdr *iph = ip_hdr(skb);
 	bool refcounted = false;
 	// struct dcpim_message *msg;
-	if (!pskb_may_pull(skb, sizeof(struct dcpim_flow_sync_hdr))) {
-		goto drop;		/* No space for header. */
-	}
+	// if (!pskb_may_pull(skb, sizeof(struct dcpimhdr))) {
+	// 	goto drop;		/* No space for header. */
+	// }
 	dh =  dcpim_hdr(skb);
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
@@ -948,21 +948,21 @@ int dcpim_handle_syn_ack_pkt(struct sk_buff *skb) {
 	// struct dcpim_peer *peer;
 	// struct iphdr *iph;
 	// struct dcpimhdr *dh;
-	struct dcpim_syn_ack_hdr *ah;
+	struct dcpimhdr *dh;
 	struct sock *sk;
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
 	bool remove_timer = false;
 	// uint32_t old_snd_una = 0;
-	if (!pskb_may_pull(skb, sizeof(struct dcpim_ack_hdr))) {
-		kfree_skb(skb);		/* No space for header. */
-		return 0;
-	}
-	ah = dcpim_syn_ack_hdr(skb);
+	// if (!pskb_may_pull(skb, sizeof(struct dcpimhdr))) {
+	// 	kfree_skb(skb);		/* No space for header. */
+	// 	return 0;
+	// }
+	dh = dcpim_hdr(skb);
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
-	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&ah->common), ah->common.source,
-            ah->common.dest, sdif, &refcounted);
+	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(dh), dh->source,
+            dh->dest, sdif, &refcounted);
     // }
 	
 	if(sk) {
@@ -972,6 +972,8 @@ int dcpim_handle_syn_ack_pkt(struct sk_buff *skb) {
 			if(sk->sk_state == DCPIM_ESTABLISHED) {
 				dsk->sender.syn_ack_recvd = true;
 				remove_timer = true;
+						printk("receive syn ack\n");
+
 			}
 			kfree_skb(skb);
         } else {
@@ -1749,7 +1751,6 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 			dcpim_clean_rtx_queue(sk);		
 		} else if (dh->type == NOTIFICATION_LONG || dh->type == NOTIFICATION_SHORT) {
 			/* send syn ack back */
-			// struct dcpim_flow_sync_hdr *fh = dcpim_flow_sync_hdr(skb);
 			dcpim_xmit_control(construct_syn_ack_pkt(sk), sk); 
 		} else if (dh->type == SYN_ACK) {
 			dsk->sender.syn_ack_recvd = true;
@@ -1761,9 +1762,7 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 		}
 	} else if(sk->sk_state == DCPIM_LISTEN) {
 		if(dh->type == NOTIFICATION_LONG || dh->type == NOTIFICATION_SHORT) {
-			struct dcpim_flow_sync_hdr *fh;
 			struct sock* child;
-			fh =  dcpim_flow_sync_hdr(skb);
 			child = dcpim_conn_request(sk, skb);
 			if(child) {
 				dsk = dcpim_sk(child);
