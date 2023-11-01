@@ -216,6 +216,25 @@ void dcpim_get_sack_info(struct sock *sk, struct sk_buff *skb) {
 		used_sacks++;
 	}
 
+/* for zerocopy, we diable sack logig */
+void dcpim_get_nonsack_info(struct sock *sk, struct sk_buff *skb) {
+	struct dcpim_sock *dsk = dcpim_sk(sk);
+	struct dcpimhdr *th = dcpim_hdr(skb);
+	// struct dcpim_sack_block_wire *sp_wire = (struct dcpim_sack_block_wire *)(ptr);
+	struct dcpim_sack_block *sp = dsk->sender.selective_acks;
+	// struct sk_buff *skb;
+	// int used_sacks;
+	int i;
+	// if (!pskb_may_pull(skb, sizeof(struct dcpim_token_hdr) + sizeof(struct dcpim_sack_block_wire) * th->num_sacks)) {
+	// 	return;		/* No space for header. */
+	// }
+	dsk->sender.num_sacks = 1;
+	// used_sacks = 0;
+	/* get_unaligned_be32 will host change the endian to be CPU order */
+	sp[0].start_seq = ntohl(th->token_nxt);
+	sp[0].end_seq = ntohl(th->token_nxt);
+
+
 	/* order SACK blocks to allow in order walk of the retrans queue */
 	// for (i = used_sacks - 1; i > 0; i--) {
 	// 	for (j = 0; j < i; j++) {
@@ -746,7 +765,6 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
             dh->dest, sdif, &refcounted);
 		// sk = __dcpim4_lib_lookup_skb(skb, fh->common.source, fh->common.dest, &dcpim_table);
 	// }
-	printk("receive flow sync\n");
 	if(sk) {
 		bh_lock_sock(sk);
 		if(!sock_owned_by_user(sk)) {
@@ -818,7 +836,7 @@ int dcpim_handle_token_pkt(struct sk_buff *skb) {
 	// struct inet_sock *inet;
 	// struct dcpim_peer *peer;
 	// struct iphdr *iph;
-	struct dcpim_token_hdr *th;
+	struct dcpimhdr *dh;
 	struct sock *sk;
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
@@ -827,9 +845,9 @@ int dcpim_handle_token_pkt(struct sk_buff *skb) {
 		kfree_skb(skb);
 		return 0;
 	}
-	th = dcpim_token_hdr(skb);
-	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&th->common), th->common.source,
-            th->common.dest, sdif, &refcounted);
+	dh = dcpim_hdr(skb);
+	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(dh), dh->source,
+            dh->dest, sdif, &refcounted);
 	if(sk) {
  		dsk = dcpim_sk(sk);
  		bh_lock_sock(sk);
@@ -845,13 +863,15 @@ int dcpim_handle_token_pkt(struct sk_buff *skb) {
 		// /* start doing transmission (this part may move to different places later)*/
 	    if(!sock_owned_by_user(sk)) {
 			if(sk->sk_state == DCPIM_ESTABLISHED) {
-				if(th->num_sacks > 0)
- 					dcpim_get_sack_info(sk, skb);
 				sock_rps_save_rxhash(sk, skb);
-				if(after(th->rcv_nxt, dsk->sender.snd_una))
-					dsk->sender.snd_una = th->rcv_nxt;
-				if(after(th->token_nxt, dsk->sender.token_seq))
-					dsk->sender.token_seq = th->token_nxt;
+				if(dh->type == RTX_TOKEN) {
+					dcpim_get_nonsack_info(sk, skb);
+				} else {
+					if(after(ntohl(dh->token_nxt), dsk->sender.token_seq))
+						dsk->sender.token_seq = ntohl(dh->token_nxt);
+				}
+				if(after(ntohl(dh->ack_seq), dsk->sender.snd_una))
+					dsk->sender.snd_una = nothl(dh->ack_seq);
 				if(dsk->host && dsk->sender.snd_una != old_snd_una)
 					atomic_sub((uint32_t)(dsk->sender.snd_una - old_snd_una), &dsk->host->total_unsent_bytes);
 				dcpim_write_timer_handler(sk);

@@ -809,7 +809,7 @@ struct sk_buff* construct_flow_sync_msg_pkt(struct sock* sk, __u64 message_id,
 	}
 	fh = (struct dcpim_flow_sync_hdr *) skb_put(skb, sizeof(struct dcpim_flow_sync_hdr));
 	dh = (struct dcpimhdr*) (&fh->common);
-	dh->len = htons(sizeof(struct dcpim_flow_sync_hdr));
+	// dh->len = htons(sizeof(struct dcpim_flow_sync_hdr));
 	dh->type = NOTIFICATION_MSG;
 	fh->message_id = message_id;
 	fh->message_size = message_size;
@@ -844,21 +844,21 @@ struct sk_buff* construct_syn_ack_pkt(struct sock* sk) {
 struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority, __u32 token_nxt) {
 	// int extra_bytes = 0;
 	struct dcpim_sock *dsk = dcpim_sk(sk);
-	struct sk_buff* skb = __construct_control_skb(sk, DCPIM_HEADER_MAX_SIZE
-		 + dsk->num_sacks * sizeof(struct dcpim_sack_block_wire));
-	struct dcpim_token_hdr* fh;
+	struct sk_buff* skb = __construct_control_skb(sk, 0);
+	
+		//  + dsk->num_sacks * sizeof(struct dcpim_sack_block_wire));
+	// struct dcpim_token_hdr* fh;
 	struct dcpimhdr* dh;
 	if(unlikely(!skb)) {
 		return NULL;
 	}
-	fh = (struct dcpim_token_hdr *) skb_put(skb, sizeof(struct dcpim_token_hdr));
-	dh = (struct dcpimhdr*) (&fh->common);
-	dh->len = htons(sizeof(struct dcpim_token_hdr));
+	dh = (struct dcpimhdr *) skb_put(skb, sizeof(struct dcpimhdr));
+	// dh->len = htons(sizeof(struct dcpimhdr));
 	dh->type = TOKEN;
-	fh->priority = priority;
-	fh->rcv_nxt = dsk->receiver.rcv_nxt;
-	fh->token_nxt = token_nxt;
-	fh->num_sacks = 0;
+	// fh->priority = priority;
+	dh->ack_seq = htonl(dsk->receiver.rcv_nxt);
+	dh->token_nxt = htonl(token_nxt);
+	// fh->num_sacks = 0;
 	return skb;
 }
 
@@ -866,57 +866,57 @@ struct sk_buff* construct_rtx_token_pkt(struct sock* sk, unsigned short priority
 	 __u32 prev_token_nxt, __u32 token_nxt, int *rtx_bytes) {
 	// int extra_bytes = 0;
 	struct dcpim_sock *dsk = dcpim_sk(sk);
-	struct sk_buff* skb = __construct_control_skb(sk, DCPIM_HEADER_MAX_SIZE
-		 + dsk->num_sacks * sizeof(struct dcpim_sack_block_wire));
-	struct dcpim_token_hdr* fh;
+	struct sk_buff* skb = __construct_control_skb(sk, 0);
+		//  + dsk->num_sacks * sizeof(struct dcpim_sack_block_wire));
+	// struct dcpim_token_hdr* fh;
 	struct dcpimhdr* dh;
-	struct dcpim_sack_block_wire *sack;
+	// struct dcpim_sack_block_wire *sack;
 	int i = 1;
 	bool manual_end_point = true;
 	if(unlikely(!skb)) {
 		return NULL;
 	}
-	fh = (struct dcpim_token_hdr *) skb_put(skb, sizeof(struct dcpim_token_hdr));
-	dh = (struct dcpimhdr*) (&fh->common);
-	dh->len = htons(sizeof(struct dcpim_token_hdr));
-	dh->type = TOKEN;
-	fh->priority = priority;
-	fh->rcv_nxt = dsk->receiver.rcv_nxt;
-	fh->token_nxt = token_nxt;
-	fh->num_sacks = 0;
+	dh = (struct dcpimhdr *) skb_put(skb, sizeof(struct dcpimhdr));
+	// dh = (struct dcpimhdr*) (&fh->common);
+	// dh->len = htons(sizeof(struct dcpimhdr));
+	dh->type = RTX_TOKEN;
+	// fh->priority = priority;
+	dh->ack_seq = htonl(dsk->receiver.rcv_nxt);
+	dh->token_nxt = htonl(prev_token_nxt);
+	// fh->num_sacks = 0;
 	// printk("TOKEN: new grant next:%u\n", fh->grant_nxt);
 	// printk("prev_grant_nxt:%u\n", prev_grant_nxt);
 	// printk("new rcv_nxt:%u\n", dsk->receiver.rcv_nxt);
 	// printk("copied seq:%u\n", dsk->receiver.copied_seq);
 	// printk("rcv_nxt:%u\n", dsk->receiver.rcv_nxt);
-	while(i <= dsk->num_sacks) {
-		__u32 start_seq = dsk->selective_acks[dsk->num_sacks - i].start_seq;
-		__u32 end_seq = dsk->selective_acks[dsk->num_sacks - i].end_seq;
+	// while(i <= dsk->num_sacks) {
+	// 	__u32 start_seq = dsk->selective_acks[dsk->num_sacks - i].start_seq;
+	// 	__u32 end_seq = dsk->selective_acks[dsk->num_sacks - i].end_seq;
 
-		if(after(start_seq,prev_token_nxt))
-			goto next;
-		if(after(end_seq,prev_token_nxt)) {
-			end_seq = prev_token_nxt;
-			manual_end_point = false;
-		}
+	// 	if(after(start_seq,prev_token_nxt))
+	// 		goto next;
+	// 	if(after(end_seq,prev_token_nxt)) {
+	// 		end_seq = prev_token_nxt;
+	// 		manual_end_point = false;
+	// 	}
 
-		sack = (struct dcpim_sack_block_wire*) skb_put(skb, sizeof(struct dcpim_sack_block_wire));
-		sack->start_seq = htonl(start_seq);
-		sack->end_seq = htonl(end_seq);
-		// printk("start seq:%u\n", start_seq);
-		// printk("end seq:%u\n", end_seq);
-		*rtx_bytes += end_seq - start_seq;
-		fh->num_sacks++;
-	next:
-		i++;
-	}
-	if(manual_end_point) {
-		sack = (struct dcpim_sack_block_wire*) skb_put(skb, sizeof(struct dcpim_sack_block_wire));
-		sack->start_seq = htonl(prev_token_nxt);
-		sack->end_seq = htonl(prev_token_nxt);
-		// printk("sack start seq:%u\n", prev_token_nxt);
-		fh->num_sacks++;
-	}
+	// 	sack = (struct dcpim_sack_block_wire*) skb_put(skb, sizeof(struct dcpim_sack_block_wire));
+	// 	sack->start_seq = htonl(start_seq);
+	// 	sack->end_seq = htonl(end_seq);
+	// 	// printk("start seq:%u\n", start_seq);
+	// 	// printk("end seq:%u\n", end_seq);
+	// 	*rtx_bytes += end_seq - start_seq;
+	// 	fh->num_sacks++;
+	// next:
+	// 	i++;
+	// }
+	// if(manual_end_point) {
+	// 	sack = (struct dcpim_sack_block_wire*) skb_put(skb, sizeof(struct dcpim_sack_block_wire));
+	// 	sack->start_seq = htonl(prev_token_nxt);
+	// 	sack->end_seq = htonl(prev_token_nxt);
+	// 	// printk("sack start seq:%u\n", prev_token_nxt);
+	// 	fh->num_sacks++;
+	// }
 
 
 
@@ -936,7 +936,7 @@ struct sk_buff* construct_ack_pkt(struct sock* sk, __be32 rcv_nxt) {
 	}
 	ah = (struct dcpim_ack_hdr *) skb_put(skb, sizeof(struct dcpim_ack_hdr));
 	dh = (struct dcpimhdr*) (&ah->common);
-	dh->len = htons(sizeof(struct dcpim_ack_hdr));
+	// dh->len = htons(sizeof(struct dcpim_ack_hdr));
 	dh->type = ACK;
 	ah->rcv_nxt = rcv_nxt;
 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
@@ -953,7 +953,7 @@ struct sk_buff* construct_fin_pkt(struct sock* sk) {
 		return NULL;
 	}
 	dh = (struct dcpimhdr*) skb_put(skb, sizeof(struct dcpimhdr));
-	dh->len = htons(sizeof(struct dcpimhdr));
+	// dh->len = htons(sizeof(struct dcpimhdr));
 	dh->type = FIN;
 	// fh->message_id = message_id;
 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
@@ -972,7 +972,7 @@ struct sk_buff* construct_fin_msg_pkt(struct sock* sk, uint64_t msg_id) {
 	}
 	fh = (struct dcpim_fin_hdr*) skb_put(skb, sizeof(struct dcpim_fin_hdr));
 	dh = (struct dcpimhdr*) (&fh->common);
-	dh->len = htons(sizeof(struct dcpim_fin_hdr));
+	// dh->len = htons(sizeof(struct dcpim_fin_hdr));
 	dh->type = FIN_MSG;
 	fh->message_id = msg_id;
 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
@@ -991,7 +991,7 @@ struct sk_buff* construct_fin_ack_pkt(struct sock* sk) {
 	}
 	fh = (struct dcpim_fin_ack_hdr *) skb_put(skb, sizeof(struct dcpim_fin_ack_hdr));
 	dh = (struct dcpimhdr*) (&fh->common);
-	dh->len = htons(sizeof(struct dcpim_fin_ack_hdr));
+	// dh->len = htons(sizeof(struct dcpim_fin_ack_hdr));
 	dh->type = FIN_ACK;
 	// fh->message_id = message_id;
 	// fh->message_size = message_size;
@@ -1012,7 +1012,7 @@ struct sk_buff* construct_fin_ack_msg_pkt(struct sock* sk, __u64 message_id) {
 	}
 	fh = (struct dcpim_fin_ack_hdr *) skb_put(skb, sizeof(struct dcpim_fin_ack_hdr));
 	dh = (struct dcpimhdr*) (&fh->common);
-	dh->len = htons(sizeof(struct dcpim_fin_ack_hdr));
+	// dh->len = htons(sizeof(struct dcpim_fin_ack_hdr));
 	dh->type = FIN_ACK_MSG;
 	fh->message_id = message_id;
 	// fh->message_size = message_size;
@@ -1033,7 +1033,7 @@ struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short round, int epo
 	}
 	fh = (struct dcpim_rts_hdr *) skb_put(skb, sizeof(struct dcpim_rts_hdr));
 	dh = (struct dcpimhdr*) (&fh->common);
-	dh->len = htons(sizeof(struct dcpim_rts_hdr));
+	// dh->len = htons(sizeof(struct dcpim_rts_hdr));
 	dh->type = RTS;
 	fh->round = round;
 	fh->epoch = epoch;
@@ -1056,7 +1056,7 @@ struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short round, int e
 	}
 	fh = (struct dcpim_grant_hdr *) skb_put(skb, sizeof(struct dcpim_grant_hdr));
 	dh = (struct dcpimhdr*) (&fh->common);
-	dh->len = htons(sizeof(struct dcpim_grant_hdr));
+	// dh->len = htons(sizeof(struct dcpim_grant_hdr));
 	dh->type = GRANT;
 	fh->round = round;
 	fh->epoch = epoch;
@@ -1080,7 +1080,7 @@ struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short round, int 
 	}
 	fh = (struct dcpim_accept_hdr *) skb_put(skb, sizeof(struct dcpim_accept_hdr));
 	dh = (struct dcpimhdr*) (&fh->common);
-	dh->len = htons(sizeof(struct dcpim_accept_hdr));
+	// dh->len = htons(sizeof(struct dcpim_accept_hdr));
 	dh->type = ACCEPT;
 	fh->round = round;
 	fh->epoch = epoch;
@@ -1182,6 +1182,61 @@ go_to_next:
 	}	
 	dsk->sender.num_sacks = 0;
 }
+
+void dcpim_retransmit_nonsack(struct sock* sk) {
+	struct dcpim_sock* dsk = dcpim_sk(sk);
+	// struct dcpim_sack_block *sp;
+	struct sk_buff *skb;
+	int start_seq, end_seq, mss_now, mtu, i;
+	struct dst_entry *dst;
+	dst = sk_dst_get(sk);
+	mtu = dst_mtu(dst);
+	mss_now = mtu - sizeof(struct iphdr) - sizeof(struct dcpimhdr);
+	/* last sack is the fake sack [prev_grant_next, prev_grant_next) */
+	skb = skb_rb_first(&sk->tcp_rtx_queue);
+	for (i = 0; i < dsk->sender.num_sacks; i++) {
+		if(!skb)
+			break;
+		if(i == 0) {
+			start_seq = dsk->sender.snd_una;
+		} else {
+			start_seq = dsk->sender.selective_acks[i - 1].end_seq;
+		}
+		end_seq = dsk->sender.selective_acks[i].start_seq;
+
+		while(skb) {
+			if(!before(start_seq, DCPIM_SKB_CB(skb)->end_seq)) {
+				goto go_to_next;
+			}
+			if(!after(end_seq, DCPIM_SKB_CB(skb)->seq)) {
+				break;
+			}
+			/* split the skb buffer; after split, end sequence of skb will change */
+			if(after(start_seq, DCPIM_SKB_CB(skb)->seq)) {
+				/* move the start seq forward to the start of a MSS packet */
+				int seg = start_seq - DCPIM_SKB_CB(skb)->seq;
+				int ret = dcpim_fragment(sk, DCPIM_FRAG_IN_RTX_QUEUE, skb,
+				 seg , mss_now , GFP_ATOMIC);
+				/* move forward after the split */
+				if(!ret)
+					skb = skb_rb_next(skb);
+			}
+			if(before(end_seq, DCPIM_SKB_CB(skb)->end_seq)) {
+				/* split the skb buffer; Round up this time */
+				int seg = end_seq - DCPIM_SKB_CB(skb)->seq;
+				dcpim_fragment(sk, DCPIM_FRAG_IN_RTX_QUEUE, skb,
+				 seg, mss_now, GFP_ATOMIC);		
+			}
+			dcpim_retransmit_data(skb, dcpim_sk(sk));
+go_to_next:
+			skb = skb_rb_next(skb);
+		}
+
+
+	}	
+	dsk->sender.num_sacks = 0;
+}
+
 /**
  * __dcpim_xmit_control() - Lower-level version of dcpim_xmit_control: sends
  * a control packet.
@@ -1449,7 +1504,7 @@ int dcpim_write_timer_handler(struct sock *sk)
 	dst = sk_dst_get(sk);
 	WARN_ON_ONCE(dst == NULL);
 	mtu = dst_mtu(dst);
-	mss_now = mtu - sizeof(struct iphdr) - sizeof(struct dcpim_data_hdr);
+	mss_now = mtu - sizeof(struct iphdr) - sizeof(struct dcpimhdr);
 	if(dsk->sender.num_sacks > 0) {
 		// printk("retransmit\n");
 		dcpim_retransmit(sk);

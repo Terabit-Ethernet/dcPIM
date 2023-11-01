@@ -61,9 +61,15 @@ struct dcpimhdr {
 	/**
 	* @check: not used by dcPIM, but must occupy the same bytes as
 	* the checksum in a TCP header (TSO may modify this?).*/
-	__be16 check;
-
-	__be16 len;
+	union {
+		struct {
+			__be16 check;
+			__be16 unused;
+		};
+		struct {
+			__be32 token_nxt;
+		};
+	};
 
 
 
