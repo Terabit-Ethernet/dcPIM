@@ -777,22 +777,21 @@ struct sk_buff* __construct_control_skb(struct sock* sk, int size) {
 	return skb;
 }
 
-struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id, 
-	uint32_t message_size, __u64 start_time) {
+struct sk_buff* construct_flow_sync_pkt(struct sock* sk, enum dcpim_packet_type type) {
 	// int extra_bytes = 0;
 	struct sk_buff* skb = __construct_control_skb(sk, 0);
-	struct dcpim_flow_sync_hdr* fh;
+	// struct dcpim_flow_sync_hdr* fh;
 	struct dcpimhdr* dh; 
 	if(unlikely(!skb)) {
 		return NULL;
 	}
-	fh = (struct dcpim_flow_sync_hdr *) skb_put(skb, sizeof(struct dcpim_flow_sync_hdr));
-	dh = (struct dcpimhdr*) (&fh->common);
-	dh->len = htons(sizeof(struct dcpim_flow_sync_hdr));
-	dh->type = NOTIFICATION;
-	fh->message_id = message_id;
-	fh->message_size = message_size;
-	fh->start_time = start_time;
+	dh = (struct dcpimhdr *) skb_put(skb, sizeof(struct dcpimhdr));
+	// dh = (struct dcpimhdr*) (&fh->common);
+	// dh->len = htons(sizeof(struct dcpimhdr));
+	dh->type = type;
+	// fh->message_id = message_id;
+	// fh->message_size = message_size;
+	// fh->start_time = start_time;
 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
 	// if (extra_bytes > 0)
 	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
@@ -814,29 +813,28 @@ struct sk_buff* construct_flow_sync_msg_pkt(struct sock* sk, __u64 message_id,
 	dh->type = NOTIFICATION_MSG;
 	fh->message_id = message_id;
 	fh->message_size = message_size;
-	fh->start_time = start_time;
+	// fh->start_time = start_time;
 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
 	// if (extra_bytes > 0)
 	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
 	return skb;
 }
 
-struct sk_buff* construct_syn_ack_pkt(struct sock* sk, __u64 message_id, 
-	uint32_t message_size, __u64 start_time) {
+struct sk_buff* construct_syn_ack_pkt(struct sock* sk) {
 	// int extra_bytes = 0;
 	struct sk_buff* skb = __construct_control_skb(sk, 0);
-	struct dcpim_syn_ack_hdr* fh;
+	// struct dcpim_syn_ack_hdr* fh;
 	struct dcpimhdr* dh; 
 	if(unlikely(!skb)) {
 		return NULL;
 	}
-	fh = (struct dcpim_syn_ack_hdr *) skb_put(skb, sizeof(struct dcpim_syn_ack_hdr));
-	dh = (struct dcpimhdr*) (&fh->common);
-	dh->len = htons(sizeof(struct dcpim_syn_ack_hdr));
+	dh = (struct dcpimhdr*) skb_put(skb, sizeof(struct dcpimhdr));
+	// dh = (struct dcpimhdr*) (&fh->common);
+	// dh->len = htons(sizeof(struct dcpimhdr));
 	dh->type = SYN_ACK;
-	fh->message_id = message_id;
-	fh->message_size = message_size;
-	fh->start_time = start_time;
+	// fh->message_id = message_id;
+	// fh->message_size = message_size;
+	// fh->start_time = start_time;
 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
 	// if (extra_bytes > 0)
 	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
@@ -983,7 +981,7 @@ struct sk_buff* construct_fin_msg_pkt(struct sock* sk, uint64_t msg_id) {
 	return skb;
 }
 
-struct sk_buff* construct_fin_ack_pkt(struct sock* sk, __u64 message_id) {
+struct sk_buff* construct_fin_ack_pkt(struct sock* sk) {
 	// int extra_bytes = 0;
 	struct sk_buff* skb = __construct_control_skb(sk, 0);
 	struct dcpim_fin_ack_hdr* fh;
@@ -995,7 +993,7 @@ struct sk_buff* construct_fin_ack_pkt(struct sock* sk, __u64 message_id) {
 	dh = (struct dcpimhdr*) (&fh->common);
 	dh->len = htons(sizeof(struct dcpim_fin_ack_hdr));
 	dh->type = FIN_ACK;
-	fh->message_id = message_id;
+	// fh->message_id = message_id;
 	// fh->message_size = message_size;
 	// fh->start_time = start_time;
 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
@@ -1694,7 +1692,7 @@ enum hrtimer_restart dcpim_rtx_sync_timer_handler(struct hrtimer *timer) {
 			} else {
 				/*  retransmit flow sync */
 				if(sk->sk_priority != 7) {
-					dcpim_xmit_control(construct_flow_sync_pkt(sk, 0, UINT_MAX, 0), sk); 
+					dcpim_xmit_control(construct_flow_sync_pkt(sk, NOTIFICATION_LONG), sk); 
 				} else {
 					/* to do: add short flow syn retransmission */
 				}
@@ -1725,7 +1723,7 @@ void dcpim_rtx_sync_handler(struct dcpim_sock *dsk) {
 				/* TO DO: might need to wake up socket */
 		}  else {
 			if(sk->sk_priority != 7) {
-				dcpim_xmit_control(construct_flow_sync_pkt(sk, 0, UINT_MAX, 0), sk); 
+				dcpim_xmit_control(construct_flow_sync_pkt(sk, NOTIFICATION_LONG), sk); 
 			} else {
 				/* to do: add short flow syn retransmission */
 			}

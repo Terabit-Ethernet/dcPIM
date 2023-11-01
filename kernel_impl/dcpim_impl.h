@@ -108,8 +108,7 @@ int dcpim_clean_rtx_queue(struct sock *sk);
 enum hrtimer_restart dcpim_flow_wait_event(struct hrtimer *timer);
 void dcpim_flow_wait_handler(struct sock *sk);
 /*DCPIM outgoing function*/
-struct sk_buff* construct_flow_sync_pkt(struct sock* sk, __u64 message_id, 
-	uint32_t message_size, __u64 start_time);
+struct sk_buff* construct_flow_sync_pkt(struct sock* sk, enum dcpim_packet_type type);
 struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority, __u32 grant_nxt);
 struct sk_buff* construct_rtx_token_pkt(struct sock* sk, unsigned short priority,
 	 __u32 prev_token_nxt, __u32 token_nxt, int *rtx_bytes);
@@ -118,9 +117,8 @@ struct sk_buff* construct_ack_pkt(struct sock* sk, __be32 rcv_nxt);
 struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool rtx_channel, bool prompt_channel);
 struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool prompt, bool rtx_channel, bool prompt_channel);
 struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool rtx_channel, bool prompt_channel);
-struct sk_buff* construct_syn_ack_pkt(struct sock* sk, __u64 message_id, 
-	uint32_t message_size, __u64 start_time);
-struct sk_buff* construct_fin_ack_pkt(struct sock* sk, __u64 message_id);
+struct sk_buff* construct_syn_ack_pkt(struct sock* sk);
+struct sk_buff* construct_fin_ack_pkt(struct sock* sk);
 
 int dcpim_xmit_control(struct sk_buff* skb, struct sock *dcpim_sk);
 void dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk);
