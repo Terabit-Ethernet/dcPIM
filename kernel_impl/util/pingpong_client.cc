@@ -290,6 +290,7 @@ void test_ping_oneside_send(struct sockaddr *dest, int id, int io_depth, int flo
 		end = rdtsc();
 		/* receive one response */
 		total = 0;
+		sleep(0.05);
 		/* Read the current time from CLOCK_REALTIME */
     	if (clock_gettime(CLOCK_REALTIME, &current_time) != 0) {
         	perror("clock_gettime");
@@ -299,12 +300,10 @@ void test_ping_oneside_send(struct sockaddr *dest, int id, int io_depth, int flo
 		nanoseconds = (long long)current_time.tv_sec * 1000000000 + (long long)current_time.tv_nsec;
 		*(long long*)buffer = nanoseconds;
 		while(total < flow_size) {
-			int result = send(fd, buffer + total, flow_size - total, MSG_DONTWAIT);
+			int result = send(fd, buffer + total, flow_size - total, flag);
 			if( result <= 0 ) {
 				if(errno == EMSGSIZE) {
 					printf("Socket write failed: %s %d\n", strerror(errno), result);
-				} else if (errno == EAGAIN){
-					break;
 				}
 				printf("send: %d\n", result);
 				break;
