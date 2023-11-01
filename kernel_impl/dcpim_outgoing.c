@@ -1455,7 +1455,7 @@ int dcpim_write_timer_handler(struct sock *sk)
 		dcpim_retransmit(sk);
 	}
 	while((skb = skb_peek(&sk->sk_write_queue)) != NULL) {
-		if (after(dsk->sender.token_seq, DCPIM_SKB_CB(skb)->end_seq)) {
+		if (!before(dsk->sender.token_seq, DCPIM_SKB_CB(skb)->end_seq)) {
 			skb_dequeue(&sk->sk_write_queue);
 			dcpim_xmit_data(skb, dsk);
 			sent_bytes += DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq;
