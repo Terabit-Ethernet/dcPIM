@@ -165,7 +165,7 @@ struct sk_buff *dcpim_gso_segment(struct sk_buff *skb,
 		goto out;
 
 	oldlen = (u16)~skb->len;
-	datalen = ntohs(dh->len);
+	// datalen = ntohs(dh->len);
 	__skb_pull(skb, dhlen);
 	mss = skb_shinfo(skb)->gso_size;
 	if (unlikely(skb->len <= mss))
@@ -220,8 +220,8 @@ struct sk_buff *dcpim_gso_segment(struct sk_buff *skb,
 		// 	th->check = gso_make_checksum(skb, ~th->check);
 
 		// seq += mss;
-		dh->len = htons(mss);
-		datalen -= mss;
+		// dh->len = htons(mss);
+		// datalen -= mss;
 		// if (copy_destructor) {
 		// 	skb->destructor = gso_skb->destructor;
 		// 	// skb->sk = gso_skb->sk;
@@ -265,7 +265,7 @@ struct sk_buff *dcpim_gso_segment(struct sk_buff *skb,
 	// 	gso_reset_checksum(skb, ~th->check);
 	// else
 	// 	th->check = gso_make_checksum(skb, ~th->check);
-	dh->len = htons(datalen);
+	// dh->len = htons(datalen);
 
 out:
 	return segs;

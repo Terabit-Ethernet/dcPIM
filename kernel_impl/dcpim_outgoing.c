@@ -1160,7 +1160,7 @@ void dcpim_retransmit(struct sock* sk) {
 			/* split the skb buffer; after split, end sequence of skb will change */
 			if(after(start_seq, DCPIM_SKB_CB(skb)->seq)) {
 				/* move the start seq forward to the start of a MSS packet */
-				int seg = (start_seq - DCPIM_SKB_CB(skb)->seq + 1) / mss_now;
+				int seg = (start_seq - DCPIM_SKB_CB(skb)->seq) / mss_now;
 				int ret = dcpim_fragment(sk, DCPIM_FRAG_IN_RTX_QUEUE, skb,
 				 seg * (mss_now + sizeof(struct data_segment)), mss_now  + sizeof(struct data_segment), GFP_ATOMIC);
 				/* move forward after the split */
