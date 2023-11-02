@@ -1597,7 +1597,7 @@ int dcpim_rcv(struct sk_buff *skb)
 		// return __dcpim4_lib_rcv(skb, &dcpim_table, IPPROTO_DCPIM);
 	} else if (dh->type == NOTIFICATION_LONG || dh->type == NOTIFICATION_SHORT) {
 		return dcpim_handle_flow_sync_pkt(skb);
-	} else if (dh->type == TOKEN) {
+	} else if (dh->type == TOKEN || dh->type == RTX_TOKEN) {
 		return dcpim_handle_token_pkt(skb);
 	} else if (dh->type == FIN) {
 		return dcpim_handle_fin_pkt(skb);

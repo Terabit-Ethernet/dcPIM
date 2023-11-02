@@ -110,8 +110,7 @@ void dcpim_flow_wait_handler(struct sock *sk);
 /*DCPIM outgoing function*/
 struct sk_buff* construct_flow_sync_pkt(struct sock* sk, enum dcpim_packet_type type);
 struct sk_buff* construct_token_pkt(struct sock* sk, unsigned short priority, __u32 grant_nxt);
-struct sk_buff* construct_rtx_token_pkt(struct sock* sk, unsigned short priority,
-	 __u32 prev_token_nxt, __u32 token_nxt, int *rtx_bytes);
+struct sk_buff* construct_rtx_token_pkt(struct sock* sk, __u32 prev_token_nxt);
 struct sk_buff* construct_fin_pkt(struct sock* sk);
 struct sk_buff* construct_ack_pkt(struct sock* sk, __be32 rcv_nxt);
 struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short iter, int epoch, int remaining_sz, bool rtx_channel, bool prompt_channel);

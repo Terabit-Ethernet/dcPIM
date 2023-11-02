@@ -195,36 +195,12 @@ static void dcpim_sack_remove(struct dcpim_sock *dsk)
 /* read sack info */
 void dcpim_get_sack_info(struct sock *sk, struct sk_buff *skb) {
 	struct dcpim_sock *dsk = dcpim_sk(sk);
-	const unsigned char *ptr = (skb_transport_header(skb) +
-				    sizeof(struct dcpim_token_hdr));
-	struct dcpim_token_hdr *th = dcpim_token_hdr(skb);
-	struct dcpim_sack_block_wire *sp_wire = (struct dcpim_sack_block_wire *)(ptr);
-	struct dcpim_sack_block *sp = dsk->sender.selective_acks;
-	// struct sk_buff *skb;
-	int used_sacks;
-	int i;
-	if (!pskb_may_pull(skb, sizeof(struct dcpim_token_hdr) + sizeof(struct dcpim_sack_block_wire) * th->num_sacks)) {
-		return;		/* No space for header. */
-	}
-	dsk->sender.num_sacks = th->num_sacks;
-	used_sacks = 0;
-	for (i = 0; i < dsk->sender.num_sacks; i++) {
-		/* get_unaligned_be32 will host change the endian to be CPU order */
-		sp[used_sacks].start_seq = get_unaligned_be32(&sp_wire[i].start_seq);
-		sp[used_sacks].end_seq = get_unaligned_be32(&sp_wire[i].end_seq);
-
-		used_sacks++;
-	}
-
-/* for zerocopy, we diable sack logig */
-void dcpim_get_nonsack_info(struct sock *sk, struct sk_buff *skb) {
-	struct dcpim_sock *dsk = dcpim_sk(sk);
 	struct dcpimhdr *th = dcpim_hdr(skb);
 	// struct dcpim_sack_block_wire *sp_wire = (struct dcpim_sack_block_wire *)(ptr);
 	struct dcpim_sack_block *sp = dsk->sender.selective_acks;
 	// struct sk_buff *skb;
 	// int used_sacks;
-	int i;
+	// int i;
 	// if (!pskb_may_pull(skb, sizeof(struct dcpim_token_hdr) + sizeof(struct dcpim_sack_block_wire) * th->num_sacks)) {
 	// 	return;		/* No space for header. */
 	// }
@@ -243,7 +219,10 @@ void dcpim_get_nonsack_info(struct sock *sk, struct sk_buff *skb) {
 	// 		}
 	// 	}
 	// }
+	return;
 }
+
+
 
 /* assume hold the socket spinlock*/
 void dcpim_flow_wait_handler(struct sock *sk) {
@@ -500,7 +479,27 @@ static void dcpim_v4_fill_cb(struct sk_buff *skb, const struct iphdr *iph,
         // TCP_SKB_CB(skb)->has_rxtstamp =
         //                 skb->tstamp || skb_hwtstamps(skb)->hwtstamp;
 }
-
+static void dcpim_v4_fill_long_cb(struct sk_buff *skb, const struct iphdr *iph,
+                           const struct dcpimhdr *dh)
+{
+        /* This is tricky : We move IPCB at its correct location into TCP_SKB_CB()
+         * barrier() makes sure compiler wont play fool^Waliasing games.
+         */
+        memmove(&DCPIM_SKB_CB(skb)->header.h4, IPCB(skb),
+                sizeof(struct inet_skb_parm));
+        barrier();
+        DCPIM_SKB_CB(skb)->seq = ntohl(dh->seq);
+        // printk("skb len:%d\n", skb->len);
+        // printk("segment length:%d\n", ntohl(dh->seg.segment_length));
+        DCPIM_SKB_CB(skb)->end_seq = DCPIM_SKB_CB(skb)->seq + skb->len - (dh->common.doff / 4 );
+        // TCP_SKB_CB(skb)->ack_seq = ntohl(th->ack_seq);
+        // TCP_SKB_CB(skb)->tcp_flags = tcp_flag_byte(th);
+        // TCP_SKB_CB(skb)->tcp_tw_isn = 0;
+        // TCP_SKB_CB(skb)->ip_dsfield = ipv4_get_dsfield(iph);
+        // TCP_SKB_CB(skb)->sacked  = 0;
+        // TCP_SKB_CB(skb)->has_rxtstamp =
+        //                 skb->tstamp || skb_hwtstamps(skb)->hwtstamp;
+}
 
 /**
  * dcpim_try_coalesce - try to merge skb to prior one
@@ -821,7 +820,7 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
 	}
 
 
-drop:
+// drop:
     if (refcounted) {
         sock_put(sk);
     }
@@ -865,13 +864,13 @@ int dcpim_handle_token_pkt(struct sk_buff *skb) {
 			if(sk->sk_state == DCPIM_ESTABLISHED) {
 				sock_rps_save_rxhash(sk, skb);
 				if(dh->type == RTX_TOKEN) {
-					dcpim_get_nonsack_info(sk, skb);
+					dcpim_get_sack_info(sk, skb);
 				} else {
 					if(after(ntohl(dh->token_nxt), dsk->sender.token_seq))
 						dsk->sender.token_seq = ntohl(dh->token_nxt);
 				}
 				if(after(ntohl(dh->ack_seq), dsk->sender.snd_una))
-					dsk->sender.snd_una = nothl(dh->ack_seq);
+					dsk->sender.snd_una = ntohl(dh->ack_seq);
 				if(dsk->host && dsk->sender.snd_una != old_snd_una)
 					atomic_sub((uint32_t)(dsk->sender.snd_una - old_snd_una), &dsk->host->total_unsent_bytes);
 				dcpim_write_timer_handler(sk);
@@ -915,7 +914,7 @@ int dcpim_handle_ack_pkt(struct sk_buff *skb) {
 	// struct dcpim_peer *peer;
 	// struct iphdr *iph;
 	// struct dcpimhdr *dh;
-	struct dcpim_ack_hdr *ah;
+	struct dcpimhdr *ah;
 	struct sock *sk;
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
@@ -924,11 +923,11 @@ int dcpim_handle_ack_pkt(struct sk_buff *skb) {
 		kfree_skb(skb);		/* No space for header. */
 		return 0;
 	}
-	ah = dcpim_ack_hdr(skb);
+	ah = dcpim_hdr(skb);
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
-	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&ah->common), ah->common.source,
-            ah->common.dest, sdif, &refcounted);
+	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(ah), ah->source,
+            ah->dest, sdif, &refcounted);
     // }
 
 	if(sk) {
@@ -937,8 +936,8 @@ int dcpim_handle_ack_pkt(struct sk_buff *skb) {
 		if (!sock_owned_by_user(sk)) {
 			if(sk->sk_state == DCPIM_ESTABLISHED) {
 				old_snd_una = dsk->sender.snd_una;
-				if(after(ah->rcv_nxt, dsk->sender.snd_una))
-					dsk->sender.snd_una = ah->rcv_nxt;
+				if(after(ntohl(ah->ack_seq), dsk->sender.snd_una))
+					dsk->sender.snd_una = ntohl(ah->ack_seq);
 				if(dsk->host && dsk->sender.snd_una != old_snd_una)
 					atomic_sub((uint32_t)(dsk->sender.snd_una - old_snd_una), &dsk->host->total_unsent_bytes);
 				dcpim_clean_rtx_queue(sk);
@@ -1169,7 +1168,7 @@ int dcpim_data_queue(struct sock *sk, struct sk_buff *skb)
 	atomic_add(skb->truesize, &sk->sk_rmem_alloc);
 
 	// skb_dst_drop(skb);
-	__skb_pull(skb, (dcpim_hdr(skb)->doff >> 2)+ sizeof(struct data_segment));
+	__skb_pull(skb, (dcpim_hdr(skb)->doff >> 2));
 	// printk("handle packet data queue?:%d\n", DCPIM_SKB_CB(skb)->seq);
 
 	/*  Queue data for delivery to the user.
@@ -1291,7 +1290,7 @@ bool dcpim_add_backlog(struct sock *sk, struct sk_buff *skb, bool omit_check)
  __u64 total_bytes;
 int dcpim_handle_data_pkt(struct sk_buff *skb) {
 	struct dcpim_sock *dsk;
-	struct dcpim_data_hdr *dh;
+	struct dcpimhdr *dh;
 	struct sock *sk;
 	struct iphdr *iph;
 	int sdif = inet_sdif(skb);
@@ -1301,18 +1300,18 @@ int dcpim_handle_data_pkt(struct sk_buff *skb) {
 	// printk("receive data pkt\n");
 	// if(get_random_u32() % 10 <= 0)
 	// 	goto drop;
-	if (!pskb_may_pull(skb, sizeof(struct dcpim_data_hdr)))
+	if (!pskb_may_pull(skb, sizeof(struct dcpimhdr)))
 		goto drop;		/* No space for header. */
-	dh =  dcpim_data_hdr(skb);
+	dh =  dcpimhdr(skb);
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
-	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&dh->common), dh->common.source,
-            dh->common.dest, sdif, &refcounted);
+	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(dh), dh->source,
+            dh->dest, sdif, &refcounted);
     if(!sk) {
     	goto drop;
 	}
 
-	dcpim_v4_fill_cb(skb, iph, dh);
+	dcpim_v4_fill_long_cb(skb, iph, dh);
 	if(sk) {
 		dsk = dcpim_sk(sk);
 		iph = ip_hdr(skb);
@@ -1749,26 +1748,27 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 			// atomic_sub(skb->truesize, &sk->sk_rmem_alloc);
 			sk->sk_data_ready(sk);
 		} else if (dh->type == ACK) {
-			struct dcpim_ack_hdr *ah = dcpim_ack_hdr(skb);
-			if(after(ah->rcv_nxt,dsk->sender.snd_una))
-				dsk->sender.snd_una = ah->rcv_nxt;
+			struct dcpimhdr *ah = dcpim_hdr(skb);
+			if(after(ntohl(ah->ack_seq),dsk->sender.snd_una))
+				dsk->sender.snd_una = ntohl(ah->ack_seq);
 			if(dsk->host && dsk->sender.snd_una != old_snd_una)
 				atomic_sub((uint32_t)(dsk->sender.snd_una - old_snd_una), &dsk->host->total_unsent_bytes);
 			dcpim_clean_rtx_queue(sk);
-		} else if (dh->type == TOKEN) {
+		} else if (dh->type == TOKEN || dh->type == RTX_TOKEN) {
 			/* clean rtx queue */
-			struct dcpim_token_hdr *th = dcpim_token_hdr(skb);
- 			sock_rps_save_rxhash(sk, skb);
-			if(th->num_sacks > 0)
+			sock_rps_save_rxhash(sk, skb);
+			if(dh->type == RTX_TOKEN) {
 				dcpim_get_sack_info(sk, skb);
-			if(after(th->rcv_nxt, dsk->sender.snd_una))
-				dsk->sender.snd_una = th->rcv_nxt;
-			if(after(th->token_nxt, dsk->sender.token_seq))
-				dsk->sender.token_seq = th->token_nxt;
+			} else {
+				if(after(ntohl(dh->token_nxt), dsk->sender.token_seq))
+					dsk->sender.token_seq = ntohl(dh->token_nxt);
+			}
+			if(after(ntohl(dh->ack_seq), dsk->sender.snd_una))
+				dsk->sender.snd_una = ntohl(dh->ack_seq);
 			if(dsk->host && dsk->sender.snd_una != old_snd_una)
 				atomic_sub((uint32_t)(dsk->sender.snd_una - old_snd_una), &dsk->host->total_unsent_bytes);
 			dcpim_write_timer_handler(sk);
-			dcpim_clean_rtx_queue(sk);		
+			dcpim_clean_rtx_queue(sk);
 		} else if (dh->type == NOTIFICATION_LONG || dh->type == NOTIFICATION_SHORT) {
 			/* send syn ack back */
 			dcpim_xmit_control(construct_syn_ack_pkt(sk), sk); 
