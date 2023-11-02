@@ -47,14 +47,31 @@ struct dcpimhdr {
 	__be32 seq;
 	
 	__be32 ack_seq;
-	/**
-	 * @doff: High order 4 bits holds the number of 4-byte chunks in a
-	 * data_header (low-order bits unused). Used only for DATA packets;
-	 * must be in the same position as the data offset in a TCP header.
-	 */
-	__u8 doff;
-	/* flags field in TCP; not touched by dcPIM */
-	__u8 flag;
+#if defined(__LITTLE_ENDIAN_BITFIELD)
+	__u16	res1:4,
+		doff:4,
+		fin:1,
+		syn:1,
+		rst:1,
+		psh:1,
+		ack:1,
+		urg:1,
+		ece:1,
+		cwr:1;
+#elif defined(__BIG_ENDIAN_BITFIELD)
+	__u16	doff:4,
+		res1:4,
+		cwr:1,
+		ece:1,
+		urg:1,
+		ack:1,
+		psh:1,
+		rst:1,
+		syn:1,
+		fin:1;
+#else
+#error	"Adjust your <asm/byteorder.h> defines"
+#endif
 	/** @type: One of the values of &enum packet_type. */
 	__u8 type;
 	__u8 unused4;
