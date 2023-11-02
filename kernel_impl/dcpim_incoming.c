@@ -470,7 +470,7 @@ static void dcpim_v4_fill_cb(struct sk_buff *skb, const struct iphdr *iph,
         DCPIM_SKB_CB(skb)->seq = ntohl(dh->seg.offset);
         // printk("skb len:%d\n", skb->len);
         // printk("segment length:%d\n", ntohl(dh->seg.segment_length));
-        DCPIM_SKB_CB(skb)->end_seq = (DCPIM_SKB_CB(skb)->seq + skb->len - (dh->common.doff / 4 + sizeof(struct data_segment)));
+        DCPIM_SKB_CB(skb)->end_seq = (DCPIM_SKB_CB(skb)->seq + skb->len - (dh->common.doff * 4 + sizeof(struct data_segment)));
         // TCP_SKB_CB(skb)->ack_seq = ntohl(th->ack_seq);
         // TCP_SKB_CB(skb)->tcp_flags = tcp_flag_byte(th);
         // TCP_SKB_CB(skb)->tcp_tw_isn = 0;
@@ -491,7 +491,7 @@ static void dcpim_v4_fill_long_cb(struct sk_buff *skb, const struct iphdr *iph,
         DCPIM_SKB_CB(skb)->seq = ntohl(dh->seq);
         // printk("skb len:%d\n", skb->len);
         // printk("segment length:%d\n", ntohl(dh->seg.segment_length));
-        DCPIM_SKB_CB(skb)->end_seq = DCPIM_SKB_CB(skb)->seq + skb->len - (dh->common.doff / 4 );
+        DCPIM_SKB_CB(skb)->end_seq = DCPIM_SKB_CB(skb)->seq + skb->len - (dh->doff * 4);
         // TCP_SKB_CB(skb)->ack_seq = ntohl(th->ack_seq);
         // TCP_SKB_CB(skb)->tcp_flags = tcp_flag_byte(th);
         // TCP_SKB_CB(skb)->tcp_tw_isn = 0;
@@ -840,10 +840,10 @@ int dcpim_handle_token_pkt(struct sk_buff *skb) {
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
 	uint32_t old_snd_una = 0;
-	if (!pskb_may_pull(skb, sizeof(struct dcpim_token_hdr))) {
-		kfree_skb(skb);
-		return 0;
-	}
+	// if (!pskb_may_pull(skb, sizeof(struct dcpimhdr))) {
+	// 	kfree_skb(skb);
+	// 	return 0;
+	// }
 	dh = dcpim_hdr(skb);
 	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(dh), dh->source,
             dh->dest, sdif, &refcounted);
@@ -858,7 +858,6 @@ int dcpim_handle_token_pkt(struct sk_buff *skb) {
 		/* add token */
  		// dsk->grant_nxt = th->grant_nxt > dsk->grant_nxt ? th->grant_nxt : dsk->grant_nxt;
  	// 	/* add sack info */
-
 		// /* start doing transmission (this part may move to different places later)*/
 	    if(!sock_owned_by_user(sk)) {
 			if(sk->sk_state == DCPIM_ESTABLISHED) {
@@ -919,10 +918,10 @@ int dcpim_handle_ack_pkt(struct sk_buff *skb) {
 	int sdif = inet_sdif(skb);
 	bool refcounted = false;
 	uint32_t old_snd_una = 0;
-	if (!pskb_may_pull(skb, sizeof(struct dcpim_ack_hdr))) {
-		kfree_skb(skb);		/* No space for header. */
-		return 0;
-	}
+	// if (!pskb_may_pull(skb, sizeof(struct dcpimhdr))) {
+	// 	kfree_skb(skb);		/* No space for header. */
+	// 	return 0;
+	// }
 	ah = dcpim_hdr(skb);
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
@@ -1168,7 +1167,7 @@ int dcpim_data_queue(struct sock *sk, struct sk_buff *skb)
 	atomic_add(skb->truesize, &sk->sk_rmem_alloc);
 
 	// skb_dst_drop(skb);
-	__skb_pull(skb, (dcpim_hdr(skb)->doff >> 2));
+	__skb_pull(skb, (dcpim_hdr(skb)->doff << 2));
 	// printk("handle packet data queue?:%d\n", DCPIM_SKB_CB(skb)->seq);
 
 	/*  Queue data for delivery to the user.
@@ -1302,7 +1301,7 @@ int dcpim_handle_data_pkt(struct sk_buff *skb) {
 	// 	goto drop;
 	if (!pskb_may_pull(skb, sizeof(struct dcpimhdr)))
 		goto drop;		/* No space for header. */
-	dh =  dcpimhdr(skb);
+	dh =  dcpim_hdr(skb);
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
 	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(dh), dh->source,

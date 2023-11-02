@@ -228,7 +228,7 @@ void dcpim_message_destroy(struct dcpim_message *msg) {
 bool dcpim_message_receive_data(struct dcpim_message *msg, struct sk_buff *skb) {
 	struct sk_buff *iter, *tmp;
 	bool is_insert = false, is_complete = false;
-	__skb_pull(skb, (dcpim_hdr(skb)->doff >> 2)+ sizeof(struct data_segment));
+	__skb_pull(skb, (dcpim_hdr(skb)->doff << 2)+ sizeof(struct data_segment));
 	if(msg->remaining_len == 0 || DCPIM_SKB_CB(skb)->seq == DCPIM_SKB_CB(skb)->end_seq){
 		WARN_ON_ONCE(true);
 		kfree_skb(skb);

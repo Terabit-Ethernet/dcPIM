@@ -147,12 +147,12 @@ struct sk_buff *dcpim_gso_segment(struct sk_buff *skb,
 	__be32 delta;
 	unsigned int oldlen;
 	unsigned int mss;
-	unsigned int datalen;
+	// unsigned int datalen;
 	// struct sk_buff *gso_skb = skb;
 	// __sum16 newcheck;
 	// bool ooo_okay, copy_destructor;
 	dh = dcpim_hdr(skb);
-	dhlen = dh->doff / 4;
+	dhlen = dh->doff * 4;
 	if (dh->type != DATA) {
 		goto out;
 	}
@@ -165,7 +165,7 @@ struct sk_buff *dcpim_gso_segment(struct sk_buff *skb,
 		goto out;
 
 	oldlen = (u16)~skb->len;
-	datalen = ntohs(dh->len);
+	// datalen = ntohs(dh->len);
 	__skb_pull(skb, dhlen);
 	mss = skb_shinfo(skb)->gso_size;
 	if (unlikely(skb->len <= mss))
@@ -219,9 +219,9 @@ struct sk_buff *dcpim_gso_segment(struct sk_buff *skb,
 		// else
 		// 	th->check = gso_make_checksum(skb, ~th->check);
 
-		// seq += mss;
-		dh->len = htons(mss);
-		datalen -= mss;
+		seq += mss;
+		// dh->len = htons(mss);
+		// datalen -= mss;
 		// if (copy_destructor) {
 		// 	skb->destructor = gso_skb->destructor;
 		// 	// skb->sk = gso_skb->sk;
@@ -230,7 +230,7 @@ struct sk_buff *dcpim_gso_segment(struct sk_buff *skb,
 		skb = skb->next;
 		dh = dcpim_hdr(skb);
 
-		// dh->seq = htonl(seq);
+		dh->seq = htonl(seq);
 		// th->cwr = 0;
 
 	}
@@ -265,7 +265,7 @@ struct sk_buff *dcpim_gso_segment(struct sk_buff *skb,
 	// 	gso_reset_checksum(skb, ~th->check);
 	// else
 	// 	th->check = gso_make_checksum(skb, ~th->check);
-	dh->len = htons(datalen);
+	// dh->len = htons(datalen);
 
 out:
 	return segs;
@@ -303,10 +303,9 @@ struct sk_buff *dcpim_gro_receive(struct list_head *head, struct sk_buff *skb)
 {
 	struct sk_buff *pp = NULL;
 	struct sk_buff *p;
-	struct dcpimhdr *dh;
 	// struct dcpimhdr *dh2;
-	struct dcpim_data_hdr *data_h;
-	struct dcpim_data_hdr *data_h2;
+	struct dcpimhdr *data_h;
+	struct dcpimhdr *data_h2;
 	unsigned int len;
 	unsigned int dhlen;
 	// __be32 flags;
@@ -316,22 +315,21 @@ struct sk_buff *dcpim_gro_receive(struct list_head *head, struct sk_buff *skb)
 	int flush = 1;
 	// int i;
 	off = skb_gro_offset(skb);
-	hlen = off + sizeof(*dh);
-	dh = skb_gro_header_fast(skb, off);
+	hlen = off + sizeof(*data_h);
+	data_h = skb_gro_header_fast(skb, off);
 	if (skb_gro_header_hard(skb, hlen)) {
-		dh = skb_gro_header_slow(skb, hlen, off);
-		if (unlikely(!dh))
+		data_h = skb_gro_header_slow(skb, hlen, off);
+		if (unlikely(!data_h))
 			goto out;
 	}
-	if (dh->type != DATA) {
+	if (data_h->type != DATA) {
 		goto out;
 	}
-	dhlen = dh->doff / 4 + sizeof(struct data_segment);
+	dhlen = data_h->doff * 4;
 	if (dhlen < sizeof(*data_h))
 		goto out;
 
 	hlen = off + dhlen;
-	data_h = (struct dcpim_data_hdr*)dh;
 	if (skb_gro_header_hard(skb, hlen)) {
 		data_h = skb_gro_header_slow(skb, hlen, off);
 		if (unlikely(!data_h))
@@ -345,9 +343,9 @@ struct sk_buff *dcpim_gro_receive(struct list_head *head, struct sk_buff *skb)
 		if (!NAPI_GRO_CB(p)->same_flow)
 			continue;
 
-		data_h2 = dcpim_data_hdr(p);
+		data_h2 = dcpim_hdr(p);
 
-		if (*(u32 *)&data_h->common.source ^ *(u32 *)&data_h2->common.source) {
+		if (*(u32 *)&data_h->source ^ *(u32 *)&data_h2->source) {
 			NAPI_GRO_CB(p)->same_flow = 0;
 			continue;
 		}
@@ -383,7 +381,7 @@ found:
 	mss = skb_shinfo(p)->gso_size;
 
 	flush |= (len - 1) >= mss;
-	flush |= (ntohl(data_h2->seg.offset) + skb_gro_len(p)) ^ ntohl(data_h->seg.offset);
+	flush |= (ntohl(data_h2->seq) + skb_gro_len(p)) ^ ntohl(data_h->seq);
 #ifdef CONFIG_TLS_DEVICE
 	flush |= p->decrypted ^ skb->decrypted;
 #endif

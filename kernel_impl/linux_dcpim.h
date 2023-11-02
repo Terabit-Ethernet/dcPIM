@@ -433,8 +433,18 @@ static inline struct dcpim_fin_ack_hdr *dcpim_fin_ack_hdr(const struct sk_buff *
  */
 static inline void dcpim_set_doff(struct dcpim_data_hdr *h)
 {
-        h->common.doff = (sizeof(struct dcpim_data_hdr) - sizeof(struct data_segment)) << 2;
+        h->common.doff = (sizeof(struct dcpim_data_hdr) - sizeof(struct data_segment)) >> 2;
 }
+
+/**
+ * dcpim_set_long_doff() - Fills in the doff TCP header field for a dcPIM packet.
+ * @h:   Packet header whose doff field is to be set.
+ */
+static inline void dcpim_set_long_doff(struct dcpimhdr *h)
+{
+        h->doff = (sizeof(struct dcpimhdr)) >> 2;
+}
+
 
 static inline unsigned int __dcpim_hdrlen(const struct dcpimhdr *dh)
 {

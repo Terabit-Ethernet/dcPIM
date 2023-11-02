@@ -76,8 +76,8 @@ void dcpim_fill_dcpim_header(struct sk_buff *skb, __be16 sport, __be16 dport) {
 	dh = dcpim_hdr(skb);
 	dh->source = sport;
 	dh->dest = dport;
-	dh->check = 0;
-	dh->doff = (sizeof(struct dcpimhdr)) << 2;
+	// dh->check = 0;
+	dh->doff = (sizeof(struct dcpimhdr)) >> 2;
 }
 
 void dcpim_swap_dcpim_header(struct sk_buff *skb) {
@@ -666,7 +666,6 @@ int dcpim_fill_packets(struct sock *sk,
 		dcpim_set_skb_gso_segs(skb, max_pkt_data);
 		dcpim_add_write_queue_tail(sk, skb);
 		sk_wmem_queued_add(sk, skb->truesize);
-
 		// sk_mem_charge(sk, skb->truesize);
 	}
 		// end = ktime_get();
@@ -935,6 +934,7 @@ struct sk_buff* construct_ack_pkt(struct sock* sk, __be32 rcv_nxt) {
 	dh = (struct dcpimhdr*) skb_put(skb, sizeof(struct dcpimhdr));
 	// dh->len = htons(sizeof(struct dcpim_ack_hdr));
 	dh->type = ACK;
+	dh->ack = 1;
 	dh->ack_seq = htonl(rcv_nxt);
 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
 	// if (extra_bytes > 0)
@@ -1203,7 +1203,7 @@ int dcpim_xmit_control(struct sk_buff* skb, struct sock* sk)
 	dh->source = inet->inet_sport;
 	dh->dest = inet->inet_dport;
 	// dh->check = 0;
-	dh->doff = (sizeof(struct dcpimhdr)) << 2;
+	dh->doff = (sizeof(struct dcpimhdr)) >> 2;
 	// inet->tos = IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL;
 	skb->sk = sk;
 	// dst_confirm_neigh(peer->dst, &fl4->daddr);
@@ -1394,6 +1394,7 @@ void __dcpim_xmit_long_data(struct sk_buff *skb, struct dcpim_sock* dsk)
 	skb->csum_offset = offsetof(struct dcpimhdr, check);
 	h->source = inet->inet_sport;
 	h->dest = inet->inet_dport;
+	h->seq = htonl(DCPIM_SKB_CB(skb)->seq);
 	// h->common.len = htons(DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq);
 	// h->common.seq = htonl(DCPIM_SKB_CB(skb)->seq);
 	h->type = DATA;
