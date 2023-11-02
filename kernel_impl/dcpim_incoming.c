@@ -739,7 +739,6 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
             dh->dest, sdif, &refcounted);
 		// sk = __dcpim4_lib_lookup_skb(skb, fh->common.source, fh->common.dest, &dcpim_table);
 	// }
-	printk("receive flow sync\n");
 	if(sk) {
 		bh_lock_sock(sk);
 		if(!sock_owned_by_user(sk)) {
@@ -962,8 +961,6 @@ int dcpim_handle_syn_ack_pkt(struct sk_buff *skb) {
 			if(sk->sk_state == DCPIM_ESTABLISHED) {
 				dsk->sender.syn_ack_recvd = true;
 				remove_timer = true;
-						printk("receive syn ack\n");
-
 			}
 			kfree_skb(skb);
         } else {
