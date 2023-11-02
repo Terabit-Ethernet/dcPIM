@@ -472,7 +472,7 @@ static void dcpim_v4_fill_cb(struct sk_buff *skb, const struct iphdr *iph,
         DCPIM_SKB_CB(skb)->seq = ntohl(dh->seg.offset);
         // printk("skb len:%d\n", skb->len);
         // printk("segment length:%d\n", ntohl(dh->seg.segment_length));
-        DCPIM_SKB_CB(skb)->end_seq = (DCPIM_SKB_CB(skb)->seq + skb->len - (dh->common.doff / 4 + sizeof(struct data_segment)));
+        DCPIM_SKB_CB(skb)->end_seq = (DCPIM_SKB_CB(skb)->seq + skb->len - (dh->common.doff * 4 + sizeof(struct data_segment)));
         // TCP_SKB_CB(skb)->ack_seq = ntohl(th->ack_seq);
         // TCP_SKB_CB(skb)->tcp_flags = tcp_flag_byte(th);
         // TCP_SKB_CB(skb)->tcp_tw_isn = 0;
@@ -739,7 +739,6 @@ int dcpim_handle_flow_sync_pkt(struct sk_buff *skb) {
             dh->dest, sdif, &refcounted);
 		// sk = __dcpim4_lib_lookup_skb(skb, fh->common.source, fh->common.dest, &dcpim_table);
 	// }
-	printk("receive flow sync\n");
 	if(sk) {
 		bh_lock_sock(sk);
 		if(!sock_owned_by_user(sk)) {
@@ -962,8 +961,6 @@ int dcpim_handle_syn_ack_pkt(struct sk_buff *skb) {
 			if(sk->sk_state == DCPIM_ESTABLISHED) {
 				dsk->sender.syn_ack_recvd = true;
 				remove_timer = true;
-						printk("receive syn ack\n");
-
 			}
 			kfree_skb(skb);
         } else {
@@ -1139,7 +1136,7 @@ int dcpim_data_queue(struct sock *sk, struct sk_buff *skb)
 	atomic_add(skb->truesize, &sk->sk_rmem_alloc);
 
 	// skb_dst_drop(skb);
-	__skb_pull(skb, (dcpim_hdr(skb)->doff >> 2)+ sizeof(struct data_segment));
+	__skb_pull(skb, (dcpim_hdr(skb)->doff << 2)+ sizeof(struct data_segment));
 	// printk("handle packet data queue?:%d\n", DCPIM_SKB_CB(skb)->seq);
 
 	/*  Queue data for delivery to the user.

@@ -77,7 +77,7 @@ void dcpim_fill_dcpim_header(struct sk_buff *skb, __be16 sport, __be16 dport) {
 	dh->source = sport;
 	dh->dest = dport;
 	dh->check = 0;
-	dh->doff = (sizeof(struct dcpimhdr)) << 2;
+	dh->doff = (sizeof(struct dcpimhdr)) >> 2;
 }
 
 void dcpim_swap_dcpim_header(struct sk_buff *skb) {
@@ -1206,7 +1206,7 @@ int dcpim_xmit_control(struct sk_buff* skb, struct sock* sk)
 	dh->source = inet->inet_sport;
 	dh->dest = inet->inet_dport;
 	dh->check = 0;
-	dh->doff = (sizeof(struct dcpimhdr)) << 2;
+	dh->doff = (sizeof(struct dcpimhdr)) >> 2;
 	// inet->tos = IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL;
 	skb->sk = sk;
 	// dst_confirm_neigh(peer->dst, &fl4->daddr);
@@ -1257,7 +1257,7 @@ int __dcpim_xmit_rts_control(struct sk_buff* skb, struct sock* sk)
 	dh->source = inet->inet_sport;
 	dh->dest = inet->inet_dport;
 	dh->check = 0;
-	dh->doff = (sizeof(struct dcpimhdr)) << 2;
+	dh->doff = (sizeof(struct dcpimhdr)) >> 2;
 	// inet->tos = IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL;
 	skb->sk = sk;
 	// dst_confirm_neigh(peer->dst, &fl4->daddr);

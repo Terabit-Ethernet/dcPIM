@@ -338,7 +338,7 @@ void dcpim_params_init(struct dcpim_params* params) {
     params->num_rounds = 4;
     params->round_length = params->beta * params->control_pkt_rtt * 1000 / 10; // in ns
     params->epoch_length = params->num_rounds * params->round_length * params->alpha;
-    params->rmem_default = 6384520;
+    params->rmem_default = 4384520;
     params->wmem_default = 4384520;
     params->short_flow_size = params->bdp;
     params->control_pkt_bdp = params->control_pkt_rtt * params->bandwidth * 1000 / 8;

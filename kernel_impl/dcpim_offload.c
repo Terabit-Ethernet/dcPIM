@@ -152,7 +152,7 @@ struct sk_buff *dcpim_gso_segment(struct sk_buff *skb,
 	// __sum16 newcheck;
 	// bool ooo_okay, copy_destructor;
 	dh = dcpim_hdr(skb);
-	dhlen = dh->doff / 4;
+	dhlen = dh->doff * 4;
 	if (dh->type != DATA) {
 		goto out;
 	}
@@ -326,7 +326,7 @@ struct sk_buff *dcpim_gro_receive(struct list_head *head, struct sk_buff *skb)
 	if (dh->type != DATA) {
 		goto out;
 	}
-	dhlen = dh->doff / 4 + sizeof(struct data_segment);
+	dhlen = dh->doff * 4 + sizeof(struct data_segment);
 	if (dhlen < sizeof(*data_h))
 		goto out;
 
