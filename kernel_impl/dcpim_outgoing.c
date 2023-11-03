@@ -881,6 +881,7 @@ struct sk_buff* construct_rtx_token_pkt(struct sock* sk, __u32 prev_token_nxt) {
 	// fh->priority = priority;
 	dh->ack_seq = htonl(dsk->receiver.rcv_nxt);
 	dh->token_nxt = htonl(prev_token_nxt);
+
 	// fh->num_sacks = 0;
 	// printk("TOKEN: new grant next:%u\n", fh->grant_nxt);
 	// printk("prev_grant_nxt:%u\n", prev_grant_nxt);
@@ -981,13 +982,12 @@ struct sk_buff* construct_fin_msg_pkt(struct sock* sk, uint64_t msg_id) {
 struct sk_buff* construct_fin_ack_pkt(struct sock* sk) {
 	// int extra_bytes = 0;
 	struct sk_buff* skb = __construct_control_skb(sk, 0);
-	struct dcpim_fin_ack_hdr* fh;
 	struct dcpimhdr* dh; 
 	if(unlikely(!skb)) {
 		return NULL;
 	}
-	fh = (struct dcpim_fin_ack_hdr *) skb_put(skb, sizeof(struct dcpim_fin_ack_hdr));
-	dh = (struct dcpimhdr*) (&fh->common);
+	dh = (struct dcpimhdr*) skb_put(skb, sizeof(struct dcpimhdr));
+	// dh = (struct dcpimhdr*) (&fh->common);
 	// dh->len = htons(sizeof(struct dcpim_fin_ack_hdr));
 	dh->type = FIN_ACK;
 	// fh->message_id = message_id;
@@ -1571,7 +1571,14 @@ uint32_t dcpim_xmit_token(struct dcpim_sock* dsk, uint32_t token_bytes) {
 		return token_bytes;
 	}
 	dsk->receiver.prev_token_nxt = dsk->receiver.token_nxt;
-	dsk->receiver.token_nxt += token_bytes; 
+	/* if all bits are 1, TCP checksum offload will flip all 1bits to 0; we avoid this happening by giving token_bytes larger value*/
+	if(dsk->receiver.token_nxt + token_bytes >= UINT_MAX - USHRT_MAX) {
+		dsk->receiver.token_nxt = 0;
+
+		token_bytes = dsk->receiver.token_nxt - dsk->receiver.prev_token_nxt;
+	} else {
+		dsk->receiver.token_nxt += token_bytes; 
+	}
 	dsk->receiver.last_ack = dsk->receiver.rcv_nxt;
 	dsk->receiver.inflight_bytes += token_bytes;
 	dcpim_xmit_control(construct_token_pkt((struct sock*)dsk, 3, dsk->receiver.token_nxt),
@@ -1590,8 +1597,9 @@ int dcpim_token_timer_defer_handler(struct sock *sk) {
 		return 0;
 	if(matched_bw == 0)
 		return 0;
-	if(token_bytes == 0)
+	if(token_bytes == 0) {
 		return 0;
+	}
 	/* allow window to be one token_batch larger */
 	if(token_bytes < dsk->receiver.token_batch)
 		token_bytes = dsk->receiver.token_batch;
