@@ -495,7 +495,8 @@ void dcpim_epoch_init(struct dcpim_epoch *epoch) {
 	hrtimer_init(&epoch->receiver_round_timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
 	epoch->sender_round_timer.function = &dcpim_sender_round_timer_handler;
 	epoch->receiver_round_timer.function = &dcpim_receiver_round_timer_handler;
-	queue_work_on(epoch->cpu, epoch->wq, &epoch->epoch_work);
+	/* To Do: this part will be enabled later when we enable the matching for zerocopy */
+	// queue_work_on(epoch->cpu, epoch->wq, &epoch->epoch_work);
 	// epoch->epoch_timer.function = &dcpim_new_epoch;
 }
 

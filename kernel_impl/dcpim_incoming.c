@@ -990,8 +990,11 @@ int dcpim_handle_syn_ack_pkt(struct sk_buff *skb) {
 			if(sk->sk_state == DCPIM_ESTABLISHED) {
 				dsk->sender.syn_ack_recvd = true;
 				remove_timer = true;
-						printk("receive syn ack\n");
-
+				/* To Do: this part will be removed later when we enable the matching for zerocopy */
+				if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer) && sk->sk_priority != 7) {
+					hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
+					// sock_hold(child);
+				}
 			}
 			kfree_skb(skb);
         } else {
@@ -1321,7 +1324,6 @@ int dcpim_handle_data_pkt(struct sk_buff *skb) {
 		// }
  		/* inflight_bytes for now is best-effort estimation */
         // ret = 0;
-		// printk("data seq: %u rcv_nxt:%u \n", DCPIM_SKB_CB(skb)->seq, dsk->receiver.rcv_nxt);
         if (!sock_owned_by_user(sk)) {
 			/* current place to set rxhash for RFS/RPS */
 			// printk("interrupt core:%d skb->hash:%u\n", raw_smp_processor_id(), skb->hash);
@@ -1774,6 +1776,11 @@ int dcpim_v4_do_rcv(struct sock *sk, struct sk_buff *skb) {
 		} else if (dh->type == SYN_ACK) {
 			dsk->sender.syn_ack_recvd = true;
 			hrtimer_cancel(&dsk->sender.rtx_flow_sync_timer);
+			/* To Do: this part will be removed later when we enable the matching for zerocopy */
+			if(!hrtimer_is_queued(&dsk->receiver.token_pace_timer) && sk->sk_priority != 7) {
+				hrtimer_start(&dsk->receiver.token_pace_timer, 0, HRTIMER_MODE_REL_PINNED_SOFT);	
+				// sock_hold(child);
+			}
 		} else 	if(dh->type == FIN_ACK) {
 			/* it is impossible to reach here */
 			WARN_ON_ONCE(true);
