@@ -774,7 +774,7 @@ int dcpim_init_sock(struct sock *sk)
 	// INIT_LIST_HEAD(&dsk->reciever.);
 
 	/* token batch 64KB */
-	WRITE_ONCE(dsk->receiver.token_batch, 62552 * 2);
+	WRITE_ONCE(dsk->receiver.token_batch, 62720 * 2);
 	atomic_set(&dsk->receiver.backlog_len, 0);
 	atomic_set(&dsk->receiver.rtx_status, 0);
 	atomic_set(&dsk->receiver.token_work_status, 0);
