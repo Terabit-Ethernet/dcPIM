@@ -207,13 +207,17 @@ static void dcpim_set_skb_gso_segs(struct sk_buff *skb, unsigned int mss_now)
 	// 	tcp_skb_pcount_set(skb, DIV_ROUND_UP(skb->len, mss_now));
 	// 	TCP_SKB_CB(skb)->tcp_gso_size = mss_now;
 	// }
-	if(skb->len >= mss_now) {
+	if(skb->len > mss_now) {
 		skb_shinfo(skb)->gso_size = mss_now;
 		skb_shinfo(skb)->gso_type = SKB_GSO_TCPV4;
 		// WARN_ON(skb->len != DCPIM_SKB_CB(skb)->end_seq - DCPIM_SKB_CB(skb)->seq);
 		skb_shinfo(skb)->gso_segs = DIV_ROUND_UP(skb->len, mss_now);
 
-	}
+	} else {
+                skb_shinfo(skb)->gso_segs = 1;
+                skb_shinfo(skb)->gso_size = 0;
+                skb_shinfo(skb)->gso_type = SKB_GSO_TCPV4;
+        }
 }
 
 struct sk_buff *dcpim_stream_alloc_skb(struct sock *sk, int size, gfp_t gfp,
