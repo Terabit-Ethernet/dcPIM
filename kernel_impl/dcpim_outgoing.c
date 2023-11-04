@@ -216,6 +216,7 @@ static void dcpim_set_skb_gso_segs(struct sk_buff *skb, unsigned int mss_now)
 	} else {
 		skb_shinfo(skb)->gso_segs = 1;
 		skb_shinfo(skb)->gso_size = 0;
+		skb_shinfo(skb)->gso_type = SKB_GSO_TCPV4;
 	}
 }
 
