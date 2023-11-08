@@ -1332,11 +1332,9 @@ void dcpim_xmit_data_message(struct sk_buff* skb, struct dcpim_sock* dsk, uint64
 void dcpim_xmit_data_whole_message(struct dcpim_message* msg, struct dcpim_sock* dsk)
 {
 	struct sk_buff* skb;
-	bool flow_sync = true;
+	bool flow_sync = false;
 	skb_queue_walk(&msg->pkt_queue, skb) {
 		dcpim_xmit_data_message(skb, dsk, msg->id, msg->total_len, flow_sync);
-		if(flow_sync)
-			flow_sync = false;
 	}
 }
 
@@ -1801,7 +1799,7 @@ void dcpim_rtx_msg_handler(struct work_struct *work) {
 		} else if (msg->state == DCPIM_FINISH_TX)
 			remove_message = true;
 		if(rtx) {
-			// dcpim_xmit_control(construct_flow_sync_msg_pkt(sk, msg->id, msg->total_len, 0), sk); 
+			dcpim_xmit_control(construct_flow_sync_msg_pkt(sk, msg->id, msg->total_len, 0), sk); 
 			dcpim_xmit_data_whole_message(msg, dsk);
 			/* at least transmit one short mtessage */
 			tx_bytes -= msg->total_len;

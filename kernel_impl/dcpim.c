@@ -538,7 +538,7 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	 */
 	hrtimer_start(&dcpim_msg->rtx_timer, ns_to_ktime(dcpim_msg->timeout) , 
 		HRTIMER_MODE_REL_PINNED_SOFT);
-	// dcpim_xmit_control(construct_flow_sync_msg_pkt(sk, dcpim_msg->id, dcpim_msg->total_len, 0), sk); 
+	dcpim_xmit_control(construct_flow_sync_msg_pkt(sk, dcpim_msg->id, dcpim_msg->total_len, 0), sk); 
 	dcpim_xmit_data_whole_message(dcpim_msg, dsk);
 	/* Intiiate hrtimer for retransmission */
 	// dcpim_message_hold(dcpim_msg);
@@ -740,7 +740,7 @@ int dcpim_init_sock(struct sock *sk)
 
 	WRITE_ONCE(dsk->sender.inflight_msgs, 0);
 	INIT_LIST_HEAD(&dsk->sender.fin_msg_backlog);
-	WRITE_ONCE(dsk->sender.msg_threshold, 62500);
+	WRITE_ONCE(dsk->sender.msg_threshold, 200);
 	INIT_LIST_HEAD(&dsk->match_link);
 	INIT_LIST_HEAD(&dsk->entry);
 	dsk->host = NULL;
@@ -1590,7 +1590,6 @@ int dcpim_rcv(struct sk_buff *skb)
 	if (!pskb_may_pull(skb, sizeof(struct dcpimhdr)))
 		goto drop;		/* No space for header. */
 	dh = dcpim_hdr(skb);
-	// printk("dh == NULL?: %d\n", dh == NULL);
 	// printk("end ref \n");
 	if(dh->type == DATA) {
 		return dcpim_handle_data_pkt(skb);

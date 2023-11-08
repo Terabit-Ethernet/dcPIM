@@ -1409,6 +1409,7 @@ int dcpim_handle_flow_sync_msg_pkt(struct sk_buff *skb) {
 		WARN_ON(true);
 		goto drop;
 	}
+
 	msg->state = DCPIM_WAIT_FIN_RX;
 	bh_lock_sock(sk);
 	if(sk->sk_state == DCPIM_ESTABLISHED) {
@@ -1419,30 +1420,21 @@ int dcpim_handle_flow_sync_msg_pkt(struct sk_buff *skb) {
 		}
 	}
 	bh_unlock_sock(sk);
+
 	if(!success) {
 		kfree(msg);
 		goto drop;
 	}
 	insert = dcpim_insert_message(dcpim_rx_messages, msg);
-
 	if(!insert) {
 		dcpim_message_put(msg);
-	} else {
-		/* form the fin skb */
-		dcpim_flip_header(skb, FIN_MSG);
-		free_skb = false;
-		spin_lock(&msg->lock);
-		msg->fin_skb = skb;
-		spin_unlock(&msg->lock);	
-	}
-
+	} 
 drop:
     if (refcounted) {
         sock_put(sk);
     }
 	if(free_skb)
 		kfree_skb(skb);
-
 	return 0;
 	// sk = skb_steal_sock(skb);
 	// if(!sk) {
@@ -1457,7 +1449,7 @@ drop:
  */
 int dcpim_handle_data_msg_pkt(struct sk_buff *skb) {
 	struct dcpim_sock *dsk;
-	struct dcpim_message *msg;
+	struct dcpim_message *msg = NULL;
 	struct dcpim_data_hdr *dh;
 	struct sock *sk;
 	struct iphdr *iph;
@@ -1471,6 +1463,8 @@ int dcpim_handle_data_msg_pkt(struct sk_buff *skb) {
 	dh =  dcpim_data_hdr(skb);
 	iph = ip_hdr(skb);
 	dcpim_v4_fill_cb(skb, iph, dh);
+	sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&dh->common), dh->common.source,
+		dh->common.dest, sdif, &refcounted);
 	if(dh->flow_sync) {
 		sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&dh->common), dh->common.source,
 			dh->common.dest, sdif, &refcounted);
@@ -1545,10 +1539,6 @@ find_msg:
 		// if(dcpim_xmit_control(fin_skb, sk)) {
 		// 	WARN_ON_ONCE(true);
 		// }
-		if(!sk) {
-			sk = __inet_lookup_skb(&dcpim_hashinfo, skb, __dcpim_hdrlen(&dh->common), dh->common.source,
-				dh->common.dest, sdif, &refcounted);
-		}
 		// msg->fin_skb = NULL;
 		/* add to socket */
 		if(sk) {
