@@ -1767,11 +1767,11 @@ void dcpim_rtx_msg_handler(struct work_struct *work) {
 	struct dcpim_message *msg;
 	int num_rtx_msgs = 0;
 	bool rtx = false, remove_message = false, established;
-	int tx_bytes, total_tx_bytes = atomic_read(&dsk->sender.rtx_msg_bytes);
+	int tx_size, total_tx_size = atomic_read(&dsk->sender.rtx_msg_size);
 	ktime_t cur_time = ktime_get();
-	if(total_tx_bytes == 0)
+	if(total_tx_size == 0)
 		return;
-	tx_bytes = total_tx_bytes;
+	tx_size = total_tx_size;
 	lock_sock(sk);
 	/* for now, only add to list if dsk is in established state. */
 	established = ((struct sock*)dsk)->sk_state == DCPIM_ESTABLISHED;
@@ -1802,22 +1802,23 @@ void dcpim_rtx_msg_handler(struct work_struct *work) {
 			dcpim_xmit_control(construct_flow_sync_msg_pkt(sk, msg->id, msg->total_len, 0), sk); 
 			dcpim_xmit_data_whole_message(msg, dsk);
 			/* at least transmit one short mtessage */
-			tx_bytes -= msg->total_len;
+			tx_size -= 1;
 		}
 		spin_unlock_bh(&msg->lock);
 		if(remove_message){
 			// dcpim_remove_message(dcpim_tx_messages, msg);
-			atomic_sub(msg->total_len, &msg->dsk->host->total_unsent_bytes);
-			atomic_sub(msg->total_len, &msg->dsk->host->rtx_msg_bytes);
+			/* Give one channel to retransmitted messages at a time until it is finished */
+			atomic_sub(dcpim_epoch.epoch_bytes_per_k, &msg->dsk->host->total_unsent_bytes);
+			atomic_sub(1, &msg->dsk->host->rtx_msg_size);
 			dcpim_message_put(msg);
 		}
 		num_rtx_msgs -= 1;
-		if(num_rtx_msgs == 0 || tx_bytes <= 0)
+		if(num_rtx_msgs == 0 || tx_size <= 0)
 			break;
 	}
 release_sock:
-	/* reduce the total_tx_bytes regardless */
-	atomic_sub(total_tx_bytes, &dsk->sender.rtx_msg_bytes);
+	/* reduce the tx_size regardless */
+	atomic_sub(1, &dsk->sender.rtx_msg_size);
 	release_sock(sk);
 
 	return;
@@ -1860,9 +1861,9 @@ enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer) {
 				list_add(&msg->table_link, &dsk->sender.rtx_msg_list);
 				dcpim_message_hold(msg);
 				dsk->sender.num_rtx_msgs += 1;
-				/* add to total unsent bytes */
-				atomic_add(msg->total_len, &msg->dsk->host->total_unsent_bytes);
-				atomic_add(msg->total_len, &msg->dsk->host->rtx_msg_bytes);
+				/* Give one message one channel for doing rtx at one epoch */
+				atomic_add(dcpim_epoch.epoch_bytes_per_k, &msg->dsk->host->total_unsent_bytes);
+				atomic_add(1, &msg->dsk->host->rtx_msg_size);
 				/* wake up socket and participate matcihing for retransmssion */
 				// queue_work_on(raw_smp_processor_id(), dcpim_wq, &dsk->rtx_msg_work);
 			} else
@@ -1942,8 +1943,8 @@ void dcpim_msg_rtx_bg_handler(struct dcpim_sock *dsk) {
 			list_add(&msg->table_link, &dsk->sender.rtx_msg_list);
 			dsk->sender.num_rtx_msgs += 1;
 			/* add to total unsent bytes */
-			atomic_add(msg->total_len, &msg->dsk->host->total_unsent_bytes);
-			atomic_add(msg->total_len, &msg->dsk->host->rtx_msg_bytes);
+			atomic_add(dcpim_epoch.epoch_bytes_per_k, &msg->dsk->host->total_unsent_bytes);
+			atomic_add(1, &msg->dsk->host->rtx_msg_size);
 		}
 		else {
 			/* remove message since the socket is closed */

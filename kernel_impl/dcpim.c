@@ -497,6 +497,8 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	if (sk->sk_state != DCPIM_ESTABLISHED) {
 		return -ENOTCONN;
 	}
+	if(len > dcpim_params.bdp)
+		return -ENOBUFS;
 	if(dcpim_message_memory_free(sk) <= 0) {
 		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
 		err = dcpim_stream_wait_memory(sk, &timeo);
@@ -729,7 +731,7 @@ int dcpim_init_sock(struct sock *sk)
 	
 	WRITE_ONCE(dsk->sender.syn_ack_recvd, false);
 	WRITE_ONCE(dsk->sender.sync_sent_times, 0);
-	atomic_set(&dsk->sender.rtx_msg_bytes, 0);
+	atomic_set(&dsk->sender.rtx_msg_size, 0);
 
 	hrtimer_init(&dsk->sender.rtx_flow_sync_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
 	dsk->sender.rtx_flow_sync_timer.function = & dcpim_rtx_sync_timer_handler;
@@ -1644,8 +1646,8 @@ void dcpim_flush_msgs_handler(struct dcpim_sock *dsk) {
 	list_for_each_safe(list, temp, &dsk->sender.rtx_msg_list) {
 		msg = list_entry(list, struct dcpim_message, table_link);
 		list_del(&msg->table_link);
-		atomic_sub(msg->total_len, &msg->dsk->host->total_unsent_bytes);
-		atomic_sub(msg->total_len, &msg->dsk->host->rtx_msg_bytes);
+		atomic_sub(dcpim_epoch.epoch_bytes_per_k, &msg->dsk->host->total_unsent_bytes);
+		atomic_sub(1, &msg->dsk->host->rtx_msg_size);
 		/* don't check the state since number of locks needed to get are the same here */
 		spin_lock_bh(&msg->lock);
 		dcpim_message_flush_skb(msg);
