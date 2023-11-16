@@ -985,6 +985,25 @@ struct sk_buff* construct_fin_msg_pkt(struct sock* sk, uint64_t msg_id) {
 	return skb;
 }
 
+struct sk_buff* construct_resync_msg_pkt(struct sock* sk, uint64_t msg_id) {
+	// int extra_bytes = 0;
+	struct sk_buff* skb = __construct_control_skb(sk, 0);
+	struct dcpimhdr* dh; 
+	struct dcpim_resync_msg_hdr *rh;
+	if(unlikely(!skb)) {
+		return NULL;
+	}
+	rh = (struct dcpim_resync_msg_hdr*) skb_put(skb, sizeof(struct dcpim_resync_msg_hdr));
+	dh = (struct dcpimhdr*) (&rh->common);
+	dh->len = htons(sizeof(struct dcpim_resync_msg_hdr));
+	dh->type = RESYNC_MSG;
+	rh->message_id = msg_id;
+	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
+	// if (extra_bytes > 0)
+	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
+	return skb;
+}
+
 struct sk_buff* construct_fin_ack_pkt(struct sock* sk) {
 	// int extra_bytes = 0;
 	struct sk_buff* skb = __construct_control_skb(sk, 0);
@@ -1785,7 +1804,7 @@ void dcpim_rtx_msg_handler(struct work_struct *work) {
 		list_del(&msg->table_link);
 		dsk->sender.num_rtx_msgs -= 1;
 		spin_lock_bh(&msg->lock);
-		if(msg->state == DCPIM_WAIT_FIN_TX) {
+		if(msg->state == DCPIM_WAIT_FOR_MATCHING) {
 			/* burst packets of short flows
 			* No need to hold the lock because we just initialize the message.
 			* Flow sync packet currently doesn't 
@@ -1852,6 +1871,7 @@ enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer) {
 	// 	return HRTIMER_RESTART;
 	// } else
 	 if (msg->state == DCPIM_WAIT_FIN_TX) {
+		msg->state = DCPIM_WAIT_FOR_MATCHING;
 		spin_unlock(&msg->lock);
 		bh_lock_sock(sk);
 		/* for now, only retransmit if the socket is still in established state */
@@ -1880,6 +1900,7 @@ enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer) {
 			spin_lock(&msg->lock);
 			dcpim_message_flush_skb(msg);
 			spin_unlock(&msg->lock);
+			/* inside the timer, avoid calling hrtimer_cancel */
 			dcpim_remove_message(dcpim_tx_messages, msg, false);
 		}
 		// dcpim_message_put(msg);
@@ -1887,6 +1908,16 @@ enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer) {
 	} else if (msg->state == DCPIM_WAIT_FIN_RX || msg->state == DCPIM_INIT)
 		WARN_ON(true);
 	spin_unlock(&msg->lock);
+	// dcpim_message_put(msg);
+	return HRTIMER_NORESTART;
+}
+
+enum hrtimer_restart dcpim_fast_rtx_msg_timer_handler(struct hrtimer *timer) {
+
+	struct dcpim_message *msg = container_of(timer, struct dcpim_message, fast_rtx_timer);
+	// struct sk_buff* fin_skb = NULL;
+	struct sock* sk = (struct sock*)(msg->dsk);
+	dcpim_xmit_control(construct_resync_msg_pkt(sk, msg->id), sk);
 	// dcpim_message_put(msg);
 	return HRTIMER_NORESTART;
 }

@@ -68,6 +68,9 @@ EXPORT_SYMBOL(dcpim_epoch);
 struct inet_hashinfo dcpim_hashinfo;
 EXPORT_SYMBOL(dcpim_hashinfo);
 
+atomic64_t dcpim_num_rx_msgs;
+EXPORT_SYMBOL(dcpim_num_rx_msgs);
+
 struct workqueue_struct *dcpim_wq;
 
 struct dcpim_message_bucket dcpim_tx_messages[DCPIM_BUCKETS];
@@ -538,7 +541,8 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	 * No need to hold the lock because we just initialize the message.
 	 * Flow sync packet currently doesn't 
 	 */
-	hrtimer_start(&dcpim_msg->rtx_timer, ns_to_ktime(dcpim_msg->timeout) , 
+	 /* set a large timeout at sender side */
+	hrtimer_start(&dcpim_msg->rtx_timer, ns_to_ktime(1000000), 
 		HRTIMER_MODE_REL_PINNED_SOFT);
 	dcpim_xmit_control(construct_flow_sync_msg_pkt(sk, dcpim_msg->id, dcpim_msg->total_len, 0), sk); 
 	dcpim_xmit_data_whole_message(dcpim_msg, dsk);
@@ -670,26 +674,27 @@ int dcpim_sendpage(struct sock *sk, struct page *page, int offset,
 
 void dcpim_destruct_sock(struct sock *sk)
 {
-	struct dcpim_message *temp;
-	struct dcpim_msgid_entry *entry = NULL, *etemp;
-	struct dcpim_sock *dsk = dcpim_sk(sk);
+	// struct dcpim_message *temp;
+	// struct dcpim_msgid_entry *entry = NULL, *etemp;
+	// struct dcpim_sock *dsk = dcpim_sk(sk);
 	/* reclaim completely the forward allocated memory */
 	// unsigned int total = 0;
 	// struct sk_buff *skb;
 	// struct udp_hslot* hslot = udp_hashslot(sk->sk_prot->h.udp_table, sock_net(sk),
 	// 				     dcpim_sk(sk)->dcpim_port_hash);
-	local_bh_disable();
-	list_for_each_entry_safe(entry, etemp, &dsk->receiver.reordered_msgid_list, entry) {
-		kfree(entry);
-	}
-	list_for_each_entry(temp, &dsk->receiver.unfinished_list, table_link) {
-		spin_lock(&temp->lock);
-		temp->state = DCPIM_FINISH_RX;
-		spin_unlock(&temp->lock);
-		dcpim_remove_message(dcpim_rx_messages, temp, false);
-		dcpim_message_put(temp);
-	}
-	local_bh_enable();
+	// local_bh_disable();
+	// list_for_each_entry_safe(entry, etemp, &dsk->receiver.reordered_msgid_list, entry) {
+	// 	kfree(entry);
+	// }
+	// list_for_each_entry(temp, &dsk->receiver.unfinished_list, table_link) {
+	// 	spin_lock(&temp->lock);
+	// 	temp->state = DCPIM_FINISH_RX;
+	// 	spin_unlock(&temp->lock);
+	// 	dcpim_remove_message(dcpim_rx_messages, temp, true);
+	// 	/* reduce inflight msg size at rx side */
+	// 	dcpim_message_put(temp);
+	// }
+	// local_bh_enable();
 	/* need to confirm whether we need to reclaim */
 	sk_mem_reclaim(sk);
 	inet_sock_destruct(sk);
@@ -1620,6 +1625,8 @@ int dcpim_rcv(struct sk_buff *skb)
 	/* belows are for short flows */
 	else if (dh->type == NOTIFICATION_MSG) {
 		return dcpim_handle_flow_sync_msg_pkt(skb);
+	} else if (dh->type == RESYNC_MSG) {
+		return dcpim_handle_resync_msg_pkt(skb);
 	} else if (dh->type == DATA_MSG) {
 		return dcpim_handle_data_msg_pkt(skb);
 	} else if (dh->type == FIN_MSG) {
@@ -1778,6 +1785,8 @@ void dcpim_destroy_sock(struct sock *sk)
 	// struct udp_hslot* hslot = udp_hashslot(sk->sk_prot->h.udp_table, sock_net(sk),
 	// 				     dcpim_sk(sk)->dcpim_port_hash);
 	struct dcpim_sock *dsk = dcpim_sk(sk);
+	struct dcpim_message *temp;
+	struct dcpim_msgid_entry *entry = NULL, *etemp;
 	// struct inet_sock *inet = inet_sk(sk);
 	/* To Do: flip the order; now the order was a mess */
 	lock_sock(sk);
@@ -1819,6 +1828,18 @@ void dcpim_destroy_sock(struct sock *sk)
 	bh_lock_sock(sk);
 	/* need to sync with the matching side's ESTABLISHED_STATE checking */
 	dcpim_set_state(sk, DCPIM_CLOSE);
+	list_for_each_entry_safe(entry, etemp, &dsk->receiver.reordered_msgid_list, entry) {
+		kfree(entry);
+	}
+	list_for_each_entry(temp, &dsk->receiver.unfinished_list, table_link) {
+		spin_lock(&temp->lock);
+		temp->state = DCPIM_FINISH_RX;
+		spin_unlock(&temp->lock);
+		atomic64_dec_return(&dcpim_num_rx_msgs);
+		dcpim_remove_message(dcpim_rx_messages, temp, true);
+		/* reduce inflight msg size at rx side */
+		dcpim_message_put(temp);
+	}
 	bh_unlock_sock(sk);
 	local_bh_enable();
 	// hrtimer_cancel(&up->receiver.flow_wait_timer);

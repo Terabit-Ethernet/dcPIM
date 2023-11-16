@@ -36,6 +36,7 @@ enum {
 enum {
 	DCPIM_INIT = 0,
 	DCPIM_WAIT_FIN_TX,
+	DCPIM_WAIT_FOR_MATCHING,
 	DCPIM_WAIT_FIN_RX,
 	DCPIM_WAIT_ACK, /* wait for fin_ack */
 	DCPIM_FINISH_TX,
@@ -163,6 +164,10 @@ struct dcpim_message {
 	 */
 	struct hrtimer rtx_timer;
 
+	/**
+	 * @fast_rtx_timer: Fast retransmission timer. Handling the case when packet drops happen, the receiver sends resync packet to sender.
+	 */
+	struct hrtimer fast_rtx_timer;
 	/* Belows are attributes not protected by the lock */
 	
 	/**
@@ -247,8 +252,8 @@ struct dcpim_host {
 	struct sock* sk;
 	/* sender only */
 	atomic_t total_unsent_bytes;
-	/* sender only: msg bytes for retransmission */
-	atomic_t rtx_msg_bytes;
+	/* sender only: number of messages for retransmission */
+	atomic_t rtx_msg_size;
 	/* receiver only: protected by matched_lock */
 	unsigned long next_pacing_rate;
 	struct hlist_node hlist;
@@ -427,6 +432,11 @@ static inline struct dcpim_fin_ack_hdr *dcpim_fin_ack_hdr(const struct sk_buff *
 	return (struct dcpim_fin_ack_hdr *)skb_transport_header(skb);
 }
 
+static inline struct dcpim_resync_msg_hdr *dcpim_resync_msg_hdr(const struct sk_buff *skb)
+{
+	return (struct dcpim_resync_msg_hdr *)skb_transport_header(skb);
+}
+
 /**
  * dcpim_set_doff() - Fills in the doff TCP header field for a dcPIM packet.
  * @h:   Packet header whose doff field is to be set.
@@ -520,10 +530,13 @@ struct dcpim_sock {
 		struct dcpim_grant* grant;
 		/* Short messages retransmission data structures */
 		struct list_head rtx_msg_list;
-		struct list_head rtx_msg_backlog;
-		atomic_t rtx_msg_bytes;
-		struct work_struct rtx_msg_work;
+		/* the number of rtx msg in the list */
 		int num_rtx_msgs;
+		struct list_head rtx_msg_backlog;
+		/* number of message allowed retransmssion */
+		atomic_t rtx_msg_size;
+		struct work_struct rtx_msg_work;
+
 
 		struct list_head fin_msg_backlog;
 		int inflight_msgs;
