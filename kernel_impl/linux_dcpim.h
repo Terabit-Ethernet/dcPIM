@@ -540,6 +540,7 @@ struct dcpim_sock {
 
 		struct list_head fin_msg_backlog;
 		int inflight_msgs;
+		int accmu_rx_msgs;
 		int msg_threshold;
     } sender;
     struct dcpim_receiver {
@@ -602,6 +603,8 @@ struct dcpim_sock {
 		/* proteced by epoch->receiver_lock */
 		int rts_index;
 		struct dcpim_rts* rts;
+		int num_msgs;
+		int last_sent_num_msgs;
 
     } receiver;
 

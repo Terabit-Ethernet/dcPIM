@@ -175,7 +175,10 @@ struct dcpim_fin_hdr {
 	struct dcpimhdr common;
 	__be64 message_id;
 	/*UINT32_MAX refers to long flow; otherwise, the flow is the short flow. */
+	union {
 	__be32 message_size;
+	__be32 num_msgs;
+	};
 };
 
 // _Static_assert(sizeof(struct dcpim_flow_sync_hdr) <= DCPIM_HEADER_MAX_SIZE,
