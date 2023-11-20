@@ -416,7 +416,7 @@ do_error:
 
 static inline bool dcpim_message_memory_free(struct sock* sk) {
 	struct dcpim_sock *dsk = dcpim_sk(sk);
-	return dsk->sender.inflight_msgs <= dsk->sender.msg_threshold && sk_stream_memory_free(sk);
+	return dsk->sender.inflight_msgs + dsk->sender.accmu_rx_msgs <= dsk->sender.msg_threshold && sk_stream_memory_free(sk);
 }
 /**
  * dcpim_stream_wait_memory - Wait for more memory for a socket
@@ -746,6 +746,7 @@ int dcpim_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->sender.num_rtx_msgs, 0);
 
 	WRITE_ONCE(dsk->sender.inflight_msgs, 0);
+	WRITE_ONCE(dsk->sender.accmu_rx_msgs, 0);
 	INIT_LIST_HEAD(&dsk->sender.fin_msg_backlog);
 	WRITE_ONCE(dsk->sender.msg_threshold, 200);
 	INIT_LIST_HEAD(&dsk->match_link);
@@ -771,6 +772,8 @@ int dcpim_init_sock(struct sock *sk)
 	WRITE_ONCE(dsk->receiver.rts_index, -1);
 	WRITE_ONCE(dsk->receiver.rcv_msg_nxt, 0);
 	WRITE_ONCE(dsk->receiver.inflight_bytes, 0);
+	WRITE_ONCE(dsk->receiver.num_msgs, 0);
+	WRITE_ONCE(dsk->receiver.last_sent_num_msgs, 0);
 	INIT_LIST_HEAD(&dsk->receiver.msg_list);
 	INIT_LIST_HEAD(&dsk->receiver.msg_backlog);
 	
@@ -1419,7 +1422,7 @@ int dcpim_recvmsg_msg(struct sock *sk, struct msghdr *msg, size_t len,
 	// u32 peek_seq;
 	u32 seq = 0;
 	unsigned long used;
-	int err;
+	int err = 0;
 	// int inq;
 	// int target;		/* Read at least this many bytes */
 	long timeo;
@@ -1524,6 +1527,9 @@ found_ok_skb:
 	/* To Do: change the state of dcPIM message */
 	/* transmit the fin packet */
 	// dcpim_xmit_control(construct_fin_msg_pkt(sk, message->id), sk);
+	dsk->receiver.num_msgs -= 1;
+	if(dsk->receiver.num_msgs + dsk->sender.msg_threshold / 4 < dsk->receiver.last_sent_num_msgs)
+		dcpim_xmit_control(construct_fin_msg_pkt(sk, -1), sk);
 	dcpim_message_put(message);
 	release_sock(sk);
 	return copied;
@@ -1665,6 +1671,7 @@ void dcpim_flush_msgs_handler(struct dcpim_sock *dsk) {
 	list_for_each_safe(list, temp, &dsk->receiver.msg_list) {
 		msg = list_entry(list, struct dcpim_message, table_link);
 		list_del(&msg->table_link);
+		dsk->receiver.num_msgs -= 1;
 		/* no need to remove since preivously removed when msg is finished */
 		dcpim_message_put(msg);
 	}
