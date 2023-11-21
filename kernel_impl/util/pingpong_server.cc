@@ -40,6 +40,87 @@ int port = 4000;
  * should check that incoming messages conform to it.
  */
 bool validate = false;
+/* maximum latency will be 100ms */
+#define MAX_HIST_VALUE 100000 
+/* Count in us-scale */
+#define NUM_BINS 100000 
+
+std::vector<std::atomic<long long>> time_hist(MAX_HIST_VALUE);
+
+
+void local_add_to_timehist(std::vector<long long> &local_time_hist, double latency) {
+	// printf("latency: %f\n", latency);
+	if(latency > MAX_HIST_VALUE)
+		latency = MAX_HIST_VALUE - 1;
+	if(latency < 0)
+		latency = 0;
+	local_time_hist[int(latency)] += 1; 
+}
+
+double local_get_mean_timehist(std::vector<long long> &local_time_hist) {
+    double mean = 0.0;
+	double count = 0;
+    for (int i = 0; i < NUM_BINS; i++) {
+        mean += static_cast<double>(local_time_hist[i]) * i;
+		count += static_cast<double>(local_time_hist[i]);
+    }
+    mean /= count;
+	return mean;
+}
+
+// Function to estimate the percentile from the histogram
+double local_estimate_percentile(std::vector<long long> &local_time_hist, double percentile) {
+    double total = 0;
+	double target_value = 0;
+    for (int i = 0; i < NUM_BINS; i++) {
+        total += local_time_hist[i];
+    }
+	target_value = percentile * total;
+	total = 0;
+    for (int i = 0; i < NUM_BINS; i++) {
+        total += local_time_hist[i];
+        if (total >= target_value) {
+            return i;
+        }
+    }
+    return -1; // Percentile estimation failed
+}
+
+void add_to_timehist(std::vector<std::atomic<long long>> &local_time_hist, double latency) {
+	// printf("latency: %f\n", latency);
+	if(latency > MAX_HIST_VALUE)
+		latency = MAX_HIST_VALUE;
+	local_time_hist[int(latency * NUM_BINS / MAX_HIST_VALUE)].fetch_add(1, std::memory_order_relaxed); 
+}
+
+double get_mean_timehist(std::vector<std::atomic<long long>> &local_time_hist) {
+    double mean = 0.0;
+	double count = 0;
+    for (int i = 0; i < NUM_BINS; i++) {
+        mean += static_cast<double>(local_time_hist[i].load()) * i;
+		count += static_cast<double>(local_time_hist[i].load());
+    }
+    mean /= count;
+	return mean;
+}
+
+// Function to estimate the percentile from the histogram
+double estimate_percentile(std::vector<std::atomic<long long>> &local_time_hist, double percentile) {
+    double total = 0;
+	double target_value = 0;
+    for (int i = 0; i < NUM_BINS; i++) {
+        total += local_time_hist[i].load();
+    }
+	target_value = percentile * total;
+	total = 0;
+    for (int i = 0; i < NUM_BINS; i++) {
+        total += local_time_hist[i].load();
+        if (total >= target_value) {
+            return i;
+        }
+    }
+    return -1; // Percentile estimation failed
+}
 
 
 
@@ -242,6 +323,7 @@ void nd_pong()
 	char *buffer = (char*)malloc(2359104);
 	int flag;
 	struct sockaddr_in source;
+	std::vector<long long> local_time_hist(MAX_HIST_VALUE);
 	// int iodepth;
 	int flow_size;
 	unsigned int cpu, node;
@@ -257,6 +339,7 @@ void nd_pong()
 	source = data.source;
 	// iodepth = data.iodepth;
 	flow_size = data.flow_size;
+	
     // cv.notify_one();
 
 	// int times = 10000;
@@ -269,6 +352,7 @@ void nd_pong()
 	socklen_t len = sizeof(sin);
 	long long start_time = 0;
 	long long finish_time = 0;
+	long long begin_time  = 0;
 	struct timespec current_time;
 	// int which = PRIO_PROCESS;
 	pid_t pid = syscall(__NR_gettid);
@@ -318,21 +402,32 @@ void nd_pong()
    		}
 		finish_time = (long long)current_time.tv_sec * 1000000000 + (long long)current_time.tv_nsec;
 		start_time = *(long long*)buffer;
+		if(begin_time == 0) {
+			begin_time = finish_time;
+		}
 		// std::cout << finish_time << " " << start_time << " " << (finish_time - start_time ) << std::endl;
 		if(start_time == 0)
 			std::cout << "start time is 0" << std::endl;
-		latency.push_back((finish_time - start_time) / 1000000000.0);
+		// latency.push_back((finish_time - start_time) / 1000000000.0);
+		local_add_to_timehist(local_time_hist, (finish_time - start_time) / 1000.0);
 		count++;
 	}
 	if (verbose)
 		printf("Closing TCP socket from %s\n", print_address(&source));
 close:
-	for(uint32_t i = 0; i < latency.size(); i++) {
-		lfile << "finish time: " << latency[i] << "\n"; 
-		// std::cout << "finish time: " << latency[i] << "\n"; 
+	// for(uint32_t i = 0; i < latency.size(); i++) {
+	// 	lfile << "finish time: " << latency[i] << "\n"; 
+	// 	// std::cout << "finish time: " << latency[i] << "\n"; 
+	// }
+	printf("end loop\n");
+	lfile <<   pid << " " << local_get_mean_timehist(local_time_hist) << " " << local_estimate_percentile(local_time_hist, 0.99) << " " << local_estimate_percentile(local_time_hist, 0.999) << " "
+		<< count  / ((finish_time - begin_time) / 1000.0)  << std::endl;
+	for(int i = 0; i < NUM_BINS; i++) {
+		std::atomic_fetch_add(&time_hist[i], local_time_hist[i]);
 	}
 	close(fd);
 	free(buffer);
+	lfile.close();
 }
 
 /**
@@ -546,12 +641,17 @@ void tcp_connection(int fd, struct sockaddr_in source)
 void tcp_server(int port, int num_threads, int iodepth, int flow_size, bool pin, bool one_side)
 {
 	int cpu_list[16] = {0, 32, 4, 36, 8, 40, 12, 44, 16, 48, 20, 52, 24, 56, 28, 60};
+	int num_conns = 0;
+	std::vector<std::thread> workers;
+	
 	// int cpu_list[2] = {0, 32};
 	//int cpu_list[8] = {0, 4, 8, 12, 16, 20, 24, 28};
 	int listen_fd = socket(PF_INET, SOCK_STREAM, 0);
  	std::unique_lock<std::mutex> lk(m,  std::defer_lock);
 	int i = 0;
 	int threads_per_core = num_threads / 2;
+	std::ofstream lfile;
+	lfile.open("latency.log");
 	if (listen_fd == -1) {
 		printf("Couldn't open server socket: %s\n", strerror(errno));
 		exit(1);
@@ -563,25 +663,29 @@ void tcp_server(int port, int num_threads, int iodepth, int flow_size, bool pin,
 			strerror(errno));
 		exit(1);
 	}
+	fprintf(stderr, "%d\n", num_threads);
 	for (i = 0; i < num_threads; i++) {
 		if(one_side) {
-			std::thread thread(nd_pong);
+			// std::thread thread(nd_pong);
+			workers.push_back(std::thread(nd_pong));
 			if(pin) {
 				cpu_set_t cpuset;
 				CPU_ZERO(&cpuset);
 				CPU_SET(cpu_list[i / threads_per_core], &cpuset);
-				pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
+				pthread_setaffinity_np(workers[workers.size() - 1].native_handle(), sizeof(cpu_set_t), &cpuset);
 			}
-			thread.detach();
-		} else {
-			std::thread thread(nd_pingpong);
+			// thread.detach();
+		}
+		else {
+			// std::thread thread(nd_pingpong);
+			workers.push_back(std::thread(nd_pingpong));
 			if(pin) {
 				cpu_set_t cpuset;
 				CPU_ZERO(&cpuset);
 				CPU_SET(cpu_list[i / threads_per_core], &cpuset);
-				pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
+				pthread_setaffinity_np(workers[workers.size() - 1].native_handle(), sizeof(cpu_set_t), &cpuset);
 			}
-			thread.detach();
+			// thread.detach();
 		}
 	}
 	struct sockaddr_in addr;
@@ -612,7 +716,9 @@ void tcp_server(int port, int num_threads, int iodepth, int flow_size, bool pin,
 				strerror(errno));
 			exit(1);
 		}
-		
+		num_conns++;
+		if(num_conns == num_threads)
+			break;
 		// std::thread thread(nd_pingpong, stream, client_addr, iodepth, flow_size);
 		// if(pin) {
 		// 	cpu_set_t cpuset;
@@ -621,8 +727,14 @@ void tcp_server(int port, int num_threads, int iodepth, int flow_size, bool pin,
 		// 	pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
 		// }
 	    // thread.detach();
-		i += 1;
+		// i += 1;
 	}
+	printf("num threads: %lu\n", workers.size());
+	for(i = 0; unsigned(i) < workers.size(); i++) {
+		workers[i].join();
+	}
+	lfile << get_mean_timehist(time_hist) << " " << estimate_percentile(time_hist, 0.99) << " " << estimate_percentile(time_hist, 0.999)  << std::endl; 
+	lfile.close();
 }
 
 /**
@@ -825,12 +937,17 @@ void udp_server(int port)
 void dcpim_server(int port, int num_threads, int iodepth, int flow_size, bool pin, bool one_side)
 {
 	int cpu_list[16] = {0, 32, 4, 36, 8, 40, 12, 44, 16, 48, 20, 52, 24, 56, 28, 60};
+	int num_conns = 0;
+	std::vector<std::thread> workers;
+	
 	// int cpu_list[2] = {0, 32};
 	//int cpu_list[8] = {0, 4, 8, 12, 16, 20, 24, 28};
 	int listen_fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCPIM);
  	std::unique_lock<std::mutex> lk(m,  std::defer_lock);
 	int i = 0;
 	int threads_per_core = num_threads / 2;
+	std::ofstream lfile;
+	lfile.open("latency.log");
 	if (listen_fd == -1) {
 		printf("Couldn't open server socket: %s\n", strerror(errno));
 		exit(1);
@@ -842,26 +959,29 @@ void dcpim_server(int port, int num_threads, int iodepth, int flow_size, bool pi
 			strerror(errno));
 		exit(1);
 	}
+	fprintf(stderr, "%d\n", num_threads);
 	for (i = 0; i < num_threads; i++) {
 		if(one_side) {
-			std::thread thread(nd_pong);
+			// std::thread thread(nd_pong);
+			workers.push_back(std::thread(nd_pong));
 			if(pin) {
 				cpu_set_t cpuset;
 				CPU_ZERO(&cpuset);
 				CPU_SET(cpu_list[i / threads_per_core], &cpuset);
-				pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
+				pthread_setaffinity_np(workers[workers.size() - 1].native_handle(), sizeof(cpu_set_t), &cpuset);
 			}
-			thread.detach();
+			// thread.detach();
 		}
 		else {
-			std::thread thread(nd_pingpong);
+			// std::thread thread(nd_pingpong);
+			workers.push_back(std::thread(nd_pingpong));
 			if(pin) {
 				cpu_set_t cpuset;
 				CPU_ZERO(&cpuset);
 				CPU_SET(cpu_list[i / threads_per_core], &cpuset);
-				pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
+				pthread_setaffinity_np(workers[workers.size() - 1].native_handle(), sizeof(cpu_set_t), &cpuset);
 			}
-			thread.detach();
+			// thread.detach();
 		}
 	}
 	struct sockaddr_in addr;
@@ -892,7 +1012,9 @@ void dcpim_server(int port, int num_threads, int iodepth, int flow_size, bool pi
 				strerror(errno));
 			exit(1);
 		}
-		
+		num_conns++;
+		if(num_conns == num_threads)
+			break;
 		// std::thread thread(nd_pingpong, stream, client_addr, iodepth, flow_size);
 		// if(pin) {
 		// 	cpu_set_t cpuset;
@@ -901,8 +1023,14 @@ void dcpim_server(int port, int num_threads, int iodepth, int flow_size, bool pi
 		// 	pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
 		// }
 	    // thread.detach();
-		i += 1;
+		// i += 1;
 	}
+	printf("num threads: %lu\n", workers.size());
+	for(i = 0; unsigned(i) < workers.size(); i++) {
+		workers[i].join();
+	}
+	lfile << get_mean_timehist(time_hist) << " " << estimate_percentile(time_hist, 0.99) << " " << estimate_percentile(time_hist, 0.999)  << std::endl; 
+	lfile.close();
 }
 
 int main(int argc, char** argv) {
@@ -913,7 +1041,11 @@ int main(int argc, char** argv) {
 	bool pin = false;
 	int count = 1;
 	int one_side = 0;
+	bool dcpim = false;
 	std::string ip;
+	for (int i = 0; i < MAX_HIST_VALUE; ++i) {
+        time_hist[i].store(0);
+    }
 	if ((argc >= 2) && (strcmp(argv[1], "--help") == 0)) {
 		print_help(argv[0]);
 		exit(0);
@@ -973,6 +1105,8 @@ int main(int argc, char** argv) {
 			pin = true;
 		} else if (strcmp(argv[next_arg], "--verbose") == 0) {
 			verbose = true;
+		} else if (strcmp(argv[next_arg], "--dcpim") == 0) {
+			dcpim = true;
 		} else if (strcmp(argv[next_arg], "--count") == 0) {
 			if (next_arg == (argc-1)) {
 				printf("No value provided for %s option\n",
@@ -996,9 +1130,10 @@ int main(int argc, char** argv) {
 	// 	printf("port number:%i\n", port + i);
 	// 	workers.push_back(std::thread (homa_server, ip, port+i));
 	// }
-	workers.push_back(std::thread(tcp_server, port, count, iodepth, flow_size, pin, one_side));
-	// workers.push_back(std::thread(udp_server, port));
-	workers.push_back(std::thread(dcpim_server, port, count, iodepth, flow_size, pin, one_side));
+	if (dcpim == false)
+		workers.push_back(std::thread(tcp_server, port, count, iodepth, flow_size, pin, one_side));
+	else
+		workers.push_back(std::thread(dcpim_server, port, count, iodepth, flow_size, pin, one_side));
 	// workers.push_back(std::thread(aggre_thread, &agg_stats));
 	for(int i = 0; i < num_ports; i++) {
 		workers[i].join();
