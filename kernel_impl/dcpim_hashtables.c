@@ -114,6 +114,7 @@ void dcpim_hashtable_destroy(struct inet_hashinfo* hashinfo) {
 	vfree(hashinfo->bhash);
 	kvfree(hashinfo->ehash_locks);
 	kmem_cache_destroy(hashinfo->bind_bucket_cachep);
+        kmem_cache_destroy(hashinfo->bind2_bucket_cachep);
 	vfree(hashinfo->ehash);
 	inet_hashinfo2_free_mod(&dcpim_hashinfo);
 }
