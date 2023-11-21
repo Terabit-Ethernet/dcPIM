@@ -448,7 +448,7 @@ static inline void dcpim_lib_close(struct sock *sk, long timeout)
 
 	xfrm_sk_free_policy(sk);
 
-	sk_refcnt_debug_release(sk);
+//	sk_refcnt_debug_release(sk);
 
 	sock_put(sk);
 }
