@@ -428,7 +428,7 @@ int dcpim_stream_wait_memory(struct sock *sk, long *timeo_p)
 	DEFINE_WAIT_FUNC(wait, woken_wake_function);
 
 	if (dcpim_message_memory_free(sk))
-		current_timeo = vm_wait = (prandom_u32() % (HZ / 5)) + 2;
+		current_timeo = vm_wait = (get_random_u32() % (HZ / 5)) + 2;
 
 	add_wait_queue(sk_sleep(sk), &wait);
 
@@ -1682,7 +1682,7 @@ void dcpim_csk_destroy_sock(struct sock *sk)
 
 	xfrm_sk_free_policy(sk);
 
-	sk_refcnt_debug_release(sk);
+//	sk_refcnt_debug_release(sk);
 
 	this_cpu_dec(*sk->sk_prot->orphan_count);
 

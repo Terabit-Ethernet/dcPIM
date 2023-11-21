@@ -58,13 +58,16 @@ void* allocate_hash_table(const char *tablename,
 }
 
 void dcpim_hashtable_init(struct inet_hashinfo* hashinfo, unsigned long thash_entries) {
-		int i = 0;
+        int i = 0;
         inet_hashinfo2_init_mod(hashinfo);
         hashinfo->bind_bucket_cachep =
                 kmem_cache_create("dcpim_bind_bucket",
                                   sizeof(struct inet_bind_bucket), 0,
                                   SLAB_HWCACHE_ALIGN|SLAB_PANIC, NULL);
-
+        hashinfo->bind2_bucket_cachep =
+                kmem_cache_create("dcpim_bind2_bucket",
+                                  sizeof(struct inet_bind2_bucket), 0,
+                                  SLAB_HWCACHE_ALIGN|SLAB_PANIC, NULL);
         /* Size and allocate the main established and bind bucket
          * hash tables.
          *
@@ -88,7 +91,7 @@ void dcpim_hashtable_init(struct inet_hashinfo* hashinfo, unsigned long thash_en
                 panic("DCPIM: failed to alloc ehash_locks");
         hashinfo->bhash =
                 allocate_hash_table("DCPIM bind",
-                                        sizeof(struct inet_bind_hashbucket),
+                                        2 * sizeof(struct inet_bind_hashbucket),
                                         hashinfo->ehash_mask + 1,
                                         17, /* one slot per 128 KB of memory */
                                         0,
@@ -97,9 +100,12 @@ void dcpim_hashtable_init(struct inet_hashinfo* hashinfo, unsigned long thash_en
                                         0,
                                         64 * 1024);
         hashinfo->bhash_size = 1U << hashinfo->bhash_size;
+        hashinfo->bhash2 =  hashinfo->bhash + hashinfo->bhash_size;
         for (i = 0; i < hashinfo->bhash_size; i++) {
                 spin_lock_init(&hashinfo->bhash[i].lock);
                 INIT_HLIST_HEAD(&hashinfo->bhash[i].chain);
+                spin_lock_init(&hashinfo->bhash2[i].lock);
+                INIT_HLIST_HEAD(&hashinfo->bhash2[i].chain);
         }
 	/* TO DO: Add memory error handling logic */
 }

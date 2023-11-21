@@ -221,7 +221,7 @@ int dcpim_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	// 					 inet->inet_daddr);
 	// }
 
-	inet->inet_id = prandom_u32();
+	inet->inet_id = get_random_u16();
 
 	// if (tcp_fastopen_defer_connect(sk, &err))
 	// 	return err;
