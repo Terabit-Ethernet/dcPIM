@@ -4,7 +4,8 @@
 #include <linux/types.h>
 
 /* include all headers not just DCPIM */
-#define DCPIM_HEADER_MAX_SIZE 128 +  MAX_HEADER
+#define DCPIM_HEADER_SIZE 128
+#define DCPIM_HEADER_MAX_SIZE DCPIM_HEADER_SIZE +  MAX_HEADER
 
 #define DCPIM_MAX_MESSAGE_LENGTH 1000000
 /**

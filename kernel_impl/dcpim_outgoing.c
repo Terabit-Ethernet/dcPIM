@@ -765,7 +765,7 @@ struct sk_buff* __construct_control_skb(struct sock* sk, int size) {
 	// int extra_bytes;
 	if (unlikely(!skb))
 		return NULL;
-	skb_reserve(skb, DCPIM_HEADER_MAX_SIZE);
+	skb_reserve(skb, MAX_HEADER);
 	skb_reset_transport_header(skb);
 
 	// h = (struct dcpim_hdr *) skb_put(skb, length);
