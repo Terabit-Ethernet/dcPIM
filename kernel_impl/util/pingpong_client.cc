@@ -255,7 +255,7 @@ void test_ping_oneside_send(struct sockaddr *dest, int id, int io_depth, int flo
 //  	struct sched_param param;
 // 	param.sched_priority = 99;
 // 	sched_setscheduler(pid, SCHED_RR, &param);
-	lfile.open("temp/netperf-" + std::to_string(id)+".log");
+//	lfile.open("temp/netperf-" + std::to_string(id)+".log");
 	tfile.open("temp/netperf-" + std::to_string(id)+"_thpt.log");
 	//int q_depth = 64, count = 0;
 	    // for (int i = 0; i < count * 100; i++) {
@@ -272,6 +272,8 @@ void test_ping_oneside_send(struct sockaddr *dest, int id, int io_depth, int flo
 		flag = 1;
 		setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(int));
 		setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &flag, sizeof(int));
+		flag = 0;
+		setsockopt(fd, IPPROTO_TCP, TCP_CORK, &flag, sizeof(int));
 		printf("set nodelay quickack\n");
 	}
 	if (bind(fd, reinterpret_cast<sockaddr *>(&client), sizeof(client))
@@ -286,11 +288,13 @@ void test_ping_oneside_send(struct sockaddr *dest, int id, int io_depth, int flo
 	getsockname(fd, (struct sockaddr *) &client, &clientsz);
 	getcpu(&cpu, &node);
 	printf("cpu: %d pid: %d client port: %d\n", cpu, pid, ntohs(client.sin_port));
+	// sleep(0.05);
+
 	while(1) {
 		end = rdtsc();
 		/* receive one response */
 		total = 0;
-		sleep(0.05);
+		// sleep(0.05);
 		/* Read the current time from CLOCK_REALTIME */
     	if (clock_gettime(CLOCK_REALTIME, &current_time) != 0) {
         	perror("clock_gettime");
@@ -305,7 +309,7 @@ void test_ping_oneside_send(struct sockaddr *dest, int id, int io_depth, int flo
 				if(errno == EMSGSIZE) {
 					printf("Socket write failed: %s %d\n", strerror(errno), result);
 				}
-				printf("send: %d\n", result);
+				printf("send: %d %d \n", result, errno);
 				break;
 			} else {
 				write_len += result;
@@ -314,17 +318,19 @@ void test_ping_oneside_send(struct sockaddr *dest, int id, int io_depth, int flo
 			}
 		}
 		// time_q.push(end);
-		if(stop_count == 1)
+		if(stop_count == 1) {
+			printf("stop count is 1\n");
 			break;
-	
+		}
+
 	}
 	tfile <<   pid << " " << ntohs(client.sin_port) << " " << sent_bytes  / to_seconds(end - start_time) / flow_size  << std::endl;
 	max_size = (latency.size() > max_size) ? max_size : latency.size();
-	for(uint32_t i = 0; i < max_size; i++) {
-		lfile << "finish time: " << latency[i] << "\n"; 
+//	for(uint32_t i = 0; i < max_size; i++) {
+//		lfile << "finish time: " << latency[i] << "\n"; 
 		// std::cout << "finish time: " << latency[i] << "\n"; 
-	}
-	lfile.close();
+//	}
+//	lfile.close();
 	tfile.close();
 	close(fd);
 }
