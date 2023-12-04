@@ -71,6 +71,12 @@ static void dcpim_insert_write_queue_after(struct sk_buff *skb,
 		dcpim_rbtree_insert(&sk->tcp_rtx_queue, buff);
 }
 
+void dcpim_wfree(struct sk_buff *skb)
+{
+	// sock_put(skb->sk);
+}
+EXPORT_SYMBOL(dcpim_wfree);
+
 void dcpim_fill_dcpim_header(struct sk_buff *skb, __be16 sport, __be16 dport) {
 	struct dcpimhdr* dh;
 	dh = dcpim_hdr(skb);
@@ -1210,6 +1216,7 @@ int dcpim_xmit_control(struct sk_buff* skb, struct sock* sk)
 	dh->doff = (sizeof(struct dcpimhdr)) >> 2;
 	// inet->tos = IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL;
 	skb->sk = sk;
+	skb->destructor = dcpim_wfree;
 	// dst_confirm_neigh(peer->dst, &fl4->daddr);
 	dst_hold(__sk_dst_get(sk));
 	// skb_dst_set(skb, __sk_dst_get(sk));
@@ -1392,6 +1399,7 @@ void __dcpim_xmit_long_data(struct sk_buff *skb, struct dcpim_sock* dsk)
 	dst_hold(__sk_dst_get(sk));
 	// skb_dst_set(skb, peer->dst);
 	skb->sk = sk;
+	skb->destructor = dcpim_wfree;
 	skb_dst_set(skb, __sk_dst_get(sk));
 	skb->ooo_okay = 1;
 	skb->ip_summed = CHECKSUM_PARTIAL;
@@ -1479,6 +1487,7 @@ void __dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool is_shor
 	dst_hold(__sk_dst_get(sk));
 	// skb_dst_set(skb, peer->dst);
 	skb->sk = sk;
+	skb->destructor = dcpim_wfree;
 	skb_dst_set(skb, __sk_dst_get(sk));
 	skb->ip_summed = CHECKSUM_PARTIAL;
 	skb->csum_start = skb_transport_header(skb) - skb->head;
