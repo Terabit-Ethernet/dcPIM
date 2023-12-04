@@ -27,6 +27,7 @@
 #include <vector>
 #include <queue>
 #include <thread>
+#include <list>
 #include <mutex>          // std::mutex
 #include <condition_variable> // std::condition_variable
 #include <sched.h>
@@ -65,7 +66,6 @@ void close_fd(int fd)
 {
 	// sleep(1);
 	if (close(fd) >= 0) {
-		printf("Closed fd %d\n", fd);
 	} else {
 		printf("Close failed on fd %d: %s\n", fd, strerror(errno));
 	}
@@ -274,11 +274,13 @@ void test_ping_oneside_send(struct sockaddr *dest, int id, int io_depth, int flo
 		setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &flag, sizeof(int));
 		flag = 0;
 		setsockopt(fd, IPPROTO_TCP, TCP_CORK, &flag, sizeof(int));
+		flag = 1;
+		setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(int));
 		printf("set nodelay quickack\n");
 	}
 	if (bind(fd, reinterpret_cast<sockaddr *>(&client), sizeof(client))
 			== -1) {
-		printf("Couldn't bind to port %d: %s\n", src_port, strerror(errno));
+		printf("Client couldn't bind to port %d: %s\n", src_port, strerror(errno));
 		exit(1);
 	}
 	if (connect(fd, dest, sizeof(struct sockaddr_in)) == -1) {
@@ -333,8 +335,134 @@ void test_ping_oneside_send(struct sockaddr *dest, int id, int io_depth, int flo
 //	lfile.close();
 	tfile.close();
 	close(fd);
+	printf("client close socket\n");
+
 }
 
+void tcp_shortflow(struct sockaddr dest, int id, int io_depth, int flow_size, unsigned size_limit)
+{
+
+	std::queue<uint64_t> time_q;
+	char *buffer = (char*)malloc(1000000);
+	int fd;
+	// unsigned size_limit = 200;
+	// unsigned int cpu, node;
+	// uint64_t flow_size = 10000000000000;
+	// int times = 100;
+	int flag = 0;
+	std::list<int> fd_list;
+	uint64_t write_len = 0;
+	uint64_t start_time = rdtsc();
+	uint64_t end = rdtsc();
+	uint64_t sent_bytes = 0;
+	// uint64_t max_size = 1000000;
+	std::ofstream lfile, tfile;
+	pid_t pid = syscall(__NR_gettid);
+	// struct sockaddr_in client;
+	// socklen_t clientsz = sizeof(client);
+  	int priority = 7;
+    int reuse = 1;
+	int total = 0, valread = 0;
+	struct timespec current_time;
+	long long nanoseconds = 0;
+	int i = 0;
+//  	struct sched_param param;
+// 	param.sched_priority = 99;
+// 	sched_setscheduler(pid, SCHED_RR, &param);
+//	lfile.open("temp/netperf-" + std::to_string(id)+".log");
+	tfile.open("temp/netperf-" + std::to_string(id)+"_thpt.log");
+	//int q_depth = 64, count = 0;
+	    // for (int i = 0; i < count * 100; i++) {
+		/* init burst io_depth packet */
+	while(1) {
+		if(protocol == "dcpim") {
+			fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_DCPIM);
+			/* set packet priority */
+			if(setsockopt(fd, SOL_SOCKET, SO_PRIORITY, &priority, sizeof(priority)) < 0){
+				printf("set priority failed\n");
+			}
+		}
+		else {
+			fd = socket(AF_INET, SOCK_STREAM, 0);
+		}
+		// client.sin_family = AF_INET;
+		// client.sin_port = htons(src_port + i % size_limit);
+		// client.sin_addr.s_addr = INADDR_ANY;
+		// printf("called bind port: %d\n", src_port + i % size_limit);
+		if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+			perror("setsockopt(SO_REUSEADDR) failed");
+			exit(1);
+		}
+		// if (bind(fd, reinterpret_cast<sockaddr *>(&client), sizeof(client))
+		// 		== -1) {
+		// 	printf("Couldn't bind to port %d: %s\n", src_port + i % size_limit, strerror(errno));
+		// 	exit(1);
+		// }
+		nanoseconds = (long long)current_time.tv_sec * 1000000000 + (long long)current_time.tv_nsec;
+		if (connect(fd, &dest, sizeof(struct sockaddr_in)) == -1) {
+			break;
+			printf("Couldn't connect to dest %s\n", strerror(errno));
+		}
+		// sleep(0.05);
+		end = rdtsc();
+		/* receive one response */
+		total = 0;
+		// sleep(0.05);
+		/* Read the current time from CLOCK_REALTIME */
+		if (clock_gettime(CLOCK_REALTIME, &current_time) != 0) {
+			perror("clock_gettime");
+			break;
+		}
+		flag = 0;
+		*(long long*)buffer = nanoseconds;
+		while(total < flow_size) {
+			int result = send(fd, buffer + total, flow_size - total, flag);
+			if( result <= 0 ) {
+				if(errno == EMSGSIZE) {
+					printf("Socket write failed: %s %d\n", strerror(errno), result);
+				}
+				break;
+			} else {
+				write_len += result;
+				total += result;
+				sent_bytes += result;	
+			}
+		}
+		fd_list.push_back(fd);
+		// time_q.push(end);
+		if(stop_count == 1) {
+			break;
+		}
+		while(fd_list.size() == size_limit) {
+			fd = fd_list.front();
+			valread = read(fd, buffer, 1);
+			if(valread < 1) {
+				close(fd);
+				fd_list.pop_front();
+				// printf("close fd: %d\n", fd);
+			}
+		}
+		i += 1;
+	}
+	tfile <<   pid << " "  << sent_bytes  / to_seconds(end - start_time) / flow_size  << std::endl;
+	while(fd_list.size() > 0) {
+		fd = fd_list.front();
+		valread = read(fd, buffer, 1);
+		if(valread < 1) {
+			close(fd);
+			fd_list.pop_front();
+			// printf("close fd: %d\n", fd);
+		}
+	}
+	// max_size = (latency.size() > max_size) ? max_size : latency.size();
+//	for(uint32_t i = 0; i < max_size; i++) {
+//		lfile << "finish time: " << latency[i] << "\n"; 
+		// std::cout << "finish time: " << latency[i] << "\n"; 
+//	}
+//	lfile.close();
+	tfile.close();
+	close(fd);
+}
 // /**
 //  * tcp_pingping() - Handles messages arriving on a given socket.
 //  * @fd:           File descriptor for the socket over which messages
@@ -529,6 +657,8 @@ int main(int argc, char** argv)
 	int src_port = 0;
 	int io_depth = 1;
 	bool one_side = 0;
+	bool shortflow = false;
+	unsigned size_limit = 200;
 	stop_count = 0;
 	if ((argc >= 2) && (strcmp(argv[1], "--help") == 0)) {
 		print_help(argv[0]);
@@ -601,6 +731,8 @@ int main(int argc, char** argv)
 			std::cout << "flow size:" << flow_size << std::endl;
 		} else if (strcmp(argv[nextArg], "--oneside") == 0) {
 			one_side = true;
+		} else if (strcmp(argv[nextArg], "--shortflow") == 0) {
+			shortflow = true;
 		} else {
 			printf("Unknown option %s; type '%s --help' for help\n",
 				argv[nextArg], argv[0]);
@@ -629,10 +761,16 @@ int main(int argc, char** argv)
 		nextArg = tempArg;
 		for ( ; nextArg < argc; nextArg++) {
 			if (strcmp(argv[nextArg], "ping") == 0) {
-				if(one_side)
-					workers.push_back(std::thread(test_ping_oneside_send, dest, i, io_depth, flow_size, src_port + i));
-				else 
-					workers.push_back(std::thread(test_ping_send, dest, i, io_depth, flow_size, src_port + i));
+				if(shortflow) {
+					workers.push_back(std::thread(tcp_shortflow, *dest, i, io_depth, flow_size, size_limit));
+					port += 1;
+					((struct sockaddr_in *) dest)->sin_port = htons(port);
+				} else {
+					if(one_side)
+						workers.push_back(std::thread(test_ping_oneside_send, dest, i, io_depth, flow_size, src_port + i));
+					else 
+						workers.push_back(std::thread(test_ping_send, dest, i, io_depth, flow_size, src_port + i));
+				}
 				if(pin) {
 					cpu_set_t cpuset;
 					CPU_ZERO(&cpuset);
@@ -648,7 +786,7 @@ int main(int argc, char** argv)
 		}
 	}
 	
-    std::this_thread::sleep_for (std::chrono::seconds(120));
+    std::this_thread::sleep_for (std::chrono::seconds(140));
 	stop_count = 1;
 	for(unsigned i = 0; i < workers.size(); i++) {
 		workers[i].join();
