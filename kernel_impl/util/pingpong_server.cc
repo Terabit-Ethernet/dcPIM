@@ -431,6 +431,111 @@ close:
 }
 
 /**
+ * tcp_shortflow() - Handles one message per socket;
+ */
+void tcp_shortflow(int port, int flow_size)
+{
+	// int flag = 1;
+	int fd = 0;
+	Conn_Data data;
+	char *buffer = (char*)malloc(2359104);
+	int listen_fd = socket(PF_INET, SOCK_STREAM, 0);
+	std::vector<long long> local_time_hist(MAX_HIST_VALUE);
+	// int iodepth;
+	std::ofstream lfile;
+	lfile.open("netperf-" + std::to_string(thread_id.fetch_add(1))+".log");
+	uint64_t count = 0;
+	long long start_time = 0;
+	long long finish_time = 0;
+	long long begin_time  = 0;
+	struct timespec current_time;
+	// int which = PRIO_PROCESS;
+	pid_t pid = syscall(__NR_gettid);
+	struct sockaddr_in addr;
+	addr.sin_family = AF_INET;
+
+	addr.sin_port = htons(port);
+	addr.sin_addr.s_addr = INADDR_ANY;
+	if (listen_fd == -1) {
+		printf("Couldn't open server socket: %s\n", strerror(errno));
+		exit(1);
+	}
+	int option_value = 1;
+	if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &option_value,
+			sizeof(option_value)) != 0) {
+		printf("Couldn't set SO_REUSEADDR on listen socket: %s",
+			strerror(errno));
+		exit(1);
+	}
+	if (bind(listen_fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr))
+			== -1) {
+		printf("Couldn't bind to port %d: %s\n", port, strerror(errno));
+		exit(1);
+	}
+	if (listen(listen_fd, 1000) == -1) {
+		printf("Couldn't listen on socket: %s", strerror(errno));
+		exit(1);
+	}
+	while (1) {
+		struct sockaddr_in client_addr;
+		socklen_t addr_len = sizeof(client_addr);
+		int stream = accept(listen_fd,
+				reinterpret_cast<sockaddr *>(&client_addr),
+				&addr_len);
+		if (stream < 0) {
+			printf("Couldn't accept incoming connection: %s",
+				strerror(errno));
+			exit(1);
+		}
+		while (1) {
+			int copied = 0;
+			int rpc_length = flow_size;
+			while(1) {
+				int result = read(stream, buffer + copied,
+					rpc_length);
+				if (result <= 0) {
+						goto close;
+				}
+				rpc_length -= result;
+				copied += result;
+				if(rpc_length == 0) {
+					rpc_length = flow_size;
+					copied = 0;
+					break;
+				}
+			}
+			/* Read the current time from CLOCK_REALTIME */
+			if (clock_gettime(CLOCK_REALTIME, &current_time) != 0) {
+				perror("clock_gettime");
+				break;
+			}
+			finish_time = (long long)current_time.tv_sec * 1000000000 + (long long)current_time.tv_nsec;
+			start_time = *(long long*)buffer;
+			if(begin_time == 0) {
+				begin_time = finish_time;
+			}
+			local_add_to_timehist(local_time_hist, (finish_time - start_time) / 1000.0);
+			count++;
+			close(stream);
+			break;
+		}
+		if(finish_time - begin_time > 120000000000) {
+			break;
+		}
+	}
+close:
+	lfile <<   pid << " " << local_get_mean_timehist(local_time_hist) << " " << local_estimate_percentile(local_time_hist, 0.99) << " " << local_estimate_percentile(local_time_hist, 0.999) << " "
+		<< count  / ((finish_time - begin_time) / 1000.0)  << std::endl;
+	for(int i = 0; i < NUM_BINS; i++) {
+		std::atomic_fetch_add(&time_hist[i], local_time_hist[i]);
+	}
+	printf("thread finish\n");
+	close(fd);
+	free(buffer);
+	lfile.close();
+}
+
+/**
  * homa_server() - Opens a Homa socket and handles all requests arriving on
  * that socket.
  * @port:   Port number to use for the Homa socket.
@@ -650,8 +755,8 @@ void tcp_server(int port, int num_threads, int iodepth, int flow_size, bool pin,
  	std::unique_lock<std::mutex> lk(m,  std::defer_lock);
 	int i = 0;
 	int threads_per_core = num_threads / 2;
-	std::ofstream lfile;
-	lfile.open("latency.log");
+	// std::ofstream lfile;
+	// lfile.open("latency.log");
 	if (listen_fd == -1) {
 		printf("Couldn't open server socket: %s\n", strerror(errno));
 		exit(1);
@@ -733,8 +838,8 @@ void tcp_server(int port, int num_threads, int iodepth, int flow_size, bool pin,
 	for(i = 0; unsigned(i) < workers.size(); i++) {
 		workers[i].join();
 	}
-	lfile << get_mean_timehist(time_hist) << " " << estimate_percentile(time_hist, 0.99) << " " << estimate_percentile(time_hist, 0.999)  << std::endl; 
-	lfile.close();
+	// lfile << get_mean_timehist(time_hist) << " " << estimate_percentile(time_hist, 0.99) << " " << estimate_percentile(time_hist, 0.999)  << std::endl; 
+	// lfile.close();
 }
 
 /**
@@ -946,8 +1051,8 @@ void dcpim_server(int port, int num_threads, int iodepth, int flow_size, bool pi
  	std::unique_lock<std::mutex> lk(m,  std::defer_lock);
 	int i = 0;
 	int threads_per_core = num_threads / 2;
-	std::ofstream lfile;
-	lfile.open("latency.log");
+	// std::ofstream lfile;
+	// lfile.open("latency.log");
 	if (listen_fd == -1) {
 		printf("Couldn't open server socket: %s\n", strerror(errno));
 		exit(1);
@@ -1029,8 +1134,8 @@ void dcpim_server(int port, int num_threads, int iodepth, int flow_size, bool pi
 	for(i = 0; unsigned(i) < workers.size(); i++) {
 		workers[i].join();
 	}
-	lfile << get_mean_timehist(time_hist) << " " << estimate_percentile(time_hist, 0.99) << " " << estimate_percentile(time_hist, 0.999)  << std::endl; 
-	lfile.close();
+	// lfile << get_mean_timehist(time_hist) << " " << estimate_percentile(time_hist, 0.99) << " " << estimate_percentile(time_hist, 0.999)  << std::endl; 
+	// lfile.close();
 }
 
 int main(int argc, char** argv) {
@@ -1042,7 +1147,9 @@ int main(int argc, char** argv) {
 	int count = 1;
 	int one_side = 0;
 	bool dcpim = false;
+	bool shortflow = false;
 	std::string ip;
+	std::ofstream lfile;
 	for (int i = 0; i < MAX_HIST_VALUE; ++i) {
         time_hist[i].store(0);
     }
@@ -1101,7 +1208,9 @@ int main(int argc, char** argv) {
 				"Bad num_ports %s; must be positive integer\n");
 		} else if (strcmp(argv[next_arg], "--validate") == 0) {
 			validate = true;
-		}else if (strcmp(argv[next_arg], "--pin") == 0) {
+		} else if (strcmp(argv[next_arg], "--shortflow") == 0) {
+			shortflow = true;
+		} else if (strcmp(argv[next_arg], "--pin") == 0) {
 			pin = true;
 		} else if (strcmp(argv[next_arg], "--verbose") == 0) {
 			verbose = true;
@@ -1130,13 +1239,26 @@ int main(int argc, char** argv) {
 	// 	printf("port number:%i\n", port + i);
 	// 	workers.push_back(std::thread (homa_server, ip, port+i));
 	// }
-	if (dcpim == false)
-		workers.push_back(std::thread(tcp_server, port, count, iodepth, flow_size, pin, one_side));
-	else
-		workers.push_back(std::thread(dcpim_server, port, count, iodepth, flow_size, pin, one_side));
+	if(shortflow) {
+			for (int i = 0; i < count; i++) {
+				workers.push_back(std::thread(tcp_shortflow, port, flow_size));
+				port += 1;
+			}
+	} else {
+		if (dcpim == false)
+			workers.push_back(std::thread(tcp_server, port, count, iodepth, flow_size, pin, one_side));
+		else
+			workers.push_back(std::thread(dcpim_server, port, count, iodepth, flow_size, pin, one_side));
+	}
 	// workers.push_back(std::thread(aggre_thread, &agg_stats));
-	for(int i = 0; i < num_ports; i++) {
+	printf("num_ports:%d\n", num_ports);
+	for(unsigned i = 0; i < workers.size(); i++) {
 		workers[i].join();
 	}
+	// if(shortflow) {
+	lfile.open("latency.log");
+	// }
+	lfile << get_mean_timehist(time_hist) << " " << estimate_percentile(time_hist, 0.99) << " " << estimate_percentile(time_hist, 0.999)  << std::endl; 
+	lfile.close();
 }
 
