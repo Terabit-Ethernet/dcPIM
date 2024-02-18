@@ -29,11 +29,11 @@ autoconf
 make
 mkdir py/result
 ```
-Note if GCC version > 7, then it may have some issues. To avoid that, 
+Note if GCC version > 6, then it may have some issues. To avoid that, 
 
 ```
-CC='gcc-7' CXX='g++-7' ./configure 
-CC='gcc-7' CXX='g++-7' make
+CC='gcc-6' CXX='g++-6' ./configure 
+CC='gcc-6' CXX='g++-6' make
 ```
 ## 3. SIGCOMM 2022 Artifact Evaluation
 
