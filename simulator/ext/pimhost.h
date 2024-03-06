@@ -50,6 +50,7 @@ struct PIM_Vlink {
         return (shortest_flow_size < l.shortest_flow_size);
     }
 };
+
 struct PIM_REQ {
     int iter;
     int remaining_sz;
@@ -65,7 +66,12 @@ struct PIM_REQ {
     }
     bool operator < (const PIM_REQ& req) const
     {
-        return (remaining_sz < req.remaining_sz);
+        if(remaining_sz < req.remaining_sz)
+            return true;
+        if (remaining_sz == req.remaining_sz)
+            return f->start_time < req.f->start_time;
+        return false;
+        // return (remaining_sz < req.remaining_sz);
     }
 };
 struct PIM_Grants {
@@ -79,13 +85,18 @@ struct PIM_Grants {
         prompt = false;
         iter = 0;
         f = NULL;
-        remaining_sz = INT_MAX;    
+        remaining_sz = INT_MAX;
         total_links = 0;
         prompt_links = 0;
     }
     bool operator < (const PIM_Grants& grant) const
     {
-        return (remaining_sz < grant.remaining_sz);
+        if(remaining_sz < grant.remaining_sz)
+            return true;
+        if (remaining_sz == grant.remaining_sz)
+            return f->start_time < grant.f->start_time;
+        return false;
+        // return (remaining_sz < grant.remaining_sz);
     }
 };
 
