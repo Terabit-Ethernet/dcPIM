@@ -122,9 +122,13 @@ Datamining: ~17 hours
    cd py/bursty_workload/
    git clone https://github.com/Terabit-Ethernet/workload_generator.git
    cd workload_generator
+   ```
+   In run_script.sh,
+   Change `-il 0` to `-il 0.02` and `algo=(ndp)` to `algo=(pim)`
+   ```
    ./run_script.sh imc10
    cd ../
-   mv workload_generator/result/bursty_workload/pim/ trace/
+   mv workload_generator/results/workload/pim/ trace/
    ./run.sh
    ```
    
