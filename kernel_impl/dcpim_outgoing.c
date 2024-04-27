@@ -71,6 +71,12 @@ static void dcpim_insert_write_queue_after(struct sk_buff *skb,
 		dcpim_rbtree_insert(&sk->tcp_rtx_queue, buff);
 }
 
+void dcpim_wfree(struct sk_buff *skb)
+{
+	// sock_put(skb->sk);
+}
+EXPORT_SYMBOL(dcpim_wfree);
+
 void dcpim_fill_dcpim_header(struct sk_buff *skb, __be16 sport, __be16 dport) {
 	struct dcpimhdr* dh;
 	dh = dcpim_hdr(skb);
@@ -101,8 +107,8 @@ void dcpim_fill_ip_header(struct sk_buff *skb, __be32 saddr, __be32 daddr) {
     iph->tot_len= htons(skb->len); 
     iph->frag_off = 0; 
     iph->ttl = 64;
-    // iph->protocol = IPPROTO_DCPIM;
     iph->protocol = IPPROTO_TCP;
+    // iph->protocol = IPPROTO_TCP;
     iph->saddr = saddr;
     iph->daddr = daddr;
 	ip_send_check(iph);
@@ -1027,72 +1033,72 @@ struct sk_buff* construct_fin_ack_msg_pkt(struct sock* sk, __u64 message_id) {
 struct sk_buff* construct_rts_pkt(struct sock* sk, unsigned short round, int epoch, int remaining_sz, bool rtx_channel, bool prompt_channel) {
 	// int extra_bytes = 0;
 	struct sk_buff* skb = __construct_control_skb(sk, 0);
-	struct dcpim_rts_hdr* fh;
+	// struct dcpim_rts_hdr* fh;
 	struct dcpimhdr* dh; 
 	if(unlikely(!skb)) {
 		return NULL;
 	}
-	fh = (struct dcpim_rts_hdr *) skb_put(skb, sizeof(struct dcpim_rts_hdr));
-	dh = (struct dcpimhdr*) (&fh->common);
+	dh = (struct dcpimhdr *) skb_put(skb, sizeof(struct dcpimhdr));
+	// dh = (struct dcpimhdr*) (&fh->common);
 	// dh->len = htons(sizeof(struct dcpim_rts_hdr));
 	dh->type = RTS;
-	fh->round = round;
-	fh->epoch = epoch;
-	fh->remaining_sz = remaining_sz;
-	fh->rtx_channel = rtx_channel;
-	fh->prompt_channel = prompt_channel;
+	// fh->round = round;
+	// fh->epoch = epoch;
+	// dh->remaining_sz = remaining_sz;
+	dh->rtx_channel = rtx_channel;
+	dh->prompt_channel = prompt_channel;
 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
 	// if (extra_bytes > 0)
 	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
 	return skb;
 }
 
-struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short round, int epoch, int remaining_sz, bool prompt, bool rtx_channel, bool prompt_channel) {
-	// int extra_bytes = 0;
-	struct sk_buff* skb = __construct_control_skb(sk, 0);
-	struct dcpim_grant_hdr* fh;
-	struct dcpimhdr* dh; 
-	if(unlikely(!skb)) {
-		return NULL;
-	}
-	fh = (struct dcpim_grant_hdr *) skb_put(skb, sizeof(struct dcpim_grant_hdr));
-	dh = (struct dcpimhdr*) (&fh->common);
-	// dh->len = htons(sizeof(struct dcpim_grant_hdr));
-	dh->type = GRANT;
-	fh->round = round;
-	fh->epoch = epoch;
-	fh->remaining_sz = remaining_sz;
-	fh->rtx_channel = rtx_channel;
-	fh->prompt_channel = prompt_channel;
-	// fh->prompt = prompt;
-	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
-	// if (extra_bytes > 0)
-	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
-	return skb;
-}
+// struct sk_buff* construct_grant_pkt(struct sock* sk, unsigned short round, int epoch, int remaining_sz, bool prompt, bool rtx_channel, bool prompt_channel) {
+// 	// int extra_bytes = 0;
+// 	struct sk_buff* skb = __construct_control_skb(sk, 0);
+// 	struct dcpim_grant_hdr* fh;
+// 	struct dcpimhdr* dh; 
+// 	if(unlikely(!skb)) {
+// 		return NULL;
+// 	}
+// 	fh = (struct dcpim_grant_hdr *) skb_put(skb, sizeof(struct dcpim_grant_hdr));
+// 	dh = (struct dcpimhdr*) (&fh->common);
+// 	// dh->len = htons(sizeof(struct dcpim_grant_hdr));
+// 	dh->type = GRANT;
+// 	fh->round = round;
+// 	fh->epoch = epoch;
+// 	fh->remaining_sz = remaining_sz;
+// 	fh->rtx_channel = rtx_channel;
+// 	fh->prompt_channel = prompt_channel;
+// 	// fh->prompt = prompt;
+// 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
+// 	// if (extra_bytes > 0)
+// 	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
+// 	return skb;
+// }
 
-struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short round, int epoch, int remaining_sz, bool rtx_channel, bool prompt_channel) {
-	// int extra_bytes = 0;
-	struct sk_buff* skb = __construct_control_skb(sk, 0);
-	struct dcpim_accept_hdr* fh;
-	struct dcpimhdr* dh; 
-	if(unlikely(!skb)) {
-		return NULL;
-	}
-	fh = (struct dcpim_accept_hdr *) skb_put(skb, sizeof(struct dcpim_accept_hdr));
-	dh = (struct dcpimhdr*) (&fh->common);
-	// dh->len = htons(sizeof(struct dcpim_accept_hdr));
-	dh->type = ACCEPT;
-	fh->round = round;
-	fh->epoch = epoch;
-	fh->remaining_sz = remaining_sz;
-	fh->rtx_channel = rtx_channel;
-	fh->prompt_channel = prompt_channel;
-	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
-	// if (extra_bytes > 0)
-	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
-	return skb;
-}
+// struct sk_buff* construct_accept_pkt(struct sock* sk, unsigned short round, int epoch, int remaining_sz, bool rtx_channel, bool prompt_channel) {
+// 	// int extra_bytes = 0;
+// 	struct sk_buff* skb = __construct_control_skb(sk, 0);
+// 	struct dcpim_accept_hdr* fh;
+// 	struct dcpimhdr* dh; 
+// 	if(unlikely(!skb)) {
+// 		return NULL;
+// 	}
+// 	fh = (struct dcpim_accept_hdr *) skb_put(skb, sizeof(struct dcpim_accept_hdr));
+// 	dh = (struct dcpimhdr*) (&fh->common);
+// 	// dh->len = htons(sizeof(struct dcpim_accept_hdr));
+// 	dh->type = ACCEPT;
+// 	fh->round = round;
+// 	fh->epoch = epoch;
+// 	fh->remaining_sz = remaining_sz;
+// 	fh->rtx_channel = rtx_channel;
+// 	fh->prompt_channel = prompt_channel;
+// 	// extra_bytes = DCPIM_HEADER_MAX_SIZE - length;
+// 	// if (extra_bytes > 0)
+// 	// 	memset(skb_put(skb, extra_bytes), 0, extra_bytes);
+// 	return skb;
+// }
 /**
  * dcpim_xmit_control() - Send a control packet to the other end of an RPC.
  * @type:      Packet type, such as NOTIFICATION.
@@ -1210,6 +1216,7 @@ int dcpim_xmit_control(struct sk_buff* skb, struct sock* sk)
 	dh->doff = (sizeof(struct dcpimhdr)) >> 2;
 	// inet->tos = IPTOS_LOWDELAY | IPTOS_PREC_NETCONTROL;
 	skb->sk = sk;
+	skb->destructor = dcpim_wfree;
 	// dst_confirm_neigh(peer->dst, &fl4->daddr);
 	dst_hold(__sk_dst_get(sk));
 	// skb_dst_set(skb, __sk_dst_get(sk));
@@ -1392,6 +1399,7 @@ void __dcpim_xmit_long_data(struct sk_buff *skb, struct dcpim_sock* dsk)
 	dst_hold(__sk_dst_get(sk));
 	// skb_dst_set(skb, peer->dst);
 	skb->sk = sk;
+	skb->destructor = dcpim_wfree;
 	skb_dst_set(skb, __sk_dst_get(sk));
 	skb->ooo_okay = 1;
 	skb->ip_summed = CHECKSUM_PARTIAL;
@@ -1479,6 +1487,7 @@ void __dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk, bool is_shor
 	dst_hold(__sk_dst_get(sk));
 	// skb_dst_set(skb, peer->dst);
 	skb->sk = sk;
+	skb->destructor = dcpim_wfree;
 	skb_dst_set(skb, __sk_dst_get(sk));
 	skb->ip_summed = CHECKSUM_PARTIAL;
 	skb->csum_start = skb_transport_header(skb) - skb->head;
@@ -1791,7 +1800,7 @@ enum hrtimer_restart dcpim_rtx_sync_timer_handler(struct hrtimer *timer) {
 					/* to do: add short flow syn retransmission */
 				}
 				dsk->sender.sync_sent_times += 1;
-				hrtimer_forward_now(timer, ns_to_ktime(dcpim_params.epoch_length));
+				hrtimer_forward_now(timer, ns_to_ktime(10000000));
 				bh_unlock_sock(sk);
 				return HRTIMER_RESTART;
 			}

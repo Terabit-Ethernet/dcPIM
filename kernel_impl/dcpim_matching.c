@@ -379,10 +379,10 @@ static void receiver_matching_handler(struct work_struct *work) {
 
 static void dcpim_modify_ctrl_pkt(struct sk_buff *skb, __u8 type,  __u8 round, __be64 epoch, bool swap) {
 	/* the packet might not be grant packet, but doesn't matter for now. */
-	struct dcpim_grant_hdr *gh = dcpim_grant_hdr(skb);
-	gh->common.type = type;
-	gh->round =round;
-	gh->epoch = epoch;
+	struct dcpimhdr *gh = dcpim_hdr(skb);
+	gh->type = type;
+	// gh->round =round;
+	// gh->epoch = epoch;
 	if(swap) {
 		dcpim_swap_dcpim_header(skb);
 		dcpim_swap_ip_header(skb);
@@ -391,8 +391,8 @@ static void dcpim_modify_ctrl_pkt(struct sk_buff *skb, __u8 type,  __u8 round, _
 }
 
 static void dcpim_modify_ctrl_pkt_size(struct sk_buff *skb, __be32 size, bool rtx_channel, bool prompt_channel, u16 source, u16 dest) {
-	struct dcpim_grant_hdr *gh = dcpim_grant_hdr(skb);
-	gh->remaining_sz = size;
+	struct dcpimhdr *gh = dcpim_hdr(skb);
+	// gh->remaining_sz = size;
 	gh->rtx_channel = rtx_channel;
 	gh->prompt_channel = prompt_channel;
 	gh->source = source;
@@ -496,7 +496,7 @@ void dcpim_epoch_init(struct dcpim_epoch *epoch) {
 	epoch->sender_round_timer.function = &dcpim_sender_round_timer_handler;
 	epoch->receiver_round_timer.function = &dcpim_receiver_round_timer_handler;
 	/* To Do: this part will be enabled later when we enable the matching for zerocopy */
-	// queue_work_on(epoch->cpu, epoch->wq, &epoch->epoch_work);
+	queue_work_on(epoch->cpu, epoch->wq, &epoch->epoch_work);
 	// epoch->epoch_timer.function = &dcpim_new_epoch;
 }
 
@@ -596,10 +596,12 @@ void dcpim_send_all_rts (struct dcpim_epoch* epoch) {
 			}
 			inet = inet_sk(host->sk);
 			skb = construct_rts_pkt(host->sk, epoch->round, epoch->epoch, rts_size, rtx_channel, 1);
+			skb->destructor = dcpim_wfree;
 			dcpim_fill_dcpim_header(skb, htons(epoch->port), htons(epoch->port));
 			dcpim_fill_dst_entry(host->sk, skb,&inet->cork.fl);
 			dcpim_fill_ip_header(skb, host->src_ip, host->dst_ip);
 			err = ip_local_out(sock_net(host->sk), host->sk, skb);
+			// printk("send rts\n");
 			flow_size -= rts_size;
 			// if(prompt_size > 0)
 			// 	prompt_flow_size -= prompt_size;
@@ -617,7 +619,7 @@ unlock_receiver:
 }
 
 int dcpim_handle_rts (struct sk_buff *skb, struct dcpim_epoch *epoch) {
-	struct dcpim_rts_hdr *rh;
+	struct dcpimhdr *rh;
 	struct iphdr *iph;
 	// struct sock* sk;
 	struct dcpim_rts *rts;
@@ -626,11 +628,11 @@ int dcpim_handle_rts (struct sk_buff *skb, struct dcpim_epoch *epoch) {
 	// int sdif = inet_sdif(skb);
 	int rts_index, flow_size;
 	struct sk_buff *temp = NULL;
-	if (!pskb_may_pull(skb, sizeof(struct dcpim_rts_hdr)))
+	if (!pskb_may_pull(skb, sizeof(struct dcpimhdr)))
 		goto drop;		/* No space for header. */
-	rh = dcpim_rts_hdr(skb);
-	if(rh->remaining_sz == 0)
-		goto drop;
+	rh = dcpim_hdr(skb);
+	// if(rh->remaining_sz == 0)
+	// 	goto drop;
 	iph = ip_hdr(skb);
 	/* TO DO: check round number and epoch number */
 	host = dcpim_host_find_rcu(epoch, iph->daddr, iph->saddr);
@@ -642,9 +644,9 @@ int dcpim_handle_rts (struct sk_buff *skb, struct dcpim_epoch *epoch) {
 			host->rts_index < epoch->rts_size) {
 		rts = &epoch->rts_array[host->rts_index];
 		if(rts->skb_size < epoch->k) {
-			rts->remaining_sz += rh->remaining_sz;
+			rts->remaining_sz += epoch->epoch_bytes_per_k;
 			if(rh->prompt_channel)
-				rts->prompt_remaining_sz += rh->remaining_sz;
+				rts->prompt_remaining_sz += epoch->epoch_bytes_per_k;
 			rts->rtx_channel += rh->rtx_channel;
 		} else {
 			kfree_skb(skb);
@@ -664,9 +666,9 @@ int dcpim_handle_rts (struct sk_buff *skb, struct dcpim_epoch *epoch) {
 		if(rts_index < epoch->max_array_size) {
 			rts = &epoch->rts_array[rts_index];
 			rts->skb_size = 0;
-			rts->remaining_sz = rh->remaining_sz;
+			rts->remaining_sz = epoch->epoch_bytes_per_k;
 			if(rh->prompt_channel)
-				rts->prompt_remaining_sz += rh->remaining_sz;
+				rts->prompt_remaining_sz += epoch->epoch_bytes_per_k;
 			rts->flow_size = flow_size;
 			rts->rtx_channel = rh->rtx_channel;
 			temp_host = rts->host;
@@ -800,20 +802,21 @@ continue_loop:
 	spin_unlock_bh(&epoch->sender_lock);
 	for (i = 0; i < cur_k; i++) {
 		/* need to add error checking */
+		// skb_dump(KERN_INFO, epoch->rts_skb_array[i], false);
 		dev_queue_xmit(epoch->rts_skb_array[i]);
 	}
 }
 
 int dcpim_handle_grant(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 	struct dcpim_host *host, *temp_host = NULL;
-	struct dcpim_grant_hdr *gh;
+	struct dcpimhdr *gh;
 	struct dcpim_grant *grant;
 	struct iphdr *iph;
 	int grant_index = 0;
 	struct sk_buff *temp = NULL;
-	if (!pskb_may_pull(skb, sizeof(struct dcpim_grant_hdr)))
+	if (!pskb_may_pull(skb, sizeof(struct dcpimhdr)))
 		goto drop;		/* No space for header. */
-	gh = dcpim_grant_hdr(skb);
+	gh = dcpim_hdr(skb);
 	// printk("handle grant grant_hdr->source: %d grant_hdr->dest: %d  __dcpim_hdrlen(&grant_hdr->common):%d sdif:%d\n",
 	// 	ntohs(gh->source), ntohs(gh->dest),  __dcpim_hdrlen(&gh->common), inet_sdif(skb));
 	// printk("srcip: %d dstip: %d\n", ip_hdr(skb)->saddr, ip_hdr(skb)->daddr);
@@ -833,9 +836,9 @@ int dcpim_handle_grant(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 			host->grant_index < epoch->grant_size) {
 		grant = &epoch->grants_array[host->grant_index];
 		if(grant->skb_size < epoch->k) {
-			grant->remaining_sz += gh->remaining_sz;
+			grant->remaining_sz += epoch->epoch_bytes_per_k;
 			if(gh->prompt_channel)
-				grant->prompt_remaining_sz += gh->remaining_sz;
+				grant->prompt_remaining_sz += epoch->epoch_bytes_per_k;
 			grant->rtx_channel += gh->rtx_channel;
 		} else {
 			kfree_skb(skb);
@@ -846,9 +849,9 @@ int dcpim_handle_grant(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 		if(grant_index < epoch->max_array_size) {
 			grant = &epoch->grants_array[grant_index];
 			grant->skb_size = 0;
-			grant->remaining_sz = gh->remaining_sz;
+			grant->remaining_sz = epoch->epoch_bytes_per_k;
 			if(gh->prompt_channel)
-				grant->prompt_remaining_sz += gh->remaining_sz;
+				grant->prompt_remaining_sz += epoch->epoch_bytes_per_k;
 			temp_host = grant->host;
 			grant->host = host;
 			dcpim_host_hold(host);
@@ -885,7 +888,7 @@ drop:
 void dcpim_handle_all_grants(struct dcpim_epoch *epoch) {
 	struct dcpim_sock *dsk;
 	struct dcpim_grant *grant;
-	struct dcpim_grant_hdr *grant_hdr;
+	struct dcpimhdr *grant_hdr;
 	// struct dcpim_host *host;
 	struct sk_buff *skb, *grant_skb;
 	struct sock* sk;
@@ -919,11 +922,16 @@ void dcpim_handle_all_grants(struct dcpim_epoch *epoch) {
 		cur_recv_bytes = epoch->epoch_bytes_per_k;
 		/* find corresponding long flow socket to grant channel */
 		grant_skb = grant->skb_arr[grant->skb_size - 1];
-		grant_hdr = dcpim_grant_hdr(grant_skb);
+		WARN_ON_ONCE(grant_skb == NULL);
+		grant_hdr = dcpim_hdr(grant_skb);
 		sk = NULL;
 		if(grant->rtx_channel <= 0) {
-			sk = __inet_lookup_skb(&dcpim_hashinfo, grant_skb, __dcpim_hdrlen(&grant_hdr->common), grant_hdr->source,
+			sk = __inet_lookup_skb(&dcpim_hashinfo, grant_skb, __dcpim_hdrlen(grant_hdr), grant_hdr->source,
 				grant_hdr->dest, inet_sdif(grant_skb), &refcounted);
+			WARN_ON_ONCE(sk == NULL);
+			if(sk == NULL) {
+				printk("source, dest: %d %d",grant_hdr->source, grant_hdr->dest);
+			}
 			if(!sk || sk->sk_state  != DCPIM_ESTABLISHED) {
 				kfree_skb(grant_skb);
 				if(refcounted) {
@@ -934,6 +942,7 @@ void dcpim_handle_all_grants(struct dcpim_epoch *epoch) {
 		} else {
 			rtx_channel = true;
 			grant->rtx_channel -= 1;
+			printk("rtx channel is 1\n");
 		}
 		/* check the number of channels we need; whether used for prompt */
 		if(grant->prompt_remaining_sz > 0 && prompt_recv_bytes + cur_recv_bytes <= epoch->last_unmatched_recv_bytes) {
@@ -1002,6 +1011,8 @@ free_skb:
 		} else {
 			/* To Do: check if we can send the rtx token directly if the channel is prompt. */
             if(epoch->rtx_msg_size < epoch->k) {
+				/* this part needed to be change if we want to make zero-copy shortmessage work */
+				/* To Do: change rtx_msg packet */
 				skb = skb_copy(epoch->grant_skb_array[i], GFP_ATOMIC);
                 dcpim_modify_ctrl_pkt(skb, RTX_MSG, READ_ONCE(epoch->epoch), READ_ONCE(epoch->round), false);
                 dcpim_modify_ctrl_pkt_size(skb,  epoch->accept_array[i].remaining_sz, true, true, 0, 0);
@@ -1022,20 +1033,20 @@ free_skb:
 
 int dcpim_handle_accept(struct sk_buff *skb, struct dcpim_epoch *epoch) {
 	struct dcpim_host *host;
-	struct dcpim_accept_hdr *ah;
+	struct dcpimhdr *ah;
 	struct iphdr *iph;
 	bool skip_free = true;
-	if (!pskb_may_pull(skb, sizeof(struct dcpim_accept_hdr)))
+	if (!pskb_may_pull(skb, sizeof(struct dcpimhdr)))
 		goto drop;		/* No space for header. */
 
-	ah = dcpim_accept_hdr(skb);
+	ah = dcpim_hdr(skb);
 	iph = ip_hdr(skb);
 	host = dcpim_host_find_rcu(epoch, iph->daddr, iph->saddr);
 	if(!host)
 		goto drop;
-	atomic_sub_return(ah->remaining_sz, &epoch->unmatched_sent_bytes);
+	atomic_sub_return(epoch->epoch_bytes_per_k, &epoch->unmatched_sent_bytes);
 	if(ah->prompt_channel)
-		atomic_sub_return(ah->remaining_sz, &epoch->last_unmatched_sent_bytes);
+		atomic_sub_return(epoch->epoch_bytes_per_k, &epoch->last_unmatched_sent_bytes);
 	dcpim_host_put(host);
 drop:
 	if(skip_free)

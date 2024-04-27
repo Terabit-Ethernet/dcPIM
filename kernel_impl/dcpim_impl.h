@@ -120,6 +120,7 @@ struct sk_buff* construct_syn_ack_pkt(struct sock* sk);
 struct sk_buff* construct_fin_ack_pkt(struct sock* sk);
 
 int dcpim_xmit_control(struct sk_buff* skb, struct sock *dcpim_sk);
+void dcpim_wfree(struct sk_buff *skb);
 void dcpim_xmit_data(struct sk_buff *skb, struct dcpim_sock* dsk);
 void __dcpim_xmit_long_data(struct sk_buff *skb, struct dcpim_sock* dsk);
 void dcpim_retransmit_data(struct sk_buff *skb, struct dcpim_sock* dsk);

@@ -780,8 +780,8 @@ int dcpim_init_sock(struct sock *sk)
 	atomic_set(&dsk->receiver.token_work_status, 0);
 	// atomic_set(&dsk->receiver.matched_bw, 100);
 	/* To Do: this part will be setup to 0 later when we enable the matching for zerocopy */
-	atomic64_set(&dsk->receiver.pacing_rate, 12500000000); // bytes per second
-	WRITE_ONCE(dsk->receiver.next_pacing_rate, 12500000000); // bytes per second
+	atomic64_set(&dsk->receiver.pacing_rate, 0); // bytes per second
+	WRITE_ONCE(dsk->receiver.next_pacing_rate, 0); // bytes per second
 	INIT_WORK(&dsk->receiver.token_work, dcpim_xmit_token_work);
 
 	// dsk->start_time = ktime_get();

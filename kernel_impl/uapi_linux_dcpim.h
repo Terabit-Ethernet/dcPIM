@@ -75,7 +75,11 @@ struct dcpimhdr {
 #endif
 	/** @type: One of the values of &enum packet_type. */
 	__u8 type;
-	__u8 unused4;
+	__u8	rtx_channel:1,
+		prompt_channel:1,
+		unused1:4,
+		unused2:1,
+		unused3:1;
 	/**
 	* @check: not used by dcPIM, but must occupy the same bytes as
 	* the checksum in a TCP header (TSO may modify this?).*/
@@ -87,6 +91,9 @@ struct dcpimhdr {
 		struct {
 			__be32 token_nxt;
 		};
+		// struct {
+		// 	__be32 remaining_sz;
+		// };
 	};
 
 
@@ -195,38 +202,38 @@ struct dcpim_ack_hdr {
 // 		"dcpim_ack_header too large");
 struct dcpim_rts_hdr {
 	struct dcpimhdr common;
-	__u8 round;
-	__u8 rtx_channel;
-	__u8 prompt_channel;
-	__u16 source;
-	__u16 dest;
-	__be64 epoch;
-	__be32 remaining_sz;
+	// __u8 round;
+	// __u8 rtx_channel;
+	// __u8 prompt_channel;
+	// __u16 source;
+	// __u16 dest;
+	// __be64 epoch;
+	// __be32 remaining_sz;
 };
 
 struct dcpim_grant_hdr {
 	struct dcpimhdr common;
-	__u8 round;
-	__u8 rtx_channel;
-	__u8 prompt_channel;
-	/* src port of socket to match */
-	__u16 source;
-	/* dst port of socket to match */
-	__u16 dest;
-	__be64 epoch;
-	__be32 remaining_sz;
+	// __u8 round;
+	// __u8 rtx_channel;
+	// __u8 prompt_channel;
+	// /* src port of socket to match */
+	// __u16 source;
+	// /* dst port of socket to match */
+	// __u16 dest;
+	// __be64 epoch;
+	// __be32 remaining_sz;
 	// __u8 prompt;
 };
 
 struct dcpim_accept_hdr {
 	struct dcpimhdr common;
-	__u8 round;
-	__u8 rtx_channel;
-	__u8 prompt_channel;
-	__u16 source;
-	__u16 dest;
-	__be64 epoch;
-	__be32 remaining_sz;
+	// __u8 round;
+	// __u8 rtx_channel;
+	// __u8 prompt_channel;
+	// __u16 source;
+	// __u16 dest;
+	// __be64 epoch;
+	// __be32 remaining_sz;
 	// __u8 accept;
 
 };
