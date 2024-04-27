@@ -238,6 +238,7 @@ int dcpim_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	if(sk->sk_priority == 7) {
 		dcpim_xmit_control(construct_flow_sync_pkt(sk, NOTIFICATION_SHORT), sk); 
 	} else {
+		printk("xmit control flow sync\n");
 		dcpim_xmit_control(construct_flow_sync_pkt(sk, NOTIFICATION_LONG), sk); 
 		if(dcpim_sk(sk)->dma_device == NULL && dcpim_enable_ioat)
 			dcpim_sk(sk)->dma_device = get_free_ioat_dma_device(sk);
