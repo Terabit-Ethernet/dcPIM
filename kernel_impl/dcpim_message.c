@@ -122,6 +122,8 @@ struct dcpim_message* dcpim_message_new(struct dcpim_sock* dsk,
 	msg->remaining_len = length;
 	hrtimer_init(&msg->rtx_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
 	msg->rtx_timer.function = dcpim_rtx_msg_timer_handler;
+	hrtimer_init(&msg->fast_rtx_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED_SOFT);
+	msg->fast_rtx_timer.function = dcpim_fast_rtx_msg_timer_handler;
 	INIT_HLIST_NODE(&msg->hash_link);
 	INIT_LIST_HEAD(&msg->table_link);
 	INIT_LIST_HEAD(&msg->fin_link);
@@ -450,8 +452,10 @@ void dcpim_remove_message(struct dcpim_message_bucket *hashinfo, struct dcpim_me
 	hlist_del_init(&msg->hash_link);
 	spin_unlock(lock);
 	/* remove hrtimer */
-	if(cancel_timer)
+	if(cancel_timer) {
 		hrtimer_cancel(&msg->rtx_timer);
+		hrtimer_cancel(&msg->fast_rtx_timer);
+	}
 	/* need to sync for deletion */
 	dcpim_message_put(msg);
 	return;

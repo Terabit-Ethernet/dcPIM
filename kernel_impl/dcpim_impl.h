@@ -15,7 +15,7 @@ extern struct workqueue_struct *dcpim_wq;
 extern struct dcpim_params dcpim_params;
 extern struct dcpim_epoch dcpim_epoch;
 extern struct request_sock_ops dcpim_request_sock_ops;
-
+extern atomic64_t dcpim_num_rx_msgs;
 extern struct dcpim_message_bucket dcpim_tx_messages[DCPIM_BUCKETS];
 extern struct dcpim_message_bucket dcpim_rx_messages[DCPIM_BUCKETS];
 
@@ -168,8 +168,9 @@ int dcpim_handle_data_msg_pkt(struct sk_buff *skb);
 int dcpim_handle_flow_sync_msg_pkt(struct sk_buff *skb);
 int dcpim_handle_fin_msg_pkt(struct sk_buff *skb);
 int dcpim_handle_fin_ack_msg_pkt(struct sk_buff *skb);
+int dcpim_handle_resync_msg_pkt(struct sk_buff *skb);
 enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer);
-enum hrtimer_restart dcpim_rtx_msg_timer_handler(struct hrtimer *timer);
+enum hrtimer_restart dcpim_fast_rtx_msg_timer_handler(struct hrtimer *timer);
 void dcpim_msg_rtx_bg_handler(struct dcpim_sock *dsk);
 void dcpim_msg_fin_rx_bg_handler(struct dcpim_sock *dsk);
 void dcpim_msg_fin_tx_bg_handler(struct dcpim_sock *dsk);

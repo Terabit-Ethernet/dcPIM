@@ -34,6 +34,7 @@ enum dcpim_packet_type {
 	FIN_MSG			  , 
 	FIN_ACK_MSG		  , 
 	RTX_MSG 		  ,
+	RESYNC_MSG        ,
 };
 
 struct dcpimhdr {
@@ -174,7 +175,10 @@ struct dcpim_fin_hdr {
 	struct dcpimhdr common;
 	__be64 message_id;
 	/*UINT32_MAX refers to long flow; otherwise, the flow is the short flow. */
+	union {
 	__be32 message_size;
+	__be32 num_msgs;
+	};
 };
 
 // _Static_assert(sizeof(struct dcpim_flow_sync_hdr) <= DCPIM_HEADER_MAX_SIZE,
@@ -234,9 +238,14 @@ struct dcpim_rtx_msg_hdr {
 	__be64 epoch;
 	__be32 remaining_sz;
 	// __u8 accept;
-
 };
 
+struct dcpim_resync_msg_hdr {
+	struct dcpimhdr common;
+	__be64 message_id;
+	/*UINT32_MAX refers to long flow; otherwise, the flow is the short flow. */
+	__be32 message_size;
+};
 
 enum {
 	SKB_GSO_DCPIM = 1 << 19,
