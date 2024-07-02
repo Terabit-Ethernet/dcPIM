@@ -384,6 +384,11 @@ void tcp_shortflow(struct sockaddr dest, int id, int io_depth, int flow_size, un
 		}
 		else {
 			fd = socket(AF_INET, SOCK_STREAM, 0);
+			flag = 1;
+			setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(int));
+			setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &flag, sizeof(int));
+			flag = 0;
+			setsockopt(fd, IPPROTO_TCP, TCP_CORK, &flag, sizeof(int));
 		}
 		// client.sin_family = AF_INET;
 		// client.sin_port = htons(src_port + i % size_limit);
@@ -398,6 +403,11 @@ void tcp_shortflow(struct sockaddr dest, int id, int io_depth, int flow_size, un
 		// 	printf("Couldn't bind to port %d: %s\n", src_port + i % size_limit, strerror(errno));
 		// 	exit(1);
 		// }
+		/* Read the current time from CLOCK_REALTIME */
+		if (clock_gettime(CLOCK_REALTIME, &current_time) != 0) {
+			perror("clock_gettime");
+			break;
+		}
 		nanoseconds = (long long)current_time.tv_sec * 1000000000 + (long long)current_time.tv_nsec;
 		if (connect(fd, &dest, sizeof(struct sockaddr_in)) == -1) {
 			break;
@@ -408,11 +418,6 @@ void tcp_shortflow(struct sockaddr dest, int id, int io_depth, int flow_size, un
 		/* receive one response */
 		total = 0;
 		// sleep(0.05);
-		/* Read the current time from CLOCK_REALTIME */
-		if (clock_gettime(CLOCK_REALTIME, &current_time) != 0) {
-			perror("clock_gettime");
-			break;
-		}
 		flag = 0;
 		*(long long*)buffer = nanoseconds;
 		while(total < flow_size) {
