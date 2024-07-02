@@ -7,7 +7,7 @@ sudo ifconfig $INTF mtu 9000
 sudo ifconfig $INTF $TARGET
 
 cd /home/qizhe/synergylab-hardware
-python /home/qizhe/synergylab-hardware/setup-arps.py $INTF
+# python /home/qizhe/synergylab-hardware/setup-arps.py $INTF
 cd -
 sudo ethtool -U $INTF flow-type tcp4 src-port 10000 dst-port 10000 action 0 loc 0
 sudo ethtool -U $INTF flow-type tcp4 src-port 10001 dst-port 10001 action 1 loc 1
