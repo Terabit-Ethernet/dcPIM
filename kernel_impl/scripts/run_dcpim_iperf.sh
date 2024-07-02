@@ -25,7 +25,9 @@ then
 	sudo ethtool -C ens2f1np1 adaptive-rx on adaptive-tx on
 else
 	ssh jaehyun\@128.84.155.146 -t 'sudo ethtool -C ens2f1np1 adaptive-rx off adaptive-tx off'
+	ssh jaehyun\@128.84.155.146 -t 'sudo ethtool -C ens2f1np1 rx-usecs 6'
 	sudo ethtool -C ens2f1np1 adaptive-rx off adaptive-tx off
+	sudo ethtool -C ens2f1np1 rx-usecs 6
 fi
 
 # incast
@@ -38,14 +40,14 @@ then
 	server=0
 	NSERVER=1
 	while (( server < NSERVER ));do
-			ssh jaehyun\@128.84.155.146 -t "sudo taskset -c 0 /home/qizhe/dcPIM/kernel_impl/util/server --ip 192.168.10.125 --port $((4000 + server)) --pin > server_$((server)).log" &
+			ssh jaehyun\@128.84.155.146 -t "sudo taskset -c 0 /home/qizhe/dcPIM/kernel_impl/util/server --ip 192.168.11.125 --port $((4000 + server)) --pin > server_$((server)).log" &
 			#taskset -c 0 /home/qizhe/dcpim_kernel/util/server --ip 192.168.10.125 --port $((4000 + core_id))
 			(( server++ ))
 	done
 	sleep 3
 	flow=0
 	while (( flow < NCLIENT ));do
-			taskset -c $TASKSET /home/qizhe/dcPIM/kernel_impl/util/dcpim_test 192.168.10.125:$((4000 + flow)) --sp $(( 10000 * (1) +  flow )) --pin --count 1 tcpping &
+			taskset -c $TASKSET /home/qizhe/dcPIM/kernel_impl/util/dcpim_test 192.168.11.125:$((4000 + flow)) --pin --sp $(( 10000 * 1 +  flow )) --count 1 dcpimping &
 			(( flow++ ))
 	done
 fi
@@ -59,7 +61,8 @@ then
 	# echo "ssh jaehyun\@128.84.155.146  "sudo /home/qizhe/dcpim_kernel/util/run_server.sh 1""
 	server=0
 	NSERVER=15
-	ssh jaehyun\@128.84.155.146 -t "/home/qizhe/dcPIM/kernel_impl/util/run_a2a.sh" &
+	ssh jaehyun\@128.84.155.146 -t "/home/qizhe/dcPIM/kernel_impl/util/run_a2a_iperf3.sh dcpim" &
+
 	# while (( server < NSERVER ));do
 	# 		ssh jaehyun\@128.84.155.146 -t "sudo taskset -c $TASKSET /home/qizhe/dcpim_kernel/util/server --ip 192.168.10.125 --port $((4000 + server)) > server_$((server)).log" &
 	# 		echo "ssh jaehyun\@128.84.155.146 -t sudo taskset -c $TASKSET /home/qizhe/dcpim_kernel/util/server --ip 192.168.10.125 --port $((4000 + server)) > server_$((server)).log"
@@ -68,7 +71,14 @@ then
 	# 		(( server++ ))
 	# done
 	sleep 3
-	/home/qizhe/dcPIM/kernel_impl/util/run_a2a_client.sh $NCLIENT tcp
+	/home/qizhe/dcPIM/kernel_impl/util/run_a2a_client_iperf3.sh $NCLIENT dcpim
+	#flow=0
+# echo "NUM client: $NCLIENT"
+# while (( flow < NCLIENT ));do
+# 	dport=$((4000 + flow % NSERVER))
+# 	taskset -c $TASKSET /home/qizhe/dcpim_kernel/util/dcpim_test 192.168.10.125:$(($dport)) --sp $(( 10000 +  flow )) --count 1 dcpimping &
+# 	(( flow++ ))
+# done
 fi
 
 sar -u 55 1 -P ALL > $DIR/cpu-"$NCLIENT".log &
@@ -88,10 +98,10 @@ scp -r jaehyun\@128.84.155.146:~/server*.log temp/
 PIDS2="$!"
 # client-side
 sudo trace-cmd clear
-sudo killall dcpim_test
+sudo killall iperf3 iperf
 # server-side
 
 ssh jaehyun\@128.84.155.146 -t 'sudo trace-cmd clear'
-ssh jaehyun\@128.84.155.146 -t 'sudo killall server'
+ssh jaehyun\@128.84.155.146 -t 'sudo killall iperf3 iperf'
 ssh jaehyun\@128.84.155.146 -t 'sudo rm -rf /home/jaehyun/server_*.log'
-sleep 5
+

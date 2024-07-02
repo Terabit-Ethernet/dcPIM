@@ -500,7 +500,7 @@ int dcpim_sendmsg_msg_locked(struct sock *sk, struct msghdr *msg, size_t len) {
 	if (sk->sk_state != DCPIM_ESTABLISHED) {
 		return -ENOTCONN;
 	}
-	if(len > dcpim_params.bdp)
+	if(len > dcpim_params.bdp || len > dcpim_epoch.epoch_bytes_per_k)
 		return -ENOBUFS;
 	if(dcpim_message_memory_free(sk) <= 0) {
 		timeo = sock_sndtimeo(sk, flags & MSG_DONTWAIT);
