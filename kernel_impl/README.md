@@ -46,6 +46,16 @@ cd dcpim_kernel
 make
 sudo insmod dcpim_module.ko
 ```
+2. Add IPPROTO_DCPIM in /usr/include/netinet/in.h:
+
+   We need to define **IPPROTO_DCPIM** for applications using dcPIM sockets. Add the two lines with `sudo vi /usr/include/netinet/in.h` in line 83 after `#define IPPROTO_MPTCP	IPPROTO_MPTCP`:
+
+   ```
+   ...
+   IPPROTO_DCPIM = 0xFE,      /* dcPIM Socket.  */
+   #define IPPROTO_DCPIM     IPPROTO_DCPIM
+   ...
+   ```
 2. To unload the module,
 ```
 sudo rmmod dcpim_module.ko
