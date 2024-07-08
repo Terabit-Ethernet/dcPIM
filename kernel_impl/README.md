@@ -65,13 +65,11 @@ dcPIM utilizes a standard socket interface, making use of the connect/accept/rea
 `util/dcpim_test.cc` (client code),
 `util/server.cc` (server side).
 
-There are only two key distinctions from TCP sockets:
-
 1. When creating socket, we need to specify for dcPIM socket.
 ```
 fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCPIM);
 ```
-
+In case you don't want to change your application code, you can also use redirect library as [Run Iperf](##run-iperf) section shows.
 2. Each socket corresponds to a long flow and is only transmitted when matching is approved. In order to transmit short flows that bypass matching, excluding retransmission, prior to performing the connect system call on the client side, the socket priority should be set to the highest priority using the following code:
 ```
 int priority = 7;
