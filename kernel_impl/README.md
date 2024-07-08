@@ -119,8 +119,10 @@ Run iperf at the client side:
 sudo LD_PRELOAD=~/dcPIM/kernel_impl/custom_socket/socket_wrapper.so taskset -c 0 iperf3 -c 192.168.11.125 -p 10000 --cport 10000 -t 100 -4
 ```
 
-## The current status of implementation
-The first prototype is close to be finished. More testing are needed to be done.
+## Running Microbenchmark 
+### Long flow performance testing (using streaming interfaces)
+
+### Short flow performance testing (using message interfaces)
 
 ## What is the kernel patch for?
 Modern NICs often come equipped with multiple hardware (HW) queues, with each HW queue corresponding to a CPU core. In the RX data path, when a packet is received, the NIC may calculate its hash and distribute it to a dedicated HW queue based on this hash. The hash value can be determined by either the five tuples or the two tuples (source and destination IP addresses). Typically, for TCP or UDP traffic, packets belonging to different flows can be routed to different HW queues based on their five tuples. This enables multiple CPU cores to be activated for processing packets, resulting in optimal performance.
