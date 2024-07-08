@@ -24,7 +24,15 @@ total_thpt = 0
 
 # client_netfilter2_dict, server_netfilter2_dict = netfilter_output_2()
 # print ('''port, client_core, server_core, client_pid, server_pid, thpt, latency, total_netfilter_pkt''')
-for i in range(0, N ):
+f = os.path.join(DIR, "latency.log")
+lines = []
+with open(f, "r") as file:
+        lines = file.readlines()
+        params = lines[0].split()
+        mean = params[0]
+        p99 = params[1]
+        p999 = params[2]
+for i in range(0, N):
     f = os.path.join(DIR, "netperf-{}.log".format(i))
     lines = []
     with open(f, "r") as file:
@@ -33,27 +41,29 @@ for i in range(0, N ):
         temp_result = []
         for line in lines:
             params = line.split()
+            if len(params) <= 2:
+                break
             time = float(params[2])
             if num > 10000000:
                 break
             results.append(time)
             temp_result.append(time)
             num += 1
-    f = os.path.join(DIR, "netperf-{}_thpt.log".format(i))
+    f = os.path.join(DIR, "netperf-{}.log".format(i))
     temp_result.sort()
     with open(f, "r") as file:
         lines = file.readlines()
         for line in lines:
             params = line.split()
-            port = int(params[1])
-            thpt = float(params[2])
+            port = int(params[0])
+            thpt = float(params[4])
             latency = np.percentile(temp_result, 99.9)
             total_thpt += thpt
 
 results.sort()
 # Print the netperf latencies
 categories = ['m_lat', 'p99_lat', 'p999_lat']
-print("{}\t{}\t{}".format('m_lat','p99_lat',  'p999_lat', "thpt"))
+print("{}\t{}\t{}\t{}".format('m_lat','p99_lat',  'p999_lat', "thpt"))
 
-print("{}\t{}\t{}".format(sum(results) / len(results), np.percentile(results, 99),  np.percentile(results, 99.9)), total_thpt)
-
+# print("{}\t{}\t{}".format(sum(results) / len(results), np.percentile(results, 99),  np.percentile(results, 99.9)), total_thpt)
+print("{}\t{}\t{}\t{}".format(mean, p99, p999, total_thpt))

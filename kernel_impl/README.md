@@ -46,6 +46,16 @@ cd dcpim_kernel
 make
 sudo insmod dcpim_module.ko
 ```
+2. Add IPPROTO_DCPIM in /usr/include/netinet/in.h:
+
+   We need to define **IPPROTO_DCPIM** for applications using dcPIM sockets. Add the two lines with `sudo vi /usr/include/netinet/in.h` in line 83 after `#define IPPROTO_MPTCP	IPPROTO_MPTCP`:
+
+   ```
+   ...
+   IPPROTO_DCPIM = 0xFE,      /* dcPIM Socket.  */
+   #define IPPROTO_DCPIM     IPPROTO_DCPIM
+   ...
+   ```
 2. To unload the module,
 ```
 sudo rmmod dcpim_module.ko
@@ -55,19 +65,19 @@ dcPIM utilizes a standard socket interface, making use of the connect/accept/rea
 `util/dcpim_test.cc` (client code),
 `util/server.cc` (server side).
 
-There are only two key distinctions from TCP sockets:
-
-1. When creating socket, we need to specify for dcPIM socket.
+1. When creating socket, we need to specify for dcPIM socket. Similar to a TCP socket, by default, the dcPIM socket supports the streaming interface. Each socket pair corresponds to a long flow in dcPIM protocol.
 ```
 fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_DCPIM);
 ```
+In case you don't want to change your application code, you can also use redirect library as [Run Iperf](#run-iperf) section shows.
 
-2. Each socket corresponds to a long flow and is only transmitted when matching is approved. In order to transmit short flows that bypass matching, excluding retransmission, prior to performing the connect system call on the client side, the socket priority should be set to the highest priority using the following code:
+2. Besides the streaming interface, dcPIM also provides message interface (corresponding to short flows in dcPIM protocol). Message interfaces are used when applications intend to achieve low latency. **Data sent by a write syscall will be treated as a new message and the receiver will receive data in the message granularity.** On the receiver side, if the receiver does not provide enough buffer size to hold the message, an error will be returned after the read syscall. To use the message interface, prior to performing the connect system call on the client side, the socket priority should be set to the highest priority using the following code:
 ```
 int priority = 7;
 setsockopt(fd, SOL_SOCKET, SO_PRIORITY, &priority, sizeof(priority));
 ```
-It's important to note that data sent via a single send system call is treated as one short flow.
+All other operations are exactly same as streaming interface of dcPIM or TCP sockets. The example code can be found at: `util
+/pingpong_client.cc` and `util/pingpong_server.cc`.
 
 ## Run sample application
 

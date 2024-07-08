@@ -10,8 +10,8 @@ FLOWSIZE=$5
 RXUSEC=$6
 # client-side
 sudo trace-cmd clear
-# MTU=$((FLOWSIZE+52))
-# echo $MTU
+MTU=$((FLOWSIZE+52))
+echo $MTU
 #LOG=249
 # server-side
 ssh jaehyun\@128.84.155.146 -t 'sudo trace-cmd clear'
@@ -20,8 +20,6 @@ ssh jaehyun\@128.84.155.146 -t 'sudo trace-cmd clear'
 TASKSET="0"
 mkdir -p $DIR
 
-
-# the first run result may impact after DIM changes
 if [[ $DIM -eq 1 ]]
 then
 	echo "enable dim"
@@ -34,27 +32,23 @@ else
 	sudo ethtool -C ens2f1np1 rx-usecs $RXUSEC
 fi
 
-ssh jaehyun\@128.84.155.146 -t "sudo ethtool -K ens2f1np1 ntuple off  gro on gso off tso off lro off"
-sudo ethtool -K ens2f1np1 ntuple off  gro on gso off tso off lro off
-
-# the first run result may impact after mtu changes
-ssh jaehyun\@128.84.155.146 -t "sudo ifconfig ens2f1np1 mtu 9000"
-sudo ifconfig ens2f1np1 mtu 9000
+ssh jaehyun\@128.84.155.146 -t "sudo ifconfig ens2f1np1 mtu $MTU"
+sudo ifconfig ens2f1np1 mtu $MTU
 
 # single-core
 
 server=0
 # NSERVER=1
 # while (( server < NSERVER ));do
-ssh jaehyun\@128.84.155.146 -t "sudo taskset -c $TASKSET nice -n -20 /home/qizhe/dcPIM/kernel_impl/util/pingpong_server --ip 192.168.11.125 --port 10000 --iodepth 1 --flowsize $FLOWSIZE --count $NCLIENT --dcpim --oneside"&
+ssh jaehyun\@128.84.155.146 -t "sudo taskset -c $TASKSET nice -n -20 /home/qizhe/dcPIM/kernel_impl/util/pingpong_server --ip 192.168.11.125 --port 10000 --iodepth 1 --flowsize $FLOWSIZE --count $NCLIENT --shortflow" &
 PIDS="$PIDS $!"
 		#taskset -c 0 /home/qizhe/dcpim_kernel/util/server --ip 192.168.10.125 --port $((4000 + core_id))
 # 		(( server++ ))
 # done
-echo sudo taskset -c $TASKSET nice -n -20 /home/qizhe/dcPIM/kernel_impl/util/pingpong_server --ip 192.168.11.125 --port 10000 --iodepth 1 --flowsize $FLOWSIZE --count $NCLIENT --dcpim --oneside
 sleep 3
-sudo taskset -c $TASKSET nice -n -20 /home/qizhe/dcPIM/kernel_impl/util/pingpong_client 192.168.11.125:10000  --sp 10000 --count $NCLIENT --iodepth 1 --flowsize $FLOWSIZE --oneside ping &
-echo sudo taskset -c $TASKSET nice -n -20 /home/qizhe/dcPIM/kernel_impl/util/pingpong_client 192.168.11.125:10000  --sp 10000 --count $NCLIENT --iodepth 1 --flowsize $FLOWSIZE --oneside ping
+sudo taskset -c $TASKSET nice -n -20 /home/qizhe/dcPIM/kernel_impl/util/pingpong_client 192.168.11.125:10000  --sp 10000 --count $NCLIENT --iodepth 1 --flowsize $FLOWSIZE --tcp --shortflow ping &
+
+
 
 sar -u 55 1 -P ALL > $DIR/cpu-"$NCLIENT".log &
 ssh jaehyun\@128.84.155.146 -t 'sar -u 55 1 -P ALL' > $DIR/cpu-server-"$NCLIENT".log &
@@ -65,8 +59,8 @@ then
 	ssh jaehyun\@128.84.155.146 -t "cd /home/qizhe; sudo ./perf report --stdio --stdio-color never --percent-limit 0.01 -i perf_data_file | cat" >  $DIR/perf.log
 fi
 
+# sleep 150
 wait $PIDS
-
 # get compute log
 scp -r jaehyun\@128.84.155.146:~/server*.log temp/
 scp -r jaehyun\@128.84.155.146:~/netperf*.log temp/
@@ -79,5 +73,5 @@ sudo killall pingpong_client
 
 ssh jaehyun\@128.84.155.146 -t 'sudo trace-cmd clear'
 ssh jaehyun\@128.84.155.146 -t 'sudo killall pingpong_server'
-ssh jaehyun\@128.84.155.146 -t 'sudo rm -rf /home/jaehyun/server_*.log /home/jaehyun/netperf*.log /home/jaehyun/latency.log'
+ssh jaehyun\@128.84.155.146 -t 'sudo rm -rf /home/jaehyun/latency.log /home/jaehyun/server_*.log /home/jaehyun/netperf*.log'
 

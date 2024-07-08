@@ -1,47 +1,44 @@
 iodepth=(1)
-num_apps=(3)
-dim=(1)
+num_apps=(1 2 4 8 16 32)
+rx_usec=(6)
+dim=(0)
 # 1: incast
-workload=(2)
-perf=1
-sys="tcp"
-for d in "${dim[@]}"
-do  
-    for p in "${workload[@]}"
-    do
-        for k in "${num_apps[@]}"
+perf=0
+sys="dcpim"
+for r in "${rx_usec[@]}"
+do
+    for d in "${dim[@]}"
+    do  
+        for p in "${iodepth[@]}"
         do
-            ./run_"$sys"_iperf.sh $k temp/ $d $perf $p
-            # python3 parse_thpt.py temp/ $k
-            mkdir temp/"$sys"_a2a_"$d"_"$p"_"$perf"_"$k"
-            mv temp/*.log temp/"$sys"_a2a_"$d"_"$p"_"$perf"_"$k"
-            echo "done"    
+            for k in "${num_apps[@]}"
+            do 
+                cat temp/"$sys"_a2a_"$d"_"$p"_"$perf"_"$k"_"$r"/result.log
+                sudo rm -rf temp/"$sys"_a2a_"$d"_"$p"_"$perf"_"$k"_"$r"/netperf*.log           
+	    done
+            # for f in  "${flowsize[@]}"
+            # do
+            #     for i in "${iodepth[@]}"
+            #     do
+            #         for k in "${num_apps[@]}"
+            #         do
+            #             mkdir results/our_mc_"$f"_"$k"_"$i"
+            #             ./parse-netperf.py temp/dim_"$d"_pin_"$p"_tapp_"$t"_sched_"$s"/"$sys"_mc_"$f"_"$k"_"$i" $k > results/our_mc_"$f"_"$k"_"$i"/"$sys"_latency &
+            #             # PIDS="$PIDS $!"
+            #             # ./parse-breakdown-server.py temp/dim_"$d"_pin_"$p"_tapp_"$t"_sched_"$s"/"$sys"_mc_"$f"_"$k"_"$i" $k > results/our_mc_"$f"_"$k"_"$i"/"$sys"_latency_breakdown_s &
+            #             # ./parse-breakdown.py temp/dim_"$d"_pin_"$p"_tapp_"$t"_sched_"$s"/"$sys"_mc_"$f"_"$k"_"$i" $k >  results/our_mc_"$f"_"$k"_"$i"/"$sys"_latency_breakdown_c &
+            #             ./parse-breakdown-rx_sched_c.py temp/dim_"$d"_pin_"$p"_tapp_"$t"_sched_"$s"/"$sys"_mc_"$f"_"$k"_"$i" $k > results/our_mc_"$f"_"$k"_"$i"/"$sys"_latency_breakdown_rx_sched_c &
+            #             ./parse-breakdown-rx_sched_s.py temp/dim_"$d"_pin_"$p"_tapp_"$t"_sched_"$s"/"$sys"_mc_"$f"_"$k"_"$i" $k > results/our_mc_"$f"_"$k"_"$i"/"$sys"_latency_breakdown_rx_sched_s &
+            #             # ./parse-cpu.py temp/our_mc_"$f"_"$k"_"$i" $k $j > results/our_mc_"$f"_"$k"_"$i"/"$sys"_cpu &
+            #             # ./parse-compute.py temp/dim_"$d"_pin_"$p"_tapp_"$t"_sched_"$s"/"$sys"_mc_"$f"_"$k"_"$i" 2 > results/our_mc_"$f"_"$k"_"$i"/"$sys"_compute &
+            #         done
+            #     done
+            # done            # mkdir results/dim_"$d"_pin_"$p"_tapp_"$t"_sched_"$s"
+            # cp -r results/our_mc* results/dim_"$d"_pin_"$p"_tapp_"$t"_sched_"$s"
+            # rm -rf results/our_mc*
         done
-        # for f in  "${flowsize[@]}"
-        # do
-        #     for i in "${iodepth[@]}"
-        #     do
-        #         for k in "${num_apps[@]}"
-        #         do
-        #             mkdir results/our_mc_"$f"_"$k"_"$i"
-        #             ./parse-netperf.py temp/dim_"$d"_pin_"$p"_tapp_"$t"_sched_"$s"/"$sys"_mc_"$f"_"$k"_"$i" $k > results/our_mc_"$f"_"$k"_"$i"/"$sys"_latency &
-        #             # PIDS="$PIDS $!"
-        #             # ./parse-breakdown-server.py temp/dim_"$d"_pin_"$p"_tapp_"$t"_sched_"$s"/"$sys"_mc_"$f"_"$k"_"$i" $k > results/our_mc_"$f"_"$k"_"$i"/"$sys"_latency_breakdown_s &
-        #             # ./parse-breakdown.py temp/dim_"$d"_pin_"$p"_tapp_"$t"_sched_"$s"/"$sys"_mc_"$f"_"$k"_"$i" $k >  results/our_mc_"$f"_"$k"_"$i"/"$sys"_latency_breakdown_c &
-        #             ./parse-breakdown-rx_sched_c.py temp/dim_"$d"_pin_"$p"_tapp_"$t"_sched_"$s"/"$sys"_mc_"$f"_"$k"_"$i" $k > results/our_mc_"$f"_"$k"_"$i"/"$sys"_latency_breakdown_rx_sched_c &
-        #             ./parse-breakdown-rx_sched_s.py temp/dim_"$d"_pin_"$p"_tapp_"$t"_sched_"$s"/"$sys"_mc_"$f"_"$k"_"$i" $k > results/our_mc_"$f"_"$k"_"$i"/"$sys"_latency_breakdown_rx_sched_s &
-        #             # ./parse-cpu.py temp/our_mc_"$f"_"$k"_"$i" $k $j > results/our_mc_"$f"_"$k"_"$i"/"$sys"_cpu &
-        #             # ./parse-compute.py temp/dim_"$d"_pin_"$p"_tapp_"$t"_sched_"$s"/"$sys"_mc_"$f"_"$k"_"$i" 2 > results/our_mc_"$f"_"$k"_"$i"/"$sys"_compute &
-        #         done
-        #     done
-        # done
-        sleep 10
-        # mkdir results/dim_"$d"_pin_"$p"_tapp_"$t"_sched_"$s"
-        # cp -r results/our_mc* results/dim_"$d"_pin_"$p"_tapp_"$t"_sched_"$s"
-        # rm -rf results/our_mc*
     done
 done
-
 
 # for f in "${flowsize[@]}"
 # do  

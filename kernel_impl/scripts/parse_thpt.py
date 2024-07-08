@@ -45,6 +45,7 @@ def main():
     for i in range(server):
         file_name = directory + "server_{}.log".format(i)
         total_thpt += calc_thpt(file_name)
+    print("total_throughput: ", total_thpt)
     # Open a file for writing
     with open("temp/thpt.log", "w") as file:
     # Write output to the file

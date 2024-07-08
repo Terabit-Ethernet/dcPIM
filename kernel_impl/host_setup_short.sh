@@ -60,7 +60,7 @@ sudo ethtool -U $INTF flow-type tcp4 src-port 14 dst-port 14 action 14 loc 46
 sudo service irqbalance stop
 sudo ethtool -C $INTF adaptive-rx off adaptive-tx off
 sudo ethtool -C $INTF rx-usecs 3
-sudo ethtool -K $INTF ntuple off gro on gso on tso on lro off
+sudo ethtool -K $INTF ntuple off gro on gso off tso off lro off
 #echo 32768 | sudo tee /proc/sys/net/core/rps_sock_flow_entries
 #for f in /sys/class/net/$INTF/queues/rx-*/rps_flow_cnt; do echo 32768 | sudo tee $f; done
 sudo set_irq_affinity.sh $INTF
