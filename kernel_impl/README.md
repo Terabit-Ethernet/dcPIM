@@ -120,17 +120,27 @@ sudo LD_PRELOAD=~/dcPIM/kernel_impl/custom_socket/socket_wrapper.so taskset -c 0
 ```
 
 ## Running Microbenchmark 
-The microbenchmark uses two servers with Mellanox Cx-5 NICs connected directly. 
-1. Change the IP addresses and interface names in '/kernel_impl/env.sh:'
+### Hardware/Software Configuration
+We have used the follwing hardware and software configurations for running the experiments.
+
+* CPU: 4-Socket Intel Xeon Gold 6234 3.3 GHz with 8 cores per socket (with hyperthreading enabled)
+* RAM: 384 GB
+* NIC: Mellanox ConnectX-5 Ex VPI (100 Gbps)
+* OS: Ubuntu 20.04 with Linux 6.0.3 (patched)
+
+To run experiments, the client will initiate scripts to run programs on both the client and server. The parameters, including HOST (client) IP address, TARGET (server) IP address, and interface names, need to be set properly in `kernel_impl/env.sh`:
 ```
 HOST=192.168.11.124
 TARGET=192.168.11.125
 INTF=ens2f1
+USER=qizhe
+TARGETDIR=/home/qizhe/
+TARGETC=128.84.155.146
 ```
-HOST is the client IP address, TARGET is the server IP address, and INTF is the host NIC name.
-
+Note: this requires you set up [accessing the remote server on the client without a password](https://builtin.com/articles/ssh-without-password).
 
 ### Long flow performance testing (using streaming interfaces)
+
 2. On the client side, setting up the server:
 ```
 ./host_setup.sh
@@ -140,6 +150,7 @@ On the target side, setting up the server:
 ```
 ./target_setup.sh
 ```
+Note: The script contains flow steering rules (e.g., ethtool flow type) that route flows to a CPU core based on five tuples. This is required for dcPIM to be compared against TCP with aRFS enabled. The actual rule setup may depend on the server configuration (e.g., which NUMA node the NIC is attached to, how many sockets the CPU has, and how many CPU cores each socket has). More details can be found [here](https://github.com/Terabit-Ethernet/Understanding-network-stack-overheads-SIGCOMM-2021) (Getting the Mapping Between CPU and Receive Queues of NIC).
 
 3. To run dcPIM, on the client side:
 
@@ -159,7 +170,7 @@ You can change the number of applications/flows to multiple hosts by modifying `
 LINE 1: num_apps=(1 2 3 4)
 ```
 ### Short flow performance testing (using message interfaces)
-The microbenchmark runs one-sided short message transfers from the host to the target to make an apple-to-apple comparison between dcPIM and TCP. Using ping-pong traffic, TCP will piggyback ACK packets in the request and response messages, reducing its CPU overhead compared to dcPIM. To measure the message completion time accurately, we need to enable time synchronization on both servers as data transmission is one-sided.
+The microbenchmark runs one-sided short message transfers from the host to the target to make an apple-to-apple comparison between dcPIM and TCP. If we use ping-pong traffic, TCP will piggyback ACK packets in the request and response messages, reducing its CPU overhead compared to dcPIM. To measure the message completion time accurately, we need to enable time synchronization on both servers as data transmission is one-sided.
 
 
 2. On the client side, setting up the server:

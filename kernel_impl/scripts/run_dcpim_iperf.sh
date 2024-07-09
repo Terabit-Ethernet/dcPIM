@@ -23,13 +23,14 @@ mkdir -p $DIR
 if [[ $DIM -eq 1 ]]
 then
 	echo "enable dim"
-	ssh $USER\@$TARGETC -t 'sudo ethtool -C $INTF adaptive-rx on adaptive-tx on'
+	ssh $USER\@$TARGETC -t "sudo ethtool -C $INTF adaptive-rx on adaptive-tx on"
 	sudo ethtool -C $INTF adaptive-rx on adaptive-tx on
 else
-	ssh $USER\@$TARGETC -t 'sudo ethtool -C $INTF adaptive-rx off adaptive-tx off'
-	ssh $USER\@$TARGETC -t 'sudo ethtool -C $INTF rx-usecs 6'
+	ssh $USER\@$TARGETC -t "sudo ethtool -C $INTF adaptive-rx off adaptive-tx off"
+	ssh $USER\@$TARGETC -t "sudo ethtool -C $INTF rx-usecs 6"
 	sudo ethtool -C $INTF adaptive-rx off adaptive-tx off
 	sudo ethtool -C $INTF rx-usecs 6
+	echo $ssh $USER\@$TARGETC -t "sudo ethtool -C $INTF adaptive-rx off adaptive-tx off"
 fi
 
 # incast
@@ -95,6 +96,7 @@ fi
 sleep 120
 
 # get compute log
+mkdir temp/
 scp -r $USER\@$TARGETC:~/server*.log temp/
 
 PIDS2="$!"
@@ -105,5 +107,5 @@ sudo killall iperf3 iperf
 
 ssh $USER\@$TARGETC -t 'sudo trace-cmd clear'
 ssh $USER\@$TARGETC -t 'sudo killall iperf3 iperf'
-ssh $USER\@$TARGETC -t 'sudo rm -rf /home/$USER/server_*.log'
+ssh $USER\@$TARGETC -t "sudo rm -rf /home/$USER/server_*.log"
 

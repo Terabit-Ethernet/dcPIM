@@ -18,7 +18,7 @@ sudo trace-cmd clear
 # echo $MTU
 #LOG=249
 # server-side
-ssh $USER\@$TARGETC -t 'sudo trace-cmd clear'
+ssh $USER\@$TARGETC -t "sudo trace-cmd clear"
 
 # TASKSET="0,4,8,12,16,20,24,28,32,36,40,44,48,52,56,60"
 TASKSET="0"
@@ -29,10 +29,10 @@ mkdir -p $DIR
 if [[ $DIM -eq 1 ]]
 then
 	echo "enable dim"
-	ssh $USER\@$TARGETC -t 'sudo ethtool -C $INTF adaptive-rx on adaptive-tx on'
+	ssh $USER\@$TARGETC -t "sudo ethtool -C $INTF adaptive-rx on adaptive-tx on"
 	sudo ethtool -C $INTF adaptive-rx on adaptive-tx on
 else
-	ssh $USER\@$TARGETC -t 'sudo ethtool -C $INTF adaptive-rx off adaptive-tx off'
+	ssh $USER\@$TARGETC -t "sudo ethtool -C $INTF adaptive-rx off adaptive-tx off"
 	ssh $USER\@$TARGETC -t "sudo ethtool -C $INTF rx-usecs $RXUSEC"
 	sudo ethtool -C $INTF adaptive-rx off adaptive-tx off
 	sudo ethtool -C $INTF rx-usecs $RXUSEC
@@ -61,7 +61,7 @@ sudo taskset -c $TASKSET nice -n -20 $TARGETDIR/dcPIM/kernel_impl/util/pingpong_
 echo sudo taskset -c $TASKSET nice -n -20 $TARGETDIR/dcPIM/kernel_impl/util/pingpong_client $TARGET:10000  --sp 10000 --count $NCLIENT --iodepth 1 --flowsize $FLOWSIZE --oneside ping
 
 sar -u 55 1 -P ALL > $DIR/cpu-"$NCLIENT".log &
-ssh $USER\@$TARGETC -t 'sar -u 55 1 -P ALL' > $DIR/cpu-server-"$NCLIENT".log &
+ssh $USER\@$TARGETC -t "sar -u 55 1 -P ALL" > $DIR/cpu-server-"$NCLIENT".log &
 
 if [[ $PERF -eq 1 ]]
 then
@@ -81,7 +81,7 @@ sudo trace-cmd clear
 sudo killall pingpong_client
 # server-side
 
-ssh $USER\@$TARGETC -t 'sudo trace-cmd clear'
-ssh $USER\@$TARGETC -t 'sudo killall pingpong_server'
-ssh $USER\@$TARGETC -t 'sudo rm -rf /home/$USER/server_*.log /home/$USER/netperf*.log /home/$USER/latency.log'
+ssh $USER\@$TARGETC -t "sudo trace-cmd clear"
+ssh $USER\@$TARGETC -t "sudo killall pingpong_server"
+ssh $USER\@$TARGETC -t "sudo rm -rf /home/$USER/server_*.log /home/$USER/netperf*.log /home/$USER/latency.log"
 
