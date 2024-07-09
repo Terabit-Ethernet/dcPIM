@@ -193,15 +193,19 @@ You can check if PTP is working by running this command:
 
 ```
 cd scripts/
-sudo ethtool -K $INTF gro on
 ./run_dcpim_short.sh
 ```
 
 5. To run TCP, on the client side:
 
+Sending messages over one socket pair:
 ```
-sudo ethtool -K $INTF gro off
 ./run_tcp_short.sh
+```
+
+Sending one message per socket pair:
+```
+./run_tcp_short_conn.sh
 ```
 Note running TCP needs to turn GRO (general receive offload) off as TCP may batch short messages together. dcPIM currently requires to enable GRO for using the  [kernel patch](#what-is-the-kernel-pat. But GRO won't affect the performance of dcPIM short messages.
 
