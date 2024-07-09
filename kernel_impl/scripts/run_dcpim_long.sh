@@ -1,4 +1,4 @@
-num_apps=(3)
+num_apps=(1)
 dim=(0)
 # 2: one-to-one
 workload=(2)
