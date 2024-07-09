@@ -32,6 +32,9 @@ else
 	sudo ethtool -C ens2f1np1 rx-usecs $RXUSEC
 fi
 
+ssh jaehyun\@128.84.155.146 -t "sudo ethtool -K ens2f1np1 ntuple off gro off gso off tso off lro off"
+sudo ethtool -K ens2f1np1 ntuple off gro off gso off tso off lro off
+
 ssh jaehyun\@128.84.155.146 -t "sudo ifconfig ens2f1np1 mtu $MTU"
 sudo ifconfig ens2f1np1 mtu $MTU
 
