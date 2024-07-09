@@ -203,7 +203,7 @@ sudo ethtool -K $INTF gro on
 sudo ethtool -K $INTF gro off
 ./run_tcp_short.sh
 ```
-Note running TCP needs to turn GRO (general receive offload) off as TCP may batch short messages together. dcPIM currently requires to enable GRO for using the [kernel patch](what-is-the-kernel-patch-for). But GRO won't affect the performance of dcPIM short messages.
+Note running TCP needs to turn GRO (general receive offload) off as TCP may batch short messages together. dcPIM currently requires to enable GRO for using the [kernel patch](what-is-the-kernel-patch-for?). But GRO won't affect the performance of dcPIM short messages.
 
 ## What is the kernel patch for?
 Modern NICs often come equipped with multiple hardware (HW) queues, with each HW queue corresponding to a CPU core. In the RX data path, when a packet is received, the NIC may calculate its hash and distribute it to a dedicated HW queue based on this hash. The hash value can be determined by either the five tuples or the two tuples (source and destination IP addresses). Typically, for TCP or UDP traffic, packets belonging to different flows can be routed to different HW queues based on their five tuples. This enables multiple CPU cores to be activated for processing packets, resulting in optimal performance.
