@@ -2,7 +2,7 @@ num_apps=(1)
 dim=(0)
 # 2: one-to-one
 workload=(2)
-perf=1
+perf=0
 sys="dcpim"
 for d in "${dim[@]}"
 do  

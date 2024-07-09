@@ -2,7 +2,7 @@ num_apps=(1)
 dim=(1)
 # 2: one-to-one
 workload=(2)
-perf=1
+perf=0
 sys="tcp"
 for d in "${dim[@]}"
 do  

@@ -14,7 +14,7 @@ sudo trace-cmd clear
 
 #LOG=249
 # server-side
-ssh $USER\@$TARGETC -t 'sudo trace-cmd clear'
+ssh $USER\@$TARGETC -t "sudo trace-cmd clear"
 
 # TASKSET="0,4,8,12,16,20,24,28,32,36,40,44,48,52,56,60"
 TASKSET="0"
@@ -23,11 +23,11 @@ mkdir -p $DIR
 if [[ $DIM -eq 1 ]]
 then
 	echo "enable dim"
-	ssh $USER\@$TARGETC -t 'sudo ethtool -C $INTF adaptive-rx on adaptive-tx on'
+	ssh $USER\@$TARGETC -t "sudo ethtool -C $INTF adaptive-rx on adaptive-tx on"
 	sudo ethtool -C $INTF adaptive-rx on adaptive-tx on
 else
-	ssh $USER\@$TARGETC -t 'sudo ethtool -C $INTF adaptive-rx off adaptive-tx off'
-	ssh $USER\@$TARGETC -t 'sudo ethtool -C $INTF rx-usecs 6'
+	ssh $USER\@$TARGETC -t "sudo ethtool -C $INTF adaptive-rx off adaptive-tx off"
+	ssh $USER\@$TARGETC -t "sudo ethtool -C $INTF rx-usecs 6"
 	sudo ethtool -C $INTF adaptive-rx off adaptive-tx off
 	sudo ethtool -C $INTF rx-usecs 6
 fi
@@ -83,7 +83,7 @@ then
 fi
 
 sar -u 55 1 -P ALL > $DIR/cpu-"$NCLIENT".log &
-ssh $USER\@$TARGETC -t 'sar -u 55 1 -P ALL' > $DIR/cpu-server-"$NCLIENT".log &
+ssh $USER\@$TARGETC -t "sar -u 55 1 -P ALL" > $DIR/cpu-server-"$NCLIENT".log &
 
 if [[ $PERF -eq 1 ]]
 then
@@ -94,6 +94,7 @@ fi
 sleep 120
 
 # get compute log
+mkdir temp/
 scp -r $USER\@$TARGETC:~/server*.log temp/
 
 PIDS2="$!"
@@ -102,7 +103,7 @@ sudo trace-cmd clear
 sudo killall iperf3
 # server-side
 
-ssh $USER\@$TARGETC -t 'sudo trace-cmd clear'
-ssh $USER\@$TARGETC -t 'sudo killall iperf3'
-ssh $USER\@$TARGETC -t 'sudo rm -rf /home/$USER/server_*.log'
+ssh $USER\@$TARGETC -t "sudo trace-cmd clear"
+ssh $USER\@$TARGETC -t "sudo killall iperf3"
+ssh $USER\@$TARGETC -t "sudo rm -rf /home/$USER/server_*.log"
 
