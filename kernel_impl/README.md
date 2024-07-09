@@ -120,9 +120,90 @@ sudo LD_PRELOAD=~/dcPIM/kernel_impl/custom_socket/socket_wrapper.so taskset -c 0
 ```
 
 ## Running Microbenchmark 
-### Long flow performance testing (using streaming interfaces)
+The microbenchmark uses two servers with Mellanox Cx-5 NICs connected directly. 
+1. Change the IP addresses and interface names in '/kernel_impl/env.sh:'
+```
+HOST=192.168.11.124
+TARGET=192.168.11.125
+INTF=ens2f1
+```
+HOST is the client IP address, TARGET is the server IP address, and INTF is the host NIC name.
 
+
+### Long flow performance testing (using streaming interfaces)
+2. On the client side, setting up the server:
+```
+./host_setup.sh
+```
+
+On the target side, setting up the server:
+```
+./target_setup.sh
+```
+
+3. To run dcPIM, on the client side:
+
+```
+cd scripts/
+./run_dcpim_long.sh
+```
+
+To run TCP, on the client side:
+
+```
+./run_tcp_long.sh
+```
+
+You can change the number of applications/flows to multiple hosts by modifying `run_dcpim_long.sh` and `run_tcp_long.sh`:
+```
+LINE 1: num_apps=(1 2 3 4)
+```
 ### Short flow performance testing (using message interfaces)
+The microbenchmark runs one-sided short message transfers from the host to the target to make an apple-to-apple comparison between dcPIM and TCP. Using ping-pong traffic, TCP will piggyback ACK packets in the request and response messages, reducing its CPU overhead compared to dcPIM. To measure the message completion time accurately, we need to enable time synchronization on both servers as data transmission is one-sided.
+
+
+2. On the client side, setting up the server:
+```
+./host_setup_short.sh
+```
+
+On the target side, setting up the server:
+```
+./target_setup_short.sh
+```
+3. Setting up the PTP time synchoronization on both servers:
+
+Installing PTP:
+```
+cd ptp/
+./ptp_install.sh
+```
+
+Running PTP setup commands at the same time:
+```
+./ptp_setup.sh
+```
+
+You can check if PTP is working by running this command:
+```
+./ptp_check.sh
+```
+
+4. To run dcPIM, on the client side:
+
+```
+cd scripts/
+sudo ethtool -K $INTF gro on
+./run_dcpim_short.sh
+```
+
+5. To run TCP, on the client side:
+
+```
+sudo ethtool -K $INTF gro off
+./run_tcp_short.sh
+```
+Note running TCP needs to turn GRO (general receive offload) off as TCP may batch short messages together. dcPIM currently requires to enable GRO for using the [kernel patch](what-is-the-kernel-patch-for). But GRO won't affect the performance of dcPIM short messages.
 
 ## What is the kernel patch for?
 Modern NICs often come equipped with multiple hardware (HW) queues, with each HW queue corresponding to a CPU core. In the RX data path, when a packet is received, the NIC may calculate its hash and distribute it to a dedicated HW queue based on this hash. The hash value can be determined by either the five tuples or the two tuples (source and destination IP addresses). Typically, for TCP or UDP traffic, packets belonging to different flows can be routed to different HW queues based on their five tuples. This enables multiple CPU cores to be activated for processing packets, resulting in optimal performance.
