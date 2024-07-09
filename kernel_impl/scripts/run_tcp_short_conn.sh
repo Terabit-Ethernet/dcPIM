@@ -12,7 +12,7 @@ do
         do
             for k in "${num_apps[@]}"
             do
-                ./run_"$sys"_ping.sh $k temp/ $d $perf $p $r
+                ./run_"$sys"_ping_conn.sh $k temp/ $d $perf $p $r
                 sleep 20
                 python3 parse-netperf.py temp/ $k > temp/result.log
                 # rm -rf temp/netperf*.log
